@@ -1,0 +1,51 @@
+
+@keyframes authShimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes authSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background-size: 1000px 100%;
+  animation: authShimmer 3s infinite;
+  pointer-events: none;
+}
+
+.auth-spinner {
+  animation: authSpin 0.8s linear infinite;
+}
+
+.auth-input-code {
+  letter-spacing: 4px;
+}
+
+@media (min-width: 769px) {
+  .auth-input-code {
+    letter-spacing: 8px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .auth-container {
+    margin-top: -65px !important;
+  }
+
+  .auth-container--form {
+    margin-top: -70px !important;
+  }
+}
