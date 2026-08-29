@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
+import { Button } from 'react-bootstrap';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
@@ -10,7 +11,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { MessageBubble } from './MessageBubble';
-import { MessageInput } from './MessageInput';
+import { MessageInput, type MessageInputHandle } from './MessageInput';
 import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
@@ -61,9 +62,11 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const { messages, typingUserIds } = useRoomMessages(room?.id ?? null, user.id);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<MessageInputHandle>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
+  const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,6 +75,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   useEffect(() => {
     setIsInfoOpen(false);
     setSelectedMessageId(null);
+    setRepliedMessage(null);
   }, [room?.id]);
 
   useEffect(() => {
@@ -85,8 +89,15 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   }
 
   const handleSend = (content: string) => {
-    socket?.emit('message:send', { roomId: room.id, content });
+    socket?.emit('message:send', { roomId: room.id, content, replyToMessageId: repliedMessage?.id });
+    setRepliedMessage(null);
     notifyStoppedTyping();
+  };
+
+  const handleReply = (message: MessageView) => {
+    setRepliedMessage(message);
+    setSelectedMessageId(message.id);
+    setTimeout(() => messageInputRef.current?.focus(), 100);
   };
 
   const handleLeftGroup = () => {
@@ -172,6 +183,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                   currentNickname={user.nickname}
                   isSelected={selectedMessageId === message.id}
                   onSelect={() => setSelectedMessageId(message.id)}
+                  onReply={() => handleReply(message)}
                   onDelete={() => setMessageIdPendingDelete(message.id)}
                 />
               </div>
@@ -222,7 +234,42 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      <MessageInput onSend={handleSend} onTyping={notifyTyping} />
+      {repliedMessage && (
+        <div
+          style={{
+            background: theme.surfaceLight,
+            padding: '12px 18px',
+            borderLeft: `4px solid ${theme.primary}`,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderTop: `1px solid ${theme.border}`,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '4px' }}>
+              Respondendo {repliedMessage.sender.id === user.id ? 'a você mesmo' : `a ${repliedMessage.sender.nickname}`}
+            </div>
+            <div
+              style={{
+                fontSize: '0.9rem',
+                color: theme.text,
+                maxWidth: '300px',
+                overflow: 'hidden',
+              }}
+            >
+              <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {repliedMessage.content}
+              </span>
+            </div>
+          </div>
+          <Button variant="link" onClick={() => setRepliedMessage(null)} style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto' }}>
+            ✕
+          </Button>
+        </div>
+      )}
+
+      <MessageInput ref={messageInputRef} onSend={handleSend} onTyping={notifyTyping} />
 
       <ConfirmDialog
         isOpen={messageIdPendingDelete !== null}

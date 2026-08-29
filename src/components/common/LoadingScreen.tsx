@@ -1,8 +1,10 @@
 import Logo from '@/assets/Logo.svg';
-
-const DEFAULT_GRADIENT = 'linear-gradient(135deg, #516ce4 0%, #7e37b9 50%, #516ce4 100%)';
+import { useTheme } from '@features/theme';
 
 export function LoadingScreen() {
+  const { theme } = useTheme();
+  const gradient = `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 50%, ${theme.primary} 100%)`;
+
   return (
     <div
       style={{
@@ -10,7 +12,7 @@ export function LoadingScreen() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: DEFAULT_GRADIENT,
+        background: gradient,
         position: 'relative',
         overflow: 'hidden',
       }}

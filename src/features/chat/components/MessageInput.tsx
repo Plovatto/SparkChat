@@ -1,17 +1,28 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState, type FormEvent } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { FaPaperPlane } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
+
+export interface MessageInputHandle {
+  focus: () => void;
+}
 
 interface MessageInputProps {
   onSend: (content: string) => void;
   onTyping: () => void;
 }
 
-export function MessageInput({ onSend, onTyping }: MessageInputProps) {
+export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
+  { onSend, onTyping },
+  ref,
+) {
   const { theme } = useTheme();
   const [message, setMessage] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -95,4 +106,4 @@ export function MessageInput({ onSend, onTyping }: MessageInputProps) {
       )}
     </Form>
   );
-}
+});
