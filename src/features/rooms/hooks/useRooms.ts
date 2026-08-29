@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSocket, type MessageView, type RoomSummary } from '@lib/socket';
+import { useSocket, type BlockStatusPayload, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 
 export interface RoomsState {
   rooms: RoomSummary[];
   isLoaded: boolean;
 }
 
-export function useRooms(selectedRoomId: string | null): RoomsState {
+export function useRooms(selectedRoomId: string | null, currentUserId: string | undefined): RoomsState {
   const { socket } = useSocket();
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -52,6 +52,17 @@ export function useRooms(selectedRoomId: string | null): RoomsState {
       );
     };
 
+    const handleProfileUpdated = ({ userId, nickname, avatar }: { userId: string; nickname: string; avatar: number }) => {
+      setRooms((previous) =>
+        previous.map((room) => ({
+          ...room,
+          participants: room.participants.map((participant) =>
+            participant.id === userId ? { ...participant, nickname, avatar } : participant,
+          ),
+        })),
+      );
+    };
+
     const handleMessageNew = (message: MessageView) => {
       setRooms((previous) =>
         previous.map((room) => {
@@ -73,8 +84,40 @@ export function useRooms(selectedRoomId: string | null): RoomsState {
       setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, unreadCount } : room)));
     };
 
+    const handleMessageDeleted = ({ messageId, roomId }: { messageId: string; roomId: string }) => {
+      setRooms((previous) =>
+        previous.map((room) =>
+          room.id === roomId && room.lastMessage?.id === messageId
+            ? { ...room, lastMessage: { ...room.lastMessage, deletedForEveryone: true, content: '' } }
+            : room,
+        ),
+      );
+    };
+
     const handleRoomDeleted = ({ roomId }: { roomId: string }) => {
       setRooms((previous) => previous.filter((room) => room.id !== roomId));
+    };
+
+    const handleGroupLeft = ({ roomId }: { roomId: string }) => {
+      setRooms((previous) => previous.filter((room) => room.id !== roomId));
+    };
+
+    const handleGroupUserLeft = ({ roomId, participants }: { roomId: string; participants: RoomParticipant[] }) => {
+      setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, participants } : room)));
+    };
+
+    const handleBlockStatusChanged = ({ roomId, blockedBy }: BlockStatusPayload) => {
+      setRooms((previous) =>
+        previous.map((room) => {
+          if (room.id !== roomId) {
+            return room;
+          }
+
+          const isBlockedBy = Boolean(currentUserId && blockedBy[currentUserId]);
+          const userBlocked = Boolean(currentUserId && Object.values(blockedBy).includes(currentUserId));
+          return { ...room, blockedBy, isBlockedBy, userBlocked, isMutuallyBlocked: isBlockedBy && userBlocked };
+        }),
+      );
     };
 
     socket.on('user:registered', requestRooms);
@@ -83,10 +126,16 @@ export function useRooms(selectedRoomId: string | null): RoomsState {
     socket.on('room:joined', handleRoomUpserted);
     socket.on('room:new', handleRoomUpserted);
     socket.on('room:deleted', handleRoomDeleted);
+    socket.on('group:left', handleGroupLeft);
+    socket.on('group:user-left', handleGroupUserLeft);
+    socket.on('user:blocked', handleBlockStatusChanged);
+    socket.on('user:unblocked', handleBlockStatusChanged);
     socket.on('user:online', handleUserOnline);
     socket.on('user:offline', handleUserOffline);
+    socket.on('user:profile-updated', handleProfileUpdated);
     socket.on('message:new', handleMessageNew);
     socket.on('message:mark-read-done', handleMarkReadDone);
+    socket.on('message:deleted', handleMessageDeleted);
 
     return () => {
       socket.off('user:registered', requestRooms);
@@ -95,12 +144,18 @@ export function useRooms(selectedRoomId: string | null): RoomsState {
       socket.off('room:joined', handleRoomUpserted);
       socket.off('room:new', handleRoomUpserted);
       socket.off('room:deleted', handleRoomDeleted);
+      socket.off('group:left', handleGroupLeft);
+      socket.off('group:user-left', handleGroupUserLeft);
+      socket.off('user:blocked', handleBlockStatusChanged);
+      socket.off('user:unblocked', handleBlockStatusChanged);
       socket.off('user:online', handleUserOnline);
       socket.off('user:offline', handleUserOffline);
+      socket.off('user:profile-updated', handleProfileUpdated);
       socket.off('message:new', handleMessageNew);
       socket.off('message:mark-read-done', handleMarkReadDone);
+      socket.off('message:deleted', handleMessageDeleted);
     };
-  }, [socket, upsertRoom, selectedRoomId]);
+  }, [socket, upsertRoom, selectedRoomId, currentUserId]);
 
   return { rooms, isLoaded };
 }

@@ -44,10 +44,12 @@ export function useSocketAuthSync({ user, onRegistered, onError }: SocketAuthSyn
     };
 
     socket.on('user:registered', handleRegistered);
+    socket.on('user:profile-updated-success', handleRegistered);
     socket.on('error', handleError);
 
     return () => {
       socket.off('user:registered', handleRegistered);
+      socket.off('user:profile-updated-success', handleRegistered);
       socket.off('error', handleError);
     };
   }, [socket, onRegistered, onError]);
