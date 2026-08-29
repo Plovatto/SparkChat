@@ -1,8 +1,10 @@
-import { Button, Card, Container } from 'react-bootstrap';
+import { useState } from 'react';
+import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
-import { AVATARS } from '@features/auth/constants/avatars';
+import { EmptyChatState } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
+import { Sidebar, useRooms, type RoomSummary } from '@features/rooms';
 import { SocketProvider } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -37,72 +39,60 @@ function AuthGate({ user, isRestoring, onLogin, onLogout, onUserUpdate }: AuthGa
 
   return (
     <AppBackground>
-      {!user ? (
-        <LoginScreen onAuthenticated={onLogin} />
-      ) : (
-        <AuthenticatedPlaceholder user={user} onLogout={onLogout} />
-      )}
+      {!user ? <LoginScreen onAuthenticated={onLogin} /> : <ChatShell user={user} onLogout={onLogout} />}
     </AppBackground>
   );
 }
 
-interface AuthenticatedPlaceholderProps {
+interface ChatShellProps {
   user: User;
   onLogout: () => void;
 }
 
-function AuthenticatedPlaceholder({ user, onLogout }: AuthenticatedPlaceholderProps) {
+function ChatShell({ user, onLogout }: ChatShellProps) {
+  const { rooms, isLoaded } = useRooms();
+  const [selectedRoom, setSelectedRoom] = useState<RoomSummary | null>(null);
+
+  if (!isLoaded) {
+    return (
+      <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="text-center">
+          <div className="loading-spinner" style={{ width: '60px', height: '60px', margin: '0 auto 20px', border: '4px solid rgba(166, 166, 166, 0.3)', borderTop: '4px solid #ffffff', borderRadius: '50%' }} />
+          <p style={{ color: '#ffffff', fontSize: '1rem' }}>Carregando conversas...</p>
+        </div>
+      </Container>
+    );
+  }
+
   return (
-    <Container fluid className="d-flex align-items-center justify-content-center" style={{ minHeight: '100vh' }}>
-      <Card style={{ maxWidth: '420px', width: '100%', borderRadius: '24px' }} className="text-center p-4">
-        <Card.Body>
-          <AvatarBadge avatarIndex={user.avatar} />
-          <h4 className="mb-1">Olá, {user.nickname}!</h4>
-          <p className="text-muted mb-3">
-            {user.chatCode ? (
-              <>
-                Seu código de chat: <strong>{user.chatCode}</strong>
-              </>
-            ) : (
-              'Conectando...'
-            )}
-          </p>
-          <p className="text-muted small mb-4">
-            A área de conversas chega na próxima fase. Por enquanto, sua sessão já está autenticada e sincronizada
-            com o servidor em tempo real.
-          </p>
-          <Button variant="outline-secondary" onClick={onLogout}>
-            Sair
-          </Button>
-        </Card.Body>
-      </Card>
+    <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', padding: 0 }}>
+      <div style={{ height: '100%' }}>
+        <Card style={{ borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', height: '100%', border: 'none', overflow: 'hidden' }}>
+          <Row style={{ height: '100%', margin: 0 }}>
+            <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }}>
+              <Sidebar
+                user={user}
+                rooms={rooms}
+                selectedRoomId={selectedRoom?.id ?? null}
+                onSelectRoom={setSelectedRoom}
+                onNewChat={() => {}}
+                onLogout={onLogout}
+              />
+            </Col>
+            <Col lg={8} md={7} xs={12} style={{ padding: 0, height: '100%' }} className="d-none d-md-block">
+              <EmptyChatState selectedRoomName={selectedRoom ? roomDisplayName(selectedRoom, user.id) : undefined} />
+            </Col>
+          </Row>
+        </Card>
+      </div>
     </Container>
   );
 }
 
-function AvatarBadge({ avatarIndex }: { avatarIndex: number }) {
-  const avatar = AVATARS[avatarIndex];
-
-  if (!avatar) {
-    return null;
+function roomDisplayName(room: RoomSummary, userId: string | undefined): string {
+  if (room.type === 'group') {
+    return room.name ?? 'Grupo';
   }
 
-  const Icon = avatar.icon;
-
-  return (
-    <div
-      style={{
-        width: '72px',
-        height: '72px',
-        borderRadius: '16px',
-        margin: '0 auto 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: avatar.bgGradient,
-      }}
-    >
-      <Icon size={36} color="white" />
-    </div>
-  );
+  return room.participants.find((participant) => participant.id !== userId)?.nickname ?? 'Usuário';
 }
