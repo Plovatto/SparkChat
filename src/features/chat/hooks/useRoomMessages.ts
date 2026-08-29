@@ -5,6 +5,7 @@ export interface RoomMessagesState {
   messages: MessageView[];
   isLoaded: boolean;
   typingUserIds: string[];
+  recordingUserIds: string[];
 }
 
 export function useRoomMessages(roomId: string | null, currentUserId: string | undefined): RoomMessagesState {
@@ -12,11 +13,13 @@ export function useRoomMessages(roomId: string | null, currentUserId: string | u
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
+  const [recordingUserIds, setRecordingUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     setMessages([]);
     setIsLoaded(false);
     setTypingUserIds([]);
+    setRecordingUserIds([]);
   }, [roomId]);
 
   useEffect(() => {
@@ -62,6 +65,13 @@ export function useRoomMessages(roomId: string | null, currentUserId: string | u
       setTypingUserIds(users.filter((userId) => userId !== currentUserId));
     };
 
+    const handleRecordingUpdate = ({ roomId: recordingRoomId, users }: { roomId: string; users: string[] }) => {
+      if (recordingRoomId !== roomId) {
+        return;
+      }
+      setRecordingUserIds(users.filter((userId) => userId !== currentUserId));
+    };
+
     const handleMessageDeleted = ({ messageId, roomId: deletedRoomId }: { messageId: string; roomId: string }) => {
       if (deletedRoomId !== roomId) {
         return;
@@ -73,20 +83,31 @@ export function useRoomMessages(roomId: string | null, currentUserId: string | u
       );
     };
 
+    const handleMessageUpdated = (updated: MessageView) => {
+      if (updated.roomId !== roomId) {
+        return;
+      }
+      setMessages((previous) => previous.map((message) => (message.id === updated.id ? updated : message)));
+    };
+
     socket.on('messages:list', handleMessagesList);
     socket.on('message:new', handleMessageNew);
     socket.on('message:read-receipt', handleReadReceipt);
     socket.on('typing:update', handleTypingUpdate);
+    socket.on('recording:update', handleRecordingUpdate);
     socket.on('message:deleted', handleMessageDeleted);
+    socket.on('message:updated', handleMessageUpdated);
 
     return () => {
       socket.off('messages:list', handleMessagesList);
       socket.off('message:new', handleMessageNew);
       socket.off('message:read-receipt', handleReadReceipt);
       socket.off('typing:update', handleTypingUpdate);
+      socket.off('recording:update', handleRecordingUpdate);
       socket.off('message:deleted', handleMessageDeleted);
+      socket.off('message:updated', handleMessageUpdated);
     };
   }, [socket, roomId, currentUserId]);
 
-  return { messages, isLoaded, typingUserIds };
+  return { messages, isLoaded, typingUserIds, recordingUserIds };
 }
