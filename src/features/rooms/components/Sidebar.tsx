@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaComments, FaCopy, FaPlus, FaSignOutAlt } from 'react-icons/fa';
+import { FaCheckSquare, FaComments, FaCopy, FaPlus, FaSignOutAlt, FaSquare, FaTimes, FaTrash } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
+import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { DEFAULT_ROOM_THEME } from '../constants/default-theme';
 import type { RoomSummary } from '../types';
 import { RoomListItem } from './RoomListItem';
@@ -14,11 +15,42 @@ interface SidebarProps {
   onSelectRoom: (room: RoomSummary) => void;
   onNewChat: () => void;
   onLogout: () => void;
+  onDeleteRooms: (roomIds: string[]) => void;
 }
 
-export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, onLogout }: SidebarProps) {
+export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, onLogout, onDeleteRooms }: SidebarProps) {
   const [codeCopied, setCodeCopied] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const theme = DEFAULT_ROOM_THEME;
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode((previous) => !previous);
+    setSelectedIds(new Set());
+  };
+
+  const toggleRoomSelected = (roomId: string) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (next.has(roomId)) {
+        next.delete(roomId);
+      } else {
+        next.add(roomId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((previous) => (previous.size === rooms.length ? new Set() : new Set(rooms.map((room) => room.id))));
+  };
+
+  const confirmDelete = () => {
+    onDeleteRooms(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
 
   const copyCode = () => {
     if (!user.chatCode || !navigator.clipboard) {
@@ -174,6 +206,7 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
           borderBottom: `1px solid ${theme.border}`,
           background: theme.sidebarBg,
           flexShrink: 0,
+          gap: '8px',
         }}
       >
         <h6
@@ -189,6 +222,100 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
         >
           Conversas
         </h6>
+
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {rooms.length > 0 && (
+            <button
+              onClick={toggleSelectionMode}
+              title={isSelectionMode ? 'Fechar modo seleção' : 'Entrar no modo seleção'}
+              style={{
+                background: isSelectionMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.08)',
+                border: isSelectionMode ? '1.5px solid rgba(239, 68, 68, 0.3)' : `1.5px solid ${theme.border}`,
+                color: isSelectionMode ? '#ef4444' : theme.text,
+                borderRadius: '8px',
+                padding: isSelectionMode ? '6px 8px' : '6px 12px',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                justifyContent: 'center',
+                minWidth: isSelectionMode ? '32px' : 'auto',
+                height: isSelectionMode ? '32px' : 'auto',
+                width: isSelectionMode ? '32px' : 'auto',
+              }}
+              onMouseEnter={(event) => {
+                if (!isSelectionMode) {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                  event.currentTarget.style.borderColor = theme.primary;
+                } else {
+                  event.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+                  event.currentTarget.style.borderColor = '#ef4444';
+                }
+              }}
+              onMouseLeave={(event) => {
+                if (!isSelectionMode) {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  event.currentTarget.style.borderColor = theme.border;
+                } else {
+                  event.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                  event.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                }
+              }}
+            >
+              {isSelectionMode ? (
+                <FaTimes size={14} />
+              ) : (
+                <>
+                  <FaCheckSquare size={12} /> Selecionar
+                </>
+              )}
+            </button>
+          )}
+
+          {isSelectionMode && (
+            <button
+              onClick={toggleSelectAll}
+              title={selectedIds.size === rooms.length ? 'Desmarcar tudo' : 'Selecionar tudo'}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: `1.5px solid ${theme.border}`,
+                color: theme.text,
+                borderRadius: '8px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = theme.surfaceLight;
+                event.currentTarget.style.borderColor = theme.primary;
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                event.currentTarget.style.borderColor = theme.border;
+              }}
+            >
+              {selectedIds.size === rooms.length ? (
+                <>
+                  <FaSquare size={11} />
+                  Desmarcar Tudo
+                </>
+              ) : (
+                <>
+                  <FaCheckSquare size={11} />
+                  Selecionar Tudo
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
@@ -208,11 +335,64 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
                 isSelected={room.id === selectedRoomId}
                 onSelect={() => onSelectRoom(room)}
                 theme={theme}
+                isSelectionMode={isSelectionMode}
+                isChecked={selectedIds.has(room.id)}
+                onToggleSelect={() => toggleRoomSelected(room.id)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {isSelectionMode && selectedIds.size > 0 && (
+        <div
+          style={{
+            background: theme.surfaceLight,
+            borderTop: `1px solid ${theme.border}`,
+            padding: '12px',
+            display: 'flex',
+            gap: '8px',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <button
+            onClick={() => setShowConfirmDelete(true)}
+            style={{
+              background: '#ef4444',
+              border: 'none',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = '#dc2626';
+              event.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = '#ef4444';
+              event.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <FaTrash size={14} />
+            Excluir ({selectedIds.size})
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={showConfirmDelete}
+        title="Excluir Conversas"
+        message={`Tem certeza que quer excluir ${selectedIds.size} conversa${selectedIds.size > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowConfirmDelete(false)}
+        theme={theme}
+      />
     </div>
   );
 }
