@@ -274,12 +274,23 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                 fontSize: '0.9rem',
                 color: theme.text,
                 maxWidth: '300px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 overflow: 'hidden',
               }}
             >
-              <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {repliedMessage.content}
-              </span>
+              {repliedMessage.type === 'image' ? (
+                <img
+                  src={repliedMessage.content}
+                  alt="thumb"
+                  style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
+                />
+              ) : (
+                <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {repliedMessage.content}
+                </span>
+              )}
             </div>
           </div>
           <Button variant="link" onClick={() => setRepliedMessage(null)} style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto' }}>
