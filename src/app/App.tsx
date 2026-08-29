@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { ChatArea } from '@features/chat';
@@ -63,6 +63,22 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
     }
   };
 
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const openRoom = ({ room }: { room: { id: string } }) => setSelectedRoomId(room.id);
+
+    socket.on('room:joined', openRoom);
+    socket.on('room:created', openRoom);
+
+    return () => {
+      socket.off('room:joined', openRoom);
+      socket.off('room:created', openRoom);
+    };
+  }, [socket]);
+
   if (!isLoaded) {
     return (
       <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -79,7 +95,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
       <div style={{ height: '100%' }}>
         <Card style={{ borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', height: '100%', border: 'none', overflow: 'hidden' }}>
           <Row style={{ height: '100%', margin: 0 }}>
-            <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }}>
+            <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }} className={selectedRoom ? 'd-none d-md-block' : undefined}>
               <Sidebar
                 user={user}
                 rooms={rooms}
@@ -90,8 +106,14 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
                 onDeleteRooms={handleDeleteRooms}
               />
             </Col>
-            <Col lg={8} md={7} xs={12} style={{ padding: 0, height: '100%' }} className="d-none d-md-block">
-              <ChatArea room={selectedRoom} user={user} />
+            <Col
+              lg={8}
+              md={7}
+              xs={12}
+              style={{ padding: 0, height: '100%' }}
+              className={selectedRoom ? 'd-block' : 'd-none d-md-block'}
+            >
+              <ChatArea room={selectedRoom} user={user} onBack={() => setSelectedRoomId(null)} />
             </Col>
           </Row>
         </Card>
