@@ -1,10 +1,10 @@
 import { useEffect, useState, type PropsWithChildren } from 'react';
+import { useTheme } from '@features/theme';
 
-const DEFAULT_GRADIENT = 'linear-gradient(130deg, #516ce4 0%, #7e37b9 100%)';
 const MOBILE_USER_AGENT_PATTERN = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
 
-
 export function AppBackground({ children }: PropsWithChildren) {
+  const { theme } = useTheme();
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -19,7 +19,7 @@ export function AppBackground({ children }: PropsWithChildren) {
         alignItems: 'center',
         justifyContent: 'center',
         padding: isMobile ? '15px' : '20px',
-        background: DEFAULT_GRADIENT,
+        background: theme.headerGradient,
         position: 'relative',
         overflow: 'hidden',
       }}
