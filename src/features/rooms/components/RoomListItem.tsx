@@ -1,5 +1,5 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCircle, FaComments, FaUser } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaSquare, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import type { RoomThemePalette } from '../constants/default-theme';
@@ -11,6 +11,9 @@ interface RoomListItemProps {
   isSelected: boolean;
   onSelect: () => void;
   theme: RoomThemePalette;
+  isSelectionMode: boolean;
+  isChecked: boolean;
+  onToggleSelect: () => void;
 }
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
@@ -114,16 +117,22 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   );
 }
 
-export function RoomListItem({ room, user, isSelected, onSelect, theme }: RoomListItemProps) {
+export function RoomListItem({ room, user, isSelected, onSelect, theme, isSelectionMode, isChecked, onToggleSelect }: RoomListItemProps) {
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
 
   return (
     <div
-      onClick={onSelect}
+      onClick={isSelectionMode ? onToggleSelect : onSelect}
       className="animate__animated animate__fadeInLeft animate__faster"
       style={{
-        background: isSelected ? theme.surfaceLight : theme.surface,
+        background: isSelectionMode
+          ? isChecked
+            ? `${theme.primary}33`
+            : theme.surface
+          : isSelected
+            ? theme.surfaceLight
+            : theme.surface,
         borderRadius: '12px',
         padding: '12px',
         cursor: 'pointer',
@@ -133,16 +142,27 @@ export function RoomListItem({ room, user, isSelected, onSelect, theme }: RoomLi
         border: '1.5px solid transparent',
       }}
       onMouseEnter={(event) => {
+        if (isSelectionMode) {
+          return;
+        }
         if (!isSelected) {
           event.currentTarget.style.background = theme.surfaceLight;
         }
       }}
       onMouseLeave={(event) => {
+        if (isSelectionMode) {
+          return;
+        }
         if (!isSelected) {
           event.currentTarget.style.background = theme.surface;
         }
       }}
     >
+      {isSelectionMode && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', flexShrink: 0 }}>
+          {isChecked ? <FaCheckSquare size={18} color={theme.primary} /> : <FaSquare size={18} color={theme.border} />}
+        </div>
+      )}
       <div
         style={{
           position: 'relative',
