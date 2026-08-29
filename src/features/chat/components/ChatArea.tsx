@@ -6,12 +6,13 @@ import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useSocket, type MessageView } from '@lib/socket';
+import { uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { MessageBubble } from './MessageBubble';
-import { MessageInput, type MessageInputHandle } from './MessageInput';
+import { MessageInput, type MessageInputHandle, type MessageInputSubmitPayload } from './MessageInput';
 import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
@@ -88,8 +89,26 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const handleSend = (content: string) => {
-    socket?.emit('message:send', { roomId: room.id, content, replyToMessageId: repliedMessage?.id });
+  const sendImageMessage = async (file: File, replyToMessageId: string | undefined) => {
+    try {
+      const content = await uploadChatImage(file);
+      socket?.emit('message:send', { roomId: room.id, content, type: 'image', replyToMessageId });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleSend = ({ text, imageFile }: MessageInputSubmitPayload) => {
+    const trimmed = text.trim();
+
+    if (trimmed) {
+      socket?.emit('message:send', { roomId: room.id, content: trimmed, type: 'text', replyToMessageId: repliedMessage?.id });
+    }
+
+    if (imageFile) {
+      void sendImageMessage(imageFile, trimmed ? undefined : repliedMessage?.id);
+    }
+
     setRepliedMessage(null);
     notifyStoppedTyping();
   };
