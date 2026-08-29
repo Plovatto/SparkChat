@@ -1,15 +1,15 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { FaPaperPlane } from 'react-icons/fa';
-import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
+import { useTheme } from '@features/theme';
 
 interface MessageInputProps {
   onSend: (content: string) => void;
+  onTyping: () => void;
 }
 
-const theme = DEFAULT_ROOM_THEME;
-
-export function MessageInput({ onSend }: MessageInputProps) {
+export function MessageInput({ onSend, onTyping }: MessageInputProps) {
+  const { theme } = useTheme();
   const [message, setMessage] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -42,7 +42,10 @@ export function MessageInput({ onSend }: MessageInputProps) {
         ref={inputRef}
         type="text"
         value={message}
-        onChange={(event) => setMessage(event.target.value)}
+        onChange={(event) => {
+          setMessage(event.target.value);
+          onTyping();
+        }}
         placeholder="Digite sua mensagem..."
         autoFocus
         style={{

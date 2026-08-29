@@ -1,23 +1,23 @@
 import { useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaArrowLeft, FaCheck, FaComments, FaCopy } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
-import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
+import { useTheme } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 
 interface ChatHeaderProps {
   room: RoomSummary;
   currentUserId: string | undefined;
   onBack: () => void;
+  onOpenInfo: () => void;
 }
-
-const theme = DEFAULT_ROOM_THEME;
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
   return room.participants.find((participant) => participant.id !== userId);
 }
 
-export function ChatHeader({ room, currentUserId, onBack }: ChatHeaderProps) {
+export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHeaderProps) {
+  const { theme } = useTheme();
   const [codeCopied, setCodeCopied] = useState(false);
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
@@ -190,6 +190,33 @@ export function ChatHeader({ room, currentUserId, onBack }: ChatHeaderProps) {
           )}
         </div>
       </div>
+
+      <Button
+        variant="link"
+        onClick={onOpenInfo}
+        title={room.type === 'private' ? 'Ver perfil' : 'Ver informações do grupo'}
+        style={{
+          color: 'white',
+          padding: '8px',
+          borderRadius: '50%',
+          width: '38px',
+          height: '38px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(255,255,255,0.15)',
+          textDecoration: 'none',
+          flexShrink: 0,
+        }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.background = 'rgba(255,255,255,0.25)';
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+        }}
+      >
+        {room.type === 'private' ? <FaUser size={15} /> : <FaComments size={15} />}
+      </Button>
     </div>
   );
 }
