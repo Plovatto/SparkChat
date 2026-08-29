@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaCheckSquare, FaComments, FaCopy, FaPlus, FaSignOutAlt, FaSquare, FaTimes, FaTrash } from 'react-icons/fa';
+import { FaCheckSquare, FaCircle, FaComments, FaCopy, FaPalette, FaPlus, FaSignOutAlt, FaSquare, FaTimes, FaTrash } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
-import { DEFAULT_ROOM_THEME } from '../constants/default-theme';
+import { useTheme } from '@features/theme';
 import type { RoomSummary } from '../types';
+import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
+import { ThemeMenu } from './ThemeMenu';
 
 interface SidebarProps {
   user: User;
@@ -23,7 +25,16 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const theme = DEFAULT_ROOM_THEME;
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
+  const { theme } = useTheme();
+
+  const handleThemeButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setThemeMenuPosition({ top: rect.bottom + 10, right: window.innerWidth - rect.right });
+    setShowThemeMenu(true);
+  };
 
   const toggleSelectionMode = () => {
     setIsSelectionMode((previous) => !previous);
@@ -82,6 +93,7 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
           <div
+            onClick={() => setIsProfileOpen(true)}
             style={{
               position: 'relative',
               width: '55px',
@@ -92,10 +104,34 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
               alignItems: 'center',
               justifyContent: 'center',
               boxShadow: '0 3px 10px rgba(0,0,0,0.15)',
+              cursor: 'pointer',
               flexShrink: 0,
             }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.opacity = '0.8';
+              event.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.opacity = '1';
+              event.currentTarget.style.transform = 'scale(1)';
+            }}
+            title="Clique para editar perfil"
           >
             {avatar ? <avatar.icon size={28} color="white" /> : null}
+            <FaCircle
+              size={16}
+              color="#4caf50"
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                right: 0,
+                background: 'white',
+                borderRadius: '50%',
+                padding: '2px',
+                border: '3px solid white',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+              }}
+            />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h5
@@ -139,6 +175,33 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
               </div>
             </div>
           </div>
+
+          <button
+            onClick={handleThemeButtonClick}
+            style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              color: theme.headerTextColor,
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              padding: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+            }}
+          >
+            <FaPalette size={16} />
+          </button>
+
+          <ThemeMenu isOpen={showThemeMenu} position={themeMenuPosition} onClose={() => setShowThemeMenu(false)} />
 
           <Button
             variant="link"
@@ -393,6 +456,8 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
         onCancel={() => setShowConfirmDelete(false)}
         theme={theme}
       />
+
+      <EditProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} user={user} />
     </div>
   );
 }
