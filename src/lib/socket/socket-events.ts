@@ -83,9 +83,21 @@ export interface ServerToClientEvents {
   'room:created': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
   'room:joined': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
   'room:new': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
+  'room:deleted': (payload: { roomId: string }) => void;
+  'message:new': (payload: MessageView) => void;
+  'message:mark-read-done': (payload: { roomId: string; unreadCount: number }) => void;
+  'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
+  'messages:list': (payload: { roomId: string; messages: MessageView[] }) => void;
 }
 
 export interface ClientToServerEvents {
   'user:join': (payload: JoinPayload) => void;
   'rooms:get': () => void;
+  'room:create-private': (payload: { targetChatCode: string }) => void;
+  'room:create-group': (payload: { roomName: string }) => void;
+  'room:join-by-code': (payload: { roomCode: string }) => void;
+  'room:delete': (payload: { roomId: string }) => void;
+  'message:send': (payload: { roomId: string; content: string }) => void;
+  'message:mark-read': (payload: { roomId: string }) => void;
+  'messages:get': (payload: { roomId: string }) => void;
 }

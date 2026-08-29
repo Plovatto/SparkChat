@@ -1,1 +1,1 @@
-export { EmptyChatState } from './components/EmptyChatState';
+export { ChatArea } from './components/ChatArea';
