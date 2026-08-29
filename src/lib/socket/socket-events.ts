@@ -32,7 +32,7 @@ export interface RoomParticipant {
   lastSeen: string;
 }
 
-export type MessageType = 'text' | 'system' | 'image';
+export type MessageType = 'text' | 'system' | 'image' | 'audio';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
@@ -46,6 +46,7 @@ export interface MessageReplySnapshot {
   id: string;
   content: string;
   type: MessageType;
+  duration: number | null;
   sender: MessageSender;
 }
 
@@ -55,11 +56,13 @@ export interface MessageView {
   sender: MessageSender;
   content: string;
   type: MessageType;
+  duration: number | null;
   timestamp: string;
   deletedForEveryone: boolean;
   status: MessageStatus;
   deliveredTo: string[];
   readBy: string[];
+  playedBy: string[];
   replyTo: MessageReplySnapshot | null;
 }
 
@@ -111,7 +114,9 @@ export interface ServerToClientEvents {
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
   'messages:list': (payload: { roomId: string; messages: MessageView[] }) => void;
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
+  'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
+  'message:updated': (payload: MessageView) => void;
 }
 
 export interface ClientToServerEvents {
@@ -128,12 +133,16 @@ export interface ClientToServerEvents {
   'message:send': (payload: {
     roomId: string;
     content: string;
-    type?: Extract<MessageType, 'text' | 'image'>;
+    type?: Extract<MessageType, 'text' | 'image' | 'audio'>;
+    duration?: number;
     replyToMessageId?: string;
   }) => void;
   'message:mark-read': (payload: { roomId: string }) => void;
   'messages:get': (payload: { roomId: string }) => void;
   'typing:start': (payload: { roomId: string }) => void;
   'typing:stop': (payload: { roomId: string }) => void;
+  'recording:start': (payload: { roomId: string }) => void;
+  'recording:stop': (payload: { roomId: string }) => void;
+  'audio:played': (payload: { messageId: string }) => void;
   'message:delete': (payload: { messageId: string }) => void;
 }
