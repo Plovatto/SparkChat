@@ -1,8 +1,9 @@
 import { useEffect, useState, type CSSProperties, type FocusEvent, type FormEvent } from 'react';
 import { FaArrowRight, FaUser, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
+import { useTheme } from '@features/theme';
+import type { ThemePalette } from '@features/theme';
 import { useSocket } from '@lib/socket';
-import { DEFAULT_ROOM_THEME } from '../constants/default-theme';
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -12,78 +13,7 @@ interface NewChatModalProps {
 type ChatType = 'private' | 'group';
 type GroupMode = 'join' | 'create';
 
-const theme = DEFAULT_ROOM_THEME;
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  padding: '12px 16px',
-  border: `1.5px solid ${theme.border}`,
-  borderRadius: '10px',
-  fontSize: '1rem',
-  background: theme.background,
-  color: theme.text,
-  outline: 'none',
-  boxSizing: 'border-box',
-  fontFamily: 'inherit',
-};
-
-const labelStyle: CSSProperties = {
-  fontWeight: 600,
-  display: 'block',
-  marginBottom: '10px',
-  color: theme.text,
-  fontSize: '0.95rem',
-};
-
-const helperStyle: CSSProperties = {
-  color: theme.textSecondary,
-  marginTop: '6px',
-  display: 'block',
-};
-
-const primaryButtonStyle: CSSProperties = {
-  width: '100%',
-  padding: '12px 20px',
-  borderRadius: '10px',
-  border: 'none',
-  background: theme.primary,
-  color: 'white',
-  fontSize: '0.95rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '8px',
-};
-
-const outlineButtonStyle: CSSProperties = {
-  width: '100%',
-  padding: '12px 20px',
-  borderRadius: '10px',
-  border: `2px solid ${theme.primary}`,
-  background: 'transparent',
-  color: theme.primary,
-  fontSize: '0.95rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '8px',
-};
-
-function focusInput(event: FocusEvent<HTMLInputElement>) {
-  event.currentTarget.style.borderColor = theme.primary;
-  event.currentTarget.style.boxShadow = `0 0 0 3px ${theme.primary}1A`;
-}
-
-function blurInput(event: FocusEvent<HTMLInputElement>) {
-  event.currentTarget.style.borderColor = theme.border;
-  event.currentTarget.style.boxShadow = 'none';
-}
-
-function OrDivider() {
+function OrDivider({ theme }: { theme: ThemePalette }) {
   return (
     <div style={{ textAlign: 'center', position: 'relative', margin: '8px 0' }}>
       <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: theme.border }} />
@@ -106,6 +36,7 @@ function OrDivider() {
 }
 
 export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
+  const { theme } = useTheme();
   const { socket } = useSocket();
   const [chatType, setChatType] = useState<ChatType>('private');
   const [chatCode, setChatCode] = useState('');
@@ -171,6 +102,75 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     }
     socket?.emit('room:create-group', { roomName: groupName.trim() });
     setError('');
+  };
+
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    padding: '12px 16px',
+    border: `1.5px solid ${theme.border}`,
+    borderRadius: '10px',
+    fontSize: '1rem',
+    background: theme.background,
+    color: theme.text,
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  };
+
+  const labelStyle: CSSProperties = {
+    fontWeight: 600,
+    display: 'block',
+    marginBottom: '10px',
+    color: theme.text,
+    fontSize: '0.95rem',
+  };
+
+  const helperStyle: CSSProperties = {
+    color: theme.textSecondary,
+    marginTop: '6px',
+    display: 'block',
+  };
+
+  const primaryButtonStyle: CSSProperties = {
+    width: '100%',
+    padding: '12px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: theme.primary,
+    color: 'white',
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  };
+
+  const outlineButtonStyle: CSSProperties = {
+    width: '100%',
+    padding: '12px 20px',
+    borderRadius: '10px',
+    border: `2px solid ${theme.primary}`,
+    background: 'transparent',
+    color: theme.primary,
+    fontSize: '0.95rem',
+    fontWeight: 600,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+  };
+
+  const focusInput = (event: FocusEvent<HTMLInputElement>) => {
+    event.currentTarget.style.borderColor = theme.primary;
+    event.currentTarget.style.boxShadow = `0 0 0 3px ${theme.primary}1A`;
+  };
+
+  const blurInput = (event: FocusEvent<HTMLInputElement>) => {
+    event.currentTarget.style.borderColor = theme.border;
+    event.currentTarget.style.boxShadow = 'none';
   };
 
   return (
@@ -345,7 +345,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 </button>
               </form>
 
-              <OrDivider />
+              <OrDivider theme={theme} />
 
               <button
                 onClick={() => {
@@ -405,7 +405,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 </button>
               </form>
 
-              <OrDivider />
+              <OrDivider theme={theme} />
 
               <button
                 onClick={() => {

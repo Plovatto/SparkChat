@@ -4,16 +4,19 @@ import { useSocket, type MessageView } from '@lib/socket';
 export interface RoomMessagesState {
   messages: MessageView[];
   isLoaded: boolean;
+  typingUserIds: string[];
 }
 
 export function useRoomMessages(roomId: string | null, currentUserId: string | undefined): RoomMessagesState {
   const { socket } = useSocket();
   const [messages, setMessages] = useState<MessageView[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
 
   useEffect(() => {
     setMessages([]);
     setIsLoaded(false);
+    setTypingUserIds([]);
   }, [roomId]);
 
   useEffect(() => {
@@ -52,16 +55,38 @@ export function useRoomMessages(roomId: string | null, currentUserId: string | u
       );
     };
 
+    const handleTypingUpdate = ({ roomId: typingRoomId, users }: { roomId: string; users: string[] }) => {
+      if (typingRoomId !== roomId) {
+        return;
+      }
+      setTypingUserIds(users.filter((userId) => userId !== currentUserId));
+    };
+
+    const handleMessageDeleted = ({ messageId, roomId: deletedRoomId }: { messageId: string; roomId: string }) => {
+      if (deletedRoomId !== roomId) {
+        return;
+      }
+      setMessages((previous) =>
+        previous.map((message) =>
+          message.id === messageId ? { ...message, deletedForEveryone: true, content: '' } : message,
+        ),
+      );
+    };
+
     socket.on('messages:list', handleMessagesList);
     socket.on('message:new', handleMessageNew);
     socket.on('message:read-receipt', handleReadReceipt);
+    socket.on('typing:update', handleTypingUpdate);
+    socket.on('message:deleted', handleMessageDeleted);
 
     return () => {
       socket.off('messages:list', handleMessagesList);
       socket.off('message:new', handleMessageNew);
       socket.off('message:read-receipt', handleReadReceipt);
+      socket.off('typing:update', handleTypingUpdate);
+      socket.off('message:deleted', handleMessageDeleted);
     };
   }, [socket, roomId, currentUserId]);
 
-  return { messages, isLoaded };
+  return { messages, isLoaded, typingUserIds };
 }

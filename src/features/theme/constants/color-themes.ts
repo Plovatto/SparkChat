@@ -1,0 +1,173 @@
+export interface ColorTheme {
+  id: string;
+  name: string;
+  primary: string;
+  secondary: string;
+  headerGradient: string;
+  textColor: string;
+}
+
+export const COLOR_THEMES = {
+  standard: {
+    id: 'standard',
+    name: 'Padrão',
+    primary: '#516ce4',
+    secondary: '#7e37b9',
+    headerGradient: 'linear-gradient(130deg, #516ce4ff 0%, #7e37b9ff 100%)',
+    textColor: '#ffffff',
+  },
+  black: {
+    id: 'black',
+    name: 'Preto',
+    primary: '#232323',
+    secondary: '#000000',
+    headerGradient: 'linear-gradient(135deg, #646572ff 0%, #000000ff 100%)',
+    textColor: '#ffffff',
+  },
+  forest: {
+    id: 'forest',
+    name: 'Floresta',
+    primary: '#3ba55c',
+    secondary: '#2d7d46',
+    headerGradient: 'linear-gradient(135deg, #3ba55c 0%, #2d7d46 100%)',
+    textColor: '#ffffff',
+  },
+  sunset: {
+    id: 'sunset',
+    name: 'Pôr do Sol',
+    primary: '#fb6f2e',
+    secondary: '#ca1b1e',
+    headerGradient: 'linear-gradient(135deg, #f96e2eff 0%, #ca1b1eff 100%)',
+    textColor: '#ffffff',
+  },
+  lavender: {
+    id: 'lavender',
+    name: 'Lavanda',
+    primary: '#bba9ff',
+    secondary: '#6c58b2',
+    headerGradient: 'linear-gradient(135deg, #a994f4ff 0%, #564591ff 100%)',
+    textColor: '#ffffff',
+  },
+  rose: {
+    id: 'rose',
+    name: 'Rosa',
+    primary: '#f962b3',
+    secondary: '#d63384',
+    headerGradient: 'linear-gradient(135deg, #f76cb6ff 0%, #c92376ff 100%)',
+    textColor: '#ffffff',
+  },
+  ocean: {
+    id: 'ocean',
+    name: 'Oceano Azul',
+    primary: '#0066cc',
+    secondary: '#0099ff',
+    headerGradient: 'linear-gradient(135deg, #0066cc 0%, #00ccff 100%)',
+    textColor: '#ffffff',
+  },
+  tropical: {
+    id: 'tropical',
+    name: 'Tropical',
+    primary: '#ff6b00',
+    secondary: '#ff8c00',
+    headerGradient: 'linear-gradient(135deg, #ff6b00 0%, #ffa500 100%)',
+    textColor: '#ffffff',
+  },
+  emerald: {
+    id: 'emerald',
+    name: 'Esmeralda',
+    primary: '#10b981',
+    secondary: '#059669',
+    headerGradient: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
+    textColor: '#ffffff',
+  },
+  magenta: {
+    id: 'magenta',
+    name: 'Magenta',
+    primary: '#d946ef',
+    secondary: '#c026d3',
+    headerGradient: 'linear-gradient(135deg, #d946ef 0%, #f472b6 100%)',
+    textColor: '#ffffff',
+  },
+  gold: {
+    id: 'gold',
+    name: 'Ouro',
+    primary: '#fbbf24',
+    secondary: '#f59e0b',
+    headerGradient: 'linear-gradient(135deg, #fbbf24 0%, #fcd34d 100%)',
+    textColor: '#1f2937',
+  },
+  ruby: {
+    id: 'ruby',
+    name: 'Rubi',
+    primary: '#dc2626',
+    secondary: '#991b1b',
+    headerGradient: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+    textColor: '#ffffff',
+  },
+  neon: {
+    id: 'neon',
+    name: 'Neon',
+    primary: '#00ff00',
+    secondary: '#ff00ff',
+    headerGradient: 'linear-gradient(135deg, #00ff00 0%, #ff00ff 100%)',
+    textColor: '#000000',
+  },
+  cyberpunk: {
+    id: 'cyberpunk',
+    name: 'Cyberpunk',
+    primary: '#00ffff',
+    secondary: '#ff006e',
+    headerGradient: 'linear-gradient(135deg, #00ffff 0%, #ff006e 100%)',
+    textColor: '#000000',
+  },
+  sunset2: {
+    id: 'sunset2',
+    name: 'Pôr do Sol 2',
+    primary: '#ff7f50',
+    secondary: '#ff1493',
+    headerGradient: 'linear-gradient(135deg, #ff7f50 0%, #ff1493 100%)',
+    textColor: '#ffffff',
+  },
+  blueViolet: {
+    id: 'blueViolet',
+    name: 'Azul Violeta',
+    primary: '#6366f1',
+    secondary: '#a855f7',
+    headerGradient: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+    textColor: '#ffffff',
+  },
+  mint: {
+    id: 'mint',
+    name: 'Menta',
+    primary: '#06b6d4',
+    secondary: '#14b8a6',
+    headerGradient: 'linear-gradient(135deg, #06b6d4 0%, #10b981 100%)',
+    textColor: '#ffffff',
+  },
+  coral: {
+    id: 'coral',
+    name: 'Coral',
+    primary: '#ff6b6b',
+    secondary: '#ff8787',
+    headerGradient: 'linear-gradient(135deg, #ff6b6b 0%, #ffa5a5 100%)',
+    textColor: '#ffffff',
+  },
+  grape: {
+    id: 'grape',
+    name: 'Uva',
+    primary: '#9333ea',
+    secondary: '#7c3aed',
+    headerGradient: 'linear-gradient(135deg, #9333ea 0%, #c084fc 100%)',
+    textColor: '#ffffff',
+  },
+  peach: {
+    id: 'peach',
+    name: 'Pêssego',
+    primary: '#fb7185',
+    secondary: '#f97316',
+    headerGradient: 'linear-gradient(135deg, #fb7185 0%, #fdba74 100%)',
+    textColor: '#ffffff',
+  },
+} as const satisfies Record<string, ColorTheme>;
+
+export type ColorThemeId = keyof typeof COLOR_THEMES;

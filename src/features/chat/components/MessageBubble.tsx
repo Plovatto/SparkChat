@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck } from 'react-icons/fa';
-import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
+import { FaBan, FaCheck, FaTrash } from 'react-icons/fa';
+import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import type { MessageView } from '@lib/socket';
 
@@ -12,6 +12,9 @@ interface MessageBubbleProps {
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
+  isSelected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
 }
 
 interface MessageStatusInfo {
@@ -19,7 +22,6 @@ interface MessageStatusInfo {
   color: string;
 }
 
-const theme = DEFAULT_ROOM_THEME;
 const MAX_PREVIEW_LENGTH = 200;
 
 function processSystemMessage(content: string, currentNickname: string): string {
@@ -67,7 +69,18 @@ function getMessageStatus(
   return { icon: 'single', color: 'white' };
 }
 
-export function MessageBubble({ message, isOwn, isGroupChat, participants, currentUserId, currentNickname }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isOwn,
+  isGroupChat,
+  participants,
+  currentUserId,
+  currentNickname,
+  isSelected,
+  onSelect,
+  onDelete,
+}: MessageBubbleProps) {
+  const { theme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (message.deletedForEveryone) {
@@ -140,6 +153,14 @@ export function MessageBubble({ message, isOwn, isGroupChat, participants, curre
   return (
     <div
       className="animate__animated animate__fadeInUp animate__faster"
+      onClick={
+        isOwn
+          ? (event) => {
+              event.stopPropagation();
+              onSelect();
+            }
+          : undefined
+      }
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -148,6 +169,7 @@ export function MessageBubble({ message, isOwn, isGroupChat, participants, curre
         maxWidth: '60%',
         alignSelf: isOwn ? 'flex-end' : 'flex-start',
         marginBottom: '7px',
+        position: 'relative',
       }}
     >
       <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: isOwn ? 'row-reverse' : 'row' }}>
@@ -228,6 +250,53 @@ export function MessageBubble({ message, isOwn, isGroupChat, participants, curre
           </div>
         </div>
       </div>
+
+      {isSelected && isOwn && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            left: '-100px',
+            display: 'flex',
+            gap: '8px',
+            zIndex: 1000,
+          }}
+        >
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            title="Deletar para todos"
+            style={{
+              background: '#ef5350',
+              opacity: 0.6,
+              border: 'none',
+              color: 'white',
+              borderRadius: '50%',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              padding: 0,
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = '#d32f2f';
+              event.currentTarget.style.transform = 'scale(1.1)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = '#ef5350';
+              event.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            <FaTrash size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

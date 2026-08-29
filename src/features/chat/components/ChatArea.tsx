@@ -1,22 +1,23 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
+import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import type { User } from '@features/auth';
-import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
-import type { RoomSummary } from '@features/rooms';
+import type { RoomParticipant, RoomSummary } from '@features/rooms';
+import { useTheme } from '@features/theme';
 import { useSocket, type MessageView } from '@lib/socket';
 import { useRoomMessages } from '../hooks/useRoomMessages';
+import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { MessageBubble } from './MessageBubble';
 import { MessageInput } from './MessageInput';
+import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
   room: RoomSummary | null;
   user: User;
   onBack: () => void;
 }
-
-const theme = DEFAULT_ROOM_THEME;
 
 function formatDateSeparator(timestamp: string): string {
   const date = new Date(timestamp);
@@ -36,14 +37,48 @@ function shouldShowDateSeparator(current: MessageView, previous: MessageView | u
   return !isSameDay(new Date(current.timestamp), new Date(previous.timestamp));
 }
 
+function getTypingText(typingUserIds: string[], participants: RoomParticipant[]): string | null {
+  if (typingUserIds.length === 0) {
+    return null;
+  }
+
+  const names = typingUserIds
+    .map((userId) => participants.find((participant) => participant.id === userId)?.nickname)
+    .filter((nickname): nickname is string => Boolean(nickname));
+
+  if (names.length === 1) {
+    return `${names[0]} está digitando...`;
+  }
+  if (names.length === 2) {
+    return `${names[0]} e ${names[1]} estão digitando...`;
+  }
+  return 'Várias pessoas estão digitando...';
+}
+
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
+  const { theme } = useTheme();
   const { socket } = useSocket();
-  const { messages } = useRoomMessages(room?.id ?? null, user.id);
+  const { messages, typingUserIds } = useRoomMessages(room?.id ?? null, user.id);
+  const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    setIsInfoOpen(false);
+    setSelectedMessageId(null);
+  }, [room?.id]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setSelectedMessageId(null);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   if (!room) {
     return <EmptyChatState />;
@@ -51,11 +86,25 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
 
   const handleSend = (content: string) => {
     socket?.emit('message:send', { roomId: room.id, content });
+    notifyStoppedTyping();
+  };
+
+  const handleLeftGroup = () => {
+    setIsInfoOpen(false);
+    onBack();
+  };
+
+  const confirmDeleteMessage = () => {
+    if (messageIdPendingDelete) {
+      socket?.emit('message:delete', { messageId: messageIdPendingDelete });
+    }
+    setSelectedMessageId(null);
   };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
-      <ChatHeader room={room} currentUserId={user.id} onBack={onBack} />
+      <ChatHeader room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
+      <RoomInfoPanel isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} room={room} currentUserId={user.id} onLeftGroup={handleLeftGroup} />
 
       <div
         style={{
@@ -121,15 +170,68 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                   participants={room.participants}
                   currentUserId={user.id}
                   currentNickname={user.nickname}
+                  isSelected={selectedMessageId === message.id}
+                  onSelect={() => setSelectedMessageId(message.id)}
+                  onDelete={() => setMessageIdPendingDelete(message.id)}
                 />
               </div>
             </div>
           ))
         )}
+
+        {(() => {
+          const typingText = getTypingText(typingUserIds, room.participants);
+          if (!typingText) {
+            return null;
+          }
+
+          return (
+            <div
+              className="animate__animated animate__fadeInUp animate__faster"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 15px',
+                background: theme.surface,
+                borderRadius: '15px',
+                maxWidth: '200px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {[0, 1, 2].map((index) => (
+                  <span
+                    key={index}
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      background: theme.primary,
+                      borderRadius: '50%',
+                      animation: 'typing 1.4s infinite',
+                      animationDelay: `${index * 0.2}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic' }}>{typingText}</span>
+            </div>
+          );
+        })()}
+
         <div ref={messagesEndRef} />
       </div>
 
-      <MessageInput onSend={handleSend} />
+      <MessageInput onSend={handleSend} onTyping={notifyTyping} />
+
+      <ConfirmDialog
+        isOpen={messageIdPendingDelete !== null}
+        title="Deletar mensagem"
+        message="Tem certeza que deseja deletar esta mensagem para todos?"
+        onConfirm={confirmDeleteMessage}
+        onCancel={() => setMessageIdPendingDelete(null)}
+        theme={theme}
+      />
     </div>
   );
 }
