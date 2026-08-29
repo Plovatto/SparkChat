@@ -6,13 +6,18 @@ import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useSocket, type MessageView } from '@lib/socket';
-import { uploadChatImage } from '../api/chat-api';
+import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
-import { MessageBubble } from './MessageBubble';
-import { MessageInput, type MessageInputHandle, type MessageInputSubmitPayload } from './MessageInput';
+import { MessageBubble, type CurrentAudioRef } from './MessageBubble';
+import {
+  MessageInput,
+  type AudioSendPayload,
+  type MessageInputHandle,
+  type MessageInputSubmitPayload,
+} from './MessageInput';
 import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
@@ -39,6 +44,19 @@ function shouldShowDateSeparator(current: MessageView, previous: MessageView | u
   return !isSameDay(new Date(current.timestamp), new Date(previous.timestamp));
 }
 
+function getRecordingText(recordingUserIds: string[], participants: RoomParticipant[]): string | null {
+  if (recordingUserIds.length === 0) {
+    return null;
+  }
+
+  if (recordingUserIds.length === 1) {
+    const nickname = participants.find((participant) => participant.id === recordingUserIds[0])?.nickname ?? 'Usuário';
+    return `${nickname} está gravando áudio...`;
+  }
+
+  return `${recordingUserIds.length} pessoas estão gravando áudio...`;
+}
+
 function getTypingText(typingUserIds: string[], participants: RoomParticipant[]): string | null {
   if (typingUserIds.length === 0) {
     return null;
@@ -60,10 +78,11 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
-  const { messages, typingUserIds } = useRoomMessages(room?.id ?? null, user.id);
+  const { messages, typingUserIds, recordingUserIds } = useRoomMessages(room?.id ?? null, user.id);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<MessageInputHandle>(null);
+  const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
@@ -96,6 +115,34 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
+    try {
+      const content = await uploadChatAudio(blob, mimeType);
+      socket?.emit('message:send', {
+        roomId: room.id,
+        content,
+        type: 'audio',
+        duration,
+        replyToMessageId: repliedMessage?.id,
+      });
+      setRepliedMessage(null);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleRecordingStart = () => {
+    socket?.emit('recording:start', { roomId: room.id });
+  };
+
+  const handleRecordingStop = () => {
+    socket?.emit('recording:stop', { roomId: room.id });
+  };
+
+  const handleAudioPlayed = (messageId: string) => {
+    socket?.emit('audio:played', { messageId });
   };
 
   const handleSend = ({ text, imageFile }: MessageInputSubmitPayload) => {
@@ -201,14 +248,54 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                   currentUserId={user.id}
                   currentNickname={user.nickname}
                   isSelected={selectedMessageId === message.id}
+                  currentAudioRef={currentAudioRef}
                   onSelect={() => setSelectedMessageId(message.id)}
                   onReply={() => handleReply(message)}
                   onDelete={() => setMessageIdPendingDelete(message.id)}
+                  onAudioPlayed={handleAudioPlayed}
                 />
               </div>
             </div>
           ))
         )}
+
+        {(() => {
+          const recordingText = getRecordingText(recordingUserIds, room.participants);
+          if (!recordingText) {
+            return null;
+          }
+
+          return (
+            <div
+              className="animate__animated animate__fadeInUp animate__faster"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '12px 15px',
+                background: 'rgba(255, 107, 107, 0.1)',
+                borderRadius: '15px',
+                maxWidth: '300px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                border: '1px solid rgba(255, 107, 107, 0.2)',
+              }}
+            >
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '100%',
+                  background: '#ff6b6b',
+                  animation: 'blink 1s infinite',
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ fontSize: '0.85rem', color: '#ff6b6b', fontStyle: 'italic', fontWeight: 500 }}>
+                {recordingText}
+              </span>
+            </div>
+          );
+        })()}
 
         {(() => {
           const typingText = getTypingText(typingUserIds, room.participants);
@@ -299,7 +386,14 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         </div>
       )}
 
-      <MessageInput ref={messageInputRef} onSend={handleSend} onTyping={notifyTyping} />
+      <MessageInput
+        ref={messageInputRef}
+        onSend={handleSend}
+        onSendAudio={(payload) => void handleSendAudio(payload)}
+        onTyping={notifyTyping}
+        onRecordingStart={handleRecordingStart}
+        onRecordingStop={handleRecordingStop}
+      />
 
       <ConfirmDialog
         isOpen={messageIdPendingDelete !== null}
