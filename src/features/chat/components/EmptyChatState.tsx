@@ -1,8 +1,8 @@
 import { FaComments } from 'react-icons/fa';
-import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
+import { useTheme } from '@features/theme';
 
 export function EmptyChatState() {
-  const theme = DEFAULT_ROOM_THEME;
+  const { theme } = useTheme();
 
   return (
     <div
