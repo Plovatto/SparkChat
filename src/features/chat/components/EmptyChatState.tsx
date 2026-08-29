@@ -1,11 +1,7 @@
 import { FaComments } from 'react-icons/fa';
 import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
 
-interface EmptyChatStateProps {
-  selectedRoomName?: string;
-}
-
-export function EmptyChatState({ selectedRoomName }: EmptyChatStateProps) {
+export function EmptyChatState() {
   const theme = DEFAULT_ROOM_THEME;
 
   return (
@@ -23,13 +19,9 @@ export function EmptyChatState({ selectedRoomName }: EmptyChatStateProps) {
       }}
     >
       <FaComments size={100} className="animate-float" style={{ marginBottom: '30px', opacity: 0.2 }} />
-      <h2 style={{ fontSize: '2rem', marginBottom: '15px', color: theme.text, fontWeight: 700 }}>
-        {selectedRoomName ?? 'Selecione uma conversa'}
-      </h2>
+      <h2 style={{ fontSize: '2rem', marginBottom: '15px', color: theme.text, fontWeight: 700 }}>Selecione uma conversa</h2>
       <p style={{ fontSize: '1.1rem', color: theme.textSecondary, maxWidth: '400px' }}>
-        {selectedRoomName
-          ? 'A área de mensagens chega na próxima parte.'
-          : 'Escolha um chat existente ou clique em "Novo Chat" para começar'}
+        Escolha um chat existente ou clique em &quot;Novo Chat&quot; para começar
       </p>
     </div>
   );

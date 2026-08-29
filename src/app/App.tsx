@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
-import { EmptyChatState } from '@features/chat';
+import { ChatArea } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
-import { Sidebar, useRooms, type RoomSummary } from '@features/rooms';
-import { SocketProvider } from '@lib/socket';
+import { NewChatModal, Sidebar, useRooms } from '@features/rooms';
+import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
 export function App() {
@@ -50,8 +50,18 @@ interface ChatShellProps {
 }
 
 function ChatShell({ user, onLogout }: ChatShellProps) {
-  const { rooms, isLoaded } = useRooms();
-  const [selectedRoom, setSelectedRoom] = useState<RoomSummary | null>(null);
+  const { socket } = useSocket();
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const { rooms, isLoaded } = useRooms(selectedRoomId);
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+
+  const handleDeleteRooms = (roomIds: string[]) => {
+    roomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
+    if (selectedRoomId && roomIds.includes(selectedRoomId)) {
+      setSelectedRoomId(null);
+    }
+  };
 
   if (!isLoaded) {
     return (
@@ -73,26 +83,20 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
               <Sidebar
                 user={user}
                 rooms={rooms}
-                selectedRoomId={selectedRoom?.id ?? null}
-                onSelectRoom={setSelectedRoom}
-                onNewChat={() => {}}
+                selectedRoomId={selectedRoomId}
+                onSelectRoom={(room) => setSelectedRoomId(room.id)}
+                onNewChat={() => setIsNewChatOpen(true)}
                 onLogout={onLogout}
+                onDeleteRooms={handleDeleteRooms}
               />
             </Col>
             <Col lg={8} md={7} xs={12} style={{ padding: 0, height: '100%' }} className="d-none d-md-block">
-              <EmptyChatState selectedRoomName={selectedRoom ? roomDisplayName(selectedRoom, user.id) : undefined} />
+              <ChatArea room={selectedRoom} user={user} />
             </Col>
           </Row>
         </Card>
       </div>
+      <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} />
     </Container>
   );
-}
-
-function roomDisplayName(room: RoomSummary, userId: string | undefined): string {
-  if (room.type === 'group') {
-    return room.name ?? 'Grupo';
-  }
-
-  return room.participants.find((participant) => participant.id !== userId)?.nickname ?? 'Usuário';
 }
