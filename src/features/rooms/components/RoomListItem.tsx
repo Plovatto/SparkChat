@@ -1,5 +1,5 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaSquare, FaUser } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaImage, FaSquare, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import type { RoomThemePalette } from '../constants/default-theme';
@@ -101,6 +101,11 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
         <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary }}>
           {message.content.substring(0, 28)}
           {message.content.length > 28 ? '...' : ''}
+        </span>
+      ) : message.type === 'image' ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <FaImage size={12} style={{ flexShrink: 0 }} />
+          <span style={{ flexShrink: 0 }}>Imagem</span>
         </span>
       ) : (
         <>

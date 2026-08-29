@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck, FaReply, FaTrash } from 'react-icons/fa';
+import { FaBan, FaCheck, FaImage, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import type { MessageView } from '@lib/socket';
+import { ImageModal } from './ImageModal';
 
 interface MessageBubbleProps {
   message: MessageView;
@@ -84,6 +85,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const { theme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
   if (message.deletedForEveryone) {
     return (
@@ -149,7 +151,8 @@ export function MessageBubble({
   }
 
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
-  const showExpand = message.content.length > MAX_PREVIEW_LENGTH;
+  const isImageMessage = message.type === 'image';
+  const showExpand = !isImageMessage && message.content.length > MAX_PREVIEW_LENGTH;
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
 
   return (
@@ -176,7 +179,7 @@ export function MessageBubble({
             background: isOwn ? theme.messageOwn : theme.messageOther,
             color: isOwn ? theme.messageOwnText : theme.messageOtherText,
             borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-            padding: '0 16px 10px 16px',
+            padding: isImageMessage ? '12px 16px 10px 16px' : '0 16px 10px 16px',
             boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
             wordBreak: 'break-word',
           }}
@@ -203,50 +206,79 @@ export function MessageBubble({
               </div>
               <div
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   opacity: 0.7,
                 }}
               >
-                {message.replyTo.content}
+                {message.replyTo.type === 'image' ? (
+                  <>
+                    <FaImage size={12} style={{ flexShrink: 0 }} />
+                    <span>Imagem</span>
+                  </>
+                ) : (
+                  message.replyTo.content
+                )}
               </div>
             </div>
           )}
 
           <div style={{ margin: '10px 6px 6px 6px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '0.95rem',
-                  lineHeight: 1.6,
-                  whiteSpace: 'pre-wrap',
-                  fontWeight: 500,
-                  wordBreak: 'break-word',
+            {isImageMessage ? (
+              <img
+                src={message.content}
+                alt="Imagem enviada"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsImageModalOpen(true);
                 }}
-              >
-                {displayContent}
-              </p>
-              {showExpand && (
-                <button
-                  onClick={() => setIsExpanded((previous) => !previous)}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '400px',
+                  borderRadius: '12px',
+                  display: 'block',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                }}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <p
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: theme.primary,
-                    cursor: 'pointer',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    padding: '4px 0',
-                    alignSelf: 'flex-start',
-                    borderBottom: `2px solid ${theme.primary}`,
+                    margin: 0,
+                    fontSize: '0.95rem',
+                    lineHeight: 1.6,
+                    whiteSpace: 'pre-wrap',
+                    fontWeight: 500,
+                    wordBreak: 'break-word',
                   }}
                 >
-                  {isExpanded ? '↑ Ver menos' : '↓ Ver mais'}
-                </button>
-              )}
-            </div>
+                  {displayContent}
+                </p>
+                {showExpand && (
+                  <button
+                    onClick={() => setIsExpanded((previous) => !previous)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: theme.primary,
+                      cursor: 'pointer',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      padding: '4px 0',
+                      alignSelf: 'flex-start',
+                      borderBottom: `2px solid ${theme.primary}`,
+                    }}
+                  >
+                    {isExpanded ? '↑ Ver menos' : '↓ Ver mais'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end', width: '100%' }}>
@@ -355,6 +387,10 @@ export function MessageBubble({
             </button>
           )}
         </div>
+      )}
+
+      {isImageMessage && (
+        <ImageModal isOpen={isImageModalOpen} imageSrc={message.content} onClose={() => setIsImageModalOpen(false)} />
       )}
     </div>
   );
