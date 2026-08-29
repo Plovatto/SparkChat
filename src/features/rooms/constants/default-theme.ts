@@ -9,6 +9,11 @@ export interface RoomThemePalette {
   headerTextColor: string;
   primary: string;
   background: string;
+  inputBg: string;
+  messageOwn: string;
+  messageOwnText: string;
+  messageOther: string;
+  messageOtherText: string;
 }
 
 export const DEFAULT_ROOM_THEME: RoomThemePalette = {
@@ -22,4 +27,9 @@ export const DEFAULT_ROOM_THEME: RoomThemePalette = {
   headerTextColor: '#ffffff',
   primary: '#516ce4',
   background: '#36393f',
+  inputBg: '#40444b',
+  messageOwn: '#516ce4',
+  messageOwnText: '#ffffff',
+  messageOther: '#000000a0',
+  messageOtherText: '#ffffff',
 };
