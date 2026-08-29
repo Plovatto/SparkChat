@@ -42,6 +42,13 @@ export interface MessageSender {
   avatar: number | null;
 }
 
+export interface MessageReplySnapshot {
+  id: string;
+  content: string;
+  type: MessageType;
+  sender: MessageSender;
+}
+
 export interface MessageView {
   id: string;
   roomId: string;
@@ -53,6 +60,7 @@ export interface MessageView {
   status: MessageStatus;
   deliveredTo: string[];
   readBy: string[];
+  replyTo: MessageReplySnapshot | null;
 }
 
 export interface BlockStatusPayload {
@@ -117,7 +125,7 @@ export interface ClientToServerEvents {
   'group:leave': (payload: { roomId: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
-  'message:send': (payload: { roomId: string; content: string }) => void;
+  'message:send': (payload: { roomId: string; content: string; replyToMessageId?: string }) => void;
   'message:mark-read': (payload: { roomId: string }) => void;
   'messages:get': (payload: { roomId: string }) => void;
   'typing:start': (payload: { roomId: string }) => void;

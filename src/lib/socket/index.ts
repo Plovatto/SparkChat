@@ -4,6 +4,7 @@ export type { AppSocket } from './socket-client';
 export type {
   BlockStatusPayload,
   JoinPayload,
+  MessageReplySnapshot,
   MessageSender,
   MessageStatus,
   MessageType,
