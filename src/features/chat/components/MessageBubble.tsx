@@ -1,10 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck, FaImage, FaReply, FaTrash } from 'react-icons/fa';
+import { FaBan, FaCheck, FaImage, FaPause, FaPlay, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import type { MessageView } from '@lib/socket';
+import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { ImageModal } from './ImageModal';
+
+export interface CurrentAudioRef {
+  id: string;
+  element: HTMLAudioElement;
+  setIcon: (icon: 'play' | 'pause') => void;
+}
 
 interface MessageBubbleProps {
   message: MessageView;
@@ -14,9 +21,11 @@ interface MessageBubbleProps {
   currentUserId: string | undefined;
   currentNickname: string;
   isSelected: boolean;
+  currentAudioRef: MutableRefObject<CurrentAudioRef | null>;
   onSelect: () => void;
   onReply: () => void;
   onDelete: () => void;
+  onAudioPlayed: (messageId: string) => void;
 }
 
 interface MessageStatusInfo {
@@ -25,6 +34,16 @@ interface MessageStatusInfo {
 }
 
 const MAX_PREVIEW_LENGTH = 200;
+const WAVEFORM_BAR_COUNT = 40;
+
+function formatAudioTime(seconds: number): string {
+  if (!seconds || Number.isNaN(seconds)) {
+    return '0:00';
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 function processSystemMessage(content: string, currentNickname: string): string {
   if (!currentNickname) {
@@ -79,13 +98,101 @@ export function MessageBubble({
   currentUserId,
   currentNickname,
   isSelected,
+  currentAudioRef,
   onSelect,
   onReply,
   onDelete,
+  onAudioPlayed,
 }: MessageBubbleProps) {
-  const { theme } = useTheme();
+  const { theme, baseTheme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [playbackIcon, setPlaybackIcon] = useState<'play' | 'pause'>('play');
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
+  const [hasBeenPlayed, setHasBeenPlayed] = useState(false);
+  const audioElementRef = useRef<HTMLAudioElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const isAudioMessage = message.type === 'audio';
+  const audioWaveform = useAudioWaveform(isAudioMessage ? message.content : null);
+
+  useEffect(() => {
+    if (!isAudioMessage) {
+      return;
+    }
+
+    setHasBeenPlayed(isOwn ? message.playedBy.length > 0 : message.playedBy.includes(currentUserId ?? ''));
+  }, [isAudioMessage, isOwn, message.playedBy, currentUserId]);
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (currentAudioRef.current?.id === message.id) {
+        currentAudioRef.current.element.pause();
+        currentAudioRef.current = null;
+      }
+    };
+  }, [currentAudioRef, message.id]);
+
+  const handleAudioToggle = () => {
+    const audio = audioElementRef.current;
+    if (!audio) {
+      return;
+    }
+
+    if (playbackIcon === 'pause') {
+      audio.pause();
+      setPlaybackIcon('play');
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      if (currentAudioRef.current?.id === message.id) {
+        currentAudioRef.current = null;
+      }
+      return;
+    }
+
+    const previous = currentAudioRef.current;
+    if (previous && previous.id !== message.id) {
+      previous.element.pause();
+      previous.element.currentTime = 0;
+      previous.setIcon('play');
+    }
+
+    if (!isOwn && !hasBeenPlayed) {
+      setHasBeenPlayed(true);
+      onAudioPlayed(message.id);
+    }
+
+    currentAudioRef.current = { id: message.id, element: audio, setIcon: setPlaybackIcon };
+    void audio.play();
+    setPlaybackIcon('pause');
+
+    const animate = () => {
+      if (audio.duration) {
+        setPlaybackProgress(Math.min(WAVEFORM_BAR_COUNT, (audio.currentTime / audio.duration) * WAVEFORM_BAR_COUNT));
+      }
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+  };
+
+  const handleAudioEnded = () => {
+    setPlaybackIcon('play');
+    setPlaybackProgress(0);
+    setAudioCurrentTime(0);
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (currentAudioRef.current?.id === message.id) {
+      currentAudioRef.current = null;
+    }
+  };
 
   if (message.deletedForEveryone) {
     return (
@@ -152,7 +259,8 @@ export function MessageBubble({
 
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
   const isImageMessage = message.type === 'image';
-  const showExpand = !isImageMessage && message.content.length > MAX_PREVIEW_LENGTH;
+  const usesMediaPadding = isImageMessage || isAudioMessage;
+  const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
 
   return (
@@ -179,7 +287,7 @@ export function MessageBubble({
             background: isOwn ? theme.messageOwn : theme.messageOther,
             color: isOwn ? theme.messageOwnText : theme.messageOtherText,
             borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-            padding: isImageMessage ? '12px 16px 10px 16px' : '0 16px 10px 16px',
+            padding: usesMediaPadding ? '12px 16px 10px 16px' : '0 16px 10px 16px',
             boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
             wordBreak: 'break-word',
           }}
@@ -220,6 +328,11 @@ export function MessageBubble({
                     <FaImage size={12} style={{ flexShrink: 0 }} />
                     <span>Imagem</span>
                   </>
+                ) : message.replyTo.type === 'audio' ? (
+                  <>
+                    <FaPlay size={12} style={{ flexShrink: 0 }} />
+                    <span>Áudio {formatAudioTime(message.replyTo.duration ?? 0)}</span>
+                  </>
                 ) : (
                   message.replyTo.content
                 )}
@@ -245,6 +358,134 @@ export function MessageBubble({
                   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
                 }}
               />
+            ) : isAudioMessage ? (
+              <div
+                style={{
+                  marginTop: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 12px',
+                  background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
+                  borderRadius: '12px',
+                  width: '100%',
+                  minWidth: '240px',
+                  maxWidth: '280px',
+                }}
+              >
+                <audio
+                  src={message.content}
+                  ref={audioElementRef}
+                  onEnded={handleAudioEnded}
+                  onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
+                  onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime)}
+                  style={{ display: 'none' }}
+                />
+
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleAudioToggle();
+                  }}
+                  style={{
+                    marginRight: '8px',
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: hasBeenPlayed ? '#2196F3' : '#35dd3bff',
+                    color: 'white',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
+                  }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.transform = 'scale(1.1)';
+                    event.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.2)';
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.transform = 'scale(1)';
+                    event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
+                  }}
+                >
+                  {playbackIcon === 'pause' ? (
+                    <FaPause size={14} color="white" />
+                  ) : (
+                    <FaPlay size={14} color="white" style={{ marginLeft: '2px' }} />
+                  )}
+                </button>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    flex: 1,
+                    height: '24px',
+                    minWidth: '80px',
+                    position: 'relative',
+                  }}
+                >
+                  {audioWaveform.map((level, index) => {
+                    const isPlayedBar = index < playbackProgress;
+                    const barHeight = Math.max(3, Math.min(100, level));
+                    const barColor = hasBeenPlayed
+                      ? isPlayedBar
+                        ? 'rgba(49, 176, 255, 1)'
+                        : 'rgba(255, 255, 255, 1)'
+                      : isPlayedBar
+                        ? '#48ff2fff'
+                        : 'rgba(255, 255, 255, 1)';
+
+                    return (
+                      <div
+                        key={index}
+                        style={{
+                          flex: 1,
+                          height: `${barHeight}%`,
+                          background: barColor,
+                          borderRadius: '10px',
+                          transition: 'all 0.1s ease',
+                          minWidth: '2.5px',
+                          position: 'relative',
+                        }}
+                      />
+                    );
+                  })}
+
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${audioDuration ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      background: hasBeenPlayed ? '#64c9ffff' : '#00ff08ff',
+                      boxShadow: `0 0 8px ${hasBeenPlayed ? '#a5e0ffff' : '#8eff92ff'}`,
+                      pointerEvents: 'none',
+                      transition: 'left 0.05s linear',
+                    }}
+                  />
+                </div>
+
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: isOwn ? 'rgba(255, 255, 255, 0.8)' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
+                    minWidth: '35px',
+                    textAlign: 'right',
+                  }}
+                >
+                  {formatAudioTime(audioDuration)}
+                </span>
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p
