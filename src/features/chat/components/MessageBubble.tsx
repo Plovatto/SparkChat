@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck, FaTrash } from 'react-icons/fa';
+import { FaBan, FaCheck, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import type { MessageView } from '@lib/socket';
@@ -14,6 +14,7 @@ interface MessageBubbleProps {
   currentNickname: string;
   isSelected: boolean;
   onSelect: () => void;
+  onReply: () => void;
   onDelete: () => void;
 }
 
@@ -78,6 +79,7 @@ export function MessageBubble({
   currentNickname,
   isSelected,
   onSelect,
+  onReply,
   onDelete,
 }: MessageBubbleProps) {
   const { theme } = useTheme();
@@ -153,14 +155,10 @@ export function MessageBubble({
   return (
     <div
       className="animate__animated animate__fadeInUp animate__faster"
-      onClick={
-        isOwn
-          ? (event) => {
-              event.stopPropagation();
-              onSelect();
-            }
-          : undefined
-      }
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -186,6 +184,33 @@ export function MessageBubble({
           {!isOwn && isGroupChat && (
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: theme.primary, margin: '12px 0 4px 3px' }}>
               {getDisplayName(message.sender.id, message.sender.nickname, currentUserId)}
+            </div>
+          )}
+
+          {message.replyTo && (
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderLeft: `3px solid ${isOwn ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'}`,
+                padding: '8px 40px 12px 12px',
+                marginBottom: '8px',
+                borderRadius: '4px',
+                fontSize: '0.85rem',
+              }}
+            >
+              <div style={{ fontWeight: 600, opacity: 0.8 }}>
+                {getDisplayName(message.replyTo.sender.id, message.replyTo.sender.nickname, currentUserId)}
+              </div>
+              <div
+                style={{
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  opacity: 0.7,
+                }}
+              >
+                {message.replyTo.content}
+              </div>
             </div>
           )}
 
@@ -251,13 +276,14 @@ export function MessageBubble({
         </div>
       </div>
 
-      {isSelected && isOwn && (
+      {isSelected && (
         <div
           style={{
             position: 'absolute',
             top: '50%',
             transform: 'translateY(-50%)',
-            left: '-100px',
+            right: isOwn ? 'auto' : '-55px',
+            left: isOwn ? '-100px' : 'auto',
             display: 'flex',
             gap: '8px',
             zIndex: 1000,
@@ -266,11 +292,11 @@ export function MessageBubble({
           <button
             onClick={(event) => {
               event.stopPropagation();
-              onDelete();
+              onReply();
             }}
-            title="Deletar para todos"
+            title="Responder"
             style={{
-              background: '#ef5350',
+              background: theme.primary,
               opacity: 0.6,
               border: 'none',
               color: 'white',
@@ -285,16 +311,49 @@ export function MessageBubble({
               padding: 0,
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.background = '#d32f2f';
-              event.currentTarget.style.transform = 'scale(1.1)';
+              event.currentTarget.style.background = theme.secondary;
             }}
             onMouseLeave={(event) => {
-              event.currentTarget.style.background = '#ef5350';
-              event.currentTarget.style.transform = 'scale(1)';
+              event.currentTarget.style.background = theme.primary;
             }}
           >
-            <FaTrash size={14} />
+            <FaReply size={14} />
           </button>
+
+          {isOwn && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+              title="Deletar para todos"
+              style={{
+                background: '#ef5350',
+                opacity: 0.6,
+                border: 'none',
+                color: 'white',
+                borderRadius: '50%',
+                width: '36px',
+                height: '36px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                padding: 0,
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = '#d32f2f';
+                event.currentTarget.style.transform = 'scale(1.1)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = '#ef5350';
+                event.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              <FaTrash size={14} />
+            </button>
+          )}
         </div>
       )}
     </div>
