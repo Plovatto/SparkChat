@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { FaCheck, FaComments, FaCopy } from 'react-icons/fa';
+import { Button } from 'react-bootstrap';
+import { FaArrowLeft, FaCheck, FaComments, FaCopy } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { DEFAULT_ROOM_THEME } from '@features/rooms/constants/default-theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
@@ -7,6 +8,7 @@ import type { RoomParticipant, RoomSummary } from '@features/rooms';
 interface ChatHeaderProps {
   room: RoomSummary;
   currentUserId: string | undefined;
+  onBack: () => void;
 }
 
 const theme = DEFAULT_ROOM_THEME;
@@ -15,7 +17,7 @@ function getOtherParticipant(room: RoomSummary, userId: string | undefined): Roo
   return room.participants.find((participant) => participant.id !== userId);
 }
 
-export function ChatHeader({ room, currentUserId }: ChatHeaderProps) {
+export function ChatHeader({ room, currentUserId, onBack }: ChatHeaderProps) {
   const [codeCopied, setCodeCopied] = useState(false);
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
@@ -50,6 +52,27 @@ export function ChatHeader({ room, currentUserId }: ChatHeaderProps) {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+        <Button
+          variant="link"
+          onClick={onBack}
+          className="d-md-none"
+          style={{
+            color: 'white',
+            padding: '8px',
+            borderRadius: '50%',
+            width: '38px',
+            height: '38px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(255,255,255,0.15)',
+            textDecoration: 'none',
+            flexShrink: 0,
+          }}
+        >
+          <FaArrowLeft size={15} />
+        </Button>
+
         {room.type === 'private' ? (
           <div
             style={{

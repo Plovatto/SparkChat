@@ -13,6 +13,7 @@ import { MessageInput } from './MessageInput';
 interface ChatAreaProps {
   room: RoomSummary | null;
   user: User;
+  onBack: () => void;
 }
 
 const theme = DEFAULT_ROOM_THEME;
@@ -35,7 +36,7 @@ function shouldShowDateSeparator(current: MessageView, previous: MessageView | u
   return !isSameDay(new Date(current.timestamp), new Date(previous.timestamp));
 }
 
-export function ChatArea({ room, user }: ChatAreaProps) {
+export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const { socket } = useSocket();
   const { messages } = useRoomMessages(room?.id ?? null, user.id);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,7 +55,7 @@ export function ChatArea({ room, user }: ChatAreaProps) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
-      <ChatHeader room={room} currentUserId={user.id} />
+      <ChatHeader room={room} currentUserId={user.id} onBack={onBack} />
 
       <div
         style={{
