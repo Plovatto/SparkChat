@@ -32,7 +32,7 @@ export interface RoomParticipant {
   lastSeen: string;
 }
 
-export type MessageType = 'text' | 'system';
+export type MessageType = 'text' | 'system' | 'image';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
@@ -125,7 +125,12 @@ export interface ClientToServerEvents {
   'group:leave': (payload: { roomId: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
-  'message:send': (payload: { roomId: string; content: string; replyToMessageId?: string }) => void;
+  'message:send': (payload: {
+    roomId: string;
+    content: string;
+    type?: Extract<MessageType, 'text' | 'image'>;
+    replyToMessageId?: string;
+  }) => void;
   'message:mark-read': (payload: { roomId: string }) => void;
   'messages:get': (payload: { roomId: string }) => void;
   'typing:start': (payload: { roomId: string }) => void;
