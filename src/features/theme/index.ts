@@ -3,6 +3,8 @@ export { useTheme } from './theme-context';
 export type { ThemeContextValue } from './theme-context';
 export { mergeTheme } from './merge-theme';
 export type { MergedTheme } from './merge-theme';
+export { CHAT_BACKGROUNDS } from './constants/chat-backgrounds';
+export type { ChatBackground } from './constants/chat-backgrounds';
 export { COLOR_THEMES } from './constants/color-themes';
 export type { ColorTheme, ColorThemeId } from './constants/color-themes';
 export { THEME_BASES } from './constants/theme-bases';
