@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaCopy } from 'react-icons/fa';
+import { FaCopy, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
@@ -10,11 +10,13 @@ interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
 }
 
 const NICKNAME_MAX_LENGTH = 20;
 
-export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProps) {
+export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggleSound }: EditProfileModalProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [nickname, setNickname] = useState(user.nickname);
@@ -135,6 +137,60 @@ export function EditProfileModal({ isOpen, onClose, user }: EditProfileModalProp
               );
             })}
           </div>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            background: theme.background,
+            border: `1.5px solid ${theme.border}`,
+            borderRadius: '10px',
+            padding: '12px 16px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {soundEnabled ? (
+              <FaVolumeUp size={16} color={theme.text} />
+            ) : (
+              <FaVolumeMute size={16} color={theme.textSecondary} />
+            )}
+            <span style={{ fontWeight: 600, color: theme.text, fontSize: '0.95rem' }}>Som de notificação</span>
+          </div>
+          <button
+            onClick={onToggleSound}
+            role="switch"
+            aria-checked={soundEnabled}
+            title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+            style={{
+              width: '44px',
+              height: '24px',
+              borderRadius: '12px',
+              border: 'none',
+              background: soundEnabled ? theme.primary : theme.border,
+              position: 'relative',
+              cursor: 'pointer',
+              padding: 0,
+              flexShrink: 0,
+              transition: 'background 0.2s ease',
+            }}
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: soundEnabled ? '22px' : '2px',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: 'white',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                transition: 'left 0.2s ease',
+              }}
+            />
+          </button>
         </div>
 
         <div>
