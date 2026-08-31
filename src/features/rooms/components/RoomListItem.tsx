@@ -1,5 +1,5 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaImage, FaPlay, FaSquare, FaUser } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaEdit, FaImage, FaMicrophone, FaPlay, FaSquare, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { formatAudioTime } from '@lib/format';
@@ -16,6 +16,8 @@ interface RoomListItemProps {
   isSelectionMode: boolean;
   isChecked: boolean;
   onToggleSelect: () => void;
+  isTyping: boolean;
+  isRecording: boolean;
 }
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
@@ -55,6 +57,38 @@ function isRoomParticipantOnline(room: RoomSummary, userId: string | undefined):
   }
 
   return getOtherParticipant(room, userId)?.status === 'online';
+}
+
+function ActivityPreview({ isRecording, theme }: { isRecording: boolean; theme: RoomThemePalette }) {
+  return (
+    <p
+      style={{
+        fontSize: '0.82rem',
+        color: theme.primary,
+        margin: 0,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        maxWidth: '100%',
+        fontStyle: 'italic',
+      }}
+    >
+      {isRecording ? (
+        <>
+          <FaMicrophone size={12} style={{ flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
+          <span style={{ flexShrink: 0 }}>gravando áudio</span>
+        </>
+      ) : (
+        <>
+          <FaEdit size={12} style={{ flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
+          <span style={{ flexShrink: 0 }}>digitando...</span>
+        </>
+      )}
+    </p>
+  );
 }
 
 function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: User; theme: RoomThemePalette }) {
@@ -136,7 +170,18 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   );
 }
 
-export function RoomListItem({ room, user, isSelected, onSelect, theme, isSelectionMode, isChecked, onToggleSelect }: RoomListItemProps) {
+export function RoomListItem({
+  room,
+  user,
+  isSelected,
+  onSelect,
+  theme,
+  isSelectionMode,
+  isChecked,
+  onToggleSelect,
+  isTyping,
+  isRecording,
+}: RoomListItemProps) {
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
 
@@ -260,7 +305,11 @@ export function RoomListItem({ room, user, isSelected, onSelect, theme, isSelect
             )}
           </div>
         </div>
-        <LastMessagePreview room={room} user={user} theme={theme} />
+        {isTyping || isRecording ? (
+          <ActivityPreview isRecording={isRecording} theme={theme} />
+        ) : (
+          <LastMessagePreview room={room} user={user} theme={theme} />
+        )}
       </div>
     </div>
   );
