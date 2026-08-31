@@ -78,7 +78,7 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
 }
 
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
-  const { theme } = useTheme();
+  const { theme, getRoomWallpaper } = useTheme();
   const { socket } = useSocket();
   const { messages, typingUserIds, recordingUserIds } = useRoomMessages(room?.id ?? null, user.id);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
@@ -173,6 +173,13 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     onBack();
   };
 
+  const wallpaper = getRoomWallpaper(room.id);
+  const messagesBackground = wallpaper?.background
+    ? wallpaper.isImage
+      ? `${wallpaper.background} center/cover fixed`
+      : wallpaper.background
+    : theme.background;
+
   const confirmDeleteMessage = () => {
     if (messageIdPendingDelete) {
       socket?.emit('message:delete', { messageId: messageIdPendingDelete });
@@ -193,9 +200,22 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
           display: 'flex',
           flexDirection: 'column',
           gap: '10px',
-          background: theme.background,
+          background: messagesBackground,
+          position: 'relative',
         }}
       >
+        {wallpaper?.isImage && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.32)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        )}
+        <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {messages.length === 0 ? (
           <div
             style={{
@@ -340,6 +360,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         })()}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {repliedMessage && (
