@@ -1,10 +1,11 @@
 import { useState, type MouseEvent } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaCheckSquare, FaCircle, FaComments, FaCopy, FaPalette, FaPlus, FaSignOutAlt, FaSquare, FaTimes, FaTrash } from 'react-icons/fa';
+import { FaCheckSquare, FaCircle, FaComments, FaCopy, FaPalette, FaPlus, FaSignOutAlt, FaSquare, FaStar, FaTimes, FaTrash } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { useTheme } from '@features/theme';
+import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import type { RoomSummary } from '../types';
 import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
@@ -41,6 +42,7 @@ export function Sidebar({
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
   const { theme } = useTheme();
+  const { favoriteRoomIds, toggleFavorites } = useFavoriteRooms();
 
   const handleThemeButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -74,6 +76,16 @@ export function Sidebar({
     setSelectedIds(new Set());
     setIsSelectionMode(false);
   };
+
+  const handleFavoriteSelected = () => {
+    toggleFavorites(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const allSelectedAreFavorited = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => favoriteRoomIds.has(roomId));
+
+  const sortedRooms = [...rooms].sort((a, b) => Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id)));
 
   const copyCode = () => {
     if (!user.chatCode || !navigator.clipboard) {
@@ -402,7 +414,7 @@ export function Sidebar({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {rooms.map((room) => (
+            {sortedRooms.map((room) => (
               <RoomListItem
                 key={room.id}
                 room={room}
@@ -415,6 +427,7 @@ export function Sidebar({
                 onToggleSelect={() => toggleRoomSelected(room.id)}
                 isTyping={(typingUserIds[room.id]?.length ?? 0) > 0}
                 isRecording={(recordingUserIds[room.id]?.length ?? 0) > 0}
+                isFavorite={favoriteRoomIds.has(room.id)}
               />
             ))}
           </div>
@@ -432,6 +445,33 @@ export function Sidebar({
             justifyContent: 'flex-end',
           }}
         >
+          <button
+            onClick={handleFavoriteSelected}
+            style={{
+              background: '#fbbf24',
+              border: 'none',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = '#f59e0b';
+              event.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = '#fbbf24';
+              event.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <FaStar size={14} />
+            {allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'} ({selectedIds.size})
+          </button>
           <button
             onClick={() => setShowConfirmDelete(true)}
             style={{
