@@ -34,6 +34,8 @@ interface MessageInputProps {
   onTyping: () => void;
   onRecordingStart: () => void;
   onRecordingStop: () => void;
+  isBlockedBy: boolean;
+  userBlocked: boolean;
 }
 
 interface PendingImage {
@@ -191,7 +193,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop },
+  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked },
   ref,
 ) {
   const { theme, baseTheme } = useTheme();
@@ -228,10 +230,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setPendingImage({ file, previewUrl: URL.createObjectURL(file) });
   };
 
+  const isBlocked = isBlockedBy || userBlocked;
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed && !pendingImage) {
+    if ((!trimmed && !pendingImage) || isBlocked) {
       return;
     }
 
@@ -374,7 +378,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <Button
               variant="link"
               onClick={() => fileInputRef.current?.click()}
-              title="Enviar imagem"
+              disabled={isBlocked}
+              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar imagem'}
               style={{
                 color: theme.primary,
                 padding: '10px',
@@ -388,12 +393,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 textDecoration: 'none',
                 flexShrink: 0,
                 transition: 'all 0.2s',
+                opacity: isBlocked ? 0.5 : 1,
+                cursor: isBlocked ? 'not-allowed' : 'pointer',
               }}
               onMouseEnter={(event) => {
-                event.currentTarget.style.opacity = '0.8';
+                if (!isBlocked) {
+                  event.currentTarget.style.opacity = '0.8';
+                }
               }}
               onMouseLeave={(event) => {
-                event.currentTarget.style.opacity = '1';
+                if (!isBlocked) {
+                  event.currentTarget.style.opacity = '1';
+                }
               }}
             >
               <FaImage size={18} />
@@ -401,7 +412,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <Button
               variant="link"
               onClick={() => void handleMicClick()}
-              title="Gravar áudio"
+              disabled={isBlocked}
+              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Gravar áudio'}
               style={{
                 color: theme.primary,
                 padding: '10px',
@@ -415,12 +427,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 textDecoration: 'none',
                 flexShrink: 0,
                 transition: 'all 0.2s',
+                opacity: isBlocked ? 0.5 : 1,
+                cursor: isBlocked ? 'not-allowed' : 'pointer',
               }}
               onMouseEnter={(event) => {
-                event.currentTarget.style.opacity = '0.8';
+                if (!isBlocked) {
+                  event.currentTarget.style.opacity = '0.8';
+                }
               }}
               onMouseLeave={(event) => {
-                event.currentTarget.style.opacity = '1';
+                if (!isBlocked) {
+                  event.currentTarget.style.opacity = '1';
+                }
               }}
             >
               <FaMicrophone size={18} />
@@ -435,14 +453,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             setMessage(event.target.value);
             onTyping();
           }}
-          placeholder="Digite sua mensagem..."
+          disabled={isBlocked}
+          placeholder={
+            isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
+          }
           autoFocus
           style={{
             borderRadius: '22px',
             padding: '12px 18px',
             border: `2px solid ${theme.border}`,
             fontSize: '0.95rem',
-            background: theme.inputBg,
+            background: isBlocked ? '#f5f5f5' : theme.inputBg,
             color: theme.text,
           }}
           onFocus={(event) => {

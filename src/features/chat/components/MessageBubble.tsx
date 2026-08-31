@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { FaBan, FaCheck, FaImage, FaPause, FaPlay, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
-import { formatAudioTime } from '@lib/format';
+import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { MessageView } from '@lib/socket';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
@@ -32,17 +32,6 @@ interface MessageBubbleProps {
 
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
-
-function processSystemMessage(content: string, currentNickname: string): string {
-  if (!currentNickname) {
-    return content;
-  }
-  return content.replace(new RegExp(`\\b${currentNickname}\\b`, 'g'), 'Você');
-}
-
-function getDisplayName(senderId: string, nickname: string, currentUserId: string | undefined): string {
-  return senderId === currentUserId ? 'Você' : nickname;
-}
 
 export function MessageBubble({
   message,
