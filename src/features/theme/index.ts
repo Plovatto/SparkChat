@@ -1,6 +1,7 @@
 export { ThemeProvider } from './ThemeProvider';
 export { useTheme } from './theme-context';
 export type { ThemeContextValue } from './theme-context';
+export { useThemeSync } from './hooks/useThemeSync';
 export { mergeTheme } from './merge-theme';
 export type { MergedTheme } from './merge-theme';
 export { CHAT_BACKGROUNDS } from './constants/chat-backgrounds';
