@@ -1,4 +1,5 @@
 import { createContext, use } from 'react';
+import type { ChatBackground } from './constants/chat-backgrounds';
 import type { ColorThemeId } from './constants/color-themes';
 import type { ThemeBaseId } from './constants/theme-bases';
 import type { ThemePalette } from './types';
@@ -10,6 +11,8 @@ export interface ThemeContextValue {
   changeBaseTheme: (baseId: ThemeBaseId) => void;
   changeColorTheme: (colorId: ColorThemeId) => void;
   changeTheme: (themeId: string) => void;
+  getRoomWallpaper: (roomId: string) => ChatBackground | null;
+  setRoomWallpaper: (roomId: string, backgroundId: string) => void;
 }
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
