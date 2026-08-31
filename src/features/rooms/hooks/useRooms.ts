@@ -84,6 +84,29 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, unreadCount } : room)));
     };
 
+    const handleReadReceipt = ({ roomId: receiptRoomId, userId: readerId }: { roomId: string; userId: string }) => {
+      setRooms((previous) =>
+        previous.map((room) => {
+          const message = room.lastMessage;
+          if (room.id !== receiptRoomId || !message || message.sender.id !== currentUserId || message.readBy.includes(readerId)) {
+            return room;
+          }
+
+          const deliveredTo = message.deliveredTo.includes(readerId) ? message.deliveredTo : [...message.deliveredTo, readerId];
+          return {
+            ...room,
+            lastMessage: { ...message, readBy: [...message.readBy, readerId], deliveredTo, status: 'read' },
+          };
+        }),
+      );
+    };
+
+    const handleMessageUpdated = (message: MessageView) => {
+      setRooms((previous) =>
+        previous.map((room) => (room.lastMessage?.id === message.id ? { ...room, lastMessage: message } : room)),
+      );
+    };
+
     const handleMessageDeleted = ({ messageId, roomId }: { messageId: string; roomId: string }) => {
       setRooms((previous) =>
         previous.map((room) =>
@@ -135,6 +158,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('user:profile-updated', handleProfileUpdated);
     socket.on('message:new', handleMessageNew);
     socket.on('message:mark-read-done', handleMarkReadDone);
+    socket.on('message:read-receipt', handleReadReceipt);
+    socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
 
     return () => {
@@ -153,6 +178,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('user:profile-updated', handleProfileUpdated);
       socket.off('message:new', handleMessageNew);
       socket.off('message:mark-read-done', handleMarkReadDone);
+      socket.off('message:read-receipt', handleReadReceipt);
+      socket.off('message:updated', handleMessageUpdated);
       socket.off('message:deleted', handleMessageDeleted);
     };
   }, [socket, upsertRoom, selectedRoomId, currentUserId]);
