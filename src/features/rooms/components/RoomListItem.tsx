@@ -1,7 +1,9 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaImage, FaSquare, FaUser } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaImage, FaPlay, FaSquare, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
+import { formatAudioTime } from '@lib/format';
+import { getMessageStatus } from '@lib/message-status';
 import type { RoomThemePalette } from '../constants/default-theme';
 import type { RoomParticipant, RoomSummary } from '../types';
 
@@ -87,14 +89,21 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   }
 
   const isOwnMessage = message.sender.id === user.id;
-  const readByOthers = message.readBy.some((id) => id !== user.id);
+  const statusInfo = getMessageStatus(message, isOwnMessage, room.type === 'group', room.participants, user.id);
+  const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id ?? '');
 
   return (
     <p style={previewStyle}>
-      {isOwnMessage && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0 }}>
-          <FaCheck size={12} color={readByOthers ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
-          <FaCheck size={12} color={readByOthers ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
+      {statusInfo && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, marginLeft: '4px' }}>
+          {statusInfo.icon === 'double' ? (
+            <>
+              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
+              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
+            </>
+          ) : (
+            <FaCheck size={12} color="#999" />
+          )}
         </span>
       )}
       {message.type === 'system' ? (
@@ -106,6 +115,11 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <FaImage size={12} style={{ flexShrink: 0 }} />
           <span style={{ flexShrink: 0 }}>Imagem</span>
+        </span>
+      ) : message.type === 'audio' ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          <FaPlay size={12} style={{ flexShrink: 0, color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
+          <span style={{ flexShrink: 0 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
         </span>
       ) : (
         <>

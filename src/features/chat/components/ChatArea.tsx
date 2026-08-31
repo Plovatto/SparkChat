@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
+import { FaPlay } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
+import { formatAudioTime } from '@lib/format';
 import { useSocket, type MessageView } from '@lib/socket';
 import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -373,6 +375,11 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                   alt="thumb"
                   style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
                 />
+              ) : repliedMessage.type === 'audio' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <FaPlay size={12} />
+                  <span>Áudio {formatAudioTime(repliedMessage.duration ?? 0)}</span>
+                </div>
               ) : (
                 <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {repliedMessage.content}

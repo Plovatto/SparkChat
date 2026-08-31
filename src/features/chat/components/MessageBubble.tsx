@@ -3,6 +3,8 @@ import { format } from 'date-fns';
 import { FaBan, FaCheck, FaImage, FaPause, FaPlay, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
+import { formatAudioTime } from '@lib/format';
+import { getMessageStatus } from '@lib/message-status';
 import type { MessageView } from '@lib/socket';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { ImageModal } from './ImageModal';
@@ -28,22 +30,8 @@ interface MessageBubbleProps {
   onAudioPlayed: (messageId: string) => void;
 }
 
-interface MessageStatusInfo {
-  icon: 'single' | 'double';
-  color: string;
-}
-
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
-
-function formatAudioTime(seconds: number): string {
-  if (!seconds || Number.isNaN(seconds)) {
-    return '0:00';
-  }
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
 
 function processSystemMessage(content: string, currentNickname: string): string {
   if (!currentNickname) {
@@ -54,40 +42,6 @@ function processSystemMessage(content: string, currentNickname: string): string 
 
 function getDisplayName(senderId: string, nickname: string, currentUserId: string | undefined): string {
   return senderId === currentUserId ? 'Você' : nickname;
-}
-
-function getMessageStatus(
-  message: MessageView,
-  isOwn: boolean,
-  isGroupChat: boolean,
-  participants: RoomParticipant[],
-  currentUserId: string | undefined,
-): MessageStatusInfo | null {
-  if (!isOwn) {
-    return null;
-  }
-
-  const { status, readBy, deliveredTo } = message;
-
-  if (isGroupChat && participants.length > 0) {
-    const others = participants.filter((participant) => participant.id !== currentUserId);
-
-    if (readBy.length > 0 && others.every((participant) => readBy.includes(participant.id))) {
-      return { icon: 'double', color: '#4FC3F7' };
-    }
-    if (deliveredTo.length > 0 && others.every((participant) => deliveredTo.includes(participant.id))) {
-      return { icon: 'double', color: 'white' };
-    }
-    return { icon: 'single', color: 'white' };
-  }
-
-  if (readBy.length > 0 && readBy.some((id) => id !== currentUserId)) {
-    return { icon: 'double', color: '#4FC3F7' };
-  }
-  if (status === 'delivered') {
-    return { icon: 'double', color: 'white' };
-  }
-  return { icon: 'single', color: 'white' };
 }
 
 export function MessageBubble({
@@ -258,6 +212,7 @@ export function MessageBubble({
   }
 
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
+  const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
   const isImageMessage = message.type === 'image';
   const usesMediaPadding = isImageMessage || isAudioMessage;
   const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
@@ -537,11 +492,11 @@ export function MessageBubble({
               <div style={{ display: 'flex', alignItems: 'center', opacity: isOwn ? 0.9 : 0.7, marginLeft: '6px' }}>
                 {statusInfo.icon === 'double' ? (
                   <>
-                    <FaCheck size={11} color={statusInfo.color} style={{ marginLeft: '-6px' }} />
-                    <FaCheck size={11} color={statusInfo.color} style={{ marginLeft: '-6px' }} />
+                    <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
+                    <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
                   </>
                 ) : (
-                  <FaCheck size={11} color={statusInfo.color} />
+                  <FaCheck size={11} color={statusColor} />
                 )}
               </div>
             )}
