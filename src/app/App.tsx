@@ -5,6 +5,7 @@ import { ChatArea } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
 import { NewChatModal, Sidebar, useRooms } from '@features/rooms';
+import { useThemeSync } from '@features/theme';
 import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -32,6 +33,7 @@ function AuthGate({ user, isRestoring, onLogin, onLogout, onUserUpdate }: AuthGa
     onRegistered: onUserUpdate,
     onError: (message) => console.error(message),
   });
+  useThemeSync(user);
 
   if (isRestoring) {
     return <LoadingScreen />;

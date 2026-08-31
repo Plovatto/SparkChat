@@ -1,8 +1,8 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaEdit, FaImage, FaMicrophone, FaPlay, FaSquare, FaUser } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaEdit, FaImage, FaMicrophone, FaPlay, FaSquare, FaStar, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
-import { formatAudioTime } from '@lib/format';
+import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomThemePalette } from '../constants/default-theme';
 import type { RoomParticipant, RoomSummary } from '../types';
@@ -18,6 +18,7 @@ interface RoomListItemProps {
   onToggleSelect: () => void;
   isTyping: boolean;
   isRecording: boolean;
+  isFavorite: boolean;
 }
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
@@ -142,7 +143,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
       )}
       {message.type === 'system' ? (
         <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary }}>
-          {message.content.substring(0, 28)}
+          {processSystemMessage(message.content, user.nickname).substring(0, 28)}
           {message.content.length > 28 ? '...' : ''}
         </span>
       ) : message.type === 'image' ? (
@@ -159,7 +160,12 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
         <>
           {room.type === 'group' && (
             <span style={{ fontWeight: 'bold', marginRight: '4px' }}>
-              {room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido'}:
+              {getDisplayName(
+                message.sender.id,
+                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
+                user.id,
+              )}
+              :
             </span>
           )}
           {message.content.substring(0, 32)}
@@ -181,6 +187,7 @@ export function RoomListItem({
   onToggleSelect,
   isTyping,
   isRecording,
+  isFavorite,
 }: RoomListItemProps) {
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
@@ -275,6 +282,7 @@ export function RoomListItem({
             >
               {getRoomName(room, user.id)}
             </h6>
+            {isFavorite && <FaStar size={12} color="#fbbf24" style={{ flexShrink: 0 }} />}
             {room.userBlocked && <FaBan size={12} color="#ff4444" style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>

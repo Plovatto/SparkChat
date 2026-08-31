@@ -6,13 +6,15 @@ import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
-import { useSocket } from '@lib/socket';
+import { useSocket, type MessageView } from '@lib/socket';
+import { ImageModal } from './ImageModal';
 
 interface RoomInfoPanelProps {
   isOpen: boolean;
   onClose: () => void;
   room: RoomSummary;
   currentUserId: string | undefined;
+  messages: MessageView[];
   onLeftGroup: () => void;
 }
 
@@ -38,6 +40,122 @@ function getLastSeen(participant: RoomParticipant): string {
   }
 
   return 'Offline';
+}
+
+function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; onSelectImage: (src: string) => void }) {
+  const { theme } = useTheme();
+  const [showAll, setShowAll] = useState(false);
+
+  const mediaMessages = messages.filter((message) => message.type === 'image' && !message.deletedForEveryone);
+
+  if (mediaMessages.length === 0) {
+    return (
+      <div
+        style={{
+          padding: '20px',
+          textAlign: 'center',
+          color: theme.textSecondary,
+          background: theme.background,
+          borderRadius: '10px',
+          border: `1px dashed ${theme.border}`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <FaImage size={30} style={{ opacity: 0.3 }} />
+        <div style={{ fontSize: '0.9rem' }}>Nenhuma mídia compartilhada</div>
+      </div>
+    );
+  }
+
+  const visibleMessages = showAll ? mediaMessages : mediaMessages.slice(0, 3);
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: '0.85rem',
+          color: theme.textSecondary,
+          marginBottom: '12px',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}
+      >
+        <FaImage /> Mídias ({mediaMessages.length})
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+        {visibleMessages.map((message) => (
+          <div
+            key={message.id}
+            onClick={() => onSelectImage(message.content)}
+            style={{
+              aspectRatio: '1',
+              borderRadius: '10px',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              border: `2px solid ${theme.border}`,
+              transition: 'all 0.3s',
+              position: 'relative',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.borderColor = theme.primary;
+              event.currentTarget.style.transform = 'scale(1.05)';
+              event.currentTarget.style.boxShadow = `0 6px 16px ${theme.primary}40`;
+              event.currentTarget.style.zIndex = '10';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.borderColor = theme.border;
+              event.currentTarget.style.transform = 'scale(1)';
+              event.currentTarget.style.boxShadow = 'none';
+              event.currentTarget.style.zIndex = '1';
+            }}
+          >
+            <img src={message.content} alt="Mídia" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          </div>
+        ))}
+      </div>
+      {mediaMessages.length > 3 && (
+        <button
+          onClick={() => setShowAll((previous) => !previous)}
+          style={{
+            width: '100%',
+            padding: '12px 16px',
+            marginTop: '12px',
+            background: `${theme.primary}20`,
+            border: `2px solid ${theme.primary}`,
+            color: theme.primary,
+            borderRadius: '10px',
+            cursor: 'pointer',
+            fontSize: '0.95rem',
+            fontWeight: 600,
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+          }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = `${theme.primary}30`;
+            event.currentTarget.style.transform = 'translateY(-2px)';
+            event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background = `${theme.primary}20`;
+            event.currentTarget.style.transform = 'translateY(0)';
+            event.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          {showAll ? '▲ Ver menos' : `Ver mais ${mediaMessages.length - 3} mídias`}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function WallpaperPicker({ roomId }: { roomId: string }) {
@@ -127,11 +245,12 @@ function WallpaperPicker({ roomId }: { roomId: string }) {
   );
 }
 
-export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, onLeftGroup }: RoomInfoPanelProps) {
+export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, onLeftGroup }: RoomInfoPanelProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [codeCopied, setCodeCopied] = useState(false);
   const [copiedParticipantId, setCopiedParticipantId] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
@@ -175,6 +294,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, onLeftGrou
   };
 
   return (
+    <>
     <Modal isOpen={isOpen} onClose={onClose} title={room.type === 'group' ? room.name : otherUser?.nickname} theme={theme}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {room.type === 'private' && otherUser && (
@@ -276,6 +396,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, onLeftGrou
                 {getLastSeen(otherUser)}
               </div>
             </div>
+
+            <MediaGallery messages={messages} onSelectImage={setSelectedImage} />
 
             <WallpaperPicker roomId={room.id} />
 
@@ -478,6 +600,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, onLeftGrou
               </div>
             </div>
 
+            <MediaGallery messages={messages} onSelectImage={setSelectedImage} />
+
             <WallpaperPicker roomId={room.id} />
 
             <div
@@ -526,5 +650,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, onLeftGrou
         )}
       </div>
     </Modal>
+    <ImageModal isOpen={selectedImage !== null} imageSrc={selectedImage ?? ''} onClose={() => setSelectedImage(null)} />
+    </>
   );
 }

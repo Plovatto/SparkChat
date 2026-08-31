@@ -190,7 +190,14 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
       <ChatHeader room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
-      <RoomInfoPanel isOpen={isInfoOpen} onClose={() => setIsInfoOpen(false)} room={room} currentUserId={user.id} onLeftGroup={handleLeftGroup} />
+      <RoomInfoPanel
+        isOpen={isInfoOpen}
+        onClose={() => setIsInfoOpen(false)}
+        room={room}
+        currentUserId={user.id}
+        messages={messages}
+        onLeftGroup={handleLeftGroup}
+      />
 
       <div
         style={{
@@ -363,6 +370,42 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         </div>
       </div>
 
+      {room.userBlocked && (
+        <div
+          style={{
+            background: '#fff3e0',
+            color: '#e65100',
+            padding: '12px 18px',
+            borderTop: '2px solid #ff9800',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <span style={{ fontSize: '1.2rem' }}>🚫</span>
+          <strong>Você bloqueou este usuário</strong>
+        </div>
+      )}
+
+      {room.isBlockedBy && (
+        <div
+          style={{
+            background: '#ffebee',
+            color: '#c62828',
+            padding: '12px 18px',
+            borderTop: '2px solid #d32f2f',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '0.9rem',
+          }}
+        >
+          <span style={{ fontSize: '1.2rem' }}>⛔</span>
+          <strong>Você foi bloqueado por este usuário</strong>
+        </div>
+      )}
+
       {repliedMessage && (
         <div
           style={{
@@ -421,6 +464,8 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         onTyping={notifyTyping}
         onRecordingStart={handleRecordingStart}
         onRecordingStop={handleRecordingStop}
+        isBlockedBy={room.isBlockedBy}
+        userBlocked={room.userBlocked}
       />
 
       <ConfirmDialog

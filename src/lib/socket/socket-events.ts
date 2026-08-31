@@ -106,6 +106,7 @@ export interface ServerToClientEvents {
   'room:new': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
   'room:deleted': (payload: { roomId: string }) => void;
   'group:left': (payload: { roomId: string }) => void;
+  'group:user-joined': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'group:user-left': (payload: { roomId: string; userId: string; userName: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
@@ -122,6 +123,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'user:join': (payload: JoinPayload) => void;
   'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
+  'user:update-theme': (payload: SocketUserTheme) => void;
   'rooms:get': () => void;
   'room:create-private': (payload: { targetChatCode: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
