@@ -4,7 +4,8 @@ import { LoadingScreen } from '@components/common/LoadingScreen';
 import { ChatArea } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
-import { NewChatModal, Sidebar, useRooms } from '@features/rooms';
+import { useMessageNotifications, useNotificationPreference, useSoundPreference, useUnreadBadge } from '@features/notifications';
+import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useThemeSync } from '@features/theme';
 import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
@@ -58,6 +59,30 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
+  const notificationPreference = useNotificationPreference();
+  const soundPreference = useSoundPreference();
+  const { mutedRoomIds, toggleMuted } = useMutedRooms();
+  const totalUnread = rooms.reduce((sum, room) => sum + room.unreadCount, 0);
+
+  useMessageNotifications(
+    rooms,
+    user.id,
+    selectedRoomId,
+    mutedRoomIds,
+    notificationPreference.isEnabled,
+    soundPreference.isEnabled,
+    setSelectedRoomId,
+  );
+  useUnreadBadge(totalUnread);
+
+  const handleToggleNotifications = () => {
+    if (notificationPreference.isEnabled) {
+      notificationPreference.disable();
+    } else {
+      void notificationPreference.enable();
+    }
+  };
+
   const handleDeleteRooms = (roomIds: string[]) => {
     roomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
     if (selectedRoomId && roomIds.includes(selectedRoomId)) {
@@ -108,6 +133,14 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
                 onDeleteRooms={handleDeleteRooms}
                 typingUserIds={typingUserIds}
                 recordingUserIds={recordingUserIds}
+                notificationsSupported={notificationPreference.isSupported}
+                notificationsEnabled={notificationPreference.isEnabled}
+                notificationsBlocked={notificationPreference.permission === 'denied'}
+                onToggleNotifications={handleToggleNotifications}
+                soundEnabled={soundPreference.isEnabled}
+                onToggleSound={soundPreference.toggle}
+                mutedRoomIds={mutedRoomIds}
+                onToggleMuted={toggleMuted}
               />
             </Col>
             <Col

@@ -1,5 +1,19 @@
 import { Badge } from 'react-bootstrap';
-import { FaBan, FaCheck, FaCheckSquare, FaCircle, FaComments, FaEdit, FaImage, FaMicrophone, FaPlay, FaSquare, FaStar, FaUser } from 'react-icons/fa';
+import {
+  FaBan,
+  FaBellSlash,
+  FaCheck,
+  FaCheckSquare,
+  FaCircle,
+  FaComments,
+  FaEdit,
+  FaImage,
+  FaMicrophone,
+  FaPlay,
+  FaSquare,
+  FaStar,
+  FaUser,
+} from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
@@ -19,6 +33,7 @@ interface RoomListItemProps {
   isTyping: boolean;
   isRecording: boolean;
   isFavorite: boolean;
+  isMuted: boolean;
 }
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
@@ -188,6 +203,7 @@ export function RoomListItem({
   isTyping,
   isRecording,
   isFavorite,
+  isMuted,
 }: RoomListItemProps) {
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
@@ -283,6 +299,7 @@ export function RoomListItem({
               {getRoomName(room, user.id)}
             </h6>
             {isFavorite && <FaStar size={12} color="#fbbf24" style={{ flexShrink: 0 }} />}
+            {isMuted && <FaBellSlash size={12} color={theme.textSecondary} style={{ flexShrink: 0 }} title="Conversa silenciada" />}
             {room.userBlocked && <FaBan size={12} color="#ff4444" style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
