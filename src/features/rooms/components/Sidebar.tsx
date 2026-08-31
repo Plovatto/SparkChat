@@ -1,6 +1,20 @@
 import { useState, type MouseEvent } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaCheckSquare, FaCircle, FaComments, FaCopy, FaPalette, FaPlus, FaSignOutAlt, FaSquare, FaStar, FaTimes, FaTrash } from 'react-icons/fa';
+import {
+  FaBell,
+  FaBellSlash,
+  FaCheckSquare,
+  FaCircle,
+  FaComments,
+  FaCopy,
+  FaPalette,
+  FaPlus,
+  FaSignOutAlt,
+  FaSquare,
+  FaStar,
+  FaTimes,
+  FaTrash,
+} from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
@@ -21,6 +35,14 @@ interface SidebarProps {
   onDeleteRooms: (roomIds: string[]) => void;
   typingUserIds: Record<string, string[]>;
   recordingUserIds: Record<string, string[]>;
+  notificationsSupported: boolean;
+  notificationsEnabled: boolean;
+  notificationsBlocked: boolean;
+  onToggleNotifications: () => void;
+  soundEnabled: boolean;
+  onToggleSound: () => void;
+  mutedRoomIds: Set<string>;
+  onToggleMuted: (roomIds: string[]) => void;
 }
 
 export function Sidebar({
@@ -33,6 +55,14 @@ export function Sidebar({
   onDeleteRooms,
   typingUserIds,
   recordingUserIds,
+  notificationsSupported,
+  notificationsEnabled,
+  notificationsBlocked,
+  onToggleNotifications,
+  soundEnabled,
+  onToggleSound,
+  mutedRoomIds,
+  onToggleMuted,
 }: SidebarProps) {
   const [codeCopied, setCodeCopied] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -83,7 +113,14 @@ export function Sidebar({
     setIsSelectionMode(false);
   };
 
+  const handleMuteSelected = () => {
+    onToggleMuted(Array.from(selectedIds));
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  };
+
   const allSelectedAreFavorited = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => favoriteRoomIds.has(roomId));
+  const allSelectedAreMuted = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => mutedRoomIds.has(roomId));
 
   const sortedRooms = [...rooms].sort((a, b) => Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id)));
 
@@ -226,6 +263,47 @@ export function Sidebar({
           </button>
 
           <ThemeMenu isOpen={showThemeMenu} position={themeMenuPosition} onClose={() => setShowThemeMenu(false)} />
+
+          {notificationsSupported && (
+            <button
+              onClick={onToggleNotifications}
+              disabled={notificationsBlocked}
+              title={
+                notificationsBlocked
+                  ? 'Notificações bloqueadas nas configurações do navegador'
+                  : notificationsEnabled
+                    ? 'Desativar notificações'
+                    : 'Ativar notificações'
+              }
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: theme.headerTextColor,
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: notificationsBlocked ? 'not-allowed' : 'pointer',
+                opacity: notificationsBlocked ? 0.5 : 1,
+                flexShrink: 0,
+              }}
+              onMouseEnter={(event) => {
+                if (!notificationsBlocked) {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                }
+              }}
+              onMouseLeave={(event) => {
+                if (!notificationsBlocked) {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                }
+              }}
+            >
+              {notificationsEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
+            </button>
+          )}
 
           <Button
             variant="link"
@@ -428,6 +506,7 @@ export function Sidebar({
                 isTyping={(typingUserIds[room.id]?.length ?? 0) > 0}
                 isRecording={(recordingUserIds[room.id]?.length ?? 0) > 0}
                 isFavorite={favoriteRoomIds.has(room.id)}
+                isMuted={mutedRoomIds.has(room.id)}
               />
             ))}
           </div>
@@ -473,6 +552,31 @@ export function Sidebar({
             {allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'} ({selectedIds.size})
           </button>
           <button
+            onClick={handleMuteSelected}
+            style={{
+              background: theme.textSecondary,
+              border: 'none',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            {allSelectedAreMuted ? <FaBell size={14} /> : <FaBellSlash size={14} />}
+            {allSelectedAreMuted ? 'Reativar' : 'Silenciar'} ({selectedIds.size})
+          </button>
+          <button
             onClick={() => setShowConfirmDelete(true)}
             style={{
               background: '#ef4444',
@@ -511,7 +615,13 @@ export function Sidebar({
         theme={theme}
       />
 
-      <EditProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} user={user} />
+      <EditProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        soundEnabled={soundEnabled}
+        onToggleSound={onToggleSound}
+      />
     </div>
   );
 }
