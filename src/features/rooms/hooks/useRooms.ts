@@ -141,6 +141,10 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, participants } : room)));
     };
 
+    const handleGroupUserJoined = ({ roomId, participants }: { roomId: string; participants: RoomParticipant[] }) => {
+      setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, participants } : room)));
+    };
+
     const handleBlockStatusChanged = ({ roomId, blockedBy }: BlockStatusPayload) => {
       setRooms((previous) =>
         previous.map((room) => {
@@ -162,6 +166,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('room:new', handleRoomUpserted);
     socket.on('room:deleted', handleRoomDeleted);
     socket.on('group:left', handleGroupLeft);
+    socket.on('group:user-joined', handleGroupUserJoined);
     socket.on('group:user-left', handleGroupUserLeft);
     socket.on('user:blocked', handleBlockStatusChanged);
     socket.on('user:unblocked', handleBlockStatusChanged);
@@ -184,6 +189,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('room:new', handleRoomUpserted);
       socket.off('room:deleted', handleRoomDeleted);
       socket.off('group:left', handleGroupLeft);
+      socket.off('group:user-joined', handleGroupUserJoined);
       socket.off('group:user-left', handleGroupUserLeft);
       socket.off('user:blocked', handleBlockStatusChanged);
       socket.off('user:unblocked', handleBlockStatusChanged);
