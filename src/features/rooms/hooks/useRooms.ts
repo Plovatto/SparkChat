@@ -4,12 +4,16 @@ import { useSocket, type BlockStatusPayload, type MessageView, type RoomParticip
 export interface RoomsState {
   rooms: RoomSummary[];
   isLoaded: boolean;
+  typingUserIds: Record<string, string[]>;
+  recordingUserIds: Record<string, string[]>;
 }
 
 export function useRooms(selectedRoomId: string | null, currentUserId: string | undefined): RoomsState {
   const { socket } = useSocket();
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [typingUserIds, setTypingUserIds] = useState<Record<string, string[]>>({});
+  const [recordingUserIds, setRecordingUserIds] = useState<Record<string, string[]>>({});
 
   const upsertRoom = useCallback((room: RoomSummary) => {
     setRooms((previous) => {
@@ -82,6 +86,14 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
 
     const handleMarkReadDone = ({ roomId, unreadCount }: { roomId: string; unreadCount: number }) => {
       setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, unreadCount } : room)));
+    };
+
+    const handleTypingUpdate = ({ roomId, users }: { roomId: string; users: string[] }) => {
+      setTypingUserIds((previous) => ({ ...previous, [roomId]: users.filter((userId) => userId !== currentUserId) }));
+    };
+
+    const handleRecordingUpdate = ({ roomId, users }: { roomId: string; users: string[] }) => {
+      setRecordingUserIds((previous) => ({ ...previous, [roomId]: users.filter((userId) => userId !== currentUserId) }));
     };
 
     const handleReadReceipt = ({ roomId: receiptRoomId, userId: readerId }: { roomId: string; userId: string }) => {
@@ -161,6 +173,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('message:read-receipt', handleReadReceipt);
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
+    socket.on('typing:update', handleTypingUpdate);
+    socket.on('recording:update', handleRecordingUpdate);
 
     return () => {
       socket.off('user:registered', requestRooms);
@@ -181,8 +195,10 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('message:read-receipt', handleReadReceipt);
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:deleted', handleMessageDeleted);
+      socket.off('typing:update', handleTypingUpdate);
+      socket.off('recording:update', handleRecordingUpdate);
     };
   }, [socket, upsertRoom, selectedRoomId, currentUserId]);
 
-  return { rooms, isLoaded };
+  return { rooms, isLoaded, typingUserIds, recordingUserIds };
 }

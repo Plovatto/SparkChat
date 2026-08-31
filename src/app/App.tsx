@@ -52,7 +52,7 @@ interface ChatShellProps {
 function ChatShell({ user, onLogout }: ChatShellProps) {
   const { socket } = useSocket();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const { rooms, isLoaded } = useRooms(selectedRoomId, user.id);
+  const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
@@ -104,6 +104,8 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
                 onNewChat={() => setIsNewChatOpen(true)}
                 onLogout={onLogout}
                 onDeleteRooms={handleDeleteRooms}
+                typingUserIds={typingUserIds}
+                recordingUserIds={recordingUserIds}
               />
             </Col>
             <Col
