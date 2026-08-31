@@ -18,9 +18,21 @@ interface SidebarProps {
   onNewChat: () => void;
   onLogout: () => void;
   onDeleteRooms: (roomIds: string[]) => void;
+  typingUserIds: Record<string, string[]>;
+  recordingUserIds: Record<string, string[]>;
 }
 
-export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, onLogout, onDeleteRooms }: SidebarProps) {
+export function Sidebar({
+  user,
+  rooms,
+  selectedRoomId,
+  onSelectRoom,
+  onNewChat,
+  onLogout,
+  onDeleteRooms,
+  typingUserIds,
+  recordingUserIds,
+}: SidebarProps) {
   const [codeCopied, setCodeCopied] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -401,6 +413,8 @@ export function Sidebar({ user, rooms, selectedRoomId, onSelectRoom, onNewChat, 
                 isSelectionMode={isSelectionMode}
                 isChecked={selectedIds.has(room.id)}
                 onToggleSelect={() => toggleRoomSelected(room.id)}
+                isTyping={(typingUserIds[room.id]?.length ?? 0) > 0}
+                isRecording={(recordingUserIds[room.id]?.length ?? 0) > 0}
               />
             ))}
           </div>
