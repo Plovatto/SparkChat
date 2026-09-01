@@ -5,6 +5,7 @@ import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUsers } from 
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
+import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useSocket, type MessageView } from '@lib/socket';
 import { ImageModal } from './ImageModal';
@@ -40,6 +41,38 @@ function getLastSeen(participant: RoomParticipant): string {
   }
 
   return 'Offline';
+}
+
+function MediaThumbnail({ src, theme }: { src: string; theme: ThemePalette }) {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  return (
+    <>
+      {!isLoaded && (
+        <div
+          className="shimmer-bg"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `linear-gradient(90deg, ${theme.surfaceLight} 25%, ${theme.border} 37%, ${theme.surfaceLight} 63%)`,
+          }}
+        />
+      )}
+      <img
+        src={src}
+        alt="Mídia"
+        onLoad={() => setIsLoaded(true)}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          display: 'block',
+          opacity: isLoaded ? 1 : 0,
+          transition: 'opacity 0.25s ease',
+        }}
+      />
+    </>
+  );
 }
 
 function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; onSelectImage: (src: string) => void }) {
@@ -116,7 +149,7 @@ function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; on
               event.currentTarget.style.zIndex = '1';
             }}
           >
-            <img src={message.content} alt="Mídia" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <MediaThumbnail src={message.content} theme={theme} />
           </div>
         ))}
       </div>

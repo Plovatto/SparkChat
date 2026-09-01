@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck, FaImage, FaPause, FaPlay, FaReply, FaTrash } from 'react-icons/fa';
+import { FaBan, FaCheck, FaExclamationCircle, FaImage, FaPause, FaPlay, FaRegClock, FaReply, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
-import type { MessageView } from '@lib/socket';
+import type { ChatMessage } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { ImageModal } from './ImageModal';
 
@@ -16,7 +16,7 @@ export interface CurrentAudioRef {
 }
 
 interface MessageBubbleProps {
-  message: MessageView;
+  message: ChatMessage;
   isOwn: boolean;
   isGroupChat: boolean;
   participants: RoomParticipant[];
@@ -28,6 +28,7 @@ interface MessageBubbleProps {
   onReply: () => void;
   onDelete: () => void;
   onAudioPlayed: (messageId: string) => void;
+  onRetry: () => void;
 }
 
 const MAX_PREVIEW_LENGTH = 200;
@@ -46,10 +47,12 @@ export function MessageBubble({
   onReply,
   onDelete,
   onAudioPlayed,
+  onRetry,
 }: MessageBubbleProps) {
   const { theme, baseTheme } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [playbackIcon, setPlaybackIcon] = useState<'play' | 'pause'>('play');
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
@@ -287,22 +290,38 @@ export function MessageBubble({
 
           <div style={{ margin: '10px 6px 6px 6px' }}>
             {isImageMessage ? (
-              <img
-                src={message.content}
-                alt="Imagem enviada"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setIsImageModalOpen(true);
-                }}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '400px',
-                  borderRadius: '12px',
-                  display: 'block',
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                }}
-              />
+              <div style={{ position: 'relative', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
+                {!isImageLoaded && (
+                  <div
+                    className="shimmer-bg"
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '12px',
+                      background: `linear-gradient(90deg, ${theme.surfaceLight} 25%, ${theme.border} 37%, ${theme.surfaceLight} 63%)`,
+                    }}
+                  />
+                )}
+                <img
+                  src={message.content}
+                  alt="Imagem enviada"
+                  onLoad={() => setIsImageLoaded(true)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsImageModalOpen(true);
+                  }}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '400px',
+                    borderRadius: '12px',
+                    display: 'block',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                    opacity: isImageLoaded ? 1 : 0,
+                    transition: 'opacity 0.25s ease',
+                  }}
+                />
+              </div>
             ) : isAudioMessage ? (
               <div
                 style={{
@@ -478,17 +497,43 @@ export function MessageBubble({
             >
               {format(new Date(message.timestamp), 'HH:mm')}
             </span>
-            {statusInfo && (
-              <div style={{ display: 'flex', alignItems: 'center', opacity: isOwn ? 0.9 : 0.7, marginLeft: '6px' }}>
-                {statusInfo.icon === 'double' ? (
-                  <>
-                    <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
-                    <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
-                  </>
-                ) : (
-                  <FaCheck size={11} color={statusColor} />
-                )}
+            {message.pending ? (
+              <div style={{ display: 'flex', alignItems: 'center', opacity: 0.6, marginLeft: '6px' }}>
+                <FaRegClock size={11} color={isOwn ? theme.messageOwnText : theme.messageOtherText} />
               </div>
+            ) : message.failed ? (
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRetry();
+                }}
+                title="Falha ao enviar. Toque para reenviar."
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginLeft: '6px',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  color: '#ff6b6b',
+                }}
+              >
+                <FaExclamationCircle size={12} />
+              </button>
+            ) : (
+              statusInfo && (
+                <div style={{ display: 'flex', alignItems: 'center', opacity: isOwn ? 0.9 : 0.7, marginLeft: '6px' }}>
+                  {statusInfo.icon === 'double' ? (
+                    <>
+                      <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
+                      <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
+                    </>
+                  ) : (
+                    <FaCheck size={11} color={statusColor} />
+                  )}
+                </div>
+              )
             )}
           </div>
         </div>
