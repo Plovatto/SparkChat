@@ -99,7 +99,7 @@ export interface ServerToClientEvents {
   }) => void;
   'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number }) => void;
   'user:profile-updated-success': (payload: { user: SocketUser }) => void;
-  error: (payload: { message: string }) => void;
+  error: (payload: { message: string; clientTempId?: string }) => void;
   'rooms:list': (payload: { rooms: RoomSummary[] }) => void;
   'room:created': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
   'room:joined': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
@@ -110,7 +110,7 @@ export interface ServerToClientEvents {
   'group:user-left': (payload: { roomId: string; userId: string; userName: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
-  'message:new': (payload: MessageView) => void;
+  'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
   'messages:list': (payload: { roomId: string; messages: MessageView[] }) => void;
@@ -138,6 +138,7 @@ export interface ClientToServerEvents {
     type?: Extract<MessageType, 'text' | 'image' | 'audio'>;
     duration?: number;
     replyToMessageId?: string;
+    clientTempId?: string;
   }) => void;
   'message:mark-read': (payload: { roomId: string }) => void;
   'messages:get': (payload: { roomId: string }) => void;

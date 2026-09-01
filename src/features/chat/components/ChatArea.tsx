@@ -3,6 +3,7 @@ import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
 import { FaPlay } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
+import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
@@ -14,6 +15,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { MessageBubble, type CurrentAudioRef } from './MessageBubble';
+import { MessageListSkeleton } from './MessageListSkeleton';
 import {
   MessageInput,
   type AudioSendPayload,
@@ -80,7 +82,8 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const { theme, getRoomWallpaper } = useTheme();
   const { socket } = useSocket();
-  const { messages, typingUserIds, recordingUserIds } = useRoomMessages(room?.id ?? null, user.id);
+  const { messages, isLoaded: areMessagesLoaded, typingUserIds, recordingUserIds, sendMessage, retryMessage } =
+    useRoomMessages(room?.id ?? null, { id: user.id ?? '', nickname: user.nickname, avatar: user.avatar });
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<MessageInputHandle>(null);
@@ -89,6 +92,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
+  const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -110,28 +114,30 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const sendImageMessage = async (file: File, replyToMessageId: string | undefined) => {
+  const sendImageMessage = async (file: File, replyTo: MessageView | null) => {
+    setUploadingMediaType('image');
     try {
       const content = await uploadChatImage(file);
-      socket?.emit('message:send', { roomId: room.id, content, type: 'image', replyToMessageId });
+      sendMessage({ content, type: 'image', replyTo });
     } catch (error) {
       console.error(error);
+      window.alert('Não foi possível enviar a imagem. Tente novamente.');
+    } finally {
+      setUploadingMediaType(null);
     }
   };
 
   const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
+    setUploadingMediaType('audio');
     try {
       const content = await uploadChatAudio(blob, mimeType);
-      socket?.emit('message:send', {
-        roomId: room.id,
-        content,
-        type: 'audio',
-        duration,
-        replyToMessageId: repliedMessage?.id,
-      });
+      sendMessage({ content, type: 'audio', duration, replyTo: repliedMessage });
       setRepliedMessage(null);
     } catch (error) {
       console.error(error);
+      window.alert('Não foi possível enviar o áudio. Tente novamente.');
+    } finally {
+      setUploadingMediaType(null);
     }
   };
 
@@ -151,11 +157,11 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     const trimmed = text.trim();
 
     if (trimmed) {
-      socket?.emit('message:send', { roomId: room.id, content: trimmed, type: 'text', replyToMessageId: repliedMessage?.id });
+      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage });
     }
 
     if (imageFile) {
-      void sendImageMessage(imageFile, trimmed ? undefined : repliedMessage?.id);
+      void sendImageMessage(imageFile, trimmed ? null : repliedMessage);
     }
 
     setRepliedMessage(null);
@@ -224,7 +230,9 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
           />
         )}
         <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {messages.length === 0 ? (
+        {!areMessagesLoaded ? (
+          <MessageListSkeleton />
+        ) : messages.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -283,6 +291,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                   onReply={() => handleReply(message)}
                   onDelete={() => setMessageIdPendingDelete(message.id)}
                   onAudioPlayed={handleAudioPlayed}
+                  onRetry={() => message.clientTempId && retryMessage(message.clientTempId)}
                 />
               </div>
             </div>
@@ -366,6 +375,27 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             </div>
           );
         })()}
+
+        {uploadingMediaType && (
+          <div
+            className="animate__animated animate__fadeInUp animate__faster"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 15px',
+              background: theme.surface,
+              borderRadius: '15px',
+              maxWidth: '220px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+            }}
+          >
+            <Spinner size={16} />
+            <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic' }}>
+              {uploadingMediaType === 'image' ? 'Enviando imagem...' : 'Enviando áudio...'}
+            </span>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
         </div>
