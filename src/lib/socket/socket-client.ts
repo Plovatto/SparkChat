@@ -7,7 +7,8 @@ export function createSocket(url: string): AppSocket {
   return io(url, {
     autoConnect: true,
     reconnection: true,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
   });
 }
