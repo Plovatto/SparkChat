@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
-import { ChatArea } from '@features/chat';
+import { ChatArea, useChatTriggerEffects } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
 import { useMessageNotifications, useNotificationPreference, useSoundPreference, useUnreadBadge } from '@features/notifications';
@@ -74,6 +74,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
     setSelectedRoomId,
   );
   useUnreadBadge(totalUnread);
+  useChatTriggerEffects(selectedRoomId, user.id);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {

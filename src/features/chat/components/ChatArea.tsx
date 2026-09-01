@@ -200,6 +200,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
       />
 
       <div
+        data-chat-messages
         style={{
           flex: 1,
           overflowY: 'auto',
