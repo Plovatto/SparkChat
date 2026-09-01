@@ -209,6 +209,7 @@ export function MessageBubble({
 
   return (
     <div
+      data-message-bubble
       className="animate__animated animate__fadeInUp animate__faster"
       onClick={(event) => {
         event.stopPropagation();
