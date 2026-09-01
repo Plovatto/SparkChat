@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
+import { Spinner } from '@components/common/Spinner';
 import { ChatArea, useChatTriggerEffects } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
 import { useMessageNotifications, useNotificationPreference, useSoundPreference, useUnreadBadge } from '@features/notifications';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
-import { useThemeSync } from '@features/theme';
+import { useTheme, useThemeSync } from '@features/theme';
 import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -53,7 +54,8 @@ interface ChatShellProps {
 }
 
 function ChatShell({ user, onLogout }: ChatShellProps) {
-  const { socket } = useSocket();
+  const { socket, connected } = useSocket();
+  const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -120,8 +122,29 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
 
   return (
     <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', padding: 0 }}>
-      <div style={{ height: '100%' }}>
-        <Card style={{ borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', height: '100%', border: 'none', overflow: 'hidden' }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {!connected && (
+          <div
+            className="animate__animated animate__fadeInDown animate__faster"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              background: theme.surface,
+              color: theme.textSecondary,
+              fontSize: '0.85rem',
+              fontWeight: 500,
+              flexShrink: 0,
+            }}
+          >
+            <Spinner size={14} />
+            Conectando ao servidor...
+          </div>
+        )}
+        <Card style={{ borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', flex: 1, minHeight: 0, border: 'none', overflow: 'hidden' }}>
           <Row style={{ height: '100%', margin: 0 }}>
             <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }} className={selectedRoom ? 'd-none d-md-block' : undefined}>
               <Sidebar
