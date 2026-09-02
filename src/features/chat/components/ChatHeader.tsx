@@ -40,10 +40,9 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
 
   return (
     <div
-      className="animate__animated animate__fadeInDown animate__faster"
+      className="animate__animated animate__fadeInDown animate__faster chat-header-bar"
       style={{
         background: theme.headerGradient,
-        padding: '16px 20px',
         color: theme.headerTextColor,
         boxShadow: '0 2px 10px rgba(0,0,0,0.15)',
         display: 'flex',
@@ -93,13 +92,13 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
               <span
                 style={{
                   position: 'absolute',
-                  bottom: '-2px',
-                  right: '-2px',
-                  width: '16px',
-                  height: '16px',
+                  bottom: '1px',
+                  right: '1px',
+                  width: '13px',
+                  height: '13px',
                   borderRadius: '50%',
                   background: '#10b981',
-                  border: '3px solid white',
+                  border: '2px solid white',
                   boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
                 }}
               />

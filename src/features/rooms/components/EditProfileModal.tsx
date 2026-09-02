@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaCopy, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaCheck, FaCopy, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
@@ -102,7 +102,19 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
           <label style={{ fontWeight: 600, display: 'block', marginBottom: '12px', color: theme.text, fontSize: '0.95rem' }}>
             Avatar
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
+          <div
+            className="avatar-picker-grid"
+            style={{
+              display: 'grid',
+              height: '250px',
+              alignContent: 'start',
+              overflowY: 'scroll',
+              padding: '12px',
+              background: theme.background,
+              borderRadius: '14px',
+              border: `1px solid ${theme.border}`,
+            }}
+          >
             {AVATARS.map((avatarOption, index) => {
               const isSelected = avatar === index;
               return (
@@ -111,15 +123,17 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
                   onClick={() => setAvatar(index)}
                   style={{
                     width: '100%',
-                    padding: '16px',
-                    background: isSelected ? avatarOption.bgGradient : theme.background,
-                    border: `2px solid ${theme.border}`,
-                    borderRadius: '12px',
+                    aspectRatio: '1',
+                    padding: '6px',
+                    background: isSelected ? avatarOption.bgGradient : theme.surface,
+                    border: `2px solid ${isSelected ? avatarOption.color : theme.border}`,
+                    borderRadius: '10px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
                     transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                    transition: 'transform 0.15s ease',
                   }}
                   onMouseEnter={(event) => {
                     if (!isSelected) {
@@ -132,7 +146,7 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
                     }
                   }}
                 >
-                  <avatarOption.icon size={28} color={isSelected ? 'white' : theme.text} />
+                  <avatarOption.icon size={21} color={isSelected ? 'white' : theme.text} />
                 </button>
               );
             })}
@@ -157,13 +171,13 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
             ) : (
               <FaVolumeMute size={16} color={theme.textSecondary} />
             )}
-            <span style={{ fontWeight: 600, color: theme.text, fontSize: '0.95rem' }}>Som de notificação</span>
+            <span style={{ fontWeight: 600, color: theme.text, fontSize: '0.95rem' }}>Sons do app</span>
           </div>
           <button
             onClick={onToggleSound}
             role="switch"
             aria-checked={soundEnabled}
-            title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+            title={soundEnabled ? 'Desativar sons do app' : 'Ativar sons do app'}
             style={{
               width: '44px',
               height: '24px',
@@ -232,6 +246,9 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
                 borderRadius: '8px',
                 cursor: 'pointer',
                 fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
               }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.transform = 'translateY(-2px)';
@@ -242,7 +259,14 @@ export function EditProfileModal({ isOpen, onClose, user, soundEnabled, onToggle
                 event.currentTarget.style.boxShadow = 'none';
               }}
             >
-              {loginCodeCopied ? '✓ Copiado' : <FaCopy size={18} style={{ display: 'inline' }} />}
+              {loginCodeCopied ? (
+                <>
+                  <FaCheck size={16} />
+                  Copiado
+                </>
+              ) : (
+                <FaCopy size={18} />
+              )}
             </button>
           </div>
           <small style={{ color: theme.textSecondary, margin: '6px 0 0 5px', display: 'block' }}>

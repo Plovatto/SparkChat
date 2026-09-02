@@ -9,6 +9,7 @@ import 'animate.css';
 import 'aos/dist/aos.css';
 import '@/styles/globals.css';
 import '@/styles/animations.css';
+import '@/styles/responsive.css';
 
 AOS.init({
   duration: 600,

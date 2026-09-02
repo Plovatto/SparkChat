@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
-import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
+import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomThemePalette } from '../constants/default-theme';
 import type { RoomParticipant, RoomSummary } from '../types';
@@ -30,8 +30,8 @@ interface RoomListItemProps {
   isSelectionMode: boolean;
   isChecked: boolean;
   onToggleSelect: () => void;
-  isTyping: boolean;
-  isRecording: boolean;
+  typingUserIds: string[];
+  recordingUserIds: string[];
   isFavorite: boolean;
   isMuted: boolean;
 }
@@ -75,11 +75,42 @@ function isRoomParticipantOnline(room: RoomSummary, userId: string | undefined):
   return getOtherParticipant(room, userId)?.status === 'online';
 }
 
-function ActivityPreview({ isRecording, theme }: { isRecording: boolean; theme: RoomThemePalette }) {
+function resolveActorLabel(userIds: string[], room: RoomSummary, currentUserId: string | undefined): string | null {
+  const firstId = userIds[0];
+  if (!firstId) {
+    return null;
+  }
+
+  const participant = room.participants.find((candidate) => candidate.id === firstId);
+  if (!participant) {
+    return null;
+  }
+
+  const name = getDisplayName(participant.id, participant.nickname, currentUserId);
+  return userIds.length > 1 ? `${name} e mais ${userIds.length - 1}` : name;
+}
+
+function ActivityPreview({
+  room,
+  user,
+  typingUserIds,
+  recordingUserIds,
+  theme,
+}: {
+  room: RoomSummary;
+  user: User;
+  typingUserIds: string[];
+  recordingUserIds: string[];
+  theme: RoomThemePalette;
+}) {
+  const isRecording = recordingUserIds.length > 0;
+  const actorLabel = room.type === 'group' ? resolveActorLabel(isRecording ? recordingUserIds : typingUserIds, room, user.id) : null;
+
   return (
     <p
       style={{
         fontSize: '0.82rem',
+        lineHeight: 1,
         color: theme.primary,
         margin: 0,
         whiteSpace: 'nowrap',
@@ -94,13 +125,19 @@ function ActivityPreview({ isRecording, theme }: { isRecording: boolean; theme: 
     >
       {isRecording ? (
         <>
-          <FaMicrophone size={12} style={{ flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
-          <span style={{ flexShrink: 0 }}>gravando áudio</span>
+          <FaMicrophone size={12} style={{ flexShrink: 0, display: 'block', animation: 'pulse 1.5s infinite' }} />
+          <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
+            gravando áudio
+          </span>
         </>
       ) : (
         <>
-          <FaEdit size={12} style={{ flexShrink: 0, animation: 'pulse 1.5s infinite' }} />
-          <span style={{ flexShrink: 0 }}>digitando...</span>
+          <FaEdit size={12} style={{ flexShrink: 0, display: 'block', animation: 'pulse 1.5s infinite' }} />
+          <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
+            digitando...
+          </span>
         </>
       )}
     </p>
@@ -116,10 +153,10 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
 
   const previewStyle = {
     fontSize: '0.82rem',
+    lineHeight: 1.2,
     color: theme.textSecondary,
     margin: 0,
     whiteSpace: 'nowrap' as const,
-    overflow: 'hidden' as const,
     textOverflow: 'ellipsis' as const,
     display: 'flex',
     alignItems: 'center',
@@ -130,8 +167,8 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   if (message.deletedForEveryone) {
     return (
       <p style={previewStyle}>
-        <span style={{ fontStyle: 'italic', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <FaBan size={14} />
+        <span style={{ fontStyle: 'italic', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1 }}>
+          <FaBan size={14} style={{ display: 'block', flexShrink: 0 }} />
           Mensagem deletada
         </span>
       </p>
@@ -141,40 +178,44 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   const isOwnMessage = message.sender.id === user.id;
   const statusInfo = getMessageStatus(message, isOwnMessage, room.type === 'group', room.participants, user.id);
   const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id ?? '');
+  const showGroupSender = room.type === 'group' && !isOwnMessage;
 
   return (
     <p style={previewStyle}>
       {statusInfo && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, marginLeft: '4px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, lineHeight: 1, width: statusInfo.icon === 'double' ? '19px' : '12px' }}>
           {statusInfo.icon === 'double' ? (
             <>
-              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
-              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ marginLeft: '-5px' }} />
+              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ display: 'block', flexShrink: 0 }} />
+              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ display: 'block', marginLeft: '-5px' }} />
             </>
           ) : (
-            <FaCheck size={12} color="#999" />
+            <FaCheck size={12} color="#999" style={{ display: 'block' }} />
           )}
         </span>
       )}
       {message.type === 'system' ? (
-        <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary }}>
-          {processSystemMessage(message.content, user.nickname).substring(0, 28)}
-          {message.content.length > 28 ? '...' : ''}
-        </span>
+        (() => {
+          const processed = processSystemMessage(message.content, user.nickname);
+          const truncated = processed.substring(0, 28) + (processed.length > 28 ? '...' : '');
+          const split = splitSystemMessageActor(truncated);
+          return (
+            <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary, lineHeight: 1 }}>
+              {split ? (
+                <>
+                  <span style={{ fontWeight: 700 }}>{split.actor}</span>
+                  {split.rest}
+                </>
+              ) : (
+                truncated
+              )}
+            </span>
+          );
+        })()
       ) : message.type === 'image' ? (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <FaImage size={12} style={{ flexShrink: 0 }} />
-          <span style={{ flexShrink: 0 }}>Imagem</span>
-        </span>
-      ) : message.type === 'audio' ? (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-          <FaPlay size={12} style={{ flexShrink: 0, color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
-          <span style={{ flexShrink: 0 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
-        </span>
-      ) : (
-        <>
-          {room.type === 'group' && (
-            <span style={{ fontWeight: 'bold', marginRight: '4px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
+          {showGroupSender && (
+            <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
               {getDisplayName(
                 message.sender.id,
                 room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
@@ -183,9 +224,41 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
               :
             </span>
           )}
-          {message.content.substring(0, 32)}
-          {message.content.length > 32 ? '...' : ''}
-        </>
+          <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
+          <span style={{ flexShrink: 0, lineHeight: 1.2 }}>Imagem</span>
+        </span>
+      ) : message.type === 'audio' ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
+          {showGroupSender && (
+            <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
+              {getDisplayName(
+                message.sender.id,
+                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
+                user.id,
+              )}
+              :
+            </span>
+          )}
+          <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
+          <span style={{ flexShrink: 0, lineHeight: 1 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
+        </span>
+      ) : (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
+          {showGroupSender && (
+            <span style={{ fontWeight: 'bold', flexShrink: 0, lineHeight: 1.2 }}>
+              {getDisplayName(
+                message.sender.id,
+                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
+                user.id,
+              )}
+              :
+            </span>
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
+            {message.content.substring(0, 32)}
+            {message.content.length > 32 ? '...' : ''}
+          </span>
+        </span>
       )}
     </p>
   );
@@ -200,8 +273,8 @@ export function RoomListItem({
   isSelectionMode,
   isChecked,
   onToggleSelect,
-  isTyping,
-  isRecording,
+  typingUserIds,
+  recordingUserIds,
   isFavorite,
   isMuted,
 }: RoomListItemProps) {
@@ -330,8 +403,8 @@ export function RoomListItem({
             )}
           </div>
         </div>
-        {isTyping || isRecording ? (
-          <ActivityPreview isRecording={isRecording} theme={theme} />
+        {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (
+          <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} theme={theme} />
         ) : (
           <LastMessagePreview room={room} user={user} theme={theme} />
         )}

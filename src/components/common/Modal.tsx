@@ -7,6 +7,8 @@ export interface ModalPalette {
   border: string;
   text: string;
   textSecondary: string;
+  headerGradient: string;
+  headerTextColor: string;
 }
 
 interface ModalProps {
@@ -64,8 +66,8 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
         <div
           style={{
             background: theme.surface,
-            borderRadius: '16px',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3), 0 0 1px rgba(0, 0, 0, 0.2)',
+            borderRadius: '18px',
+            boxShadow: '0 24px 70px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.2)',
             overflow: 'hidden',
             maxHeight: '90vh',
             display: 'flex',
@@ -75,47 +77,51 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
           {title && (
             <div
               style={{
-                padding: '24px 28px',
-                borderBottom: `1px solid ${theme.border}`,
+                padding: '20px 24px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                background: theme.surface,
+                background: theme.headerGradient,
+                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
                 flexShrink: 0,
               }}
             >
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: theme.text, letterSpacing: '-0.3px' }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme.headerTextColor, letterSpacing: '-0.3px' }}>
                 {title}
               </h2>
               {showCloseButton && (
                 <button
                   onClick={onClose}
+                  title="Fechar"
+                  aria-label="Fechar"
                   style={{
-                    background: 'transparent',
+                    background: 'rgba(255, 255, 255, 0.18)',
                     border: 'none',
-                    color: theme.textSecondary,
+                    color: theme.headerTextColor,
                     cursor: 'pointer',
-                    fontSize: '24px',
-                    padding: '4px 8px',
+                    width: '34px',
+                    height: '34px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    borderRadius: '8px',
+                    borderRadius: '50%',
+                    flexShrink: 0,
+                    transition: 'background 0.15s ease',
                   }}
                   onMouseEnter={(event) => {
-                    event.currentTarget.style.color = theme.text;
+                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
                   }}
                   onMouseLeave={(event) => {
-                    event.currentTarget.style.color = theme.textSecondary;
+                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
                   }}
                 >
-                  <FaTimes />
+                  <FaTimes size={15} />
                 </button>
               )}
             </div>
           )}
 
-          <div style={{ padding: '28px', flex: 1, overflowY: 'auto', color: theme.text }}>{children}</div>
+          <div style={{ padding: '24px', flex: 1, overflowY: 'auto', overflowX: 'hidden', color: theme.text }}>{children}</div>
         </div>
       </div>
     </>,

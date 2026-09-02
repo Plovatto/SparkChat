@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSocket, type BlockStatusPayload, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
+import {
+  useSocket,
+  type BlockStatusPayload,
+  type MessageView,
+  type RoomParticipant,
+  type RoomSummary,
+  type SocketUserStatus,
+} from '@lib/socket';
 
 export interface RoomsState {
   rooms: RoomSummary[];
@@ -45,12 +52,12 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       );
     };
 
-    const handleUserOffline = ({ userId }: { userId: string }) => {
+    const handleUserOffline = ({ userId, user }: { userId: string; user: { id: string; status: SocketUserStatus; lastSeen: string } }) => {
       setRooms((previous) =>
         previous.map((room) => ({
           ...room,
           participants: room.participants.map((participant) =>
-            participant.id === userId ? { ...participant, status: 'offline' } : participant,
+            participant.id === userId ? { ...participant, status: user.status, lastSeen: user.lastSeen } : participant,
           ),
         })),
       );
