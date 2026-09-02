@@ -7,7 +7,7 @@ import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import { formatAudioTime } from '@lib/format';
+import { formatAudioTime, resolveActiveUserNames } from '@lib/format';
 import { useSocket, type MessageView } from '@lib/socket';
 import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -102,26 +102,23 @@ function renderItemKey(item: RenderItem): string {
 }
 
 function getRecordingText(recordingUserIds: string[], participants: RoomParticipant[]): string | null {
-  if (recordingUserIds.length === 0) {
+  const names = resolveActiveUserNames(recordingUserIds, participants);
+  if (names.length === 0) {
     return null;
   }
 
-  if (recordingUserIds.length === 1) {
-    const nickname = participants.find((participant) => participant.id === recordingUserIds[0])?.nickname ?? 'Usuário';
-    return `${nickname} está gravando áudio...`;
+  if (names.length === 1) {
+    return `${names[0]} está gravando áudio...`;
   }
 
-  return `${recordingUserIds.length} pessoas estão gravando áudio...`;
+  return `${names.length} pessoas estão gravando áudio...`;
 }
 
 function getTypingText(typingUserIds: string[], participants: RoomParticipant[]): string | null {
-  if (typingUserIds.length === 0) {
+  const names = resolveActiveUserNames(typingUserIds, participants);
+  if (names.length === 0) {
     return null;
   }
-
-  const names = typingUserIds
-    .map((userId) => participants.find((participant) => participant.id === userId)?.nickname)
-    .filter((nickname): nickname is string => Boolean(nickname));
 
   if (names.length === 1) {
     return `${names[0]} está digitando...`;

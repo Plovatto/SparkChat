@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
   FaBan,
@@ -11,6 +11,7 @@ import {
   FaReply,
   FaTrash,
 } from 'react-icons/fa';
+import { IconPillButton } from '@components/common/IconPillButton';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
@@ -66,101 +67,103 @@ interface MessageActionsRowProps {
 export function MessageActionsRow({ isOwn, theme, onReply, onDelete }: MessageActionsRowProps) {
   return (
     <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px' }}>
-      <button
+      <IconPillButton
         onClick={(event) => {
           event.stopPropagation();
           onReply();
         }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: theme.surface,
-          border: 'none',
-          color: theme.text,
-          borderRadius: '999px',
-          padding: '5px 14px 5px 5px',
-          fontSize: '0.8rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)',
-          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-        }}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.transform = 'translateY(-2px)';
-          event.currentTarget.style.boxShadow = '0 5px 14px rgba(0, 0, 0, 0.22)';
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.transform = 'translateY(0)';
-          event.currentTarget.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)';
-        }}
-      >
-        <span
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: `${theme.primary}26`,
-            color: theme.primary,
-            flexShrink: 0,
-          }}
-        >
-          <FaReply size={11} />
-        </span>
-        Responder
-      </button>
+        background={theme.surface}
+        textColor={theme.text}
+        icon={<FaReply size={11} />}
+        iconBackground={`${theme.primary}26`}
+        iconColor={theme.primary}
+        label="Responder"
+      />
 
       {isOwn && (
-        <button
+        <IconPillButton
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
           }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: theme.surface,
-            border: 'none',
-            color: theme.text,
-            borderRadius: '999px',
-            padding: '5px 14px 5px 5px',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)',
-            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.transform = 'translateY(-2px)';
-            event.currentTarget.style.boxShadow = '0 5px 14px rgba(0, 0, 0, 0.22)';
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.transform = 'translateY(0)';
-            event.currentTarget.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)';
-          }}
-        >
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '24px',
-              height: '24px',
-              borderRadius: '50%',
-              background: 'rgba(239, 83, 80, 0.16)',
-              color: '#ef5350',
-              flexShrink: 0,
-            }}
-          >
-            <FaTrash size={11} />
-          </span>
-          Excluir
-        </button>
+          background={theme.surface}
+          textColor={theme.text}
+          icon={<FaTrash size={11} />}
+          iconBackground="rgba(239, 83, 80, 0.16)"
+          iconColor="#ef5350"
+          label="Excluir"
+        />
       )}
+    </div>
+  );
+}
+
+interface BubbleShellProps {
+  isOwn: boolean;
+  isGroupChat: boolean;
+  senderId: string;
+  senderNickname: string;
+  currentUserId: string | undefined;
+  onSelect: () => void;
+  padding: string;
+  extraClassName?: string;
+  afterBubble?: ReactNode;
+  children: ReactNode;
+}
+
+function BubbleShell({
+  isOwn,
+  isGroupChat,
+  senderId,
+  senderNickname,
+  currentUserId,
+  onSelect,
+  padding,
+  extraClassName = '',
+  afterBubble,
+  children,
+}: BubbleShellProps) {
+  const { theme } = useTheme();
+
+  return (
+    <div
+      data-message-bubble
+      className={`animate__animated animate__fadeInUp animate__faster chat-bubble-wrap${extraClassName}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        alignItems: isOwn ? 'flex-end' : 'flex-start',
+        alignSelf: isOwn ? 'flex-end' : 'flex-start',
+        marginBottom: '2px',
+      }}
+    >
+      <div
+        style={{
+          background: isOwn ? theme.messageOwn : theme.messageOther,
+          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          padding,
+          minWidth: 0,
+          maxWidth: '100%',
+        }}
+      >
+        {!isOwn && isGroupChat && (
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.primary, padding: '4px 12px 0' }}>
+            {getDisplayName(senderId, senderNickname, currentUserId)}
+          </div>
+        )}
+        {children}
+      </div>
+      {afterBubble}
     </div>
   );
 }
@@ -449,254 +452,229 @@ export function MessageBubble({
   );
 
   return (
-    <div
-      data-message-bubble
-      className={`animate__animated animate__fadeInUp animate__faster chat-bubble-wrap${isAudioMessage ? ' is-audio' : ''}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
-      }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        alignItems: isOwn ? 'flex-end' : 'flex-start',
-        alignSelf: isOwn ? 'flex-end' : 'flex-start',
-        marginBottom: '2px',
-      }}
+    <BubbleShell
+      isOwn={isOwn}
+      isGroupChat={isGroupChat}
+      senderId={message.sender.id}
+      senderNickname={message.sender.nickname}
+      currentUserId={currentUserId}
+      onSelect={onSelect}
+      padding={isImageMessage ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : '6px 0'}
+      extraClassName={isAudioMessage ? ' is-audio' : ''}
+      afterBubble={
+        <>
+          {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
+          {isImageMessage && (
+            <ImageModal isOpen={isImageModalOpen} images={[message.content]} onClose={() => setIsImageModalOpen(false)} />
+          )}
+        </>
+      }
     >
-      <div
-        style={{
-          background: isOwn ? theme.messageOwn : theme.messageOther,
-          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
-          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '2px',
-          padding: isImageMessage ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : '6px 0',
-          minWidth: 0,
-          maxWidth: '100%',
-        }}
-      >
-        {!isOwn && isGroupChat && (
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.primary, padding: '4px 12px 0' }}>
-            {getDisplayName(message.sender.id, message.sender.nickname, currentUserId)}
-          </div>
-        )}
+      {replyQuote}
 
-        {replyQuote}
-
-        {isImageMessage ? (
-          <>
-            <div style={{ position: 'relative', padding: '0 4px', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
-              {!isImageLoaded && (
-                <div
-                  className="shimmer-bg"
-                  style={
-                    {
-                      position: 'absolute',
-                      inset: '0 4px',
-                      borderRadius: '12px',
-                      '--shimmer-a': theme.surfaceLight,
-                    } as CSSProperties
-                  }
-                />
-              )}
-              <img
-                src={message.content}
-                alt="Imagem enviada"
-                onLoad={() => setIsImageLoaded(true)}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setIsImageModalOpen(true);
-                }}
-                style={{
-                  display: 'block',
-                  maxWidth: '100%',
-                  maxHeight: '400px',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  opacity: isImageLoaded ? 1 : 0,
-                  transition: 'opacity 0.25s ease',
-                }}
+      {isImageMessage ? (
+        <>
+          <div style={{ position: 'relative', padding: '0 4px', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
+            {!isImageLoaded && (
+              <div
+                className="shimmer-bg"
+                style={
+                  {
+                    position: 'absolute',
+                    inset: '0 4px',
+                    borderRadius: '12px',
+                    '--shimmer-a': theme.surfaceLight,
+                  } as CSSProperties
+                }
               />
-            </div>
-          </>
-        ) : isAudioMessage ? (
-          <div style={{ padding: '2px 10px 0' }}>
-            <div
+            )}
+            <img
+              src={message.content}
+              alt="Imagem enviada"
+              onLoad={() => setIsImageLoaded(true)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsImageModalOpen(true);
+              }}
               style={{
+                display: 'block',
+                maxWidth: '100%',
+                maxHeight: '400px',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                opacity: isImageLoaded ? 1 : 0,
+                transition: 'opacity 0.25s ease',
+              }}
+            />
+          </div>
+        </>
+      ) : isAudioMessage ? (
+        <div style={{ padding: '2px 10px 0' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 12px',
+              background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
+              borderRadius: '12px',
+              width: '100%',
+              minWidth: '210px',
+              maxWidth: '100%',
+              boxSizing: 'border-box',
+            }}
+          >
+            <audio
+              src={message.content}
+              ref={audioElementRef}
+              onEnded={handleAudioEnded}
+              onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
+              onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime)}
+              style={{ display: 'none' }}
+            />
+
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                handleAudioToggle();
+              }}
+              style={{
+                width: '30px',
+                height: '30px',
+                borderRadius: '50%',
+                border: 'none',
+                background: hasBeenPlayed ? '#2196F3' : '#35dd3bff',
+                color: 'white',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px',
-                padding: '10px 12px',
-                background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
-                borderRadius: '12px',
-                width: '100%',
-                minWidth: '210px',
-                maxWidth: '100%',
-                boxSizing: 'border-box',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.transform = 'scale(1.1)';
+                event.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.2)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.transform = 'scale(1)';
+                event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
               }}
             >
-              <audio
-                src={message.content}
-                ref={audioElementRef}
-                onEnded={handleAudioEnded}
-                onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
-                onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime)}
-                style={{ display: 'none' }}
-              />
-
-              <button
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleAudioToggle();
-                }}
-                style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  border: 'none',
-                  background: hasBeenPlayed ? '#2196F3' : '#35dd3bff',
-                  color: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.transform = 'scale(1.1)';
-                  event.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.2)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.transform = 'scale(1)';
-                  event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-                }}
-              >
-                {playbackIcon === 'pause' ? (
-                  <FaPause size={14} color="white" />
-                ) : (
-                  <FaPlay size={14} color="white" style={{ marginLeft: '2px' }} />
-                )}
-              </button>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, height: '24px', minWidth: '56px', marginLeft: '6px', position: 'relative' }}>
-                {audioWaveform.map((level, index) => {
-                  const isPlayedBar = index < playbackProgress;
-                  const barHeight = Math.max(3, Math.min(100, level));
-                  const barColor = hasBeenPlayed
-                    ? isPlayedBar
-                      ? 'rgba(49, 176, 255, 1)'
-                      : 'rgba(255, 255, 255, 1)'
-                    : isPlayedBar
-                      ? '#48ff2fff'
-                      : 'rgba(255, 255, 255, 1)';
-
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        flex: 1,
-                        height: `${barHeight}%`,
-                        background: barColor,
-                        borderRadius: '10px',
-                        transition: 'all 0.1s ease',
-                        minWidth: '2.5px',
-                        position: 'relative',
-                      }}
-                    />
-                  );
-                })}
-
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: `${audioDuration ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
-                    top: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    background: hasBeenPlayed ? '#64c9ffff' : '#00ff08ff',
-                    boxShadow: `0 0 8px ${hasBeenPlayed ? '#a5e0ffff' : '#8eff92ff'}`,
-                    pointerEvents: 'none',
-                    transition: 'left 0.05s linear',
-                  }}
-                />
-              </div>
-
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  color: isOwn ? 'rgba(255, 255, 255, 0.8)' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
-                  minWidth: '35px',
-                  textAlign: 'right',
-                }}
-              >
-                {formatAudioTime(audioDuration)}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.95rem',
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-                fontWeight: 500,
-                wordBreak: 'break-word',
-              }}
-            >
-              {displayContent}
-              {showExpand && (
-                <>
-                  {' '}
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setIsExpanded((previous) => !previous);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.stopPropagation();
-                        event.preventDefault();
-                        setIsExpanded((previous) => !previous);
-                      }
-                    }}
-                    style={{
-                      whiteSpace: 'nowrap',
-                      fontWeight: 700,
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                      color: isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary,
-                    }}
-                  >
-                    {isExpanded ? 'ver menos' : 'ver mais'}
-                  </span>
-                </>
+              {playbackIcon === 'pause' ? (
+                <FaPause size={14} color="white" />
+              ) : (
+                <FaPlay size={14} color="white" style={{ marginLeft: '2px' }} />
               )}
-            </p>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, height: '24px', minWidth: '56px', marginLeft: '6px', position: 'relative' }}>
+              {audioWaveform.map((level, index) => {
+                const isPlayedBar = index < playbackProgress;
+                const barHeight = Math.max(3, Math.min(100, level));
+                const barColor = hasBeenPlayed
+                  ? isPlayedBar
+                    ? 'rgba(49, 176, 255, 1)'
+                    : 'rgba(255, 255, 255, 1)'
+                  : isPlayedBar
+                    ? '#48ff2fff'
+                    : 'rgba(255, 255, 255, 1)';
+
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      flex: 1,
+                      height: `${barHeight}%`,
+                      background: barColor,
+                      borderRadius: '10px',
+                      transition: 'all 0.1s ease',
+                      minWidth: '2.5px',
+                      position: 'relative',
+                    }}
+                  />
+                );
+              })}
+
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${audioDuration ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  background: hasBeenPlayed ? '#64c9ffff' : '#00ff08ff',
+                  boxShadow: `0 0 8px ${hasBeenPlayed ? '#a5e0ffff' : '#8eff92ff'}`,
+                  pointerEvents: 'none',
+                  transition: 'left 0.05s linear',
+                }}
+              />
+            </div>
+
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: isOwn ? 'rgba(255, 255, 255, 0.8)' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
+                minWidth: '35px',
+                textAlign: 'right',
+              }}
+            >
+              {formatAudioTime(audioDuration)}
+            </span>
           </div>
-        )}
-
-        <MessageMeta message={message} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
-      </div>
-
-      {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
-
-      {isImageMessage && (
-        <ImageModal isOpen={isImageModalOpen} images={[message.content]} onClose={() => setIsImageModalOpen(false)} />
+        </div>
+      ) : (
+        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              fontWeight: 500,
+              wordBreak: 'break-word',
+            }}
+          >
+            {displayContent}
+            {showExpand && (
+              <>
+                {' '}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsExpanded((previous) => !previous);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      setIsExpanded((previous) => !previous);
+                    }
+                  }}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    fontWeight: 700,
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    color: isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary,
+                  }}
+                >
+                  {isExpanded ? 'ver menos' : 'ver mais'}
+                </span>
+              </>
+            )}
+          </p>
+        </div>
       )}
-    </div>
+
+      <MessageMeta message={message} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+    </BubbleShell>
   );
 }
 
@@ -740,105 +718,79 @@ export function ImageGroupBubble({
   }
 
   return (
-    <div
-      data-message-bubble
-      className="animate__animated animate__fadeInUp animate__faster chat-bubble-wrap"
-      onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
-      }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        alignItems: isOwn ? 'flex-end' : 'flex-start',
-        alignSelf: isOwn ? 'flex-end' : 'flex-start',
-        marginBottom: '2px',
-      }}
+    <BubbleShell
+      isOwn={isOwn}
+      isGroupChat={isGroupChat}
+      senderId={anchor.sender.id}
+      senderNickname={anchor.sender.nickname}
+      currentUserId={currentUserId}
+      onSelect={onSelect}
+      padding="4px 0 6px"
+      afterBubble={
+        <>
+          {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
+          <ImageModal
+            isOpen={modalIndex !== null}
+            images={images.map((image) => image.content)}
+            startIndex={modalIndex ?? 0}
+            onClose={() => setModalIndex(null)}
+          />
+        </>
+      }
     >
       <div
         style={{
-          background: isOwn ? theme.messageOwn : theme.messageOther,
-          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
-          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '2px',
-          padding: '4px 0 6px',
-          minWidth: 0,
-          maxWidth: '100%',
+          padding: '0 4px',
+          display: 'grid',
+          gridTemplateColumns: visibleTiles.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+          gap: '3px',
         }}
       >
-        {!isOwn && isGroupChat && (
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.primary, padding: '4px 12px 0' }}>
-            {getDisplayName(anchor.sender.id, anchor.sender.nickname, currentUserId)}
-          </div>
-        )}
-
-        <div
-          style={{
-            padding: '0 4px',
-            display: 'grid',
-            gridTemplateColumns: visibleTiles.length === 1 ? '1fr' : 'repeat(2, 1fr)',
-            gap: '3px',
-          }}
-        >
-          {visibleTiles.map((image, index) => {
-            const isLastTile = index === visibleTiles.length - 1;
-            return (
-              <div
-                key={image.id}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setModalIndex(index);
-                }}
-                style={{
-                  position: 'relative',
-                  aspectRatio: '1',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                }}
-              >
-                <img
-                  src={image.content}
-                  alt="Imagem enviada"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                />
-                {isLastTile && extraCount > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white',
-                      fontSize: '1.3rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    +{extraCount}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <MessageMeta message={anchor} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+        {visibleTiles.map((image, index) => {
+          const isLastTile = index === visibleTiles.length - 1;
+          return (
+            <div
+              key={image.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                setModalIndex(index);
+              }}
+              style={{
+                position: 'relative',
+                aspectRatio: '1',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                cursor: 'pointer',
+              }}
+            >
+              <img
+                src={image.content}
+                alt="Imagem enviada"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+              />
+              {isLastTile && extraCount > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '1.3rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  +{extraCount}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
-      {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
-
-      <ImageModal
-        isOpen={modalIndex !== null}
-        images={images.map((image) => image.content)}
-        startIndex={modalIndex ?? 0}
-        onClose={() => setModalIndex(null)}
-      />
-    </div>
+      <MessageMeta message={anchor} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+    </BubbleShell>
   );
 }

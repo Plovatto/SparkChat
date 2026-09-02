@@ -1,2 +1,2 @@
 export { formatAudioTime } from './audio-time';
-export { getDisplayName, processSystemMessage, splitSystemMessageActor } from './message-display';
+export { getDisplayName, processSystemMessage, resolveActiveUserNames, splitSystemMessageActor } from './message-display';
