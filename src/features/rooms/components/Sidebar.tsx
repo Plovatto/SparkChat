@@ -3,6 +3,8 @@ import { Button } from 'react-bootstrap';
 import {
   FaBell,
   FaBellSlash,
+  FaCheck,
+  FaCheckCircle,
   FaCheckSquare,
   FaCircle,
   FaComments,
@@ -145,9 +147,9 @@ export function Sidebar({
   return (
     <div style={{ height: '100%', background: theme.sidebarBg, display: 'flex', flexDirection: 'column' }}>
       <div
+        className="sidebar-header-bar"
         style={{
           background: theme.headerGradient,
-          padding: '20px',
           color: theme.headerTextColor,
           boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
         }}
@@ -180,16 +182,16 @@ export function Sidebar({
           >
             {avatar ? <avatar.icon size={28} color="white" /> : null}
             <FaCircle
-              size={16}
+              size={13}
               color="#4caf50"
               style={{
                 position: 'absolute',
-                bottom: 0,
-                right: 0,
+                bottom: '2px',
+                right: '2px',
                 background: 'white',
                 borderRadius: '50%',
                 padding: '2px',
-                border: '3px solid white',
+                border: '2px solid white',
                 boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
               }}
             />
@@ -232,7 +234,7 @@ export function Sidebar({
               >
                 <FaCopy size={10} />
                 {user.chatCode ?? '------'}
-                {codeCopied && <span style={{ fontSize: '0.65rem', marginLeft: '2px' }}>✓</span>}
+                {codeCopied && <FaCheck size={9} style={{ marginLeft: '2px' }} />}
               </div>
             </div>
           </div>
@@ -367,120 +369,111 @@ export function Sidebar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 12px',
+          padding: '10px 12px',
           borderBottom: `1px solid ${theme.border}`,
-          background: theme.sidebarBg,
+          background: isSelectionMode ? theme.surfaceLight : theme.sidebarBg,
           flexShrink: 0,
           gap: '8px',
+          minHeight: '48px',
+          boxSizing: 'border-box',
+          transition: 'background 0.15s ease',
         }}
       >
-        <h6
-          style={{
-            padding: '5px 12px',
-            fontSize: '0.7rem',
-            textTransform: 'uppercase',
-            color: theme.textSecondary,
-            letterSpacing: '1px',
-            fontWeight: 700,
-            margin: 0,
-          }}
-        >
-          Conversas
-        </h6>
+        {isSelectionMode ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={toggleSelectionMode}
+                title="Fechar modo seleção"
+                style={{
+                  background: theme.surface,
+                  border: 'none',
+                  color: theme.text,
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <FaTimes size={13} />
+              </button>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.text }}>
+                {selectedIds.size > 0 ? `${selectedIds.size} selecionada${selectedIds.size > 1 ? 's' : ''}` : 'Selecionar conversas'}
+              </span>
+            </div>
 
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          {rooms.length > 0 && (
-            <button
-              onClick={toggleSelectionMode}
-              title={isSelectionMode ? 'Fechar modo seleção' : 'Entrar no modo seleção'}
-              style={{
-                background: isSelectionMode ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.08)',
-                border: isSelectionMode ? '1.5px solid rgba(239, 68, 68, 0.3)' : `1.5px solid ${theme.border}`,
-                color: isSelectionMode ? '#ef4444' : theme.text,
-                borderRadius: '8px',
-                padding: isSelectionMode ? '6px 8px' : '6px 12px',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                justifyContent: 'center',
-                minWidth: isSelectionMode ? '32px' : 'auto',
-                height: isSelectionMode ? '32px' : 'auto',
-                width: isSelectionMode ? '32px' : 'auto',
-              }}
-              onMouseEnter={(event) => {
-                if (!isSelectionMode) {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                  event.currentTarget.style.borderColor = theme.primary;
-                } else {
-                  event.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
-                  event.currentTarget.style.borderColor = '#ef4444';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!isSelectionMode) {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                  event.currentTarget.style.borderColor = theme.border;
-                } else {
-                  event.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-                  event.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                }
-              }}
-            >
-              {isSelectionMode ? (
-                <FaTimes size={14} />
-              ) : (
-                <>
-                  <FaCheckSquare size={12} /> Selecionar
-                </>
-              )}
-            </button>
-          )}
-
-          {isSelectionMode && (
             <button
               onClick={toggleSelectAll}
               title={selectedIds.size === rooms.length ? 'Desmarcar tudo' : 'Selecionar tudo'}
               style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: `1.5px solid ${theme.border}`,
+                background: 'transparent',
+                border: 'none',
                 color: theme.text,
-                borderRadius: '8px',
-                padding: '6px 12px',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                fontWeight: 700,
+                width: '30px',
+                height: '30px',
+                padding: 0,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = theme.surfaceLight;
-                event.currentTarget.style.borderColor = theme.primary;
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                event.currentTarget.style.borderColor = theme.border;
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
               }}
             >
-              {selectedIds.size === rooms.length ? (
-                <>
-                  <FaSquare size={11} />
-                  Desmarcar Tudo
-                </>
-              ) : (
-                <>
-                  <FaCheckSquare size={11} />
-                  Selecionar Tudo
-                </>
-              )}
+              {selectedIds.size === rooms.length ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
             </button>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <h6
+              style={{
+                padding: '5px 12px',
+                fontSize: '0.7rem',
+                textTransform: 'uppercase',
+                color: theme.textSecondary,
+                letterSpacing: '1px',
+                fontWeight: 700,
+                margin: 0,
+              }}
+            >
+              Conversas
+            </h6>
+
+            {rooms.length > 0 && (
+              <button
+                onClick={toggleSelectionMode}
+                title="Entrar no modo seleção"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: `1.5px solid ${theme.border}`,
+                  color: theme.text,
+                  borderRadius: '999px',
+                  padding: '6px 14px',
+                  cursor: 'pointer',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
+                  event.currentTarget.style.borderColor = theme.primary;
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                  event.currentTarget.style.borderColor = theme.border;
+                }}
+              >
+                <FaCheckCircle size={12} />
+                Selecionar
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
@@ -503,8 +496,8 @@ export function Sidebar({
                 isSelectionMode={isSelectionMode}
                 isChecked={selectedIds.has(room.id)}
                 onToggleSelect={() => toggleRoomSelected(room.id)}
-                isTyping={(typingUserIds[room.id]?.length ?? 0) > 0}
-                isRecording={(recordingUserIds[room.id]?.length ?? 0) > 0}
+                typingUserIds={typingUserIds[room.id] ?? []}
+                recordingUserIds={recordingUserIds[room.id] ?? []}
                 isFavorite={favoriteRoomIds.has(room.id)}
                 isMuted={mutedRoomIds.has(room.id)}
               />
@@ -515,56 +508,60 @@ export function Sidebar({
 
       {isSelectionMode && selectedIds.size > 0 && (
         <div
+          className="animate__animated animate__fadeInUp animate__faster"
           style={{
-            background: theme.surfaceLight,
+            background: theme.surface,
             borderTop: `1px solid ${theme.border}`,
-            padding: '12px',
+            boxShadow: '0 -4px 14px rgba(0, 0, 0, 0.12)',
+            padding: '10px 12px',
             display: 'flex',
             gap: '8px',
-            justifyContent: 'flex-end',
+            justifyContent: 'center',
           }}
         >
           <button
             onClick={handleFavoriteSelected}
             style={{
-              background: '#fbbf24',
-              border: 'none',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '7px',
+              background: theme.surfaceLight,
+              border: 'none',
+              color: theme.text,
+              borderRadius: '999px',
+              padding: '5px 12px 5px 5px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78rem',
+              transition: 'transform 0.15s ease',
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.background = '#f59e0b';
               event.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseLeave={(event) => {
-              event.currentTarget.style.background = '#fbbf24';
               event.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <FaStar size={14} />
-            {allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'} ({selectedIds.size})
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(251, 191, 36, 0.22)', color: '#fbbf24', flexShrink: 0 }}>
+              <FaStar size={11} />
+            </span>
+            {allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
           </button>
           <button
             onClick={handleMuteSelected}
             style={{
-              background: theme.textSecondary,
-              border: 'none',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '7px',
+              background: theme.surfaceLight,
+              border: 'none',
+              color: theme.text,
+              borderRadius: '999px',
+              padding: '5px 12px 5px 5px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78rem',
+              transition: 'transform 0.15s ease',
             }}
             onMouseEnter={(event) => {
               event.currentTarget.style.transform = 'translateY(-2px)';
@@ -573,35 +570,38 @@ export function Sidebar({
               event.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            {allSelectedAreMuted ? <FaBell size={14} /> : <FaBellSlash size={14} />}
-            {allSelectedAreMuted ? 'Reativar' : 'Silenciar'} ({selectedIds.size})
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: `${theme.primary}26`, color: theme.primary, flexShrink: 0 }}>
+              {allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
+            </span>
+            {allSelectedAreMuted ? 'Reativar' : 'Silenciar'}
           </button>
           <button
             onClick={() => setShowConfirmDelete(true)}
             style={{
-              background: '#ef4444',
-              border: 'none',
-              color: 'white',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.9rem',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '7px',
+              background: theme.surfaceLight,
+              border: 'none',
+              color: theme.text,
+              borderRadius: '999px',
+              padding: '5px 12px 5px 5px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.78rem',
+              transition: 'transform 0.15s ease',
             }}
             onMouseEnter={(event) => {
-              event.currentTarget.style.background = '#dc2626';
               event.currentTarget.style.transform = 'translateY(-2px)';
             }}
             onMouseLeave={(event) => {
-              event.currentTarget.style.background = '#ef4444';
               event.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <FaTrash size={14} />
-            Excluir ({selectedIds.size})
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.16)', color: '#ef4444', flexShrink: 0 }}>
+              <FaTrash size={11} />
+            </span>
+            Excluir
           </button>
         </div>
       )}
@@ -610,6 +610,7 @@ export function Sidebar({
         isOpen={showConfirmDelete}
         title="Excluir Conversas"
         message={`Tem certeza que quer excluir ${selectedIds.size} conversa${selectedIds.size > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir"
         onConfirm={confirmDelete}
         onCancel={() => setShowConfirmDelete(false)}
         theme={theme}

@@ -18,13 +18,26 @@ export interface SendMessageInput {
 export interface RoomMessagesState {
   messages: ChatMessage[];
   isLoaded: boolean;
+  hasMoreOlder: boolean;
+  isLoadingOlder: boolean;
   typingUserIds: string[];
   recordingUserIds: string[];
   sendMessage: (input: SendMessageInput) => void;
   retryMessage: (clientTempId: string) => void;
+  loadOlderMessages: () => void;
 }
 
 const PENDING_TIMEOUT_MS = 10000;
+const MESSAGES_PAGE_SIZE = 10;
+
+function sortMessagesByTimestamp(messages: MessageView[]): MessageView[] {
+  return [...messages].sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
+}
+
+function normalizeInitialMessagesPage(messages: MessageView[]): MessageView[] {
+  const page = messages.length > MESSAGES_PAGE_SIZE ? messages.slice(-MESSAGES_PAGE_SIZE) : messages;
+  return sortMessagesByTimestamp(page);
+}
 
 function buildReplySnapshot(message: MessageView | null | undefined): MessageReplySnapshot | null {
   if (!message) {
@@ -40,15 +53,30 @@ function buildReplySnapshot(message: MessageView | null | undefined): MessageRep
   };
 }
 
-export function useRoomMessages(roomId: string | null, currentUser: RoomMessagesCurrentUser): RoomMessagesState {
-  const { socket } = useSocket();
+export function useRoomMessages(
+  roomId: string | null,
+  currentUser: RoomMessagesCurrentUser,
+  onBeforeOlderMessagesApplied?: () => void,
+): RoomMessagesState {
+  const { socket, connected } = useSocket();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
   const [typingUserIds, setTypingUserIds] = useState<string[]>([]);
   const [recordingUserIds, setRecordingUserIds] = useState<string[]>([]);
   const pendingTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+  const isLoadingOlderRef = useRef(false);
+  const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearLoadOlderTimeout = () => {
+    if (loadOlderTimeoutRef.current) {
+      clearTimeout(loadOlderTimeoutRef.current);
+      loadOlderTimeoutRef.current = null;
+    }
+  };
 
   const clearPendingTimeout = useCallback((clientTempId: string) => {
     const timeoutId = pendingTimeoutsRef.current.get(clientTempId);
@@ -79,6 +107,10 @@ export function useRoomMessages(roomId: string | null, currentUser: RoomMessages
   useEffect(() => {
     setMessages([]);
     setIsLoaded(false);
+    setHasMoreOlder(false);
+    setIsLoadingOlder(false);
+    isLoadingOlderRef.current = false;
+    clearLoadOlderTimeout();
     setTypingUserIds([]);
     setRecordingUserIds([]);
     for (const timeoutId of pendingTimeoutsRef.current.values()) {
@@ -88,19 +120,54 @@ export function useRoomMessages(roomId: string | null, currentUser: RoomMessages
   }, [roomId]);
 
   useEffect(() => {
+    if (!socket || !roomId || !connected) {
+      return;
+    }
+
+    socket.emit('room:view-start', { roomId });
+    return () => {
+      socket.emit('room:view-stop', { roomId });
+    };
+  }, [socket, roomId, connected]);
+
+  useEffect(() => {
     if (!socket || !roomId) {
       return;
     }
 
-    socket.emit('messages:get', { roomId });
-    socket.emit('message:mark-read', { roomId });
+    socket.emit('messages:get', { roomId, limit: MESSAGES_PAGE_SIZE });
 
-    const handleMessagesList = (payload: { roomId: string; messages: MessageView[] }) => {
+    const handleMessagesList = (payload: { roomId: string; messages: MessageView[]; hasMore: boolean }) => {
       if (payload.roomId !== roomId) {
         return;
       }
-      setMessages(payload.messages);
-      setIsLoaded(true);
+
+      if (messagesRef.current.length > 0) {
+        isLoadingOlderRef.current = false;
+        setIsLoadingOlder(false);
+        clearLoadOlderTimeout();
+        const sortedPage = sortMessagesByTimestamp(payload.messages);
+        onBeforeOlderMessagesApplied?.();
+        setMessages((previous) => {
+          const existingIds = new Set(previous.map((message) => message.id));
+          const oldest = previous[0];
+          const olderPage = oldest
+            ? sortedPage.filter((message) => new Date(message.timestamp).getTime() < new Date(oldest.timestamp).getTime())
+            : sortedPage;
+          const olderMessages = olderPage.slice(-MESSAGES_PAGE_SIZE).filter((message) => !existingIds.has(message.id));
+          return [...olderMessages, ...previous];
+        });
+        socket.emit('message:mark-read', { roomId, messageIds: sortedPage.map((message) => message.id) });
+      } else {
+        const initialMessages = normalizeInitialMessagesPage(payload.messages);
+        setMessages(initialMessages);
+        setIsLoaded(true);
+        if (initialMessages.length > 0) {
+          socket.emit('message:mark-read', { roomId });
+        }
+      }
+
+      setHasMoreOlder(payload.hasMore);
     };
 
     const handleMessageNew = (message: ChatMessage) => {
@@ -124,6 +191,10 @@ export function useRoomMessages(roomId: string | null, currentUser: RoomMessages
         }
         return [...previous, confirmed];
       });
+
+      if (confirmed.sender.id !== currentUser.id && !confirmed.readBy.includes(currentUser.id)) {
+        socket.emit('message:mark-read', { roomId, messageIds: [confirmed.id] });
+      }
     };
 
     const handleSendError = ({ clientTempId }: { message: string; clientTempId?: string }) => {
@@ -202,7 +273,7 @@ export function useRoomMessages(roomId: string | null, currentUser: RoomMessages
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('message:updated', handleMessageUpdated);
     };
-  }, [socket, roomId, currentUser.id, clearPendingTimeout]);
+  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied]);
 
   const sendMessage = useCallback(
     (input: SendMessageInput) => {
@@ -270,5 +341,32 @@ export function useRoomMessages(roomId: string | null, currentUser: RoomMessages
     [socket, roomId, schedulePendingTimeout],
   );
 
-  return { messages, isLoaded, typingUserIds, recordingUserIds, sendMessage, retryMessage };
+  const loadOlderMessages = useCallback(() => {
+    const oldest = messagesRef.current[0];
+    if (!socket || !roomId || !oldest || isLoadingOlderRef.current || !hasMoreOlder) {
+      return;
+    }
+
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+    socket.emit('messages:get', { roomId, before: oldest.timestamp, limit: MESSAGES_PAGE_SIZE });
+
+    clearLoadOlderTimeout();
+    loadOlderTimeoutRef.current = setTimeout(() => {
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }, PENDING_TIMEOUT_MS);
+  }, [socket, roomId, hasMoreOlder]);
+
+  return {
+    messages,
+    isLoaded,
+    hasMoreOlder,
+    isLoadingOlder,
+    typingUserIds,
+    recordingUserIds,
+    sendMessage,
+    retryMessage,
+    loadOlderMessages,
+  };
 }

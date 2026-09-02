@@ -1,10 +1,11 @@
-import { useEffect, useState, type WheelEvent } from 'react';
+import { useCallback, useEffect, useState, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
 
 interface ImageModalProps {
   isOpen: boolean;
-  imageSrc: string;
+  images: string[];
+  startIndex?: number;
   onClose: () => void;
 }
 
@@ -12,14 +13,27 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.2;
 
-export function ImageModal({ isOpen, imageSrc, onClose }: ImageModalProps) {
+export function ImageModal({ isOpen, images, startIndex = 0, onClose }: ImageModalProps) {
   const [zoom, setZoom] = useState(1);
+  const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const hasMultiple = images.length > 1;
 
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setCurrentIndex(startIndex);
       setZoom(1);
     }
-  }, [isOpen]);
+  }, [isOpen, startIndex]);
+
+  const goToPrevious = useCallback(() => {
+    setZoom(1);
+    setCurrentIndex((previous) => (previous - 1 + images.length) % images.length);
+  }, [images.length]);
+
+  const goToNext = useCallback(() => {
+    setZoom(1);
+    setCurrentIndex((previous) => (previous + 1) % images.length);
+  }, [images.length]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -29,16 +43,22 @@ export function ImageModal({ isOpen, imageSrc, onClose }: ImageModalProps) {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         onClose();
+      } else if (event.key === 'ArrowLeft' && hasMultiple) {
+        goToPrevious();
+      } else if (event.key === 'ArrowRight' && hasMultiple) {
+        goToNext();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, hasMultiple, goToPrevious, goToNext]);
 
-  if (!isOpen) {
+  if (!isOpen || images.length === 0) {
     return null;
   }
+
+  const currentSrc = images[currentIndex] ?? images[0]!;
 
   const handleZoomIn = () => setZoom((previous) => Math.min(previous + ZOOM_STEP, MAX_ZOOM));
   const handleZoomOut = () => setZoom((previous) => Math.max(previous - ZOOM_STEP, MIN_ZOOM));
@@ -49,6 +69,25 @@ export function ImageModal({ isOpen, imageSrc, onClose }: ImageModalProps) {
     } else {
       handleZoomOut();
     }
+  };
+
+  const navButtonStyle = {
+    position: 'fixed' as const,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    zIndex: 10055,
+    background: 'rgba(0, 0, 0, 0.6)',
+    border: '2px solid rgba(255, 255, 255, 0.25)',
+    color: 'white',
+    width: 'clamp(38px, 10vw, 48px)',
+    height: 'clamp(38px, 10vw, 48px)',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'background 0.2s ease',
+    fontSize: '18px',
   };
 
   return createPortal(
@@ -87,142 +126,181 @@ export function ImageModal({ isOpen, imageSrc, onClose }: ImageModalProps) {
         <div
           style={{
             position: 'absolute',
-            top: '30px',
-            right: '30px',
+            top: 'max(16px, env(safe-area-inset-top))',
+            right: 'max(16px, env(safe-area-inset-right))',
             display: 'flex',
-            gap: '15px',
+            alignItems: 'center',
+            gap: 'clamp(2px, 1vw, 6px)',
             zIndex: 10055,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderRadius: '999px',
+            padding: '6px',
+            border: '2px solid rgba(255, 255, 255, 0.25)',
+            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
             animation: 'imageModalSlideDown 0.4s ease-out',
           }}
         >
-          <div
+          <button
+            onClick={handleZoomOut}
+            title="Diminuir zoom (-)"
             style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              border: 'none',
+              color: 'white',
+              width: 'clamp(34px, 9vw, 40px)',
+              height: 'clamp(34px, 9vw, 40px)',
+              borderRadius: '50%',
+              cursor: 'pointer',
               display: 'flex',
-              gap: '10px',
-              background: 'rgba(0, 0, 0, 0.75)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              borderRadius: '14px',
-              padding: '12px',
-              border: '2px solid rgba(255, 255, 255, 0.3)',
-              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.2s ease',
+              fontSize: '15px',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
             }}
           >
-            <button
-              onClick={handleZoomOut}
-              title="Diminuir zoom (-)"
-              style={{
-                background: 'rgba(102, 126, 234, 0.8)',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                color: 'white',
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease',
-                fontSize: '18px',
-                fontWeight: 700,
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(102, 126, 234, 1)';
-                event.currentTarget.style.transform = 'scale(1.15)';
-                event.currentTarget.style.boxShadow = '0 0 20px rgba(102, 126, 234, 0.6)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(102, 126, 234, 0.8)';
-                event.currentTarget.style.transform = 'scale(1)';
-                event.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <FaMinus />
-            </button>
+            <FaMinus />
+          </button>
 
-            <div
-              style={{
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 700,
-                minWidth: '60px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                letterSpacing: '0.5px',
-              }}
-            >
-              {Math.round(zoom * 100)}%
-            </div>
-
-            <button
-              onClick={handleZoomIn}
-              title="Ampliar zoom (+)"
-              style={{
-                background: 'rgba(102, 126, 234, 0.8)',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                color: 'white',
-                width: '44px',
-                height: '44px',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease',
-                fontSize: '18px',
-                fontWeight: 700,
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(102, 126, 234, 1)';
-                event.currentTarget.style.transform = 'scale(1.15)';
-                event.currentTarget.style.boxShadow = '0 0 20px rgba(102, 126, 234, 0.6)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(102, 126, 234, 0.8)';
-                event.currentTarget.style.transform = 'scale(1)';
-                event.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <FaPlus />
-            </button>
+          <div
+            style={{
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: 700,
+              minWidth: '44px',
+              textAlign: 'center',
+              letterSpacing: '0.3px',
+              opacity: 0.9,
+            }}
+          >
+            {Math.round(zoom * 100)}%
           </div>
+
+          <button
+            onClick={handleZoomIn}
+            title="Ampliar zoom (+)"
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              border: 'none',
+              color: 'white',
+              width: 'clamp(34px, 9vw, 40px)',
+              height: 'clamp(34px, 9vw, 40px)',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.2s ease',
+              fontSize: '15px',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+            }}
+          >
+            <FaPlus />
+          </button>
+
+          <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
 
           <button
             onClick={onClose}
             title="Fechar imagem (ESC)"
             style={{
               background: 'rgba(239, 68, 68, 0.85)',
-              border: '2px solid rgba(255, 255, 255, 0.3)',
+              border: 'none',
               color: 'white',
-              width: '60px',
-              height: '50px',
-              borderRadius: '14px',
+              width: 'clamp(34px, 9vw, 40px)',
+              height: 'clamp(34px, 9vw, 40px)',
+              borderRadius: '50%',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 0.2s ease',
-              fontSize: '22px',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
-              fontWeight: 700,
+              transition: 'background 0.2s ease',
+              fontSize: '16px',
+              flexShrink: 0,
             }}
             onMouseEnter={(event) => {
               event.currentTarget.style.background = 'rgba(239, 68, 68, 1)';
-              event.currentTarget.style.transform = 'scale(1.15)';
-              event.currentTarget.style.boxShadow = '0 0 25px rgba(239, 68, 68, 0.7)';
             }}
             onMouseLeave={(event) => {
               event.currentTarget.style.background = 'rgba(239, 68, 68, 0.85)';
-              event.currentTarget.style.transform = 'scale(1)';
-              event.currentTarget.style.boxShadow = '0 12px 40px rgba(0, 0, 0, 0.5)';
             }}
           >
             <FaTimes />
           </button>
         </div>
+
+        {hasMultiple && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 'max(16px, env(safe-area-inset-top))',
+              left: 'max(16px, env(safe-area-inset-left))',
+              zIndex: 10055,
+              background: 'rgba(0, 0, 0, 0.75)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              borderRadius: '999px',
+              padding: '8px 16px',
+              border: '2px solid rgba(255, 255, 255, 0.25)',
+              color: 'white',
+              fontSize: '13px',
+              fontWeight: 700,
+            }}
+          >
+            {currentIndex + 1} / {images.length}
+          </div>
+        )}
+
+        {hasMultiple && (
+          <>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                goToPrevious();
+              }}
+              title="Imagem anterior"
+              style={{ ...navButtonStyle, left: 'max(12px, env(safe-area-inset-left))' }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
+              }}
+            >
+              <FaChevronLeft />
+            </button>
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                goToNext();
+              }}
+              title="Próxima imagem"
+              style={{ ...navButtonStyle, right: 'max(12px, env(safe-area-inset-right))' }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
+              }}
+            >
+              <FaChevronRight />
+            </button>
+          </>
+        )}
 
         <div
           style={{
@@ -237,7 +315,7 @@ export function ImageModal({ isOpen, imageSrc, onClose }: ImageModalProps) {
           onWheel={handleWheel}
         >
           <img
-            src={imageSrc}
+            src={currentSrc}
             alt="Imagem expandida"
             style={{
               maxHeight: '85vh',
