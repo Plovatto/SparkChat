@@ -8,6 +8,7 @@ import type { User } from '@features/auth';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { formatAudioTime, resolveActiveUserNames } from '@lib/format';
+import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView } from '@lib/socket';
 import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -101,6 +102,36 @@ function renderItemKey(item: RenderItem): string {
   return item.kind === 'single' ? item.message.id : `group-${item.messages[0]!.id}`;
 }
 
+function receiptKey(receipt: MessageReceiptInfo): string {
+  return `${receipt.type}:${receipt.users.map((user) => user.id).sort().join(',')}`;
+}
+
+function buildVisibleReceipts(
+  items: RenderItem[],
+  isGroupChat: boolean,
+  participants: RoomParticipant[],
+  currentUserId: string | undefined,
+): Map<string, MessageReceiptInfo> {
+  const candidates = items.reduce<{ key: string; receipt: MessageReceiptInfo }[]>((acc, item) => {
+    const anchor = renderItemAnchorMessage(item);
+    const receipt = getMessageReceipt(anchor, anchor.sender.id === currentUserId, isGroupChat, participants, currentUserId);
+    if (receipt) {
+      acc.push({ key: renderItemKey(item), receipt });
+    }
+    return acc;
+  }, []);
+
+  const visible = new Map<string, MessageReceiptInfo>();
+  candidates.forEach((candidate, index) => {
+    const next = candidates[index + 1];
+    if (!next || receiptKey(next.receipt) !== receiptKey(candidate.receipt)) {
+      visible.set(candidate.key, candidate.receipt);
+    }
+  });
+
+  return visible;
+}
+
 function getRecordingText(recordingUserIds: string[], participants: RoomParticipant[]): string | null {
   const names = resolveActiveUserNames(recordingUserIds, participants);
   if (names.length === 0) {
@@ -160,6 +191,10 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   );
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  const visibleReceipts = useMemo(
+    () => buildVisibleReceipts(renderItems, room?.type === 'group', room?.participants ?? [], user.id),
+    [renderItems, room?.type, room?.participants, user.id],
+  );
   const lastMessageIdRef = useRef<string | null>(null);
   const isReadyForLoadMoreRef = useRef(false);
   const hasUserScrolledRef = useRef(false);
@@ -473,6 +508,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                       currentNickname={user.nickname}
                       isSelected={selectedMessageId === item.message.id}
                       currentAudioRef={currentAudioRef}
+                      receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
                       onSelect={() => setSelectedMessageId(item.message.id)}
                       onReply={() => handleReply(item.message)}
                       onDelete={() => setMessageIdPendingDelete(item.message.id)}
@@ -487,6 +523,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                       participants={room.participants}
                       currentUserId={user.id}
                       isSelected={selectedMessageId === anchorMessage.id}
+                      receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
                       onSelect={() => setSelectedMessageId(anchorMessage.id)}
                       onReply={() => handleReply(anchorMessage)}
                       onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}

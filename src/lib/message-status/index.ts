@@ -1,2 +1,2 @@
-export { getMessageStatus } from './message-status';
-export type { MessageStatusInfo } from './message-status';
+export { getMessageReceipt, getMessageStatus } from './message-status';
+export type { MessageReceiptInfo, MessageStatusInfo } from './message-status';
