@@ -39,16 +39,6 @@
   gap: 8px;
 }
 
-.media-gallery-grid {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-@media (min-width: 900px) {
-  .media-gallery-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-}
-
 .chat-bubble-wrap {
   max-width: 52%;
 }
