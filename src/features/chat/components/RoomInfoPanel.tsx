@@ -109,7 +109,7 @@ function MediaGallery({
 
   if (!messagesLoaded) {
     return (
-      <div className="media-gallery-grid" style={{ display: 'grid', gap: '10px', padding: '3px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '10px', padding: '3px' }}>
         {Array.from({ length: columns }).map((_, index) => (
           <div key={index} style={{ position: 'relative', aspectRatio: '1', borderRadius: '10px', overflow: 'hidden' }}>
             <div
@@ -170,9 +170,9 @@ function MediaGallery({
         <FaImage /> Mídias ({mediaMessages.length})
       </div>
       <div
-        className="media-gallery-grid"
         style={{
           display: 'grid',
+          gridTemplateColumns: `repeat(${columns}, 1fr)`,
           gap: '10px',
           padding: '3px',
           maxHeight: showAll ? '300px' : 'none',

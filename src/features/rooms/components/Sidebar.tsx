@@ -20,6 +20,7 @@ import {
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
+import { IconPillButton } from '@components/common/IconPillButton';
 import { useTheme } from '@features/theme';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import type { RoomSummary } from '../types';
@@ -519,90 +520,45 @@ export function Sidebar({
             justifyContent: 'center',
           }}
         >
-          <button
+          <IconPillButton
             onClick={handleFavoriteSelected}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              background: theme.surfaceLight,
-              border: 'none',
-              color: theme.text,
-              borderRadius: '999px',
-              padding: '5px 12px 5px 5px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.78rem',
-              transition: 'transform 0.15s ease',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(251, 191, 36, 0.22)', color: '#fbbf24', flexShrink: 0 }}>
-              <FaStar size={11} />
-            </span>
-            {allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
-          </button>
-          <button
+            background={theme.surfaceLight}
+            textColor={theme.text}
+            fontSize="0.78rem"
+            gap="7px"
+            paddingRight="12px"
+            withShadow={false}
+            icon={<FaStar size={11} />}
+            iconBackground="rgba(251, 191, 36, 0.22)"
+            iconColor="#fbbf24"
+            label={allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
+          />
+          <IconPillButton
             onClick={handleMuteSelected}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              background: theme.surfaceLight,
-              border: 'none',
-              color: theme.text,
-              borderRadius: '999px',
-              padding: '5px 12px 5px 5px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.78rem',
-              transition: 'transform 0.15s ease',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: `${theme.primary}26`, color: theme.primary, flexShrink: 0 }}>
-              {allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
-            </span>
-            {allSelectedAreMuted ? 'Reativar' : 'Silenciar'}
-          </button>
-          <button
+            background={theme.surfaceLight}
+            textColor={theme.text}
+            fontSize="0.78rem"
+            gap="7px"
+            paddingRight="12px"
+            withShadow={false}
+            icon={allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
+            iconBackground={`${theme.primary}26`}
+            iconColor={theme.primary}
+            label={allSelectedAreMuted ? 'Reativar' : 'Silenciar'}
+          />
+          <IconPillButton
             onClick={() => setShowConfirmDelete(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '7px',
-              background: theme.surfaceLight,
-              border: 'none',
-              color: theme.text,
-              borderRadius: '999px',
-              padding: '5px 12px 5px 5px',
-              cursor: 'pointer',
-              fontWeight: 600,
-              fontSize: '0.78rem',
-              transition: 'transform 0.15s ease',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.16)', color: '#ef4444', flexShrink: 0 }}>
-              <FaTrash size={11} />
-            </span>
-            Excluir
-          </button>
+            background={theme.surfaceLight}
+            textColor={theme.text}
+            fontSize="0.78rem"
+            gap="7px"
+            paddingRight="12px"
+            withShadow={false}
+            icon={<FaTrash size={11} />}
+            iconBackground="rgba(239, 68, 68, 0.16)"
+            iconColor="#ef4444"
+            label="Excluir"
+          />
         </div>
       )}
 

@@ -16,7 +16,7 @@ import {
 } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
-import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
+import { formatAudioTime, getDisplayName, processSystemMessage, resolveActiveUserNames, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomThemePalette } from '../constants/default-theme';
 import type { RoomParticipant, RoomSummary } from '../types';
@@ -76,17 +76,11 @@ function isRoomParticipantOnline(room: RoomSummary, userId: string | undefined):
 }
 
 function resolveActorLabel(userIds: string[], room: RoomSummary, currentUserId: string | undefined): string | null {
-  const firstId = userIds[0];
-  if (!firstId) {
+  const [name] = resolveActiveUserNames(userIds, room.participants, currentUserId);
+  if (!name) {
     return null;
   }
 
-  const participant = room.participants.find((candidate) => candidate.id === firstId);
-  if (!participant) {
-    return null;
-  }
-
-  const name = getDisplayName(participant.id, participant.nickname, currentUserId);
   return userIds.length > 1 ? `${name} e mais ${userIds.length - 1}` : name;
 }
 
@@ -179,6 +173,16 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   const statusInfo = getMessageStatus(message, isOwnMessage, room.type === 'group', room.participants, user.id);
   const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id ?? '');
   const showGroupSender = room.type === 'group' && !isOwnMessage;
+  const senderLabel = showGroupSender && (
+    <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
+      {getDisplayName(
+        message.sender.id,
+        room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
+        user.id,
+      )}
+      :
+    </span>
+  );
 
   return (
     <p style={previewStyle}>
@@ -214,46 +218,19 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
         })()
       ) : message.type === 'image' ? (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
-          {showGroupSender && (
-            <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
-              {getDisplayName(
-                message.sender.id,
-                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
-                user.id,
-              )}
-              :
-            </span>
-          )}
+          {senderLabel}
           <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
           <span style={{ flexShrink: 0, lineHeight: 1.2 }}>Imagem</span>
         </span>
       ) : message.type === 'audio' ? (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
-          {showGroupSender && (
-            <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
-              {getDisplayName(
-                message.sender.id,
-                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
-                user.id,
-              )}
-              :
-            </span>
-          )}
+          {senderLabel}
           <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
           <span style={{ flexShrink: 0, lineHeight: 1 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
         </span>
       ) : (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
-          {showGroupSender && (
-            <span style={{ fontWeight: 'bold', flexShrink: 0, lineHeight: 1.2 }}>
-              {getDisplayName(
-                message.sender.id,
-                room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
-                user.id,
-              )}
-              :
-            </span>
-          )}
+          {senderLabel}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
             {message.content.substring(0, 32)}
             {message.content.length > 32 ? '...' : ''}
