@@ -28,6 +28,10 @@ import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
 import { ThemeMenu } from './ThemeMenu';
 
+function getRoomLastActivityTimestamp(room: RoomSummary): number {
+  return room.lastMessage ? new Date(room.lastMessage.timestamp).getTime() : 0;
+}
+
 interface SidebarProps {
   user: User;
   rooms: RoomSummary[];
@@ -125,7 +129,13 @@ export function Sidebar({
   const allSelectedAreFavorited = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => favoriteRoomIds.has(roomId));
   const allSelectedAreMuted = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => mutedRoomIds.has(roomId));
 
-  const sortedRooms = [...rooms].sort((a, b) => Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id)));
+  const sortedRooms = [...rooms].sort((a, b) => {
+    const favoriteDiff = Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id));
+    if (favoriteDiff !== 0) {
+      return favoriteDiff;
+    }
+    return getRoomLastActivityTimestamp(b) - getRoomLastActivityTimestamp(a);
+  });
 
   const copyCode = () => {
     if (!user.chatCode || !navigator.clipboard) {
