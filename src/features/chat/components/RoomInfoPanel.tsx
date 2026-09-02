@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUsers } from 'react-icons/fa';
@@ -16,6 +16,7 @@ interface RoomInfoPanelProps {
   room: RoomSummary;
   currentUserId: string | undefined;
   messages: MessageView[];
+  messagesLoaded: boolean;
   onLeftGroup: () => void;
 }
 
@@ -51,11 +52,13 @@ function MediaThumbnail({ src, theme }: { src: string; theme: ThemePalette }) {
       {!isLoaded && (
         <div
           className="shimmer-bg"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(90deg, ${theme.surfaceLight} 25%, ${theme.border} 37%, ${theme.surfaceLight} 63%)`,
-          }}
+          style={
+            {
+              position: 'absolute',
+              inset: 0,
+              '--shimmer-a': theme.surfaceLight,
+            } as CSSProperties
+          }
         />
       )}
       <img
@@ -75,11 +78,55 @@ function MediaThumbnail({ src, theme }: { src: string; theme: ThemePalette }) {
   );
 }
 
-function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; onSelectImage: (src: string) => void }) {
+function useMediaGalleryColumns(): number {
+  const [columns, setColumns] = useState(() => (typeof window === 'undefined' || window.innerWidth < 900 ? 3 : 4));
+
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 900px)');
+    const update = () => setColumns(query.matches ? 4 : 3);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return columns;
+}
+
+function MediaGallery({
+  messages,
+  messagesLoaded,
+  onSelectImage,
+}: {
+  messages: MessageView[];
+  messagesLoaded: boolean;
+  onSelectImage: (src: string) => void;
+}) {
   const { theme } = useTheme();
   const [showAll, setShowAll] = useState(false);
+  const columns = useMediaGalleryColumns();
 
   const mediaMessages = messages.filter((message) => message.type === 'image' && !message.deletedForEveryone);
+
+  if (!messagesLoaded) {
+    return (
+      <div className="media-gallery-grid" style={{ display: 'grid', gap: '10px', padding: '3px' }}>
+        {Array.from({ length: columns }).map((_, index) => (
+          <div key={index} style={{ position: 'relative', aspectRatio: '1', borderRadius: '10px', overflow: 'hidden' }}>
+            <div
+              className="shimmer-bg"
+              style={
+                {
+                  position: 'absolute',
+                  inset: 0,
+                  '--shimmer-a': theme.surfaceLight,
+                } as CSSProperties
+              }
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (mediaMessages.length === 0) {
     return (
@@ -103,7 +150,7 @@ function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; on
     );
   }
 
-  const visibleMessages = showAll ? mediaMessages : mediaMessages.slice(0, 3);
+  const visibleMessages = showAll ? mediaMessages : mediaMessages.slice(0, columns);
 
   return (
     <div>
@@ -122,7 +169,17 @@ function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; on
       >
         <FaImage /> Mídias ({mediaMessages.length})
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+      <div
+        className="media-gallery-grid"
+        style={{
+          display: 'grid',
+          gap: '10px',
+          padding: '3px',
+          maxHeight: showAll ? '300px' : 'none',
+          overflowY: showAll ? 'auto' : 'visible',
+          overflowX: 'hidden',
+        }}
+      >
         {visibleMessages.map((message) => (
           <div
             key={message.id}
@@ -153,38 +210,34 @@ function MediaGallery({ messages, onSelectImage }: { messages: MessageView[]; on
           </div>
         ))}
       </div>
-      {mediaMessages.length > 3 && (
+      {mediaMessages.length > columns && (
         <button
           onClick={() => setShowAll((previous) => !previous)}
           style={{
-            width: '100%',
-            padding: '12px 16px',
-            marginTop: '12px',
-            background: `${theme.primary}20`,
-            border: `2px solid ${theme.primary}`,
-            color: theme.primary,
-            borderRadius: '10px',
-            cursor: 'pointer',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            transition: 'all 0.2s ease',
             display: 'flex',
+            width: '100%',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '8px',
+            gap: '6px',
+            marginTop: '12px',
+            background: `${theme.primary}18`,
+            border: 'none',
+            color: theme.primary,
+            borderRadius: '10px',
+            padding: '9px 16px',
+            cursor: 'pointer',
+            fontSize: '0.82rem',
+            fontWeight: 700,
+            transition: 'background 0.15s ease',
           }}
           onMouseEnter={(event) => {
-            event.currentTarget.style.background = `${theme.primary}30`;
-            event.currentTarget.style.transform = 'translateY(-2px)';
-            event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
+            event.currentTarget.style.background = `${theme.primary}28`;
           }}
           onMouseLeave={(event) => {
-            event.currentTarget.style.background = `${theme.primary}20`;
-            event.currentTarget.style.transform = 'translateY(0)';
-            event.currentTarget.style.boxShadow = 'none';
+            event.currentTarget.style.background = `${theme.primary}18`;
           }}
         >
-          {showAll ? '▲ Ver menos' : `Ver mais ${mediaMessages.length - 3} mídias`}
+          {showAll ? 'Ver menos' : `Ver todas (${mediaMessages.length})`}
         </button>
       )}
     </div>
@@ -219,6 +272,8 @@ function WallpaperPicker({ roomId }: { roomId: string }) {
           gap: '10px',
           maxHeight: '250px',
           overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '3px',
         }}
       >
         {CHAT_BACKGROUNDS.map((background) => {
@@ -278,7 +333,7 @@ function WallpaperPicker({ roomId }: { roomId: string }) {
   );
 }
 
-export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, onLeftGroup }: RoomInfoPanelProps) {
+export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup }: RoomInfoPanelProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [codeCopied, setCodeCopied] = useState(false);
@@ -430,7 +485,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
             </div>
 
-            <MediaGallery messages={messages} onSelectImage={setSelectedImage} />
+            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectImage={setSelectedImage} />
 
             <WallpaperPicker roomId={room.id} />
 
@@ -633,7 +688,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
             </div>
 
-            <MediaGallery messages={messages} onSelectImage={setSelectedImage} />
+            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectImage={setSelectedImage} />
 
             <WallpaperPicker roomId={room.id} />
 
@@ -683,7 +738,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         )}
       </div>
     </Modal>
-    <ImageModal isOpen={selectedImage !== null} imageSrc={selectedImage ?? ''} onClose={() => setSelectedImage(null)} />
+    <ImageModal isOpen={selectedImage !== null} images={selectedImage ? [selectedImage] : []} onClose={() => setSelectedImage(null)} />
     </>
   );
 }
