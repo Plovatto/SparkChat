@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { FaCheck } from 'react-icons/fa';
+import { FaCheck, FaMobileAlt, FaPalette } from 'react-icons/fa';
 import { COLOR_THEMES, THEME_BASES, useTheme, type ColorThemeId, type ThemeBaseId } from '@features/theme';
 
 interface ThemeMenuProps {
@@ -45,9 +45,12 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
             marginBottom: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
-          📱 Modo Base
+          <FaMobileAlt size={11} /> Modo Base
         </div>
 
         {(Object.keys(THEME_BASES) as ThemeBaseId[]).map((baseId) => {
@@ -110,9 +113,12 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
             marginBottom: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
           }}
         >
-          🎨 Tema de Cores
+          <FaPalette size={11} /> Tema de Cores
         </div>
 
         {(Object.keys(COLOR_THEMES) as ColorThemeId[]).map((colorId) => {

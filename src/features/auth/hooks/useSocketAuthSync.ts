@@ -32,6 +32,22 @@ export function useSocketAuthSync({ user, onRegistered, onError }: SocketAuthSyn
   }, [socket, connected, user]);
 
   useEffect(() => {
+    if (!socket || !connected || !user) {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      socket.emit('user:visibility', { visible: document.visibilityState === 'visible' });
+    };
+
+    handleVisibilityChange();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [socket, connected, user]);
+
+  useEffect(() => {
     if (!socket) {
       return;
     }

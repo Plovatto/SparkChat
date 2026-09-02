@@ -12,29 +12,39 @@ import { playSunSound } from '../utils/play-sun-sound';
 import { playThunderSound } from '../utils/play-thunder-sound';
 import { playWindSound } from '../utils/play-wind-sound';
 
-function runTriggerEffect(match: ChatTriggerMatch): void {
+function runTriggerEffect(match: ChatTriggerMatch, isSoundEnabled: boolean): void {
   switch (match.type) {
     case 'confetti':
       launchConfetti();
-      playCelebrationSound();
+      if (isSoundEnabled) {
+        playCelebrationSound();
+      }
       break;
     case 'lightning': {
       const boltCount = match.intensity ?? 1;
       launchLightning(boltCount);
-      playThunderSound(boltCount);
+      if (isSoundEnabled) {
+        playThunderSound(boltCount);
+      }
       break;
     }
     case 'wind':
       launchWind();
-      playWindSound();
+      if (isSoundEnabled) {
+        playWindSound();
+      }
       break;
     case 'rain':
       launchRain();
-      playRainSound();
+      if (isSoundEnabled) {
+        playRainSound();
+      }
       break;
     case 'sun':
       launchSun();
-      playSunSound();
+      if (isSoundEnabled) {
+        playSunSound();
+      }
       break;
   }
 }
@@ -43,11 +53,17 @@ function isViewingNow(): boolean {
   return document.hasFocus() && document.visibilityState === 'visible';
 }
 
-export function useChatTriggerEffects(selectedRoomId: string | null, currentUserId: string | undefined): void {
+export function useChatTriggerEffects(
+  selectedRoomId: string | null,
+  currentUserId: string | undefined,
+  isSoundEnabled: boolean,
+): void {
   const { socket } = useSocket();
   const pendingByRoomRef = useRef<Map<string, ChatTriggerMatch>>(new Map());
   const selectedRoomIdRef = useRef(selectedRoomId);
   selectedRoomIdRef.current = selectedRoomId;
+  const isSoundEnabledRef = useRef(isSoundEnabled);
+  isSoundEnabledRef.current = isSoundEnabled;
 
   useEffect(() => {
     if (!socket) {
@@ -64,7 +80,7 @@ export function useChatTriggerEffects(selectedRoomId: string | null, currentUser
       const isSelectedRoom = message.roomId === selectedRoomIdRef.current;
 
       if (isOwnMessage || (isSelectedRoom && isViewingNow())) {
-        runTriggerEffect(trigger);
+        runTriggerEffect(trigger, isSoundEnabledRef.current);
         return;
       }
 
@@ -85,7 +101,7 @@ export function useChatTriggerEffects(selectedRoomId: string | null, currentUser
     const pendingTrigger = pendingByRoomRef.current.get(selectedRoomId);
     if (pendingTrigger) {
       pendingByRoomRef.current.delete(selectedRoomId);
-      runTriggerEffect(pendingTrigger);
+      runTriggerEffect(pendingTrigger, isSoundEnabledRef.current);
     }
   }, [selectedRoomId]);
 
@@ -99,7 +115,7 @@ export function useChatTriggerEffects(selectedRoomId: string | null, currentUser
       const pendingTrigger = pendingByRoomRef.current.get(roomId);
       if (pendingTrigger) {
         pendingByRoomRef.current.delete(roomId);
-        runTriggerEffect(pendingTrigger);
+        runTriggerEffect(pendingTrigger, isSoundEnabledRef.current);
       }
     };
 

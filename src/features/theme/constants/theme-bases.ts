@@ -44,7 +44,7 @@ export const THEME_BASES = {
     surfaceLight: '#2d2d2d',
     text: '#f5f5f5',
     textSecondary: '#a0a0a0',
-    border: '#0f0f0f',
+    border: '#333333',
     inputBg: '#2d2d2d',
     sidebarBg: '#1a1a1a',
   },

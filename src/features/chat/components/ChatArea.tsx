@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
-import { FaPlay } from 'react-icons/fa';
+import { FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
@@ -11,10 +11,11 @@ import { formatAudioTime } from '@lib/format';
 import { useSocket, type MessageView } from '@lib/socket';
 import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
+import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
-import { MessageBubble, type CurrentAudioRef } from './MessageBubble';
+import { ImageGroupBubble, MessageBubble, type CurrentAudioRef } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
 import {
   MessageInput,
@@ -46,6 +47,58 @@ function shouldShowDateSeparator(current: MessageView, previous: MessageView | u
     return true;
   }
   return !isSameDay(new Date(current.timestamp), new Date(previous.timestamp));
+}
+
+type RenderItem = { kind: 'single'; message: ChatMessage } | { kind: 'image-group'; messages: ChatMessage[] };
+
+function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
+  const items: RenderItem[] = [];
+  let buffer: ChatMessage[] = [];
+
+  const flushBuffer = () => {
+    if (buffer.length === 0) {
+      return;
+    }
+    if (buffer.length === 1) {
+      items.push({ kind: 'single', message: buffer[0]! });
+    } else {
+      items.push({ kind: 'image-group', messages: buffer });
+    }
+    buffer = [];
+  };
+
+  for (const message of messages) {
+    const isGroupable = message.type === 'image' && !message.deletedForEveryone && !message.pending && !message.failed;
+    const bufferTail = buffer[buffer.length - 1];
+
+    if (isGroupable && (!bufferTail || (bufferTail.sender.id === message.sender.id && isSameDay(new Date(bufferTail.timestamp), new Date(message.timestamp))))) {
+      buffer.push(message);
+      continue;
+    }
+
+    flushBuffer();
+
+    if (isGroupable) {
+      buffer.push(message);
+    } else {
+      items.push({ kind: 'single', message });
+    }
+  }
+  flushBuffer();
+
+  return items;
+}
+
+function renderItemFirstMessage(item: RenderItem): ChatMessage {
+  return item.kind === 'single' ? item.message : item.messages[0]!;
+}
+
+function renderItemAnchorMessage(item: RenderItem): ChatMessage {
+  return item.kind === 'single' ? item.message : item.messages[item.messages.length - 1]!;
+}
+
+function renderItemKey(item: RenderItem): string {
+  return item.kind === 'single' ? item.message.id : `group-${item.messages[0]!.id}`;
 }
 
 function getRecordingText(recordingUserIds: string[], participants: RoomParticipant[]): string | null {
@@ -82,10 +135,37 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const { theme, getRoomWallpaper } = useTheme();
   const { socket } = useSocket();
-  const { messages, isLoaded: areMessagesLoaded, typingUserIds, recordingUserIds, sendMessage, retryMessage } =
-    useRoomMessages(room?.id ?? null, { id: user.id ?? '', nickname: user.nickname, avatar: user.avatar });
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const contentWrapperRef = useRef<HTMLDivElement>(null);
+  const prependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+
+  const captureScrollAnchor = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      prependAnchorRef.current = { scrollHeight: container.scrollHeight, scrollTop: container.scrollTop };
+    }
+  }, []);
+
+  const {
+    messages,
+    isLoaded: areMessagesLoaded,
+    hasMoreOlder,
+    isLoadingOlder,
+    typingUserIds,
+    recordingUserIds,
+    sendMessage,
+    retryMessage,
+    loadOlderMessages,
+  } = useRoomMessages(
+    room?.id ?? null,
+    { id: user.id ?? '', nickname: user.nickname, avatar: user.avatar },
+    captureScrollAnchor,
+  );
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  const lastMessageIdRef = useRef<string | null>(null);
+  const isReadyForLoadMoreRef = useRef(false);
+  const hasUserScrolledRef = useRef(false);
   const messageInputRef = useRef<MessageInputHandle>(null);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -94,9 +174,100 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | null>(null);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollTo({ top: container.scrollHeight, behavior });
+  }, []);
+
+  useLayoutEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    const lastId = lastMessage?.id ?? null;
+    if (lastId === lastMessageIdRef.current) {
+      return;
+    }
+    const isInitialPopulation = lastMessageIdRef.current === null;
+    lastMessageIdRef.current = lastId;
+
+    const container = scrollContainerRef.current;
+    if (!lastId || !container) {
+      return;
+    }
+
+    if (isInitialPopulation) {
+      scrollToBottom();
+      isReadyForLoadMoreRef.current = false;
+      let secondFrame = 0;
+      const firstFrame = requestAnimationFrame(() => {
+        scrollToBottom();
+        secondFrame = requestAnimationFrame(() => {
+          scrollToBottom();
+          isReadyForLoadMoreRef.current = true;
+        });
+      });
+      const timeout = window.setTimeout(() => {
+        scrollToBottom();
+        isReadyForLoadMoreRef.current = true;
+      }, 250);
+      return () => {
+        cancelAnimationFrame(firstFrame);
+        cancelAnimationFrame(secondFrame);
+        window.clearTimeout(timeout);
+      };
+    }
+
+    scrollToBottom('smooth');
+  }, [messages, scrollToBottom]);
+
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const container = scrollContainerRef.current;
+    if (!anchor || !container) {
+      return;
+    }
+    prependAnchorRef.current = null;
+
+    const applyAnchorCorrection = () => {
+      container.scrollTop = anchor.scrollTop + (container.scrollHeight - anchor.scrollHeight);
+    };
+    applyAnchorCorrection();
+
+    const observer = new ResizeObserver(applyAnchorCorrection);
+    if (contentWrapperRef.current) {
+      observer.observe(contentWrapperRef.current);
+    }
+    const settleTimeout = window.setTimeout(() => observer.disconnect(), 800);
+
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(settleTimeout);
+    };
   }, [messages]);
+
+  useEffect(() => {
+    isReadyForLoadMoreRef.current = false;
+    hasUserScrolledRef.current = false;
+    lastMessageIdRef.current = null;
+    prependAnchorRef.current = null;
+    scrollToBottom();
+  }, [room?.id, scrollToBottom]);
+
+  const markUserScrolled = () => {
+    hasUserScrolledRef.current = true;
+  };
+
+  const handleMessagesScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container || !hasUserScrolledRef.current || !isReadyForLoadMoreRef.current || !hasMoreOlder || isLoadingOlder) {
+      return;
+    }
+    if (container.scrollTop < 150) {
+      loadOlderMessages();
+    }
+  };
 
   useEffect(() => {
     setIsInfoOpen(false);
@@ -114,14 +285,20 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const sendImageMessage = async (file: File, replyTo: MessageView | null) => {
+  const sendImageMessages = async (files: File[], replyTo: MessageView | null) => {
     setUploadingMediaType('image');
     try {
-      const content = await uploadChatImage(file);
-      sendMessage({ content, type: 'image', replyTo });
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        if (!file) {
+          continue;
+        }
+        const content = await uploadChatImage(file);
+        sendMessage({ content, type: 'image', replyTo: index === 0 ? replyTo : null });
+      }
     } catch (error) {
       console.error(error);
-      window.alert('Não foi possível enviar a imagem. Tente novamente.');
+      window.alert('Não foi possível enviar uma das imagens. Tente novamente.');
     } finally {
       setUploadingMediaType(null);
     }
@@ -153,15 +330,15 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     socket?.emit('audio:played', { messageId });
   };
 
-  const handleSend = ({ text, imageFile }: MessageInputSubmitPayload) => {
+  const handleSend = ({ text, imageFiles }: MessageInputSubmitPayload) => {
     const trimmed = text.trim();
 
     if (trimmed) {
       sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage });
     }
 
-    if (imageFile) {
-      void sendImageMessage(imageFile, trimmed ? null : repliedMessage);
+    if (imageFiles.length > 0) {
+      void sendImageMessages(imageFiles, trimmed ? null : repliedMessage);
     }
 
     setRepliedMessage(null);
@@ -202,15 +379,20 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         room={room}
         currentUserId={user.id}
         messages={messages}
+        messagesLoaded={areMessagesLoaded}
         onLeftGroup={handleLeftGroup}
       />
 
       <div
+        ref={scrollContainerRef}
+        onScroll={handleMessagesScroll}
+        onWheel={markUserScrolled}
+        onTouchMove={markUserScrolled}
         data-chat-messages
+        className="chat-messages-scroll"
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px',
           display: 'flex',
           flexDirection: 'column',
           gap: '10px',
@@ -229,7 +411,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             }}
           />
         )}
-        <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div ref={contentWrapperRef} style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
         {!areMessagesLoaded ? (
           <MessageListSkeleton />
         ) : messages.length === 0 ? (
@@ -246,56 +428,79 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
               gap: '12px',
             }}
           >
-            <div style={{ fontSize: '2.5rem', opacity: 0.5 }}>💬</div>
+            <FaComments size={40} style={{ opacity: 0.5 }} />
             <div>Nenhuma mensagem ainda</div>
             <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>Comece a conversa enviando uma mensagem!</div>
           </div>
         ) : (
-          messages.map((message, index) => (
-            <div key={message.id}>
-              {shouldShowDateSeparator(message, messages[index - 1]) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0', justifyContent: 'center' }}>
-                  <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
-                  <span
-                    style={{
-                      fontSize: '0.85rem',
-                      color: theme.textSecondary,
-                      opacity: 0.7,
-                      fontWeight: 500,
-                      whiteSpace: 'nowrap',
-                      padding: '0 10px',
-                    }}
-                  >
-                    {formatDateSeparator(message.timestamp)}
-                  </span>
-                  <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
-                </div>
-              )}
-              <div
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  justifyContent: message.sender.id === user.id ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <MessageBubble
-                  message={message}
-                  isOwn={message.sender.id === user.id}
-                  isGroupChat={room.type === 'group'}
-                  participants={room.participants}
-                  currentUserId={user.id}
-                  currentNickname={user.nickname}
-                  isSelected={selectedMessageId === message.id}
-                  currentAudioRef={currentAudioRef}
-                  onSelect={() => setSelectedMessageId(message.id)}
-                  onReply={() => handleReply(message)}
-                  onDelete={() => setMessageIdPendingDelete(message.id)}
-                  onAudioPlayed={handleAudioPlayed}
-                  onRetry={() => message.clientTempId && retryMessage(message.clientTempId)}
-                />
+          <>
+            {isLoadingOlder && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
+                <Spinner size={20} />
               </div>
-            </div>
-          ))
+            )}
+            {renderItems.map((item, index) => {
+            const firstMessage = renderItemFirstMessage(item);
+            const anchorMessage = renderItemAnchorMessage(item);
+            const previousItem = renderItems[index - 1];
+            const isOwn = anchorMessage.sender.id === user.id;
+
+            return (
+              <div key={renderItemKey(item)}>
+                {shouldShowDateSeparator(firstMessage, previousItem ? renderItemAnchorMessage(previousItem) : undefined) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0', justifyContent: 'center' }}>
+                    <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
+                    <span
+                      style={{
+                        fontSize: '0.85rem',
+                        color: theme.textSecondary,
+                        opacity: 0.7,
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        padding: '0 10px',
+                      }}
+                    >
+                      {formatDateSeparator(firstMessage.timestamp)}
+                    </span>
+                    <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
+                  </div>
+                )}
+                <div style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+                  {item.kind === 'single' ? (
+                    <MessageBubble
+                      message={item.message}
+                      isOwn={isOwn}
+                      isGroupChat={room.type === 'group'}
+                      participants={room.participants}
+                      currentUserId={user.id}
+                      currentNickname={user.nickname}
+                      isSelected={selectedMessageId === item.message.id}
+                      currentAudioRef={currentAudioRef}
+                      onSelect={() => setSelectedMessageId(item.message.id)}
+                      onReply={() => handleReply(item.message)}
+                      onDelete={() => setMessageIdPendingDelete(item.message.id)}
+                      onAudioPlayed={handleAudioPlayed}
+                      onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
+                    />
+                  ) : (
+                    <ImageGroupBubble
+                      images={item.messages}
+                      isOwn={isOwn}
+                      isGroupChat={room.type === 'group'}
+                      participants={room.participants}
+                      currentUserId={user.id}
+                      isSelected={selectedMessageId === anchorMessage.id}
+                      onSelect={() => setSelectedMessageId(anchorMessage.id)}
+                      onReply={() => handleReply(anchorMessage)}
+                      onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
+                      onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+            })}
+          </>
         )}
 
         {(() => {
@@ -396,8 +601,6 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             </span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
         </div>
       </div>
 
@@ -414,7 +617,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             fontSize: '0.9rem',
           }}
         >
-          <span style={{ fontSize: '1.2rem' }}>🚫</span>
+          <FaBan size={16} />
           <strong>Você bloqueou este usuário</strong>
         </div>
       )}
@@ -432,16 +635,16 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             fontSize: '0.9rem',
           }}
         >
-          <span style={{ fontSize: '1.2rem' }}>⛔</span>
+          <FaExclamationTriangle size={16} />
           <strong>Você foi bloqueado por este usuário</strong>
         </div>
       )}
 
       {repliedMessage && (
         <div
+          className="chat-preview-bar"
           style={{
             background: theme.surfaceLight,
-            padding: '12px 18px',
             borderLeft: `4px solid ${theme.primary}`,
             display: 'flex',
             justifyContent: 'space-between',
@@ -482,8 +685,12 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
               )}
             </div>
           </div>
-          <Button variant="link" onClick={() => setRepliedMessage(null)} style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto' }}>
-            ✕
+          <Button
+            variant="link"
+            onClick={() => setRepliedMessage(null)}
+            style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto', display: 'flex', alignItems: 'center' }}
+          >
+            <FaTimes size={14} />
           </Button>
         </div>
       )}

@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject } from 'react';
 import { format } from 'date-fns';
-import { FaBan, FaCheck, FaExclamationCircle, FaImage, FaPause, FaPlay, FaRegClock, FaReply, FaTrash } from 'react-icons/fa';
+import {
+  FaBan,
+  FaCheck,
+  FaExclamationCircle,
+  FaImage,
+  FaPause,
+  FaPlay,
+  FaRegClock,
+  FaReply,
+  FaTrash,
+} from 'react-icons/fa';
 import { useTheme } from '@features/theme';
+import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
-import { formatAudioTime, getDisplayName, processSystemMessage } from '@lib/format';
+import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { ChatMessage } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
@@ -33,6 +44,165 @@ interface MessageBubbleProps {
 
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
+
+type StatusInfo = ReturnType<typeof getMessageStatus>;
+
+interface MessageMetaProps {
+  message: ChatMessage;
+  isOwn: boolean;
+  theme: ThemePalette;
+  statusInfo: StatusInfo;
+  statusColor: string;
+  onRetry: () => void;
+}
+
+interface MessageActionsRowProps {
+  isOwn: boolean;
+  theme: ThemePalette;
+  onReply: () => void;
+  onDelete: () => void;
+}
+
+export function MessageActionsRow({ isOwn, theme, onReply, onDelete }: MessageActionsRowProps) {
+  return (
+    <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px' }}>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onReply();
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: theme.surface,
+          border: 'none',
+          color: theme.text,
+          borderRadius: '999px',
+          padding: '5px 14px 5px 5px',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)',
+          transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        }}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.transform = 'translateY(-2px)';
+          event.currentTarget.style.boxShadow = '0 5px 14px rgba(0, 0, 0, 0.22)';
+        }}
+        onMouseLeave={(event) => {
+          event.currentTarget.style.transform = 'translateY(0)';
+          event.currentTarget.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)';
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: `${theme.primary}26`,
+            color: theme.primary,
+            flexShrink: 0,
+          }}
+        >
+          <FaReply size={11} />
+        </span>
+        Responder
+      </button>
+
+      {isOwn && (
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: theme.surface,
+            border: 'none',
+            color: theme.text,
+            borderRadius: '999px',
+            padding: '5px 14px 5px 5px',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+          }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.transform = 'translateY(-2px)';
+            event.currentTarget.style.boxShadow = '0 5px 14px rgba(0, 0, 0, 0.22)';
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.transform = 'translateY(0)';
+            event.currentTarget.style.boxShadow = '0 3px 10px rgba(0, 0, 0, 0.18)';
+          }}
+        >
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              background: 'rgba(239, 83, 80, 0.16)',
+              color: '#ef5350',
+              flexShrink: 0,
+            }}
+          >
+            <FaTrash size={11} />
+          </span>
+          Excluir
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MessageMeta({ message, isOwn, theme, statusInfo, statusColor, onRetry }: MessageMetaProps) {
+  const textColor = isOwn ? theme.messageOwnText : theme.messageOtherText;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
+      <span style={{ fontSize: '0.7rem', opacity: 0.6, color: textColor, fontWeight: 500 }}>
+        {format(new Date(message.timestamp), 'HH:mm')}
+      </span>
+      {message.pending ? (
+        <FaRegClock size={11} color={textColor} style={{ opacity: 0.8 }} />
+      ) : message.failed ? (
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onRetry();
+          }}
+          title="Falha ao enviar. Toque para reenviar."
+          style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#ff6b6b' }}
+        >
+          <FaExclamationCircle size={12} />
+        </button>
+      ) : (
+        statusInfo && (
+          <div style={{ display: 'flex', alignItems: 'center', opacity: isOwn ? 0.9 : 0.7 }}>
+            {statusInfo.icon === 'double' ? (
+              <>
+                <FaCheck size={11} color={statusColor} />
+                <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
+              </>
+            ) : (
+              <FaCheck size={11} color={statusColor} />
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 export function MessageBubble({
   message,
@@ -143,33 +313,31 @@ export function MessageBubble({
   if (message.deletedForEveryone) {
     return (
       <div
-        className="animate__animated animate__fadeInUp animate__faster"
+        className="animate__animated animate__fadeInUp animate__faster chat-bubble-wrap"
         style={{
           display: 'flex',
-          gap: '10px',
           alignItems: 'flex-end',
-          maxWidth: '60%',
           alignSelf: isOwn ? 'flex-end' : 'flex-start',
-          marginBottom: '7px',
+          marginBottom: '2px',
         }}
       >
         <div
           style={{
-            margin: '7px 0',
-            background: theme.background,
-            color: theme.text,
-            borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-            padding: '12px 16px',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+            background: isOwn ? theme.messageOwn : theme.messageOther,
+            color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+            opacity: 0.65,
+            borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+            padding: '10px 14px',
+            boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
             fontStyle: 'italic',
-            fontSize: '0.9rem',
+            fontSize: '0.88rem',
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
           }}
         >
-          <FaBan size={14} />
-          <p style={{ margin: 0 }}>Mensagem deletada</p>
+          <FaBan size={13} style={{ flexShrink: 0 }} />
+          <span>Mensagem deletada</span>
         </div>
       </div>
     );
@@ -194,7 +362,21 @@ export function MessageBubble({
             fontWeight: 500,
           }}
         >
-          <p style={{ margin: 0, lineHeight: 1.4 }}>{processSystemMessage(message.content, currentNickname)}</p>
+          <p style={{ margin: 0, lineHeight: 1.4 }}>
+            {(() => {
+              const processed = processSystemMessage(message.content, currentNickname);
+              const split = splitSystemMessageActor(processed);
+              if (!split) {
+                return processed;
+              }
+              return (
+                <>
+                  <span style={{ fontWeight: 700 }}>{split.actor}</span>
+                  {split.rest}
+                </>
+              );
+            })()}
+          </p>
           <span style={{ fontSize: '0.7rem', opacity: 0.7, display: 'block', marginTop: '4px' }}>
             {format(new Date(message.timestamp), 'HH:mm')}
           </span>
@@ -206,14 +388,70 @@ export function MessageBubble({
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
   const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
   const isImageMessage = message.type === 'image';
-  const usesMediaPadding = isImageMessage || isAudioMessage;
   const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
+  const replyQuoteBg = isOwn ? 'rgba(255, 255, 255, 0.16)' : baseTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
+  const replyQuoteAccent = isOwn ? 'rgba(255, 255, 255, 0.55)' : theme.primary;
+
+  const replyQuote = message.replyTo && (
+    <div
+      style={{
+        margin: '8px 10px 0',
+        padding: '6px 10px',
+        minWidth: 0,
+        maxWidth: 'calc(100% - 20px)',
+        boxSizing: 'border-box',
+        background: replyQuoteBg,
+        borderLeft: `3px solid ${replyQuoteAccent}`,
+        borderRadius: '6px',
+        fontSize: '0.8rem',
+      }}
+    >
+      <div
+        style={{
+          fontWeight: 700,
+          opacity: 0.85,
+          marginBottom: '2px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {getDisplayName(message.replyTo.sender.id, message.replyTo.sender.nickname, currentUserId)}
+      </div>
+      {message.replyTo.type === 'image' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
+          <FaImage size={12} style={{ flexShrink: 0 }} />
+          <span>Imagem</span>
+        </div>
+      ) : message.replyTo.type === 'audio' ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
+          <FaPlay size={12} style={{ flexShrink: 0 }} />
+          <span>Áudio {formatAudioTime(message.replyTo.duration ?? 0)}</span>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            wordBreak: 'break-word',
+            minWidth: 0,
+            opacity: 0.72,
+            lineHeight: 1.35,
+          }}
+        >
+          {message.replyTo.content}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div
       data-message-bubble
-      className="animate__animated animate__fadeInUp animate__faster"
+      className={`animate__animated animate__fadeInUp animate__faster chat-bubble-wrap${isAudioMessage ? ' is-audio' : ''}`}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
@@ -221,408 +459,386 @@ export function MessageBubble({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '4px',
+        gap: '6px',
         alignItems: isOwn ? 'flex-end' : 'flex-start',
-        maxWidth: '60%',
         alignSelf: isOwn ? 'flex-end' : 'flex-start',
-        marginBottom: '7px',
-        position: 'relative',
+        marginBottom: '2px',
       }}
     >
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: isOwn ? 'row-reverse' : 'row' }}>
-        <div
-          style={{
-            background: isOwn ? theme.messageOwn : theme.messageOther,
-            color: isOwn ? theme.messageOwnText : theme.messageOtherText,
-            borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-            padding: usesMediaPadding ? '12px 16px 10px 16px' : '0 16px 10px 16px',
-            boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
-            wordBreak: 'break-word',
-          }}
-        >
-          {!isOwn && isGroupChat && (
-            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: theme.primary, margin: '12px 0 4px 3px' }}>
-              {getDisplayName(message.sender.id, message.sender.nickname, currentUserId)}
-            </div>
-          )}
+      <div
+        style={{
+          background: isOwn ? theme.messageOwn : theme.messageOther,
+          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          padding: isImageMessage ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : '6px 0',
+          minWidth: 0,
+          maxWidth: '100%',
+        }}
+      >
+        {!isOwn && isGroupChat && (
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.primary, padding: '4px 12px 0' }}>
+            {getDisplayName(message.sender.id, message.sender.nickname, currentUserId)}
+          </div>
+        )}
 
-          {message.replyTo && (
+        {replyQuote}
+
+        {isImageMessage ? (
+          <>
+            <div style={{ position: 'relative', padding: '0 4px', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
+              {!isImageLoaded && (
+                <div
+                  className="shimmer-bg"
+                  style={
+                    {
+                      position: 'absolute',
+                      inset: '0 4px',
+                      borderRadius: '12px',
+                      '--shimmer-a': theme.surfaceLight,
+                    } as CSSProperties
+                  }
+                />
+              )}
+              <img
+                src={message.content}
+                alt="Imagem enviada"
+                onLoad={() => setIsImageLoaded(true)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsImageModalOpen(true);
+                }}
+                style={{
+                  display: 'block',
+                  maxWidth: '100%',
+                  maxHeight: '400px',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  opacity: isImageLoaded ? 1 : 0,
+                  transition: 'opacity 0.25s ease',
+                }}
+              />
+            </div>
+          </>
+        ) : isAudioMessage ? (
+          <div style={{ padding: '2px 10px 0' }}>
             <div
               style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderLeft: `3px solid ${isOwn ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)'}`,
-                padding: '8px 40px 12px 12px',
-                marginBottom: '8px',
-                borderRadius: '4px',
-                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
+                borderRadius: '12px',
+                width: '100%',
+                minWidth: '210px',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
               }}
             >
-              <div style={{ fontWeight: 600, opacity: 0.8 }}>
-                {getDisplayName(message.replyTo.sender.id, message.replyTo.sender.nickname, currentUserId)}
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  opacity: 0.7,
-                }}
-              >
-                {message.replyTo.type === 'image' ? (
-                  <>
-                    <FaImage size={12} style={{ flexShrink: 0 }} />
-                    <span>Imagem</span>
-                  </>
-                ) : message.replyTo.type === 'audio' ? (
-                  <>
-                    <FaPlay size={12} style={{ flexShrink: 0 }} />
-                    <span>Áudio {formatAudioTime(message.replyTo.duration ?? 0)}</span>
-                  </>
-                ) : (
-                  message.replyTo.content
-                )}
-              </div>
-            </div>
-          )}
+              <audio
+                src={message.content}
+                ref={audioElementRef}
+                onEnded={handleAudioEnded}
+                onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
+                onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime)}
+                style={{ display: 'none' }}
+              />
 
-          <div style={{ margin: '10px 6px 6px 6px' }}>
-            {isImageMessage ? (
-              <div style={{ position: 'relative', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
-                {!isImageLoaded && (
-                  <div
-                    className="shimmer-bg"
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      borderRadius: '12px',
-                      background: `linear-gradient(90deg, ${theme.surfaceLight} 25%, ${theme.border} 37%, ${theme.surfaceLight} 63%)`,
-                    }}
-                  />
-                )}
-                <img
-                  src={message.content}
-                  alt="Imagem enviada"
-                  onLoad={() => setIsImageLoaded(true)}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsImageModalOpen(true);
-                  }}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '400px',
-                    borderRadius: '12px',
-                    display: 'block',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-                    opacity: isImageLoaded ? 1 : 0,
-                    transition: 'opacity 0.25s ease',
-                  }}
-                />
-              </div>
-            ) : isAudioMessage ? (
-              <div
-                style={{
-                  marginTop: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '12px 12px',
-                  background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
-                  borderRadius: '12px',
-                  width: '100%',
-                  minWidth: '240px',
-                  maxWidth: '280px',
-                }}
-              >
-                <audio
-                  src={message.content}
-                  ref={audioElementRef}
-                  onEnded={handleAudioEnded}
-                  onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}
-                  onTimeUpdate={(event) => setAudioCurrentTime(event.currentTarget.currentTime)}
-                  style={{ display: 'none' }}
-                />
-
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleAudioToggle();
-                  }}
-                  style={{
-                    marginRight: '8px',
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: hasBeenPlayed ? '#2196F3' : '#35dd3bff',
-                    color: 'white',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
-                  }}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.transform = 'scale(1.1)';
-                    event.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.2)';
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.transform = 'scale(1)';
-                    event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
-                  }}
-                >
-                  {playbackIcon === 'pause' ? (
-                    <FaPause size={14} color="white" />
-                  ) : (
-                    <FaPlay size={14} color="white" style={{ marginLeft: '2px' }} />
-                  )}
-                </button>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '2px',
-                    flex: 1,
-                    height: '24px',
-                    minWidth: '80px',
-                    position: 'relative',
-                  }}
-                >
-                  {audioWaveform.map((level, index) => {
-                    const isPlayedBar = index < playbackProgress;
-                    const barHeight = Math.max(3, Math.min(100, level));
-                    const barColor = hasBeenPlayed
-                      ? isPlayedBar
-                        ? 'rgba(49, 176, 255, 1)'
-                        : 'rgba(255, 255, 255, 1)'
-                      : isPlayedBar
-                        ? '#48ff2fff'
-                        : 'rgba(255, 255, 255, 1)';
-
-                    return (
-                      <div
-                        key={index}
-                        style={{
-                          flex: 1,
-                          height: `${barHeight}%`,
-                          background: barColor,
-                          borderRadius: '10px',
-                          transition: 'all 0.1s ease',
-                          minWidth: '2.5px',
-                          position: 'relative',
-                        }}
-                      />
-                    );
-                  })}
-
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: `${audioDuration ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '10px',
-                      height: '10px',
-                      borderRadius: '50%',
-                      background: hasBeenPlayed ? '#64c9ffff' : '#00ff08ff',
-                      boxShadow: `0 0 8px ${hasBeenPlayed ? '#a5e0ffff' : '#8eff92ff'}`,
-                      pointerEvents: 'none',
-                      transition: 'left 0.05s linear',
-                    }}
-                  />
-                </div>
-
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: isOwn ? 'rgba(255, 255, 255, 0.8)' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
-                    minWidth: '35px',
-                    textAlign: 'right',
-                  }}
-                >
-                  {formatAudioTime(audioDuration)}
-                </span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '0.95rem',
-                    lineHeight: 1.6,
-                    whiteSpace: 'pre-wrap',
-                    fontWeight: 500,
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {displayContent}
-                </p>
-                {showExpand && (
-                  <button
-                    onClick={() => setIsExpanded((previous) => !previous)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: theme.primary,
-                      cursor: 'pointer',
-                      fontSize: '0.82rem',
-                      fontWeight: 600,
-                      padding: '4px 0',
-                      alignSelf: 'flex-start',
-                      borderBottom: `2px solid ${theme.primary}`,
-                    }}
-                  >
-                    {isExpanded ? '↑ Ver menos' : '↓ Ver mais'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-end', width: '100%' }}>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                opacity: 0.6,
-                color: isOwn ? theme.messageOwnText : theme.messageOtherText,
-                fontWeight: 500,
-              }}
-            >
-              {format(new Date(message.timestamp), 'HH:mm')}
-            </span>
-            {message.pending ? (
-              <div style={{ display: 'flex', alignItems: 'center', opacity: 0.6, marginLeft: '6px' }}>
-                <FaRegClock size={11} color={isOwn ? theme.messageOwnText : theme.messageOtherText} />
-              </div>
-            ) : message.failed ? (
               <button
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRetry();
+                  handleAudioToggle();
                 }}
-                title="Falha ao enviar. Toque para reenviar."
                 style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: hasBeenPlayed ? '#2196F3' : '#35dd3bff',
+                  color: 'white',
+                  cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  marginLeft: '6px',
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  color: '#ff6b6b',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.15)',
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.transform = 'scale(1.1)';
+                  event.currentTarget.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.2)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.transform = 'scale(1)';
+                  event.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
                 }}
               >
-                <FaExclamationCircle size={12} />
+                {playbackIcon === 'pause' ? (
+                  <FaPause size={14} color="white" />
+                ) : (
+                  <FaPlay size={14} color="white" style={{ marginLeft: '2px' }} />
+                )}
               </button>
-            ) : (
-              statusInfo && (
-                <div style={{ display: 'flex', alignItems: 'center', opacity: isOwn ? 0.9 : 0.7, marginLeft: '6px' }}>
-                  {statusInfo.icon === 'double' ? (
-                    <>
-                      <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
-                      <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
-                    </>
-                  ) : (
-                    <FaCheck size={11} color={statusColor} />
-                  )}
-                </div>
-              )
-            )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, height: '24px', minWidth: '56px', marginLeft: '6px', position: 'relative' }}>
+                {audioWaveform.map((level, index) => {
+                  const isPlayedBar = index < playbackProgress;
+                  const barHeight = Math.max(3, Math.min(100, level));
+                  const barColor = hasBeenPlayed
+                    ? isPlayedBar
+                      ? 'rgba(49, 176, 255, 1)'
+                      : 'rgba(255, 255, 255, 1)'
+                    : isPlayedBar
+                      ? '#48ff2fff'
+                      : 'rgba(255, 255, 255, 1)';
+
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        flex: 1,
+                        height: `${barHeight}%`,
+                        background: barColor,
+                        borderRadius: '10px',
+                        transition: 'all 0.1s ease',
+                        minWidth: '2.5px',
+                        position: 'relative',
+                      }}
+                    />
+                  );
+                })}
+
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${audioDuration ? (audioCurrentTime / audioDuration) * 100 : 0}%`,
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    background: hasBeenPlayed ? '#64c9ffff' : '#00ff08ff',
+                    boxShadow: `0 0 8px ${hasBeenPlayed ? '#a5e0ffff' : '#8eff92ff'}`,
+                    pointerEvents: 'none',
+                    transition: 'left 0.05s linear',
+                  }}
+                />
+              </div>
+
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: isOwn ? 'rgba(255, 255, 255, 0.8)' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
+                  minWidth: '35px',
+                  textAlign: 'right',
+                }}
+              >
+                {formatAudioTime(audioDuration)}
+              </span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {isSelected && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            right: isOwn ? 'auto' : '-55px',
-            left: isOwn ? '-100px' : 'auto',
-            display: 'flex',
-            gap: '8px',
-            zIndex: 1000,
-          }}
-        >
-          <button
-            onClick={(event) => {
-              event.stopPropagation();
-              onReply();
-            }}
-            title="Responder"
-            style={{
-              background: theme.primary,
-              opacity: 0.6,
-              border: 'none',
-              color: 'white',
-              borderRadius: '50%',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              fontSize: '0.9rem',
-              padding: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = theme.secondary;
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = theme.primary;
-            }}
-          >
-            <FaReply size={14} />
-          </button>
-
-          {isOwn && (
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onDelete();
-              }}
-              title="Deletar para todos"
+        ) : (
+          <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
+            <p
               style={{
-                background: '#ef5350',
-                opacity: 0.6,
-                border: 'none',
-                color: 'white',
-                borderRadius: '50%',
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                fontSize: '0.9rem',
-                padding: 0,
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = '#d32f2f';
-                event.currentTarget.style.transform = 'scale(1.1)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = '#ef5350';
-                event.currentTarget.style.transform = 'scale(1)';
+                margin: 0,
+                fontSize: '0.95rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap',
+                fontWeight: 500,
+                wordBreak: 'break-word',
               }}
             >
-              <FaTrash size={14} />
-            </button>
-          )}
-        </div>
-      )}
+              {displayContent}
+              {showExpand && (
+                <>
+                  {' '}
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setIsExpanded((previous) => !previous);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.stopPropagation();
+                        event.preventDefault();
+                        setIsExpanded((previous) => !previous);
+                      }
+                    }}
+                    style={{
+                      whiteSpace: 'nowrap',
+                      fontWeight: 700,
+                      textDecoration: 'underline',
+                      cursor: 'pointer',
+                      color: isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary,
+                    }}
+                  >
+                    {isExpanded ? 'ver menos' : 'ver mais'}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+        )}
+
+        <MessageMeta message={message} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+      </div>
+
+      {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
 
       {isImageMessage && (
-        <ImageModal isOpen={isImageModalOpen} imageSrc={message.content} onClose={() => setIsImageModalOpen(false)} />
+        <ImageModal isOpen={isImageModalOpen} images={[message.content]} onClose={() => setIsImageModalOpen(false)} />
       )}
+    </div>
+  );
+}
+
+interface ImageGroupBubbleProps {
+  images: ChatMessage[];
+  isOwn: boolean;
+  isGroupChat: boolean;
+  participants: RoomParticipant[];
+  currentUserId: string | undefined;
+  isSelected: boolean;
+  onSelect: () => void;
+  onReply: () => void;
+  onDelete: () => void;
+  onRetry: () => void;
+}
+
+const MAX_GROUP_TILES = 4;
+
+export function ImageGroupBubble({
+  images,
+  isOwn,
+  isGroupChat,
+  participants,
+  currentUserId,
+  isSelected,
+  onSelect,
+  onReply,
+  onDelete,
+  onRetry,
+}: ImageGroupBubbleProps) {
+  const { theme } = useTheme();
+  const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const anchor = images[images.length - 1] ?? images[0];
+  const statusInfo = anchor ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null;
+  const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
+  const visibleTiles = images.slice(0, MAX_GROUP_TILES);
+  const extraCount = images.length - visibleTiles.length;
+
+  if (!anchor) {
+    return null;
+  }
+
+  return (
+    <div
+      data-message-bubble
+      className="animate__animated animate__fadeInUp animate__faster chat-bubble-wrap"
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        alignItems: isOwn ? 'flex-end' : 'flex-start',
+        alignSelf: isOwn ? 'flex-end' : 'flex-start',
+        marginBottom: '2px',
+      }}
+    >
+      <div
+        style={{
+          background: isOwn ? theme.messageOwn : theme.messageOther,
+          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2px',
+          padding: '4px 0 6px',
+          minWidth: 0,
+          maxWidth: '100%',
+        }}
+      >
+        {!isOwn && isGroupChat && (
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: theme.primary, padding: '4px 12px 0' }}>
+            {getDisplayName(anchor.sender.id, anchor.sender.nickname, currentUserId)}
+          </div>
+        )}
+
+        <div
+          style={{
+            padding: '0 4px',
+            display: 'grid',
+            gridTemplateColumns: visibleTiles.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+            gap: '3px',
+          }}
+        >
+          {visibleTiles.map((image, index) => {
+            const isLastTile = index === visibleTiles.length - 1;
+            return (
+              <div
+                key={image.id}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setModalIndex(index);
+                }}
+                style={{
+                  position: 'relative',
+                  aspectRatio: '1',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                }}
+              >
+                <img
+                  src={image.content}
+                  alt="Imagem enviada"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+                {isLastTile && extraCount > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '1.3rem',
+                      fontWeight: 700,
+                    }}
+                  >
+                    +{extraCount}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <MessageMeta message={anchor} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+      </div>
+
+      {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
+
+      <ImageModal
+        isOpen={modalIndex !== null}
+        images={images.map((image) => image.content)}
+        startIndex={modalIndex ?? 0}
+        onClose={() => setModalIndex(null)}
+      />
     </div>
   );
 }

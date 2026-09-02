@@ -162,15 +162,17 @@
 
 @keyframes shimmerSweep {
   0% {
-    background-position: -300px 0;
+    background-position: -130% 0;
   }
   100% {
-    background-position: 300px 0;
+    background-position: 130% 0;
   }
 }
 
 .shimmer-bg {
-  background-size: 300px 100%;
+  background-color: var(--shimmer-a, #cccccc);
+  background-image: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+  background-size: 60% 100%;
   background-repeat: no-repeat;
-  animation: shimmerSweep 1.3s ease-in-out infinite;
+  animation: shimmerSweep 1.4s ease-in-out infinite;
 }
