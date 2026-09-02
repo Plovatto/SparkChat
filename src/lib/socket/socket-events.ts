@@ -113,7 +113,7 @@ export interface ServerToClientEvents {
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
-  'messages:list': (payload: { roomId: string; messages: MessageView[] }) => void;
+  'messages:list': (payload: { roomId: string; messages: MessageView[]; hasMore: boolean }) => void;
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
@@ -124,6 +124,7 @@ export interface ClientToServerEvents {
   'user:join': (payload: JoinPayload) => void;
   'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
   'user:update-theme': (payload: SocketUserTheme) => void;
+  'user:visibility': (payload: { visible: boolean }) => void;
   'rooms:get': () => void;
   'room:create-private': (payload: { targetChatCode: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
@@ -140,12 +141,14 @@ export interface ClientToServerEvents {
     replyToMessageId?: string;
     clientTempId?: string;
   }) => void;
-  'message:mark-read': (payload: { roomId: string }) => void;
-  'messages:get': (payload: { roomId: string }) => void;
+  'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
+  'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;
   'typing:start': (payload: { roomId: string }) => void;
   'typing:stop': (payload: { roomId: string }) => void;
   'recording:start': (payload: { roomId: string }) => void;
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
   'message:delete': (payload: { messageId: string }) => void;
+  'room:view-start': (payload: { roomId: string }) => void;
+  'room:view-stop': (payload: { roomId: string }) => void;
 }
