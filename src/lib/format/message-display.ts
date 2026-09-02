@@ -2,6 +2,17 @@ export function getDisplayName(senderId: string, nickname: string, currentUserId
   return senderId === currentUserId ? 'Você' : nickname;
 }
 
+export function resolveActiveUserNames(
+  userIds: string[],
+  participants: { id: string; nickname: string }[],
+  currentUserId?: string,
+): string[] {
+  return userIds
+    .map((userId) => participants.find((participant) => participant.id === userId))
+    .filter((participant): participant is { id: string; nickname: string } => Boolean(participant))
+    .map((participant) => getDisplayName(participant.id, participant.nickname, currentUserId));
+}
+
 export function processSystemMessage(content: string, currentNickname: string): string {
   if (!currentNickname) {
     return content;
