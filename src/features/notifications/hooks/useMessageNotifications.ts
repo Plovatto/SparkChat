@@ -47,13 +47,22 @@ export function useMessageNotifications(
         return;
       }
 
-      const { title, body } = buildNotificationContent(message, room);
-      const notification = new Notification(title, { body, tag: message.roomId });
-      notification.onclick = () => {
-        window.focus();
-        onNotificationClick(message.roomId);
-        notification.close();
-      };
+      void buildNotificationContent(message, room).then(({ title, body, icon, image }) => {
+        const options: NotificationOptions & { renotify?: boolean; image?: string } = {
+          body,
+          tag: message.roomId,
+          renotify: true,
+          icon,
+          silent: true,
+          ...(image ? { image } : {}),
+        };
+        const notification = new Notification(title, options);
+        notification.onclick = () => {
+          window.focus();
+          onNotificationClick(message.roomId);
+          notification.close();
+        };
+      });
     };
 
     socket.on('message:new', handleMessageNew);

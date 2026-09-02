@@ -5,7 +5,13 @@ import { Spinner } from '@components/common/Spinner';
 import { ChatArea, useChatTriggerEffects } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { User } from '@features/auth';
-import { useMessageNotifications, useNotificationPreference, useSoundPreference, useUnreadBadge } from '@features/notifications';
+import {
+  useAudioContextPrimer,
+  useMessageNotifications,
+  useNotificationPreference,
+  useSoundPreference,
+  useUnreadBadge,
+} from '@features/notifications';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useTheme, useThemeSync } from '@features/theme';
 import { SocketProvider, useSocket } from '@lib/socket';
@@ -64,6 +70,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
   const notificationPreference = useNotificationPreference();
   const soundPreference = useSoundPreference();
   const { mutedRoomIds, toggleMuted } = useMutedRooms();
+  useAudioContextPrimer();
   const totalUnread = rooms.reduce((sum, room) => sum + room.unreadCount, 0);
 
   useMessageNotifications(
@@ -76,7 +83,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
     setSelectedRoomId,
   );
   useUnreadBadge(totalUnread);
-  useChatTriggerEffects(selectedRoomId, user.id);
+  useChatTriggerEffects(selectedRoomId, user.id, soundPreference.isEnabled);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {
@@ -111,7 +118,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
 
   if (!isLoaded) {
     return (
-      <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Container fluid className="chat-shell-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="text-center">
           <div className="loading-spinner" style={{ width: '60px', height: '60px', margin: '0 auto 20px', border: '4px solid rgba(166, 166, 166, 0.3)', borderTop: '4px solid #ffffff', borderRadius: '50%' }} />
           <p style={{ color: '#ffffff', fontSize: '1rem' }}>Carregando conversas...</p>
@@ -121,7 +128,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
   }
 
   return (
-    <Container fluid style={{ maxWidth: '1400px', height: '90vh', maxHeight: '900px', padding: 0 }}>
+    <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {!connected && (
           <div
@@ -144,7 +151,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
             Conectando ao servidor...
           </div>
         )}
-        <Card style={{ borderRadius: '20px', boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)', flex: 1, minHeight: 0, border: 'none', overflow: 'hidden' }}>
+        <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden' }}>
           <Row style={{ height: '100%', margin: 0 }}>
             <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }} className={selectedRoom ? 'd-none d-md-block' : undefined}>
               <Sidebar

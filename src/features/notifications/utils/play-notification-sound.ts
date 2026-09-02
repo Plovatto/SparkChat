@@ -22,16 +22,35 @@ function playTone(context: AudioContext, frequency: number, startTime: number, d
   oscillator.stop(startTime + duration);
 }
 
-export function playNotificationSound(): void {
+function scheduleNotificationTones(context: AudioContext): void {
+  const now = context.currentTime;
+  playTone(context, 880, now, 0.14);
+  playTone(context, 1108.73, now + 0.09, 0.18);
+}
+
+export function primeNotificationSound(): void {
   try {
     const context = getAudioContext();
     if (context.state === 'suspended') {
       void context.resume();
     }
+  } catch {
+    return;
+  }
+}
 
-    const now = context.currentTime;
-    playTone(context, 880, now, 0.14);
-    playTone(context, 1108.73, now + 0.09, 0.18);
+export function playNotificationSound(): void {
+  try {
+    const context = getAudioContext();
+    if (context.state === 'suspended') {
+      context
+        .resume()
+        .then(() => scheduleNotificationTones(context))
+        .catch(() => undefined);
+      return;
+    }
+
+    scheduleNotificationTones(context);
   } catch {
     return;
   }
