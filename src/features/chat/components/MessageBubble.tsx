@@ -12,11 +12,12 @@ import {
   FaTrash,
 } from 'react-icons/fa';
 import { IconPillButton } from '@components/common/IconPillButton';
+import { AVATARS } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
-import { getMessageStatus } from '@lib/message-status';
+import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { ChatMessage } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { ImageModal } from './ImageModal';
@@ -36,6 +37,7 @@ interface MessageBubbleProps {
   currentNickname: string;
   isSelected: boolean;
   currentAudioRef: MutableRefObject<CurrentAudioRef | null>;
+  receipt: MessageReceiptInfo | null;
   onSelect: () => void;
   onReply: () => void;
   onDelete: () => void;
@@ -207,6 +209,53 @@ function MessageMeta({ message, isOwn, theme, statusInfo, statusColor, onRetry }
   );
 }
 
+function MessageReceiptRow({ receipt, isOwn, theme }: { receipt: MessageReceiptInfo; isOwn: boolean; theme: ThemePalette }) {
+  const label = receipt.type === 'read' ? 'Lida por:' : 'Entregue para:';
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '0.7rem',
+        color: theme.textSecondary,
+        opacity: 0.7,
+        marginTop: '4px',
+        marginLeft: isOwn ? 'auto' : 0,
+        paddingLeft: isOwn ? 0 : '12px',
+      }}
+    >
+      <span style={{ fontWeight: 500 }}>{label}</span>
+      <div style={{ display: 'flex', gap: '2px' }}>
+        {receipt.users.map((participant) => {
+          const avatar = AVATARS[participant.avatar] ?? AVATARS[0];
+          const Icon = avatar?.icon;
+          return (
+            <div
+              key={participant.id}
+              title={participant.nickname}
+              style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '50%',
+                background: avatar?.color ?? theme.primary,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: `1px solid ${theme.primary}33`,
+                flexShrink: 0,
+              }}
+            >
+              {Icon && <Icon size={10} color="white" />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({
   message,
   isOwn,
@@ -216,6 +265,7 @@ export function MessageBubble({
   currentNickname,
   isSelected,
   currentAudioRef,
+  receipt,
   onSelect,
   onReply,
   onDelete,
@@ -463,6 +513,7 @@ export function MessageBubble({
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       afterBubble={
         <>
+          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
           {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
           {isImageMessage && (
             <ImageModal isOpen={isImageModalOpen} images={[message.content]} onClose={() => setIsImageModalOpen(false)} />
@@ -685,6 +736,7 @@ interface ImageGroupBubbleProps {
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   isSelected: boolean;
+  receipt: MessageReceiptInfo | null;
   onSelect: () => void;
   onReply: () => void;
   onDelete: () => void;
@@ -700,6 +752,7 @@ export function ImageGroupBubble({
   participants,
   currentUserId,
   isSelected,
+  receipt,
   onSelect,
   onReply,
   onDelete,
@@ -728,6 +781,7 @@ export function ImageGroupBubble({
       padding="4px 0 6px"
       afterBubble={
         <>
+          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
           {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
           <ImageModal
             isOpen={modalIndex !== null}
