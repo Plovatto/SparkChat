@@ -8,7 +8,7 @@ import {
   type FormEvent,
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
-import { FaImage, FaMicrophone, FaPaperPlane } from 'react-icons/fa';
+import { FaImage, FaMicrophone, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
@@ -19,7 +19,7 @@ export interface MessageInputHandle {
 
 export interface MessageInputSubmitPayload {
   text: string;
-  imageFile: File | null;
+  imageFiles: File[];
 }
 
 export interface AudioSendPayload {
@@ -61,6 +61,64 @@ function interpolateLevels(levels: number[]): number[] {
   return interpolated;
 }
 
+interface PendingImagesPreviewProps {
+  images: PendingImage[];
+  theme: ThemePalette;
+  onRemove?: (index: number) => void;
+}
+
+function PendingImagesPreview({ images, theme, onRemove }: PendingImagesPreviewProps) {
+  return (
+    <div
+      className="chat-preview-bar"
+      style={{
+        background: theme.surfaceLight,
+        borderLeft: `4px solid ${theme.primary}`,
+        borderTop: `1px solid ${theme.border}`,
+      }}
+    >
+      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>
+        {images.length > 1 ? `${images.length} imagens selecionadas` : 'Anexo pendente'}
+      </div>
+      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '2px 4px 4px 0' }}>
+        {images.map((image, index) => (
+          <div key={image.previewUrl} style={{ position: 'relative', flexShrink: 0 }}>
+            <img
+              src={image.previewUrl}
+              alt="anexo"
+              style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 10, display: 'block' }}
+            />
+            {onRemove && (
+              <button
+                onClick={() => onRemove(index)}
+                title="Remover"
+                style={{
+                  position: 'absolute',
+                  top: 3,
+                  right: 3,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: `2px solid ${theme.surfaceLight}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  padding: 0,
+                }}
+              >
+                <FaTimes size={9} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface RecordingBarProps {
   theme: ThemePalette;
   recordingTime: number;
@@ -74,9 +132,9 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
 
   return (
     <div
+      className="chat-input-bar"
       style={{
         background: theme.surface,
-        padding: '14px 18px',
         boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
         display: 'flex',
         gap: '12px',
@@ -89,17 +147,16 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
         title="Descartar"
         style={{
           background: 'rgba(255, 107, 107, 0.15)',
-          border: '1px solid rgba(255, 107, 107, 0.3)',
+          border: 'none',
           borderRadius: '50%',
-          width: '40px',
-          height: '40px',
+          width: '38px',
+          height: '38px',
           padding: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '1.2rem',
           flexShrink: 0,
-          transition: 'all 0.2s',
+          transition: 'background 0.2s',
           color: '#ff6b6b',
         }}
         onMouseEnter={(event) => {
@@ -109,14 +166,26 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
           event.currentTarget.style.background = 'rgba(255, 107, 107, 0.15)';
         }}
       >
-        ✕
+        <FaTimes size={15} />
       </Button>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flex: 1,
+          minWidth: 0,
+          background: theme.surfaceLight,
+          borderRadius: '999px',
+          padding: '8px 16px',
+          boxSizing: 'border-box',
+        }}
+      >
         <div
           style={{
-            width: '6px',
-            height: '6px',
+            width: '8px',
+            height: '8px',
             borderRadius: '50%',
             background: '#ff6b6b',
             animation: 'blink 1s infinite',
@@ -128,10 +197,9 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '5px',
+            gap: '3px',
             flex: 1,
-            height: '50px',
-            justifyContent: 'center',
+            height: '28px',
             overflow: 'hidden',
             minWidth: 0,
           }}
@@ -140,20 +208,17 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
             <div
               key={index}
               style={{
-                flex: '0 0 1.2px',
-                height: `${Math.max(5, level * 8)}px`,
+                flex: '0 0 3px',
+                height: `${Math.max(15, Math.min(100, level))}%`,
                 background: theme.primary,
-                borderRadius: '0.2px',
+                borderRadius: '3px',
                 transition: 'height 0.08s ease-out',
-                minHeight: '2px',
-                maxHeight: '30px',
-                opacity: 0.95,
               }}
             />
           ))}
         </div>
 
-        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ff6b6b', minWidth: '40px', textAlign: 'right' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.text, minWidth: '38px', textAlign: 'right', flexShrink: 0 }}>
           {formatRecordingTime(recordingTime)}
         </div>
       </div>
@@ -166,8 +231,8 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
             background: theme.primary,
             border: 'none',
             borderRadius: '50%',
-            width: '40px',
-            height: '40px',
+            width: '38px',
+            height: '38px',
             padding: 0,
             display: 'flex',
             alignItems: 'center',
@@ -175,7 +240,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
             fontSize: '0.9rem',
             color: 'white',
             flexShrink: 0,
-            transition: 'all 0.2s',
+            transition: 'transform 0.2s',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           }}
           onMouseEnter={(event) => {
@@ -198,7 +263,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 ) {
   const { theme, baseTheme } = useTheme();
   const [message, setMessage] = useState('');
-  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const pendingImagesRef = useRef<PendingImage[]>(pendingImages);
+  pendingImagesRef.current = pendingImages;
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isRecording, recordingTime, audioLevels, startRecording, stopRecording, cancelRecording } =
@@ -210,24 +277,38 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   useEffect(() => {
     return () => {
-      if (pendingImage) {
-        URL.revokeObjectURL(pendingImage.previewUrl);
-      }
+      pendingImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
     };
-  }, [pendingImage]);
+  }, []);
 
-  const clearPendingImage = () => {
-    setPendingImage(null);
+  const clearAllPendingImages = () => {
+    setPendingImages((previous) => {
+      previous.forEach((image) => URL.revokeObjectURL(image.previewUrl));
+      return [];
+    });
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((previous) => {
+      const target = previous[index];
+      if (target) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return previous.filter((_, itemIndex) => itemIndex !== index);
+    });
   };
 
   const handleImagePick = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
 
-    setPendingImage({ file, previewUrl: URL.createObjectURL(file) });
+    setPendingImages((previous) => [
+      ...previous,
+      ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
   };
 
   const isBlocked = isBlockedBy || userBlocked;
@@ -235,13 +316,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = message.trim();
-    if ((!trimmed && !pendingImage) || isBlocked) {
+    if ((!trimmed && pendingImages.length === 0) || isBlocked) {
       return;
     }
 
-    onSend({ text: trimmed, imageFile: pendingImage?.file ?? null });
+    onSend({ text: trimmed, imageFiles: pendingImages.map((image) => image.file) });
     setMessage('');
-    clearPendingImage();
+    clearAllPendingImages();
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
@@ -280,30 +361,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   if (isRecording) {
     return (
       <>
-        {pendingImage && (
-          <div
-            style={{
-              background: theme.surfaceLight,
-              padding: '12px 18px',
-              borderLeft: `4px solid ${theme.primary}`,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              borderTop: `1px solid ${theme.border}`,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '4px' }}>
-                Anexo pendente
-              </div>
-              <img
-                src={pendingImage.previewUrl}
-                alt="anexo"
-                style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-              />
-            </div>
-          </div>
-        )}
+        {pendingImages.length > 0 && <PendingImagesPreview images={pendingImages} theme={theme} />}
         <RecordingBar
           theme={theme}
           recordingTime={recordingTime}
@@ -317,54 +375,14 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   return (
     <>
-      {pendingImage && (
-        <div
-          style={{
-            background: theme.surfaceLight,
-            padding: '12px 18px',
-            borderLeft: `4px solid ${theme.primary}`,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderTop: `1px solid ${theme.border}`,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '4px' }}>
-              Anexo pendente
-            </div>
-            <div
-              style={{
-                fontSize: '0.9rem',
-                color: theme.text,
-                maxWidth: '300px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                overflow: 'hidden',
-              }}
-            >
-              <img
-                src={pendingImage.previewUrl}
-                alt="anexo"
-                style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-              />
-            </div>
-          </div>
-          <Button
-            variant="link"
-            onClick={clearPendingImage}
-            style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto', textDecoration: 'none' }}
-          >
-            ✕
-          </Button>
-        </div>
+      {pendingImages.length > 0 && (
+        <PendingImagesPreview images={pendingImages} theme={theme} onRemove={removePendingImage} />
       )}
       <Form
         onSubmit={handleSubmit}
+        className="chat-input-bar"
         style={{
           background: theme.surface,
-          padding: '14px 18px',
           boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
           display: 'flex',
           gap: '10px',
@@ -372,14 +390,21 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           borderTop: `1px solid ${theme.border}`,
         }}
       >
-        <input type="file" ref={fileInputRef} onChange={handleImagePick} accept="image/*" style={{ display: 'none' }} />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImagePick}
+          accept="image/*"
+          multiple
+          style={{ display: 'none' }}
+        />
         {!message.trim() && (
           <>
             <Button
               variant="link"
               onClick={() => fileInputRef.current?.click()}
               disabled={isBlocked}
-              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar imagem'}
+              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar imagens'}
               style={{
                 color: theme.primary,
                 padding: '10px',
@@ -461,21 +486,22 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           style={{
             borderRadius: '22px',
             padding: '12px 18px',
-            border: `2px solid ${theme.border}`,
+            border: '2px solid transparent',
             fontSize: '0.95rem',
             background: isBlocked ? '#f5f5f5' : theme.inputBg,
             color: theme.text,
+            boxShadow: 'none',
           }}
           onFocus={(event) => {
             event.currentTarget.style.borderColor = theme.primary;
             event.currentTarget.style.boxShadow = `0 0 10px ${theme.primary}40`;
           }}
           onBlur={(event) => {
-            event.currentTarget.style.borderColor = theme.border;
+            event.currentTarget.style.borderColor = 'transparent';
             event.currentTarget.style.boxShadow = 'none';
           }}
         />
-        {(message.trim() || pendingImage) && (
+        {(message.trim() || pendingImages.length > 0) && (
           <Button
             type="submit"
             className="send-button-appear"

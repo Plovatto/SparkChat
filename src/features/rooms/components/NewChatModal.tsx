@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type FocusEvent, type FormEvent } from 'react';
-import { FaArrowRight, FaUser, FaUsers } from 'react-icons/fa';
+import { FaArrowRight, FaExclamationTriangle, FaUser, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
+import { Spinner } from '@components/common/Spinner';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import { useSocket } from '@lib/socket';
@@ -44,6 +45,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const [groupName, setGroupName] = useState('');
   const [error, setError] = useState('');
   const [groupMode, setGroupMode] = useState<GroupMode>('join');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -53,13 +55,17 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       setGroupName('');
       setError('');
       setGroupMode('join');
+      setIsSubmitting(false);
     }
   }, [isOpen]);
 
   useEffect(() => {
     if (!socket || !isOpen) return;
 
-    const handleError = () => setError('Código inválido');
+    const handleError = () => {
+      setIsSubmitting(false);
+      setError('Código inválido');
+    };
     const handleRoomCreated = () => onClose();
     const handleRoomJoined = () => onClose();
 
@@ -76,30 +82,36 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
   const handleStartPrivateChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     if (chatCode.trim().length < 6) {
       setError('Código de chat inválido');
       return;
     }
+    setIsSubmitting(true);
     socket?.emit('room:create-private', { targetChatCode: chatCode.toUpperCase() });
     setError('');
   };
 
   const handleJoinRoom = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     if (roomCode.trim().length < 6) {
       setError('Código de sala inválido');
       return;
     }
+    setIsSubmitting(true);
     socket?.emit('room:join-by-code', { roomCode: roomCode.toUpperCase() });
     setError('');
   };
 
   const handleCreateGroup = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
     if (groupName.trim().length < 3) {
       setError('Nome da sala deve ter pelo menos 3 caracteres');
       return;
     }
+    setIsSubmitting(true);
     socket?.emit('room:create-group', { roomName: groupName.trim() });
     setError('');
   };
@@ -254,7 +266,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
               alignItems: 'flex-start',
             }}
           >
-            <span style={{ marginTop: '2px' }}>⚠️</span>
+            <FaExclamationTriangle size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
@@ -287,7 +299,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             </div>
             <button
               type="submit"
-              style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30` }}
+              disabled={isSubmitting}
+              style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.transform = 'translateY(-2px)';
                 event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}40`;
@@ -297,8 +310,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
               }}
             >
-              <FaArrowRight size={14} />
-              Iniciar Chat
+              {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+              {isSubmitting ? 'Iniciando...' : 'Iniciar Chat'}
             </button>
           </form>
         )}
@@ -330,7 +343,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 </div>
                 <button
                   type="submit"
-                  style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30` }}
+                  disabled={isSubmitting}
+                  style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
                   onMouseEnter={(event) => {
                     event.currentTarget.style.transform = 'translateY(-2px)';
                     event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}30`;
@@ -340,8 +354,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
                   }}
                 >
-                  <FaArrowRight size={14} />
-                  Entrar na Sala
+                  {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+                  {isSubmitting ? 'Entrando...' : 'Entrar na Sala'}
                 </button>
               </form>
 
@@ -392,7 +406,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 </div>
                 <button
                   type="submit"
-                  style={primaryButtonStyle}
+                  disabled={isSubmitting}
+                  style={{ ...primaryButtonStyle, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
                   onMouseEnter={(event) => {
                     event.currentTarget.style.transform = 'translateY(-2px)';
                   }}
@@ -400,8 +415,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     event.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                  <FaArrowRight size={14} />
-                  Criar Sala
+                  {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+                  {isSubmitting ? 'Criando...' : 'Criar Sala'}
                 </button>
               </form>
 
