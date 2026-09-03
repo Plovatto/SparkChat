@@ -48,6 +48,7 @@ interface MessageBubbleProps {
 
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
+const PLAYBACK_RATES = [1, 1.5, 2];
 
 type StatusInfo = ReturnType<typeof getMessageStatus>;
 
@@ -105,6 +106,7 @@ interface BubbleShellProps {
   isOwn: boolean;
   isGroupChat: boolean;
   roomId: string;
+  messageId: string;
   senderId: string;
   senderNickname: string;
   currentUserId: string | undefined;
@@ -119,6 +121,7 @@ function BubbleShell({
   isOwn,
   isGroupChat,
   roomId,
+  messageId,
   senderId,
   senderNickname,
   currentUserId,
@@ -149,6 +152,7 @@ function BubbleShell({
       }}
     >
       <div
+        data-message-id={messageId}
         style={{
           background: bubbleStyle.background,
           color: bubbleStyle.textColor,
@@ -286,6 +290,7 @@ export function MessageBubble({
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [hasBeenPlayed, setHasBeenPlayed] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isAudioMessage = message.type === 'audio';
@@ -365,6 +370,15 @@ export function MessageBubble({
     }
     if (currentAudioRef.current?.id === message.id) {
       currentAudioRef.current = null;
+    }
+  };
+
+  const handleCyclePlaybackRate = () => {
+    const currentIndex = PLAYBACK_RATES.indexOf(playbackRate);
+    const nextRate = PLAYBACK_RATES[(currentIndex + 1) % PLAYBACK_RATES.length] ?? 1;
+    setPlaybackRate(nextRate);
+    if (audioElementRef.current) {
+      audioElementRef.current.playbackRate = nextRate;
     }
   };
 
@@ -455,8 +469,23 @@ export function MessageBubble({
   const replyQuoteBg = isOwn ? 'rgba(255, 255, 255, 0.16)' : baseTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
   const replyQuoteAccent = isOwn ? 'rgba(255, 255, 255, 0.55)' : theme.primary;
 
+  const handleJumpToReply = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+    if (!message.replyTo) {
+      return;
+    }
+    const target = document.querySelector(`[data-message-id="${message.replyTo.id}"]`);
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('message-highlight-flash');
+    setTimeout(() => target.classList.remove('message-highlight-flash'), 1500);
+  };
+
   const replyQuote = message.replyTo && (
     <div
+      onClick={handleJumpToReply}
       style={{
         margin: '8px 10px 0',
         padding: '6px 10px',
@@ -467,6 +496,7 @@ export function MessageBubble({
         borderLeft: `3px solid ${replyQuoteAccent}`,
         borderRadius: '6px',
         fontSize: '0.8rem',
+        cursor: 'pointer',
       }}
     >
       <div
@@ -515,6 +545,7 @@ export function MessageBubble({
       isOwn={isOwn}
       isGroupChat={isGroupChat}
       roomId={roomId}
+      messageId={message.id}
       senderId={message.sender.id}
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
@@ -686,6 +717,26 @@ export function MessageBubble({
             >
               {formatAudioTime(audioDuration)}
             </span>
+
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                handleCyclePlaybackRate();
+              }}
+              style={{
+                background: isOwn ? 'rgba(255, 255, 255, 0.18)' : baseTheme === 'light' ? '#77777730' : 'rgba(255, 255, 255, 0.15)',
+                border: 'none',
+                borderRadius: '999px',
+                color: isOwn ? 'white' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
+                cursor: 'pointer',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                padding: '3px 7px',
+                flexShrink: 0,
+              }}
+            >
+              {playbackRate}x
+            </button>
           </div>
         </div>
       ) : (
@@ -788,6 +839,7 @@ export function ImageGroupBubble({
       isOwn={isOwn}
       isGroupChat={isGroupChat}
       roomId={roomId}
+      messageId={anchor.id}
       senderId={anchor.sender.id}
       senderNickname={anchor.sender.nickname}
       currentUserId={currentUserId}

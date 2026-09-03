@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ClipboardEvent,
   type FormEvent,
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
@@ -15,6 +16,7 @@ import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRe
 
 export interface MessageInputHandle {
   focus: () => void;
+  addImages: (files: File[]) => void;
 }
 
 export interface MessageInputSubmitPayload {
@@ -271,8 +273,21 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const { isRecording, recordingTime, audioLevels, startRecording, stopRecording, cancelRecording } =
     useAudioRecorder();
 
+  const addPendingImages = (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      return;
+    }
+
+    setPendingImages((previous) => [
+      ...previous,
+      ...imageFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  };
+
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
+    addImages: addPendingImages,
   }));
 
   useEffect(() => {
@@ -301,14 +316,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleImagePick = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (files.length === 0) {
-      return;
-    }
+    addPendingImages(files);
+  };
 
-    setPendingImages((previous) => [
-      ...previous,
-      ...files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
-    ]);
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const files = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+
+    addPendingImages(files);
   };
 
   const isBlocked = isBlockedBy || userBlocked;
@@ -478,6 +495,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             setMessage(event.target.value);
             onTyping();
           }}
+          onPaste={handlePaste}
           disabled={isBlocked}
           placeholder={
             isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
