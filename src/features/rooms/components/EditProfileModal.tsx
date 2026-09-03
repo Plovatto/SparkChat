@@ -22,7 +22,7 @@ import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvata
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import type { User } from '@features/auth';
 import { useSocket, type AuthMethod, type SessionSummary, type SocketUser } from '@lib/socket';
-import { hasAutoSaveHandle, saveRecoveryFile } from '@lib/recovery-file-storage';
+import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { useAutoDismiss } from '@lib/use-auto-dismiss';
 import { useTheme } from '@features/theme';
 
@@ -59,8 +59,6 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [nickname, setNickname] = useState(user.nickname);
   const [avatar, setAvatar] = useState(user.avatar);
-  const nicknameRef = useRef(nickname);
-  nicknameRef.current = nickname;
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -82,6 +80,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<string | null>(null);
   const [pendingLogoutAfterDownload, setPendingLogoutAfterDownload] = useState(false);
   const pendingActionRef = useRef<'profile' | 'password' | 'regenerate' | null>(null);
+  const isRevokingOwnSessionRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -103,12 +102,9 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       return;
     }
 
-    const trySilentRecoveryFileUpdate = async (recoveryFile: string): Promise<boolean> => {
-      if (!(await hasAutoSaveHandle(user.id))) {
-        return false;
-      }
-      const filename = `sparkchat-${nicknameRef.current.toLowerCase()}.sparkkey`;
-      const saved = await saveRecoveryFile(recoveryFile, filename, user.id);
+    const trySilentRecoveryFileUpdate = async (recoveryFile: string, nicknameForFile: string): Promise<boolean> => {
+      const filename = `sparkchat-${nicknameForFile.toLowerCase()}.sparkkey`;
+      const saved = await tryAutoOverwrite(recoveryFile, filename, user.id);
       if (saved) {
         setAutoSaveFeedback('Arquivo de recuperação atualizado automaticamente.');
       }
@@ -122,7 +118,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
         onClose();
         return;
       }
-      if (await trySilentRecoveryFileUpdate(recoveryFile)) {
+      if (await trySilentRecoveryFileUpdate(recoveryFile, updated.nickname)) {
         onClose();
         return;
       }
@@ -134,7 +130,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      if (await trySilentRecoveryFileUpdate(recoveryFile)) {
+      if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         setTimeout(onLogout, 1600);
         return;
       }
@@ -144,7 +140,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
     const handleRecoveryFileRegenerated = async ({ recoveryFile }: { recoveryFile: string }) => {
       pendingActionRef.current = null;
-      if (await trySilentRecoveryFileUpdate(recoveryFile)) {
+      if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         return;
       }
       setRecoveryFilePrompt(recoveryFile);
@@ -152,6 +148,10 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
     const handleSessions = ({ sessions: list }: { sessions: SessionSummary[] }) => {
       setSessions(list);
+      if (isRevokingOwnSessionRef.current && !list.some((session) => session.isCurrent)) {
+        isRevokingOwnSessionRef.current = false;
+        onLogout();
+      }
     };
 
     const handleError = ({ message }: { message: string }) => {
@@ -179,13 +179,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       socket.off('user:sessions', handleSessions);
       socket.off('error', handleError);
     };
-  }, [socket, onUserUpdate, onClose, onLogout, user.id]);
+  }, [socket, onUserUpdate, onClose, onLogout, user.id, user.nickname]);
 
   const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
 
   const handleSaveProfile = () => {
     setProfileError('');
     pendingActionRef.current = 'profile';
+    void ensureAutoSavePermission(user.id);
     socket?.emit('user:update-profile', { nickname: nickname.trim(), avatar });
   };
 
@@ -224,6 +225,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     }
 
     pendingActionRef.current = 'password';
+    void ensureAutoSavePermission(user.id);
     socket?.emit('user:change-password', {
       currentPassword: currentPassword || undefined,
       newPassword,
@@ -233,10 +235,15 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const handleRegenerateRecoveryFile = () => {
     setRegenerateError('');
     pendingActionRef.current = 'regenerate';
+    void ensureAutoSavePermission(user.id);
     socket?.emit('user:regenerate-recovery-file');
   };
 
   const handleRevokeSession = (sessionId: string) => {
+    const target = sessions.find((session) => session.id === sessionId);
+    if (target?.isCurrent) {
+      isRevokingOwnSessionRef.current = true;
+    }
     socket?.emit('user:revoke-session', { sessionId });
   };
 
@@ -698,7 +705,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                       justifyContent: 'space-between',
                       gap: '10px',
                       background: theme.background,
-                      border: `1px solid ${theme.border}`,
+                      border: session.isCurrent ? `1px solid ${theme.primary}` : `1px solid ${theme.border}`,
                       borderRadius: '10px',
                       padding: '10px 14px',
                     }}
@@ -706,6 +713,9 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>
                         {session.device}
+                        {session.isCurrent && (
+                          <span style={{ color: theme.primary, fontWeight: 600 }}> · Este dispositivo</span>
+                        )}
                       </span>
                       <span style={{ fontSize: '0.78rem', color: theme.textSecondary }}>
                         {AUTH_METHOD_LABEL[session.authMethod]} · Último uso: {formatSessionDate(session.lastUsedAt)}

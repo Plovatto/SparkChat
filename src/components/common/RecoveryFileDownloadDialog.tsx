@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FaCheckCircle, FaDownload, FaShieldAlt } from 'react-icons/fa';
-import { saveRecoveryFile } from '@lib/recovery-file-storage';
+import { saveRecoveryFileWithPicker } from '@lib/recovery-file-storage';
 import { Modal, type ModalPalette } from './Modal';
 
 interface RecoveryFileDownloadDialogProps {
@@ -25,7 +25,7 @@ export function RecoveryFileDownloadDialog({
   const [hasDownloaded, setHasDownloaded] = useState(false);
 
   const handleDownload = async () => {
-    const saved = await saveRecoveryFile(recoveryFile, `sparkchat-${nickname.toLowerCase()}.sparkkey`, userId);
+    const saved = await saveRecoveryFileWithPicker(recoveryFile, `sparkchat-${nickname.toLowerCase()}.sparkkey`, userId);
     if (saved) {
       setHasDownloaded(true);
     }

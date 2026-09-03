@@ -54,9 +54,24 @@ async function hasReadWritePermission(handle: FileSystemFileHandle): Promise<boo
   return (await handle.requestPermission(descriptor)) === 'granted';
 }
 
-async function tryOverwrite(handle: FileSystemFileHandle, bytes: Uint8Array<ArrayBuffer>): Promise<boolean> {
+async function tryRename(handle: FileSystemFileHandle, filename: string): Promise<boolean> {
+  if (typeof handle.move !== 'function') {
+    return false;
+  }
+  try {
+    await handle.move(filename);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function tryOverwrite(handle: FileSystemFileHandle, bytes: Uint8Array<ArrayBuffer>, filename: string): Promise<boolean> {
   try {
     if (!(await hasReadWritePermission(handle))) {
+      return false;
+    }
+    if (handle.name !== filename && !(await tryRename(handle, filename))) {
       return false;
     }
     const writable = await handle.createWritable();
@@ -68,22 +83,40 @@ async function tryOverwrite(handle: FileSystemFileHandle, bytes: Uint8Array<Arra
   }
 }
 
-export async function hasAutoSaveHandle(userId: string): Promise<boolean> {
+export async function ensureAutoSavePermission(userId: string): Promise<boolean> {
   if (!isFileSystemAccessSupported()) {
     return false;
   }
+
   const handle = await getStoredHandle(userId);
   if (!handle) {
     return false;
   }
+
+  return hasReadWritePermission(handle);
+}
+
+export async function tryAutoOverwrite(base64: string, filename: string, userId: string): Promise<boolean> {
+  if (!isFileSystemAccessSupported()) {
+    return false;
+  }
+
+  let bytes: Uint8Array<ArrayBuffer>;
   try {
-    return (await handle.queryPermission({ mode: 'readwrite' })) === 'granted';
+    bytes = base64ToBytes(base64);
   } catch {
     return false;
   }
+
+  const handle = await getStoredHandle(userId);
+  if (!handle) {
+    return false;
+  }
+
+  return tryOverwrite(handle, bytes, filename);
 }
 
-export async function saveRecoveryFile(base64: string, filename: string, userId: string): Promise<boolean> {
+export async function saveRecoveryFileWithPicker(base64: string, filename: string, userId: string): Promise<boolean> {
   let bytes: Uint8Array<ArrayBuffer>;
   try {
     bytes = base64ToBytes(base64);
@@ -93,12 +126,6 @@ export async function saveRecoveryFile(base64: string, filename: string, userId:
 
   if (!isFileSystemAccessSupported()) {
     downloadBytes(bytes, filename);
-    return true;
-  }
-
-  const existingHandle = await getStoredHandle(userId);
-  const overwroteExisting = existingHandle ? await tryOverwrite(existingHandle, bytes) : false;
-  if (overwroteExisting) {
     return true;
   }
 
