@@ -8,15 +8,27 @@ export function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
   return new Uint8Array(byteNumbers);
 }
 
-export function downloadBytes(bytes: Uint8Array<ArrayBuffer>, filename: string, mimeType = 'application/octet-stream'): void {
-  const blob = new Blob([bytes], { type: mimeType });
-  const url = URL.createObjectURL(blob);
+function triggerBlobDownload(blob: Blob, filename: string): void {
+  const objectUrl = URL.createObjectURL(blob);
 
   const link = document.createElement('a');
-  link.href = url;
+  link.href = objectUrl;
   link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
+export function downloadBytes(bytes: Uint8Array<ArrayBuffer>, filename: string, mimeType = 'application/octet-stream'): void {
+  triggerBlobDownload(new Blob([bytes], { type: mimeType }), filename);
+}
+
+export async function downloadFromUrl(url: string, filename: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('Não foi possível baixar o arquivo.');
+  }
+
+  triggerBlobDownload(await response.blob(), filename);
 }

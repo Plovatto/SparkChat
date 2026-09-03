@@ -5,6 +5,7 @@ export type {
   AuthMethod,
   BlockStatusPayload,
   JoinPayload,
+  MessageFileMeta,
   MessageReplySnapshot,
   MessageSender,
   MessageStatus,
