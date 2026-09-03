@@ -161,7 +161,7 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
 }
 
 export function ChatArea({ room, user, onBack }: ChatAreaProps) {
-  const { theme, getRoomWallpaper } = useTheme();
+  const { theme, getRoomWallpaper, getRoomAppearance } = useTheme();
   const { socket } = useSocket();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
@@ -389,11 +389,13 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   };
 
   const wallpaper = getRoomWallpaper(room.id);
-  const messagesBackground = wallpaper?.background
+  const appearance = getRoomAppearance(room.id);
+  const wallpaperBackground = wallpaper?.background
     ? wallpaper.isImage
-      ? `linear-gradient(rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.32)) center/cover fixed, ${wallpaper.background} center/cover fixed`
+      ? `${wallpaper.background} center/cover`
       : wallpaper.background
     : theme.background;
+  const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
   const confirmDeleteMessage = () => {
     if (messageIdPendingDelete) {
@@ -415,22 +417,35 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         onLeftGroup={handleLeftGroup}
       />
 
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleMessagesScroll}
-        onWheel={markUserScrolled}
-        onTouchMove={markUserScrolled}
-        data-chat-messages
-        className="chat-messages-scroll"
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          background: messagesBackground,
-        }}
-      >
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+        {showOverlay && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: `rgba(0, 0, 0, ${appearance.overlayOpacity / 100})`,
+              backdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
+              WebkitBackdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
+            }}
+          />
+        )}
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleMessagesScroll}
+          onWheel={markUserScrolled}
+          onTouchMove={markUserScrolled}
+          data-chat-messages
+          className="chat-messages-scroll"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
         <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
         {!areMessagesLoaded ? (
           <MessageListSkeleton />
@@ -491,6 +506,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                       message={item.message}
                       isOwn={isOwn}
                       isGroupChat={room.type === 'group'}
+                      roomId={room.id}
                       participants={room.participants}
                       currentUserId={user.id}
                       currentNickname={user.nickname}
@@ -508,6 +524,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                       images={item.messages}
                       isOwn={isOwn}
                       isGroupChat={room.type === 'group'}
+                      roomId={room.id}
                       participants={room.participants}
                       currentUserId={user.id}
                       isSelected={selectedMessageId === anchorMessage.id}
@@ -623,6 +640,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
             </span>
           </div>
         )}
+        </div>
         </div>
       </div>
 
