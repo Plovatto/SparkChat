@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
 import { Button } from 'react-bootstrap';
 import {
   FaBell,
@@ -22,11 +22,14 @@ import type { User } from '@features/auth';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
 import { useTheme } from '@features/theme';
+import { useSocket } from '@lib/socket';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import type { RoomSummary } from '../types';
 import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
 import { ThemeMenu } from './ThemeMenu';
+
+const STATUS_TEXT_MAX_LENGTH = 30;
 
 function getRoomLastActivityTimestamp(room: RoomSummary): number {
   return room.lastMessage ? new Date(room.lastMessage.timestamp).getTime() : 0;
@@ -80,7 +83,10 @@ export function Sidebar({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const [statusDraft, setStatusDraft] = useState(user.statusText ?? '');
   const { theme } = useTheme();
+  const { socket } = useSocket();
   const { favoriteRoomIds, toggleFavorites } = useFavoriteRooms();
 
   const handleThemeButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -187,6 +193,32 @@ export function Sidebar({
       });
   };
 
+  const handleStartEditStatus = () => {
+    setStatusDraft(user.statusText ?? '');
+    setIsEditingStatus(true);
+  };
+
+  const commitStatusDraft = () => {
+    const trimmed = statusDraft.trim().slice(0, STATUS_TEXT_MAX_LENGTH);
+    setIsEditingStatus(false);
+
+    if (trimmed === (user.statusText ?? '')) {
+      return;
+    }
+
+    socket?.emit('user:update-status-text', { statusText: trimmed });
+    onUserUpdate({ statusText: trimmed.length > 0 ? trimmed : null });
+  };
+
+  const handleStatusInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      setStatusDraft(user.statusText ?? '');
+      setIsEditingStatus(false);
+    }
+  };
+
   return (
     <div style={{ height: '100%', background: theme.sidebarBg, display: 'flex', flexDirection: 'column' }}>
       <div
@@ -239,45 +271,100 @@ export function Sidebar({
               }}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <h5
-              style={{
-                margin: 0,
-                fontSize: '1.1rem',
-                fontWeight: 700,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {user.nickname}
-            </h5>
-            <button
-              onClick={copyUsername}
-              title="Copiar username"
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: 'none',
-                color: theme.headerTextColor,
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-              }}
-            >
-              {usernameCopied ? <FaCheck size={11} /> : <FaCopy size={11} />}
-            </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <h5
+                style={{
+                  margin: 0,
+                  lineHeight: 1,
+                  fontSize: '1.35rem',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {user.nickname}
+              </h5>
+              <button
+                onClick={copyUsername}
+                title="Copiar username"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: theme.headerTextColor,
+                  width: '17px',
+                  height: '17px',
+                  borderRadius: '5px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  alignSelf: 'center',
+                  position: 'relative',
+                  top: '2px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                }}
+              >
+                {usernameCopied ? <FaCheck size={9} /> : <FaCopy size={9} />}
+              </button>
+            </div>
+
+            {isEditingStatus ? (
+              <input
+                type="text"
+                autoFocus
+                value={statusDraft}
+                maxLength={STATUS_TEXT_MAX_LENGTH}
+                placeholder="Ex: no trampo, 🎮 jogando"
+                onChange={(event) => setStatusDraft(event.target.value)}
+                onBlur={commitStatusDraft}
+                onKeyDown={handleStatusInputKeyDown}
+                style={{
+                  marginTop: '3px',
+                  marginLeft: '-6px',
+                  width: 'calc(100% + 6px)',
+                  maxWidth: '226px',
+                  boxSizing: 'border-box',
+                  lineHeight: 1.3,
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  borderRadius: '5px',
+                  padding: '2px 6px',
+                  color: theme.headerTextColor,
+                  fontSize: '0.78rem',
+                  outline: 'none',
+                }}
+              />
+            ) : (
+              <div
+                onClick={handleStartEditStatus}
+                title="Clique para editar seu status"
+                style={{
+                  marginTop: '3px',
+                  marginLeft: '-6px',
+                  padding: '2px 6px',
+                  borderRadius: '5px',
+                  lineHeight: 1.3,
+                  fontSize: '0.78rem',
+                  opacity: user.statusText ? 0.9 : 0.6,
+                  fontStyle: user.statusText ? 'normal' : 'italic',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {user.statusText || 'Adicionar status'}
+              </div>
+            )}
           </div>
 
           <button
