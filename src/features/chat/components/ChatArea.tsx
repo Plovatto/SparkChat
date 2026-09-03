@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
 import { FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
@@ -16,6 +16,7 @@ import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
+import { ForwardMessageModal } from './ForwardMessageModal';
 import { ImageGroupBubble, MessageBubble, type CurrentAudioRef } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
 import {
@@ -28,8 +29,35 @@ import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
   room: RoomSummary | null;
+  rooms: RoomSummary[];
   user: User;
   onBack: () => void;
+}
+
+const DATE_CHIP_STYLE: CSSProperties = {
+  fontSize: '0.78rem',
+  color: '#ffffff',
+  fontWeight: 600,
+  whiteSpace: 'nowrap',
+  padding: '5px 14px',
+  borderRadius: '999px',
+  background: 'rgba(0, 0, 0, 0.55)',
+  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.2)',
+  transition: 'opacity 0.3s ease',
+};
+
+const STICKY_DATE_TOP_PX = 8;
+const STICKY_DATE_IDLE_DELAY_MS = 1200;
+
+function applyStuckDateHeaderOpacity(container: HTMLDivElement, stuckKeys: Set<string>, visible: boolean): void {
+  const headers = container.querySelectorAll<HTMLElement>('[data-day-sticky]');
+
+  headers.forEach((header) => {
+    const key = header.dataset.dayKey;
+    if (key && stuckKeys.has(key)) {
+      header.style.opacity = visible ? '1' : '0';
+    }
+  });
 }
 
 function formatDateSeparator(timestamp: string): string {
@@ -41,13 +69,6 @@ function formatDateSeparator(timestamp: string): string {
     return 'Ontem';
   }
   return format(date, 'dd/MM/yyyy');
-}
-
-function shouldShowDateSeparator(current: MessageView, previous: MessageView | undefined): boolean {
-  if (!previous) {
-    return true;
-  }
-  return !isSameDay(new Date(current.timestamp), new Date(previous.timestamp));
 }
 
 type RenderItem = { kind: 'single'; message: ChatMessage } | { kind: 'image-group'; messages: ChatMessage[] };
@@ -100,6 +121,31 @@ function renderItemAnchorMessage(item: RenderItem): ChatMessage {
 
 function renderItemKey(item: RenderItem): string {
   return item.kind === 'single' ? item.message.id : `group-${item.messages[0]!.id}`;
+}
+
+interface DayGroup {
+  dateLabel: string;
+  items: RenderItem[];
+}
+
+function buildDayGroups(renderItems: RenderItem[]): DayGroup[] {
+  const groups: DayGroup[] = [];
+  let lastDate: Date | null = null;
+
+  for (const item of renderItems) {
+    const itemDate = new Date(renderItemFirstMessage(item).timestamp);
+    const lastGroup = groups[groups.length - 1];
+
+    if (lastGroup && lastDate && isSameDay(lastDate, itemDate)) {
+      lastGroup.items.push(item);
+    } else {
+      groups.push({ dateLabel: formatDateSeparator(renderItemFirstMessage(item).timestamp), items: [item] });
+    }
+
+    lastDate = itemDate;
+  }
+
+  return groups;
 }
 
 function receiptKey(receipt: MessageReceiptInfo): string {
@@ -160,12 +206,14 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
   return 'Várias pessoas estão digitando...';
 }
 
-export function ChatArea({ room, user, onBack }: ChatAreaProps) {
+export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const { theme, getRoomWallpaper, getRoomAppearance } = useTheme();
   const { socket } = useSocket();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const contentWrapperRef = useRef<HTMLDivElement>(null);
   const prependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const scrollIdleTimeoutRef = useRef<number | null>(null);
+  const stuckDayKeysRef = useRef<Set<string>>(new Set());
 
   const captureScrollAnchor = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -191,6 +239,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   );
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  const dayGroups = useMemo(() => buildDayGroups(renderItems), [renderItems]);
   const visibleReceipts = useMemo(
     () => buildVisibleReceipts(renderItems, room?.type === 'group', room?.participants ?? [], user.id),
     [renderItems, room?.type, room?.participants, user.id],
@@ -203,6 +252,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -285,8 +335,50 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     hasUserScrolledRef.current = false;
     lastMessageIdRef.current = null;
     prependAnchorRef.current = null;
+    if (scrollIdleTimeoutRef.current) {
+      window.clearTimeout(scrollIdleTimeoutRef.current);
+      scrollIdleTimeoutRef.current = null;
+    }
     scrollToBottom();
   }, [room?.id, scrollToBottom]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollIdleTimeoutRef.current) {
+        window.clearTimeout(scrollIdleTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    stuckDayKeysRef.current = new Set();
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const key = (entry.target as HTMLElement).dataset.daySentinel;
+          if (!key) {
+            continue;
+          }
+          if (entry.isIntersecting) {
+            stuckDayKeysRef.current.delete(key);
+          } else {
+            stuckDayKeysRef.current.add(key);
+          }
+        }
+      },
+      { root: container, rootMargin: `-${STICKY_DATE_TOP_PX + 1}px 0px 0px 0px`, threshold: 0 },
+    );
+
+    container.querySelectorAll<HTMLElement>('[data-day-sentinel]').forEach((sentinel) => observer.observe(sentinel));
+
+    return () => observer.disconnect();
+  }, [dayGroups]);
 
   const markUserScrolled = () => {
     hasUserScrolledRef.current = true;
@@ -294,6 +386,19 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
 
   const handleMessagesScroll = () => {
     const container = scrollContainerRef.current;
+
+    if (container) {
+      applyStuckDateHeaderOpacity(container, stuckDayKeysRef.current, true);
+    }
+    if (scrollIdleTimeoutRef.current) {
+      window.clearTimeout(scrollIdleTimeoutRef.current);
+    }
+    scrollIdleTimeoutRef.current = window.setTimeout(() => {
+      if (scrollContainerRef.current) {
+        applyStuckDateHeaderOpacity(scrollContainerRef.current, stuckDayKeysRef.current, false);
+      }
+    }, STICKY_DATE_IDLE_DELAY_MS);
+
     if (!container || !hasUserScrolledRef.current || !isReadyForLoadMoreRef.current || !hasMoreOlder || isLoadingOlder) {
       return;
     }
@@ -382,6 +487,10 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     setRepliedMessage(message);
     setSelectedMessageId(message.id);
     setTimeout(() => messageInputRef.current?.focus(), 100);
+  };
+
+  const handleForward = (message: ChatMessage) => {
+    setForwardingMessage(message);
   };
 
   const handleLeftGroup = () => {
@@ -531,70 +640,75 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
                 <Spinner size={20} />
               </div>
             )}
-            {renderItems.map((item, index) => {
-            const firstMessage = renderItemFirstMessage(item);
-            const anchorMessage = renderItemAnchorMessage(item);
-            const previousItem = renderItems[index - 1];
-            const isOwn = anchorMessage.sender.id === user.id;
+            {dayGroups.map((group) => {
+              const dayKey = `day-${renderItemKey(group.items[0]!)}`;
 
-            return (
-              <div key={renderItemKey(item)}>
-                {shouldShowDateSeparator(firstMessage, previousItem ? renderItemAnchorMessage(previousItem) : undefined) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '15px 0', justifyContent: 'center' }}>
-                    <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
-                    <span
-                      style={{
-                        fontSize: '0.85rem',
-                        color: theme.textSecondary,
-                        opacity: 0.7,
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap',
-                        padding: '0 10px',
-                      }}
-                    >
-                      {formatDateSeparator(firstMessage.timestamp)}
-                    </span>
-                    <div style={{ flex: 1, height: '1px', background: theme.textSecondary, opacity: 0.3 }} />
-                  </div>
-                )}
-                <div style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
-                  {item.kind === 'single' ? (
-                    <MessageBubble
-                      message={item.message}
-                      isOwn={isOwn}
-                      isGroupChat={room.type === 'group'}
-                      roomId={room.id}
-                      participants={room.participants}
-                      currentUserId={user.id}
-                      currentNickname={user.nickname}
-                      isSelected={selectedMessageId === item.message.id}
-                      currentAudioRef={currentAudioRef}
-                      receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                      onSelect={() => setSelectedMessageId(item.message.id)}
-                      onReply={() => handleReply(item.message)}
-                      onDelete={() => setMessageIdPendingDelete(item.message.id)}
-                      onAudioPlayed={handleAudioPlayed}
-                      onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
-                    />
-                  ) : (
-                    <ImageGroupBubble
-                      images={item.messages}
-                      isOwn={isOwn}
-                      isGroupChat={room.type === 'group'}
-                      roomId={room.id}
-                      participants={room.participants}
-                      currentUserId={user.id}
-                      isSelected={selectedMessageId === anchorMessage.id}
-                      receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                      onSelect={() => setSelectedMessageId(anchorMessage.id)}
-                      onReply={() => handleReply(anchorMessage)}
-                      onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
-                      onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
-                    />
-                  )}
+              return (
+              <div key={dayKey} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div data-day-sentinel={dayKey} style={{ height: 0 }} />
+                <div
+                  style={{
+                    position: 'sticky',
+                    top: `${STICKY_DATE_TOP_PX}px`,
+                    zIndex: 5,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    margin: '15px 0',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  <span data-day-sticky data-day-key={dayKey} style={DATE_CHIP_STYLE}>
+                    {group.dateLabel}
+                  </span>
                 </div>
+
+                {group.items.map((item) => {
+                  const anchorMessage = renderItemAnchorMessage(item);
+                  const isOwn = anchorMessage.sender.id === user.id;
+
+                  return (
+                    <div key={renderItemKey(item)} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+                      {item.kind === 'single' ? (
+                        <MessageBubble
+                          message={item.message}
+                          isOwn={isOwn}
+                          isGroupChat={room.type === 'group'}
+                          roomId={room.id}
+                          participants={room.participants}
+                          currentUserId={user.id}
+                          currentNickname={user.nickname}
+                          isSelected={selectedMessageId === item.message.id}
+                          currentAudioRef={currentAudioRef}
+                          receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
+                          onSelect={() => setSelectedMessageId(item.message.id)}
+                          onReply={() => handleReply(item.message)}
+                          onDelete={() => setMessageIdPendingDelete(item.message.id)}
+                          onForward={() => handleForward(item.message)}
+                          onAudioPlayed={handleAudioPlayed}
+                          onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
+                        />
+                      ) : (
+                        <ImageGroupBubble
+                          images={item.messages}
+                          isOwn={isOwn}
+                          isGroupChat={room.type === 'group'}
+                          roomId={room.id}
+                          participants={room.participants}
+                          currentUserId={user.id}
+                          isSelected={selectedMessageId === anchorMessage.id}
+                          receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
+                          onSelect={() => setSelectedMessageId(anchorMessage.id)}
+                          onReply={() => handleReply(anchorMessage)}
+                          onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
+                          onForward={() => handleForward(anchorMessage)}
+                          onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
+              );
             })}
           </>
         )}
@@ -810,6 +924,14 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         onConfirm={confirmDeleteMessage}
         onCancel={() => setMessageIdPendingDelete(null)}
         theme={theme}
+      />
+
+      <ForwardMessageModal
+        isOpen={forwardingMessage !== null}
+        onClose={() => setForwardingMessage(null)}
+        rooms={rooms}
+        currentUserId={user.id}
+        message={forwardingMessage}
       />
     </div>
   );

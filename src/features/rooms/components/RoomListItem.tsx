@@ -1,4 +1,3 @@
-import { Badge } from 'react-bootstrap';
 import {
   FaBan,
   FaBellSlash,
@@ -353,26 +352,34 @@ export function RoomListItem({
             {room.userBlocked && <FaBan size={12} color="#ff4444" style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
-            {room.unreadCount > 0 && (
-              <Badge
-                style={{
-                  fontSize: '0.7rem',
-                  borderRadius: '10px',
-                  minWidth: '20px',
-                  height: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 700,
-                  background: '#10b981',
-                  border: 'none',
-                  padding: '0 6px',
-                  marginRight: '5px',
-                }}
-              >
-                {room.unreadCount > 99 ? '99+' : room.unreadCount}
-              </Badge>
-            )}
+            {room.unreadCount > 0 &&
+              (() => {
+                const unreadLabel = room.unreadCount > 99 ? '99+' : String(room.unreadCount);
+                const diameter = unreadLabel.length === 1 ? 20 : unreadLabel.length === 2 ? 23 : 27;
+
+                return (
+                  <span
+                    style={{
+                      fontSize: unreadLabel.length > 2 ? '0.6rem' : '0.7rem',
+                      borderRadius: '50%',
+                      width: `${diameter}px`,
+                      height: `${diameter}px`,
+                      boxSizing: 'border-box',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      color: 'white',
+                      background: theme.primary,
+                      border: 'none',
+                      marginRight: '5px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {unreadLabel}
+                  </span>
+                );
+              })()}
             {room.lastMessage && (
               <small style={{ fontSize: '0.7rem', color: theme.textSecondary, flexShrink: 0, fontWeight: 500 }}>
                 {new Date(room.lastMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

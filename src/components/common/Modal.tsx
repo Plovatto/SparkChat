@@ -137,7 +137,18 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
             </div>
           )}
 
-          <div style={{ padding: '24px', flex: 1, overflowY: 'auto', overflowX: 'hidden', color: theme.text }}>{children}</div>
+          <div
+            style={{
+              padding: '24px',
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              color: theme.text,
+              scrollbarGutter: 'stable both-edges',
+            }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </>,

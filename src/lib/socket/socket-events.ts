@@ -10,6 +10,7 @@ export interface SocketUser {
   nickname: string;
   avatar: number;
   status: SocketUserStatus;
+  statusText: string | null;
   theme: SocketUserTheme;
 }
 
@@ -35,6 +36,7 @@ export interface RoomParticipant {
   nickname: string;
   avatar: number;
   status: SocketUserStatus;
+  statusText: string | null;
   lastSeen: string;
   isAdmin: boolean;
 }
@@ -105,7 +107,7 @@ export interface ServerToClientEvents {
     userId: string;
     user: { id: string; status: SocketUserStatus; lastSeen: string };
   }) => void;
-  'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number }) => void;
+  'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number; statusText: string | null }) => void;
   'user:profile-updated-success': (payload: { user: SocketUser; recoveryFile: string | null }) => void;
   'user:password-changed': (payload: { recoveryFile: string }) => void;
   'user:recovery-file-regenerated': (payload: { recoveryFile: string }) => void;
@@ -135,6 +137,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   'user:join': (payload: JoinPayload) => void;
   'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
+  'user:update-status-text': (payload: { statusText: string }) => void;
   'user:update-theme': (payload: SocketUserTheme) => void;
   'user:visibility': (payload: { visible: boolean }) => void;
   'user:change-password': (payload: { currentPassword?: string; newPassword: string }) => void;
