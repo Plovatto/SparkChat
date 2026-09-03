@@ -53,7 +53,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
             gap: '8px',
           }}
         >
-          <FaPalette /> Aparência
+          <FaPalette /> AparÃªncia
         </div>
         <button
           onClick={applyToAllChats}
@@ -72,7 +72,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
           }}
         >
           <FaGlobe size={12} />
-          Usar esta Aparência em todos os chats
+          Aplicar em todos os chats
         </button>
       </div>
 
@@ -108,7 +108,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
 
         <div style={{ borderTop: `1px solid ${theme.border}` }} />
 
-        <AccordionSection title="Balões de mensagem" icon={<FaComments size={12} />} theme={theme}>
+        <AccordionSection title="BalÃµes de mensagem" icon={<FaComments size={12} />} theme={theme}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={bubbleCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -119,19 +119,19 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                     onChange={(event) => update({ ownBubbleColor: event.target.value })}
                     style={{ width: '36px', height: '28px', border: 'none', borderRadius: '7px', cursor: 'pointer', padding: 0 }}
                   />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>Seu balão</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>Mensagens enviadas</span>
                 </div>
                 {appearance.ownBubbleColor && (
                   <button
                     onClick={() => update({ ownBubbleColor: null, ownBubbleOpacity: DEFAULT_CHAT_APPEARANCE.ownBubbleOpacity })}
                     style={{ background: 'none', border: 'none', color: theme.primary, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    Restaurar padrão
+                    Restaurar padrÃ£o
                   </button>
                 )}
               </div>
               <Slider
-                label="Transparência"
+                label="TransparÃªncia"
                 valueLabel={`${appearance.ownBubbleOpacity}%`}
                 value={appearance.ownBubbleOpacity}
                 min={10}
@@ -152,19 +152,19 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                     onChange={(event) => update({ otherBubbleColor: event.target.value })}
                     style={{ width: '36px', height: '28px', border: 'none', borderRadius: '7px', cursor: 'pointer', padding: 0 }}
                   />
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>balão da outra pessoa</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>Mensagens recebidas</span>
                 </div>
                 {appearance.otherBubbleColor && (
                   <button
                     onClick={() => update({ otherBubbleColor: null, otherBubbleOpacity: DEFAULT_CHAT_APPEARANCE.otherBubbleOpacity })}
                     style={{ background: 'none', border: 'none', color: theme.primary, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
                   >
-                    Restaurar padrão
+                    Restaurar padrÃ£o
                   </button>
                 )}
               </div>
               <Slider
-                label="Transparência"
+                label="TransparÃªncia"
                 valueLabel={`${appearance.otherBubbleOpacity}%`}
                 value={appearance.otherBubbleOpacity}
                 min={10}
@@ -177,7 +177,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
             </div>
 
             <Slider
-              label="Desfoque dos Balões (ambos os lados)"
+              label="Desfoque dos balÃµes (ambos os lados)"
               valueLabel={appearance.bubbleBlur === 0 ? 'Nenhum' : `${appearance.bubbleBlur}px`}
               value={appearance.bubbleBlur}
               min={0}
@@ -211,7 +211,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
         }}
       >
         <FaUndo size={13} />
-        Restaurar Aparência padrão deste chat
+        Restaurar aparÃªncia padrÃ£o deste chat
       </button>
       </div>
     </div>
