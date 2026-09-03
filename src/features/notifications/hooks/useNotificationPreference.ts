@@ -46,9 +46,15 @@ export function useNotificationPreference(): NotificationPreference {
   }, [isSupported]);
 
   const disable = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, 'false');
     setIsEnabled(false);
   }, []);
+
+  useEffect(() => {
+    if (isSupported && localStorage.getItem(STORAGE_KEY) === null) {
+      void enable();
+    }
+  }, [isSupported, enable]);
 
   return { isSupported, isEnabled, permission, enable, disable };
 }
