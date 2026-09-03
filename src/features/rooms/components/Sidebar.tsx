@@ -34,6 +34,7 @@ function getRoomLastActivityTimestamp(room: RoomSummary): number {
 
 interface SidebarProps {
   user: User;
+  onUserUpdate: (patch: Partial<User>) => void;
   rooms: RoomSummary[];
   selectedRoomId: string | null;
   onSelectRoom: (room: RoomSummary) => void;
@@ -54,6 +55,7 @@ interface SidebarProps {
 
 export function Sidebar({
   user,
+  onUserUpdate,
   rooms,
   selectedRoomId,
   onSelectRoom,
@@ -71,7 +73,7 @@ export function Sidebar({
   mutedRoomIds,
   onToggleMuted,
 }: SidebarProps) {
-  const [codeCopied, setCodeCopied] = useState(false);
+  const [usernameCopied, setUsernameCopied] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -137,23 +139,23 @@ export function Sidebar({
     return getRoomLastActivityTimestamp(b) - getRoomLastActivityTimestamp(a);
   });
 
-  const copyCode = () => {
-    if (!user.chatCode || !navigator.clipboard) {
+  const avatar = AVATARS[user.avatar];
+
+  const copyUsername = () => {
+    if (!navigator.clipboard) {
       return;
     }
 
     navigator.clipboard
-      .writeText(user.chatCode)
+      .writeText(user.nickname)
       .then(() => {
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
+        setUsernameCopied(true);
+        setTimeout(() => setUsernameCopied(false), 2000);
       })
       .catch(() => {
-        setCodeCopied(false);
+        setUsernameCopied(false);
       });
   };
-
-  const avatar = AVATARS[user.avatar];
 
   return (
     <div style={{ height: '100%', background: theme.sidebarBg, display: 'flex', flexDirection: 'column' }}>
@@ -207,7 +209,7 @@ export function Sidebar({
               }}
             />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <h5
               style={{
                 margin: 0,
@@ -220,34 +222,32 @@ export function Sidebar({
             >
               {user.nickname}
             </h5>
-            <div style={{ marginTop: '8px' }}>
-              <div
-                onClick={copyCode}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  padding: '4px 8px',
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.7rem',
-                  fontFamily: 'monospace',
-                  fontWeight: 600,
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                }}
-                title="Código para amigos. Clique para copiar"
-              >
-                <FaCopy size={10} />
-                {user.chatCode ?? '------'}
-                {codeCopied && <FaCheck size={9} style={{ marginLeft: '2px' }} />}
-              </div>
-            </div>
+            <button
+              onClick={copyUsername}
+              title="Copiar username"
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                color: theme.headerTextColor,
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+              }}
+            >
+              {usernameCopied ? <FaCheck size={11} /> : <FaCopy size={11} />}
+            </button>
           </div>
 
           <button
@@ -586,6 +586,8 @@ export function Sidebar({
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         user={user}
+        onUserUpdate={onUserUpdate}
+        onLogout={onLogout}
         soundEnabled={soundEnabled}
         onToggleSound={onToggleSound}
       />
