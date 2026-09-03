@@ -13,7 +13,7 @@ import {
 } from 'react-icons/fa';
 import { IconPillButton } from '@components/common/IconPillButton';
 import { AVATARS } from '@features/auth/constants/avatars';
-import { useTheme } from '@features/theme';
+import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
 import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
@@ -32,6 +32,7 @@ interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
   isGroupChat: boolean;
+  roomId: string;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
@@ -53,7 +54,7 @@ type StatusInfo = ReturnType<typeof getMessageStatus>;
 interface MessageMetaProps {
   message: ChatMessage;
   isOwn: boolean;
-  theme: ThemePalette;
+  textColor: string;
   statusInfo: StatusInfo;
   statusColor: string;
   onRetry: () => void;
@@ -103,6 +104,7 @@ export function MessageActionsRow({ isOwn, theme, onReply, onDelete }: MessageAc
 interface BubbleShellProps {
   isOwn: boolean;
   isGroupChat: boolean;
+  roomId: string;
   senderId: string;
   senderNickname: string;
   currentUserId: string | undefined;
@@ -116,6 +118,7 @@ interface BubbleShellProps {
 function BubbleShell({
   isOwn,
   isGroupChat,
+  roomId,
   senderId,
   senderNickname,
   currentUserId,
@@ -125,7 +128,8 @@ function BubbleShell({
   afterBubble,
   children,
 }: BubbleShellProps) {
-  const { theme } = useTheme();
+  const { theme, getRoomAppearance } = useTheme();
+  const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
 
   return (
     <div
@@ -146,10 +150,12 @@ function BubbleShell({
     >
       <div
         style={{
-          background: isOwn ? theme.messageOwn : theme.messageOther,
-          color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+          background: bubbleStyle.background,
+          color: bubbleStyle.textColor,
           borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
           boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          backdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
+          WebkitBackdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           display: 'flex',
           flexDirection: 'column',
           gap: '2px',
@@ -170,9 +176,7 @@ function BubbleShell({
   );
 }
 
-function MessageMeta({ message, isOwn, theme, statusInfo, statusColor, onRetry }: MessageMetaProps) {
-  const textColor = isOwn ? theme.messageOwnText : theme.messageOtherText;
-
+function MessageMeta({ message, isOwn, textColor, statusInfo, statusColor, onRetry }: MessageMetaProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
       <span style={{ fontSize: '0.7rem', opacity: 0.6, color: textColor, fontWeight: 500 }}>
@@ -260,6 +264,7 @@ export function MessageBubble({
   message,
   isOwn,
   isGroupChat,
+  roomId,
   participants,
   currentUserId,
   currentNickname,
@@ -272,7 +277,7 @@ export function MessageBubble({
   onAudioPlayed,
   onRetry,
 }: MessageBubbleProps) {
-  const { theme, baseTheme } = useTheme();
+  const { theme, baseTheme, getRoomAppearance } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
@@ -364,6 +369,7 @@ export function MessageBubble({
   };
 
   if (message.deletedForEveryone) {
+    const deletedBubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
     return (
       <div
         className="animate__animated animate__fadeInUp animate__faster chat-bubble-wrap"
@@ -376,12 +382,14 @@ export function MessageBubble({
       >
         <div
           style={{
-            background: isOwn ? theme.messageOwn : theme.messageOther,
-            color: isOwn ? theme.messageOwnText : theme.messageOtherText,
+            background: deletedBubbleStyle.background,
+            color: deletedBubbleStyle.textColor,
             opacity: 0.65,
             borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
             padding: '10px 14px',
             boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+            backdropFilter: deletedBubbleStyle.blur > 0 ? `blur(${deletedBubbleStyle.blur}px)` : undefined,
+            WebkitBackdropFilter: deletedBubbleStyle.blur > 0 ? `blur(${deletedBubbleStyle.blur}px)` : undefined,
             fontStyle: 'italic',
             fontSize: '0.88rem',
             display: 'flex',
@@ -438,6 +446,7 @@ export function MessageBubble({
     );
   }
 
+  const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
   const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
   const isImageMessage = message.type === 'image';
@@ -505,6 +514,7 @@ export function MessageBubble({
     <BubbleShell
       isOwn={isOwn}
       isGroupChat={isGroupChat}
+      roomId={roomId}
       senderId={message.sender.id}
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
@@ -724,7 +734,7 @@ export function MessageBubble({
         </div>
       )}
 
-      <MessageMeta message={message} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+      <MessageMeta message={message} isOwn={isOwn} textColor={bubbleStyle.textColor} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
     </BubbleShell>
   );
 }
@@ -733,6 +743,7 @@ interface ImageGroupBubbleProps {
   images: ChatMessage[];
   isOwn: boolean;
   isGroupChat: boolean;
+  roomId: string;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   isSelected: boolean;
@@ -749,6 +760,7 @@ export function ImageGroupBubble({
   images,
   isOwn,
   isGroupChat,
+  roomId,
   participants,
   currentUserId,
   isSelected,
@@ -758,9 +770,10 @@ export function ImageGroupBubble({
   onDelete,
   onRetry,
 }: ImageGroupBubbleProps) {
-  const { theme } = useTheme();
+  const { theme, getRoomAppearance } = useTheme();
   const [modalIndex, setModalIndex] = useState<number | null>(null);
   const anchor = images[images.length - 1] ?? images[0];
+  const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
   const statusInfo = anchor ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null;
   const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
   const visibleTiles = images.slice(0, MAX_GROUP_TILES);
@@ -774,6 +787,7 @@ export function ImageGroupBubble({
     <BubbleShell
       isOwn={isOwn}
       isGroupChat={isGroupChat}
+      roomId={roomId}
       senderId={anchor.sender.id}
       senderNickname={anchor.sender.nickname}
       currentUserId={currentUserId}
@@ -844,7 +858,7 @@ export function ImageGroupBubble({
         })}
       </div>
 
-      <MessageMeta message={anchor} isOwn={isOwn} theme={theme} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
+      <MessageMeta message={anchor} isOwn={isOwn} textColor={bubbleStyle.textColor} statusInfo={statusInfo} statusColor={statusColor} onRetry={onRetry} />
     </BubbleShell>
   );
 }
