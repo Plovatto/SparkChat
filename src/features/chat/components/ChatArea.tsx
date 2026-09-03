@@ -391,7 +391,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const wallpaper = getRoomWallpaper(room.id);
   const messagesBackground = wallpaper?.background
     ? wallpaper.isImage
-      ? `${wallpaper.background} center/cover fixed`
+      ? `linear-gradient(rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.32)) center/cover fixed, ${wallpaper.background} center/cover fixed`
       : wallpaper.background
     : theme.background;
 
@@ -429,21 +429,9 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
           flexDirection: 'column',
           gap: '10px',
           background: messagesBackground,
-          position: 'relative',
         }}
       >
-        {wallpaper?.isImage && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.32)',
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}
-          />
-        )}
-        <div ref={contentWrapperRef} style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+        <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
         {!areMessagesLoaded ? (
           <MessageListSkeleton />
         ) : messages.length === 0 ? (

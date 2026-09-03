@@ -37,7 +37,7 @@ body {
 
 html {
   scrollbar-width: thin;
-  scrollbar-color: rgba(150, 150, 220, 0.6) transparent;
+  scrollbar-color: var(--scrollbar-thumb-color, rgba(150, 150, 220, 0.6)) transparent;
 }
 
 ::-webkit-scrollbar {
