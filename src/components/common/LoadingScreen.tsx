@@ -8,12 +8,12 @@ export function LoadingScreen() {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        position: 'fixed',
+        inset: 0,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: gradient,
-        position: 'relative',
         overflow: 'hidden',
       }}
     >
