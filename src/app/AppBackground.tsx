@@ -18,7 +18,7 @@ export function AppBackground({ children }: PropsWithChildren) {
     >
       <div
         style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
           background: 'rgba(0, 0, 0, 0.2)',
           backdropFilter: 'blur(2px)',

@@ -424,7 +424,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               <h3 style={{ margin: '0 0 15px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{otherUser.nickname}</h3>
 
               <div
-                onClick={() => copyCode(otherUser.chatCode)}
+                onClick={() => copyCode(otherUser.nickname)}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -451,7 +451,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 }}
               >
                 {codeCopied ? <FaCheck style={{ fontSize: '1.3rem' }} /> : <FaCopy style={{ fontSize: '1.3rem' }} />}
-                <span style={{ letterSpacing: '2px' }}>{otherUser.chatCode}</span>
+                <span style={{ letterSpacing: '2px' }}>{otherUser.nickname}</span>
               </div>
             </div>
 
@@ -653,7 +653,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                     </div>
 
                     <div
-                      onClick={() => copyCode(participant.chatCode, participant.id)}
+                      onClick={() => copyCode(participant.nickname, participant.id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -679,7 +679,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                       ) : (
                         <>
                           <FaCopy size={14} />
-                          <span style={{ letterSpacing: '1px' }}>{participant.chatCode}</span>
+                          <span style={{ letterSpacing: '1px' }}>{participant.nickname}</span>
                         </>
                       )}
                     </div>

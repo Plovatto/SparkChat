@@ -5,6 +5,7 @@ import { Spinner } from '@components/common/Spinner';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import { useSocket } from '@lib/socket';
+import { useAutoDismiss } from '@lib/use-auto-dismiss';
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -40,17 +41,18 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [chatType, setChatType] = useState<ChatType>('private');
-  const [chatCode, setChatCode] = useState('');
+  const [targetNickname, setTargetNickname] = useState('');
   const [roomCode, setRoomCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [error, setError] = useState('');
+  useAutoDismiss(error, setError);
   const [groupMode, setGroupMode] = useState<GroupMode>('join');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setChatType('private');
-      setChatCode('');
+      setTargetNickname('');
       setRoomCode('');
       setGroupName('');
       setError('');
@@ -62,9 +64,9 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   useEffect(() => {
     if (!socket || !isOpen) return;
 
-    const handleError = () => {
+    const handleError = ({ message }: { message: string }) => {
       setIsSubmitting(false);
-      setError('Código inválido');
+      setError(message);
     };
     const handleRoomCreated = () => onClose();
     const handleRoomJoined = () => onClose();
@@ -83,12 +85,12 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const handleStartPrivateChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (isSubmitting) return;
-    if (chatCode.trim().length < 6) {
-      setError('Código de chat inválido');
+    if (!targetNickname.trim()) {
+      setError('Digite o username do seu amigo');
       return;
     }
     setIsSubmitting(true);
-    socket?.emit('room:create-private', { targetChatCode: chatCode.toUpperCase() });
+    socket?.emit('room:create-private', { targetNickname: targetNickname.trim() });
     setError('');
   };
 
@@ -280,22 +282,22 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
           >
             <div>
-              <label style={labelStyle}>Código de Chat do Amigo</label>
+              <label style={labelStyle}>Username do Amigo</label>
               <input
                 type="text"
-                value={chatCode}
+                value={targetNickname}
                 onChange={(event) => {
-                  setChatCode(event.target.value.toUpperCase());
+                  setTargetNickname(event.target.value);
                   setError('');
                 }}
-                placeholder="Ex: ABC123"
-                maxLength={6}
+                placeholder="Ex: Ada"
+                maxLength={20}
                 autoFocus
                 style={inputStyle}
                 onFocus={focusInput}
                 onBlur={blurInput}
               />
-              <small style={helperStyle}>Digite o código de chat do seu amigo para iniciar uma conversa</small>
+              <small style={helperStyle}>Digite o username do seu amigo para iniciar uma conversa</small>
             </div>
             <button
               type="submit"
