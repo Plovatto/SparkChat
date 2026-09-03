@@ -73,6 +73,7 @@ export interface MessageView {
   readBy: string[];
   playedBy: string[];
   replyTo: MessageReplySnapshot | null;
+  mentionedUserIds: string[];
 }
 
 export interface BlockStatusPayload {
@@ -93,6 +94,7 @@ export interface RoomSummary {
   participants: RoomParticipant[];
   lastMessage: MessageView | null;
   unreadCount: number;
+  mentionCount: number;
   blockedBy: Record<string, string>;
   isBlockedBy: boolean;
   userBlocked: boolean;
@@ -125,7 +127,7 @@ export interface ServerToClientEvents {
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
-  'message:mark-read-done': (payload: { roomId: string; unreadCount: number }) => void;
+  'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
   'messages:list': (payload: { roomId: string; messages: MessageView[]; hasMore: boolean }) => void;
   'typing:update': (payload: { roomId: string; users: string[] }) => void;

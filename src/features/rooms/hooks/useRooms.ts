@@ -91,17 +91,27 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
           }
 
           const isCurrentRoom = room.id === selectedRoomId;
+          const isMentioned = Boolean(currentUserId) && message.mentionedUserIds.includes(currentUserId ?? '');
           return {
             ...room,
             lastMessage: message,
             unreadCount: isCurrentRoom ? 0 : room.unreadCount + 1,
+            mentionCount: isCurrentRoom ? 0 : room.mentionCount + (isMentioned ? 1 : 0),
           };
         }),
       );
     };
 
-    const handleMarkReadDone = ({ roomId, unreadCount }: { roomId: string; unreadCount: number }) => {
-      setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, unreadCount } : room)));
+    const handleMarkReadDone = ({
+      roomId,
+      unreadCount,
+      mentionCount,
+    }: {
+      roomId: string;
+      unreadCount: number;
+      mentionCount: number;
+    }) => {
+      setRooms((previous) => previous.map((room) => (room.id === roomId ? { ...room, unreadCount, mentionCount } : room)));
     };
 
     const handleTypingUpdate = ({ roomId, users }: { roomId: string; users: string[] }) => {
