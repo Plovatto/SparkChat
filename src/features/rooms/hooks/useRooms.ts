@@ -62,12 +62,22 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       );
     };
 
-    const handleProfileUpdated = ({ userId, nickname, avatar }: { userId: string; nickname: string; avatar: number }) => {
+    const handleProfileUpdated = ({
+      userId,
+      nickname,
+      avatar,
+      statusText,
+    }: {
+      userId: string;
+      nickname: string;
+      avatar: number;
+      statusText: string | null;
+    }) => {
       setRooms((previous) =>
         previous.map((room) => ({
           ...room,
           participants: room.participants.map((participant) =>
-            participant.id === userId ? { ...participant, nickname, avatar } : participant,
+            participant.id === userId ? { ...participant, nickname, avatar, statusText } : participant,
           ),
         })),
       );

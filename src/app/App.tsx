@@ -70,13 +70,21 @@ function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onL
         sessionToken,
         authMethod,
         status: registered.status,
+        statusText: registered.statusText,
         theme: registered.theme,
       });
       setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
       setIsSocketReady(true);
     },
     onResumed: ({ user: resumed, authMethod }) => {
-      onUserUpdate({ nickname: resumed.nickname, avatar: resumed.avatar, authMethod, status: resumed.status, theme: resumed.theme });
+      onUserUpdate({
+        nickname: resumed.nickname,
+        avatar: resumed.avatar,
+        authMethod,
+        status: resumed.status,
+        statusText: resumed.statusText,
+        theme: resumed.theme,
+      });
       setIsSocketReady(true);
     },
     onResumeFailed: onLogout,
@@ -167,12 +175,17 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
     const params = new URLSearchParams(window.location.search);
     const startChatWith = params.get('startChat');
+    const joinCode = params.get('join');
 
     if (startChatWith && startChatWith !== user.nickname) {
       socket.emit('room:create-private', { targetNickname: startChatWith });
     }
 
-    if (startChatWith) {
+    if (joinCode) {
+      socket.emit('room:join-by-code', { roomCode: joinCode.toUpperCase() });
+    }
+
+    if (startChatWith || joinCode) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [socket, user.nickname]);
@@ -259,7 +272,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               style={{ padding: 0, height: '100%' }}
               className={selectedRoom ? 'd-block' : 'd-none d-md-block'}
             >
-              <ChatArea room={selectedRoom} user={user} onBack={() => setSelectedRoomId(null)} />
+              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
             </Col>
           </Row>
         </Card>
