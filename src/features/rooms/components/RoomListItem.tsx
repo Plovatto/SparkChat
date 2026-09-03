@@ -9,10 +9,12 @@ import {
   FaEdit,
   FaImage,
   FaMicrophone,
+  FaPaperclip,
   FaPlay,
   FaSquare,
   FaStar,
   FaUser,
+  FaVideo,
 } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
@@ -227,6 +229,21 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
           {senderLabel}
           <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
           <span style={{ flexShrink: 0, lineHeight: 1 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
+        </span>
+      ) : message.type === 'file' ? (
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
+          {senderLabel}
+          {message.fileMeta?.mimeType.startsWith('video/') ? (
+            <FaVideo size={12} style={{ flexShrink: 0, display: 'block' }} />
+          ) : (
+            <FaPaperclip size={12} style={{ flexShrink: 0, display: 'block' }} />
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+            {(() => {
+              const fileName = message.fileMeta?.name ?? 'Arquivo';
+              return fileName.length > 35 ? `${fileName.substring(0, 35)}...` : fileName;
+            })()}
+          </span>
         </span>
       ) : (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>

@@ -26,6 +26,10 @@ function getMessagePreview(message: MessageView): string {
     return 'Enviou um áudio';
   }
 
+  if (message.type === 'file') {
+    return `Enviou um arquivo${message.fileMeta ? `: ${message.fileMeta.name}` : ''}`;
+  }
+
   return truncate(message.content);
 }
 

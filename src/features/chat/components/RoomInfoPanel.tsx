@@ -5,11 +5,14 @@ import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUserMinus, Fa
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
-import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
+import { downloadFromUrl } from '@lib/download-file';
 import { useSocket, type MessageView } from '@lib/socket';
 import { AppearanceEditor } from './AppearanceEditor';
+import { GalleryMediaTile } from './GalleryMediaTile';
 import { ImageModal } from './ImageModal';
+import { PdfPreviewModal } from './PdfPreviewModal';
+import { VideoPreviewModal } from './VideoPreviewModal';
 
 interface RoomInfoPanelProps {
   isOpen: boolean;
@@ -90,40 +93,6 @@ function ActionIconButton({ onClick, title, color, background, border, children 
   );
 }
 
-function MediaThumbnail({ src, theme }: { src: string; theme: ThemePalette }) {
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  return (
-    <>
-      {!isLoaded && (
-        <div
-          className="shimmer-bg"
-          style={
-            {
-              position: 'absolute',
-              inset: 0,
-              '--shimmer-a': theme.surfaceLight,
-            } as CSSProperties
-          }
-        />
-      )}
-      <img
-        src={src}
-        alt="Mídia"
-        onLoad={() => setIsLoaded(true)}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          display: 'block',
-          opacity: isLoaded ? 1 : 0,
-          transition: 'opacity 0.25s ease',
-        }}
-      />
-    </>
-  );
-}
-
 function useMediaGalleryColumns(): number {
   const [columns, setColumns] = useState(() => (typeof window === 'undefined' || window.innerWidth < 900 ? 3 : 4));
 
@@ -141,17 +110,19 @@ function useMediaGalleryColumns(): number {
 function MediaGallery({
   messages,
   messagesLoaded,
-  onSelectImage,
+  onSelectMedia,
 }: {
   messages: MessageView[];
   messagesLoaded: boolean;
-  onSelectImage: (src: string) => void;
+  onSelectMedia: (message: MessageView) => void;
 }) {
   const { theme } = useTheme();
   const [showAll, setShowAll] = useState(false);
   const columns = useMediaGalleryColumns();
 
-  const mediaMessages = messages.filter((message) => message.type === 'image' && !message.deletedForEveryone);
+  const mediaMessages = messages.filter(
+    (message) => (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone,
+  );
 
   if (!messagesLoaded) {
     return (
@@ -229,7 +200,7 @@ function MediaGallery({
         {visibleMessages.map((message) => (
           <div
             key={message.id}
-            onClick={() => onSelectImage(message.content)}
+            onClick={() => onSelectMedia(message)}
             style={{
               aspectRatio: '1',
               borderRadius: '10px',
@@ -252,7 +223,7 @@ function MediaGallery({
               event.currentTarget.style.zIndex = '1';
             }}
           >
-            <MediaThumbnail src={message.content} theme={theme} />
+            <GalleryMediaTile message={message} theme={theme} />
           </div>
         ))}
       </div>
@@ -384,11 +355,21 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const { socket } = useSocket();
   const [codeCopied, setCodeCopied] = useState(false);
   const [copiedParticipantId, setCopiedParticipantId] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
   const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
+  const isSelectedMediaVideo = selectedMedia?.type === 'file' && Boolean(selectedMedia.fileMeta?.mimeType.startsWith('video/'));
+  const isSelectedMediaPdf = selectedMedia?.type === 'file' && selectedMedia.fileMeta?.mimeType === 'application/pdf';
+
+  const handleSelectMedia = (message: MessageView) => {
+    if (message.type === 'file' && !message.fileMeta?.mimeType.startsWith('video/') && message.fileMeta?.mimeType !== 'application/pdf') {
+      void downloadFromUrl(message.content, message.fileMeta?.name ?? 'arquivo');
+      return;
+    }
+    setSelectedMedia(message);
+  };
 
   const copyCode = (code: string, participantId?: string) => {
     if (!navigator.clipboard) {
@@ -537,7 +518,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
             </div>
 
-            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectImage={setSelectedImage} />
+            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
 
             <WallpaperPicker roomId={room.id} />
 
@@ -814,7 +795,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
             </div>
 
-            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectImage={setSelectedImage} />
+            <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
 
             <WallpaperPicker roomId={room.id} />
 
@@ -866,7 +847,27 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         )}
       </div>
     </Modal>
-    <ImageModal isOpen={selectedImage !== null} images={selectedImage ? [selectedImage] : []} onClose={() => setSelectedImage(null)} />
+    <ImageModal
+      isOpen={selectedMedia?.type === 'image'}
+      images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
+      onClose={() => setSelectedMedia(null)}
+    />
+    {selectedMedia && isSelectedMediaVideo && (
+      <VideoPreviewModal
+        isOpen
+        onClose={() => setSelectedMedia(null)}
+        url={selectedMedia.content}
+        fileName={selectedMedia.fileMeta?.name ?? 'Vídeo.mp4'}
+      />
+    )}
+    {selectedMedia && isSelectedMediaPdf && (
+      <PdfPreviewModal
+        isOpen
+        onClose={() => setSelectedMedia(null)}
+        url={selectedMedia.content}
+        fileName={selectedMedia.fileMeta?.name ?? 'Documento.pdf'}
+      />
+    )}
     </>
   );
 }
