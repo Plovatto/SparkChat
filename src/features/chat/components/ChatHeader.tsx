@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaUser } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaLink, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
@@ -19,6 +19,7 @@ function getOtherParticipant(room: RoomSummary, userId: string | undefined): Roo
 export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHeaderProps) {
   const { theme } = useTheme();
   const [codeCopied, setCodeCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
@@ -36,6 +37,31 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
         setTimeout(() => setCodeCopied(false), 2000);
       })
       .catch(() => setCodeCopied(false));
+  };
+
+  const shareInviteLink = () => {
+    if (!room.roomCode) {
+      return;
+    }
+
+    const link = `${window.location.origin}${window.location.pathname}?join=${room.roomCode}`;
+
+    if (navigator.share) {
+      navigator.share({ title: 'SparkChat', text: `Entre no grupo "${roomName}" no SparkChat!`, url: link }).catch(() => undefined);
+      return;
+    }
+
+    if (!navigator.clipboard) {
+      return;
+    }
+
+    navigator.clipboard
+      .writeText(link)
+      .then(() => {
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 2000);
+      })
+      .catch(() => setLinkCopied(false));
   };
 
   return (
@@ -145,46 +171,78 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 gap: '5px',
               }}
             >
-              <span
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: isOnline ? '#10b981' : '#6b7280',
-                  display: 'inline-block',
-                }}
-              />
-              {isOnline ? 'Online' : 'Offline'}
+              {!otherUser?.statusText && (
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: isOnline ? '#10b981' : '#6b7280',
+                    display: 'inline-block',
+                  }}
+                />
+              )}
+              {otherUser?.statusText || (isOnline ? 'Online' : 'Offline')}
             </small>
           )}
           {room.type === 'group' && room.roomCode && (
-            <div
-              onClick={copyRoomCode}
-              style={{
-                marginTop: '3px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '3px 10px',
-                background: 'rgba(255, 255, 255, 0.2)',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '0.70rem',
-                fontFamily: 'monospace',
-                fontWeight: 600,
-              }}
-              title="Clique para copiar o código"
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                event.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                event.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              {codeCopied ? <FaCheck size={9} /> : <FaCopy size={9} />}
-              <span>{room.roomCode}</span>
+            <div style={{ marginTop: '2px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <div
+                onClick={copyRoomCode}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  height: '18px',
+                  padding: '0 8px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontSize: '0.62rem',
+                  fontFamily: 'monospace',
+                  fontWeight: 600,
+                  boxSizing: 'border-box',
+                }}
+                title="Clique para copiar o código"
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                  event.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                  event.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                {codeCopied ? <FaCheck size={8} /> : <FaCopy size={8} />}
+                <span>{room.roomCode}</span>
+              </div>
+
+              <div
+                onClick={shareInviteLink}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '18px',
+                  width: '18px',
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  borderRadius: '5px',
+                  cursor: 'pointer',
+                  fontSize: '0.62rem',
+                  boxSizing: 'border-box',
+                }}
+                title="Compartilhar link de convite"
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+                  event.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                  event.currentTarget.style.transform = 'scale(1)';
+                }}
+              >
+                {linkCopied ? <FaCheck size={8} /> : <FaLink size={8} />}
+              </div>
             </div>
           )}
         </div>
