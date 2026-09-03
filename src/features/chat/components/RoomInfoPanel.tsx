@@ -8,6 +8,7 @@ import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useSocket, type MessageView } from '@lib/socket';
+import { AppearanceEditor } from './AppearanceEditor';
 import { ImageModal } from './ImageModal';
 
 interface RoomInfoPanelProps {
@@ -489,6 +490,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
             <WallpaperPicker roomId={room.id} />
 
+            <AppearanceEditor roomId={room.id} />
+
             <div style={{ display: 'flex', gap: '10px', paddingTop: '20px', borderTop: `1px solid ${theme.border}` }}>
               {room.userBlocked ? (
                 <button
@@ -691,6 +694,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
             <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectImage={setSelectedImage} />
 
             <WallpaperPicker roomId={room.id} />
+
+            <AppearanceEditor roomId={room.id} />
 
             <div
               style={{
