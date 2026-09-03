@@ -16,6 +16,7 @@ export interface User {
   sessionToken: string;
   authMethod?: AuthMethod;
   status?: 'online' | 'offline';
+  statusText?: string | null;
   theme?: AuthUserTheme;
 }
 
