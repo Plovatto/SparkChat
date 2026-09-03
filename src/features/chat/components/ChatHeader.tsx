@@ -169,6 +169,8 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
+                minWidth: 0,
+                overflow: 'hidden',
               }}
             >
               {!otherUser?.statusText && (
@@ -179,10 +181,13 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                     borderRadius: '50%',
                     background: isOnline ? '#10b981' : '#6b7280',
                     display: 'inline-block',
+                    flexShrink: 0,
                   }}
                 />
               )}
-              {otherUser?.statusText || (isOnline ? 'Online' : 'Offline')}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                {otherUser?.statusText || (isOnline ? 'Online' : 'Offline')}
+              </span>
             </small>
           )}
           {room.type === 'group' && room.roomCode && (
