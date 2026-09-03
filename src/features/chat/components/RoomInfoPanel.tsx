@@ -1,7 +1,7 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUserSlash, FaUsers } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
@@ -43,6 +43,51 @@ function getLastSeen(participant: RoomParticipant): string {
   }
 
   return 'Offline';
+}
+
+interface ActionIconButtonProps {
+  onClick: () => void;
+  title: string;
+  color: string;
+  background: string;
+  border: string;
+  children: ReactNode;
+}
+
+function ActionIconButton({ onClick, title, color, background, border, children }: ActionIconButtonProps) {
+  return (
+    <button
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      title={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '32px',
+        height: '32px',
+        borderRadius: '9px',
+        border: `1.5px solid ${border}`,
+        background,
+        color,
+        cursor: 'pointer',
+        flexShrink: 0,
+        transition: 'transform 0.15s ease, filter 0.15s ease',
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.transform = 'translateY(-1px)';
+        event.currentTarget.style.filter = 'brightness(1.12)';
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.transform = 'translateY(0)';
+        event.currentTarget.style.filter = 'brightness(1)';
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 function MediaThumbnail({ src, theme }: { src: string; theme: ThemePalette }) {
@@ -431,37 +476,37 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 )}
               </div>
 
-              <h3 style={{ margin: '0 0 15px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{otherUser.nickname}</h3>
-
-              <div
-                onClick={() => copyCode(otherUser.nickname)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  padding: '12px 16px',
-                  background: `${theme.primary}20`,
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  fontSize: '1.1rem',
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  color: theme.primary,
-                  border: `2px solid ${theme.primary}`,
-                  minHeight: '44px',
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = `${theme.primary}30`;
-                  event.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = `${theme.primary}20`;
-                  event.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                {codeCopied ? <FaCheck style={{ fontSize: '1.3rem' }} /> : <FaCopy style={{ fontSize: '1.3rem' }} />}
-                <span style={{ letterSpacing: '2px' }}>{otherUser.nickname}</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '0 0 15px 0' }}>
+                <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{otherUser.nickname}</h3>
+                <button
+                  onClick={() => copyCode(otherUser.nickname)}
+                  title="Copiar username"
+                  style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: `${theme.primary}20`,
+                    color: theme.primary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    alignSelf: 'center',
+                    position: 'relative',
+                    top: '2px',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    padding: 0,
+                  }}
+                  onMouseEnter={(event) => {
+                    event.currentTarget.style.background = `${theme.primary}30`;
+                  }}
+                  onMouseLeave={(event) => {
+                    event.currentTarget.style.background = `${theme.primary}20`;
+                  }}
+                >
+                  {codeCopied ? <FaCheck size={13} /> : <FaCopy size={13} />}
+                </button>
               </div>
             </div>
 
@@ -488,9 +533,6 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   gap: '8px',
                 }}
               >
-                {otherUser.status === 'online' && (
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4caf50' }} />
-                )}
                 {getLastSeen(otherUser)}
               </div>
             </div>
@@ -586,7 +628,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               <h3 style={{ margin: '0 0 10px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{room.name}</h3>
 
               <div style={{ fontSize: '0.9rem', color: theme.textSecondary, fontWeight: 500 }}>
-                {room.participants.length} membros
+                {room.participants.length} {room.participants.length === 1 ? 'membro' : 'membros'}
               </div>
             </div>
 
@@ -601,13 +643,24 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 gap: '12px',
               }}
             >
-              <div style={{ color: theme.primary }}>
-                <FaCrown size={18} />
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '50%',
+                  background: `${theme.primary}20`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <FaCrown size={18} color={theme.primary} />
               </div>
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div
                   style={{
-                    fontSize: '0.8rem',
+                    fontSize: '0.75rem',
                     color: theme.textSecondary,
                     fontWeight: 600,
                     textTransform: 'uppercase',
@@ -616,7 +669,17 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 >
                   Criado por
                 </div>
-                <div style={{ fontSize: '1rem', color: theme.text, fontWeight: 600, marginTop: '3px' }}>
+                <div
+                  style={{
+                    fontSize: '1rem',
+                    color: theme.text,
+                    fontWeight: 600,
+                    marginTop: '2px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {room.creatorId === currentUserId ? 'Você' : (room.createdBy ?? 'Desconhecido')}
                 </div>
               </div>
@@ -639,110 +702,115 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 <FaUsers /> Membros ({room.participants.length})
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', paddingRight: '8px' }}>
-                {room.participants.map((participant) => (
-                  <div
-                    key={participant.id}
-                    style={{
-                      padding: '12px',
-                      background: theme.background,
-                      borderRadius: '10px',
-                      border: `1px solid ${theme.border}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, color: theme.text, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {getDisplayName(participant.id, participant.nickname, currentUserId)}
-                        {participant.status === 'online' && (
-                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4caf50' }} />
-                        )}
-                        {participant.isAdmin && <FaCrown size={12} color={theme.primary} title="Administrador" />}
-                      </div>
-                      <div style={{ fontSize: '0.8rem', color: theme.textSecondary }}>{getLastSeen(participant)}</div>
-                    </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto', paddingRight: '6px' }}>
+                {room.participants.map((participant) => {
+                  const avatar = AVATARS[participant.avatar];
+                  const canManage = isCurrentUserAdmin && participant.id !== currentUserId;
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {isCurrentUserAdmin && participant.id !== currentUserId && (
-                        <>
-                          {!participant.isAdmin && (
-                            <button
-                              onClick={() => handlePromoteAdmin(participant.id)}
-                              title="Promover a administrador"
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '8px',
-                                border: `1.5px solid ${theme.primary}`,
-                                background: `${theme.primary}15`,
-                                color: theme.primary,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <FaCrown size={14} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleRemoveMember(participant.id)}
-                            title="Remover do grupo"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '8px',
-                              border: '1.5px solid #f44336',
-                              background: 'rgba(244, 67, 54, 0.1)',
-                              color: '#f44336',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <FaUserSlash size={14} />
-                          </button>
-                        </>
-                      )}
-
+                  return (
+                    <div
+                      key={participant.id}
+                      style={{
+                        padding: '10px 12px',
+                        background: theme.background,
+                        borderRadius: '12px',
+                        border: `1px solid ${theme.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                      }}
+                      onMouseEnter={(event) => {
+                        event.currentTarget.style.borderColor = theme.primary;
+                        event.currentTarget.style.boxShadow = `0 2px 10px ${theme.primary}1A`;
+                      }}
+                      onMouseLeave={(event) => {
+                        event.currentTarget.style.borderColor = theme.border;
+                        event.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
                       <div
-                        onClick={() => copyCode(participant.nickname, participant.id)}
                         style={{
+                          position: 'relative',
+                          width: '42px',
+                          height: '42px',
+                          borderRadius: '50%',
+                          background: `${theme.primary}20`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '8px',
-                          padding: '8px 12px',
-                          background: `${theme.primary}15`,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          fontSize: '0.9rem',
-                          fontFamily: 'monospace',
-                          color: theme.primary,
-                          border: `1.5px solid ${theme.primary}`,
-                          fontWeight: 700,
-                          minHeight: '36px',
+                          flexShrink: 0,
                         }}
                       >
-                        {copiedParticipantId === participant.id ? (
-                          <>
-                            <FaCheck size={14} />
-                            <span>Copiado!</span>
-                          </>
-                        ) : (
-                          <>
-                            <FaCopy size={14} />
-                            <span style={{ letterSpacing: '1px' }}>{participant.nickname}</span>
-                          </>
+                        {avatar && <avatar.icon size={20} color={theme.primary} />}
+                        {participant.status === 'online' && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              bottom: '-1px',
+                              right: '-1px',
+                              width: '11px',
+                              height: '11px',
+                              borderRadius: '50%',
+                              background: '#4caf50',
+                              border: `2px solid ${theme.background}`,
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: theme.text, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {getDisplayName(participant.id, participant.nickname, currentUserId)}
+                          </span>
+                          {participant.isAdmin && (
+                            <FaCrown size={12} color={theme.primary} title="Administrador" style={{ flexShrink: 0 }} />
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: theme.textSecondary, marginTop: '2px' }}>
+                          {getLastSeen(participant)}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <ActionIconButton
+                          onClick={() => copyCode(participant.nickname, participant.id)}
+                          title="Copiar username"
+                          color={theme.primary}
+                          background={`${theme.primary}15`}
+                          border={theme.primary}
+                        >
+                          {copiedParticipantId === participant.id ? <FaCheck size={13} /> : <FaCopy size={13} />}
+                        </ActionIconButton>
+
+                        {canManage && !participant.isAdmin && (
+                          <ActionIconButton
+                            onClick={() => handlePromoteAdmin(participant.id)}
+                            title="Promover a administrador"
+                            color={theme.primary}
+                            background={`${theme.primary}15`}
+                            border={theme.primary}
+                          >
+                            <FaCrown size={13} />
+                          </ActionIconButton>
+                        )}
+
+                        {canManage && (
+                          <ActionIconButton
+                            onClick={() => handleRemoveMember(participant.id)}
+                            title="Remover do grupo"
+                            color="#f44336"
+                            background="rgba(244, 67, 54, 0.1)"
+                            border="#f44336"
+                          >
+                            <FaUserMinus size={13} />
+                          </ActionIconButton>
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
