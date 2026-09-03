@@ -193,7 +193,7 @@ export function ChooseModeCard({
                 onMouseLeave={handleOutlineLeave}
               >
                 <FaKey size={20} />
-                <span>Já tenho um código</span>
+                <span>Já tenho conta</span>
               </Button>
             </div>
 

@@ -1,22 +1,20 @@
 import { useState } from 'react';
 import '../styles/auth.css';
 import { useLoginTheme } from '../hooks/useLoginTheme';
-import type { CreateAccountInput, LoginMode, User } from '../types';
+import type { LoginMode, PendingRegistration, User } from '../types';
 import { ChooseModeCard } from './ChooseModeCard';
 import { CreateAccountForm } from './CreateAccountForm';
-import { ExistingCodeForm } from './ExistingCodeForm';
+import { LoginForm } from './LoginForm';
 
 interface LoginScreenProps {
-  onAuthenticated: (user: User) => void;
+  onRegister: (input: PendingRegistration) => void;
+  onLogin: (user: User) => void;
+  registerError?: string;
 }
 
-export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
+export function LoginScreen({ onRegister, onLogin, registerError }: LoginScreenProps) {
   const [mode, setMode] = useState<LoginMode>('choose');
   const { darkMode, theme, toggle } = useLoginTheme();
-
-  const handleCreateAccount = (input: CreateAccountInput) => {
-    onAuthenticated(input);
-  };
 
   if (mode === 'new') {
     return (
@@ -25,19 +23,20 @@ export function LoginScreen({ onAuthenticated }: LoginScreenProps) {
         theme={theme}
         onToggleTheme={toggle}
         onBack={() => setMode('choose')}
-        onSubmit={handleCreateAccount}
+        onSubmit={onRegister}
+        registerError={registerError}
       />
     );
   }
 
   if (mode === 'existing') {
     return (
-      <ExistingCodeForm
+      <LoginForm
         darkMode={darkMode}
         theme={theme}
         onToggleTheme={toggle}
         onBack={() => setMode('choose')}
-        onSubmit={onAuthenticated}
+        onSubmit={onLogin}
       />
     );
   }

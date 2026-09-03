@@ -1,8 +1,15 @@
-import { useState, type FormEvent } from 'react';
-import { Alert, Button, Card, Container, Form } from 'react-bootstrap';
-import { FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaPalette, FaPencilAlt } from 'react-icons/fa';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Alert, Button, Card, Form } from 'react-bootstrap';
+import { FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
+import { Spinner } from '@components/common/Spinner';
+import { useAutoDismiss } from '@lib/use-auto-dismiss';
 import { AVATARS } from '../constants/avatars';
-import type { CreateAccountInput, LoginThemePalette } from '../types';
+import { useNicknameAvailability } from '../hooks/useNicknameAvailability';
+import { useResponsiveAvatarSize } from '../hooks/useResponsiveAvatarSize';
+import { getPasswordMatchStatus } from '../lib/password-match';
+import type { LoginThemePalette, PendingRegistration } from '../types';
+import { AutofillDecoyFields } from './AutofillDecoyFields';
+import { PasswordField, PasswordFieldHint } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
 
 interface CreateAccountFormProps {
@@ -10,49 +17,87 @@ interface CreateAccountFormProps {
   theme: LoginThemePalette;
   onToggleTheme: () => void;
   onBack: () => void;
-  onSubmit: (input: CreateAccountInput) => void;
+  onSubmit: (input: PendingRegistration) => void;
+  registerError?: string;
 }
 
 const NICKNAME_MAX_LENGTH = 20;
+const PASSWORD_MIN_LENGTH = 12;
 
-export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: CreateAccountFormProps) {
+const NICKNAME_STATUS_TEXT: Record<'checking' | 'available' | 'taken' | 'invalid', string> = {
+  checking: 'Verificando...',
+  available: 'Disponível!',
+  taken: 'Esse username já está em uso.',
+  invalid: 'Precisa ter pelo menos 2 letras.',
+};
+
+const NICKNAME_STATUS_COLOR: Record<'checking' | 'available' | 'taken' | 'invalid', string> = {
+  checking: '#a0a0a0',
+  available: '#22c55e',
+  taken: '#ef4444',
+  invalid: '#ef4444',
+};
+
+function sanitizeNicknameInput(value: string): string {
+  return value.replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSubmit, registerError }: CreateAccountFormProps) {
   const [nickname, setNickname] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(0);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  useAutoDismiss(error, setError);
+
+  useEffect(() => {
+    if (registerError) {
+      setError(registerError);
+    }
+  }, [registerError]);
   const [hoveredAvatar, setHoveredAvatar] = useState<number | null>(null);
+
+  const nicknameStatus = useNicknameAvailability(nickname);
+  const { avatarSize, iconSize } = useResponsiveAvatarSize();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!nickname.trim()) {
-      setError('Por favor, digite um apelido!');
+      setError('Por favor, digite um username!');
       return;
     }
 
-    if (nickname.trim().length < 2) {
-      setError('O apelido deve ter pelo menos 2 caracteres!');
+    if (nicknameStatus !== 'available') {
+      setError('Escolha um username válido e disponível!');
       return;
     }
 
-    onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar });
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      setError(`A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres!`);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('As senhas não coincidem!');
+      return;
+    }
+
+    onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar, password });
   };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(0, 5vw, 10px)',
-        position: 'relative',
-      }}
-    >
-      <Container
-        data-aos="fade-up"
-        data-aos-duration="500"
+    <div style={{ position: 'fixed', inset: 0 }}>
+      <div
         className="animate__animated animate__fadeIn auth-container--form"
-        style={{ maxWidth: '600px' }}
+        style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '90%',
+          maxWidth: '600px',
+        }}
       >
         <Card
           className="hover-lift"
@@ -65,6 +110,9 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
             background: theme.cardBg,
             overflow: 'hidden',
             transition: 'all 0.3s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '94vh',
           }}
         >
           <ThemeToggleButton darkMode={darkMode} theme={theme} onToggle={onToggleTheme} top="15px" right="15px" />
@@ -72,7 +120,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
           <div
             style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              padding: 'clamp(35px, 4vw, 0px) clamp(25px, 5vw, 32px)',
+              padding: 'clamp(28px, 4vw, 32px) clamp(25px, 5vw, 32px)',
               color: 'white',
               display: 'flex',
               alignItems: 'center',
@@ -119,37 +167,24 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 Criar Conta
               </h2>
               <p style={{ margin: '5px 0 0 10px', opacity: 0.95, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
-                Escolha seu avatar e apelido
+                Escolha seu avatar e username
               </p>
             </div>
           </div>
 
-          <Card.Body style={{ padding: 'clamp(25px, 5vw, 0px)', background: theme.cardBg }}>
-            <Form onSubmit={handleSubmit}>
-              {error && (
-                <Alert
-                  variant="danger"
-                  className="animate__animated animate__shakeX"
-                  style={{
-                    borderRadius: '14px',
-                    marginBottom: '25px',
-                    border: 'none',
-                    background: theme.alertBg,
-                    color: theme.alertText,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 20px)',
-                    fontSize: 'clamp(0.9rem, 2.5vw, 1rem)',
-                  }}
-                >
-                  <FaExclamationCircle size={18} style={{ flexShrink: 0 }} />
-                  {error}
-                </Alert>
-              )}
-
-              <Form.Group style={{ marginBottom: '35px' }}>
+          <Card.Body
+            style={{
+              padding: 'clamp(25px, 5vw, 32px)',
+              background: theme.cardBg,
+              overflowY: 'auto',
+              flex: '0 1 auto',
+              minHeight: 0,
+              scrollbarGutter: 'stable both-edges',
+            }}
+          >
+            <Form onSubmit={handleSubmit} autoComplete="off">
+              <AutofillDecoyFields />
+              <Form.Group style={{ marginBottom: '24px' }}>
                 <Form.Label
                   style={{
                     fontWeight: 700,
@@ -165,16 +200,15 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                   Escolha seu Avatar
                 </Form.Label>
                 <div
-                  data-aos="fade-up"
-                  data-aos-duration="500"
-                  data-aos-delay="100"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))',
+                    gridTemplateColumns: `repeat(auto-fill, ${avatarSize}px)`,
+                    justifyContent: 'center',
                     columnGap: '8px',
                     rowGap: 'clamp(15px, 3vw, 22px)',
-                    maxHeight: '250px',
+                    maxHeight: '200px',
                     overflowY: 'auto',
+                    scrollbarGutter: 'stable both-edges',
                     padding: '16px',
                     background: theme.avatarGridBg,
                     borderRadius: '18px',
@@ -189,15 +223,11 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                     return (
                       <div
                         key={avatar.name}
-                        data-aos="zoom-in"
-                        data-aos-duration="300"
-                        data-aos-delay={index * 15}
                         className="smooth-transition"
                         onClick={() => setSelectedAvatar(index)}
                         style={{
-                          marginLeft: '6px',
-                          width: '75px',
-                          height: '75px',
+                          width: `${avatarSize}px`,
+                          height: `${avatarSize}px`,
                           borderRadius: '16px',
                           background: isSelected || isHovered ? avatar.bgGradient : darkMode ? '#2d3748' : 'white',
                           display: 'flex',
@@ -221,7 +251,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                         onMouseLeave={() => setHoveredAvatar(null)}
                       >
                         <IconComponent
-                          size={40}
+                          size={iconSize}
                           color={isSelected || isHovered ? 'white' : avatar.color}
                           style={{
                             filter: isSelected || isHovered ? 'drop-shadow(0 0 4px rgba(255,255,255,0.8))' : 'none',
@@ -234,7 +264,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 </div>
               </Form.Group>
 
-              <Form.Group style={{ marginBottom: '30px' }} data-aos="fade-up" data-aos-duration="500" data-aos-delay="200">
+              <Form.Group style={{ marginBottom: nicknameStatus === 'idle' ? '4px' : '18px' }}>
                 <Form.Label
                   style={{
                     fontWeight: 700,
@@ -247,45 +277,151 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                   }}
                 >
                   <FaPencilAlt size={18} />
-                  Seu Apelido
+                  Username
                 </Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="Digite um apelido legal..."
-                  value={nickname}
-                  onChange={(event) => setNickname(event.target.value)}
-                  maxLength={NICKNAME_MAX_LENGTH}
-                  className="smooth-transition"
-                  style={{
-                    padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
-                    fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
-                    borderRadius: '14px',
-                    border: `2px solid ${theme.inputBorder}`,
-                    fontWeight: 500,
-                    background: theme.inputBg,
-                    color: theme.inputText,
-                    marginBottom: '5px',
-                  }}
-                  onFocus={(event) => {
-                    event.currentTarget.style.borderColor = '#667eea';
-                    event.currentTarget.style.boxShadow = '0 0 0 4px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(event) => {
-                    event.currentTarget.style.borderColor = theme.inputBorder;
-                    event.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-                <Form.Text style={{ fontSize: 'clamp(0.8rem, 2vw, 0.9rem)', color: theme.textSecondary, fontWeight: 500, marginLeft: '4px' }}>
-                  {nickname.length}/{NICKNAME_MAX_LENGTH} caracteres
-                </Form.Text>
+                <div style={{ position: 'relative' }}>
+                  <Form.Control
+                    type="text"
+                    placeholder="Digite um username..."
+                    value={nickname}
+                    onChange={(event) => setNickname(sanitizeNicknameInput(event.target.value))}
+                    maxLength={NICKNAME_MAX_LENGTH}
+                    autoComplete="one-time-code"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    name="sparkchat-field-a"
+                    className="smooth-transition"
+                    style={{
+                      padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
+                      paddingRight: '46px',
+                      fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
+                      borderRadius: '14px',
+                      border: `2px solid ${theme.inputBorder}`,
+                      fontWeight: 500,
+                      background: theme.inputBg,
+                      color: theme.inputText,
+                      marginBottom: '2px',
+                    }}
+                    onFocus={(event) => {
+                      event.currentTarget.style.borderColor = '#667eea';
+                      event.currentTarget.style.boxShadow = '0 0 0 4px rgba(102, 126, 234, 0.1)';
+                    }}
+                    onBlur={(event) => {
+                      event.currentTarget.style.borderColor = theme.inputBorder;
+                      event.currentTarget.style.boxShadow = 'none';
+                    }}
+                  />
+                  {nickname.trim().length > 0 && (
+                    <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
+                      {nicknameStatus === 'checking' && <Spinner size={16} accentColor="#667eea" />}
+                      {nicknameStatus === 'available' && <FaCheckCircle size={18} color="#22c55e" />}
+                      {(nicknameStatus === 'taken' || nicknameStatus === 'invalid') && <FaTimesCircle size={18} color="#ef4444" />}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '2px', paddingLeft: '3px', paddingRight: '4px' }}>
+                  <Form.Text
+                    style={{
+                      margin: 0,
+                      fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
+                      color: nicknameStatus === 'idle' ? 'transparent' : NICKNAME_STATUS_COLOR[nicknameStatus],
+                      fontWeight: 600,
+                    }}
+                  >
+                    {nicknameStatus === 'idle' ? '' : NICKNAME_STATUS_TEXT[nicknameStatus]}
+                  </Form.Text>
+                  <Form.Text style={{ margin: 0, fontSize: '0.78rem', color: theme.textSecondary, fontWeight: 600, opacity: 0.85 }}>
+                    {nickname.length}/{NICKNAME_MAX_LENGTH}
+                  </Form.Text>
+                </div>
               </Form.Group>
+
+              <Form.Group style={{ marginBottom: password ? '2px' : '30px' }}>
+                <Form.Label
+                  style={{
+                    fontWeight: 700,
+                    fontSize: 'clamp(0.95rem, 3vw, 1.05rem)',
+                    color: theme.text,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    marginBottom: '12px',
+                  }}
+                >
+                  <FaLock size={16} />
+                  Senha
+                </Form.Label>
+                <PasswordField
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="Digite sua senha"
+                  theme={theme}
+                />
+                <PasswordFieldHint length={password.length} maxLength={PASSWORD_MIN_LENGTH} textSecondary={theme.textSecondary} />
+              </Form.Group>
+
+              {password.length > 0 && (
+                <Form.Group
+                  style={{ marginBottom: '30px' }}
+                  className="animate__animated animate__fadeIn animate__faster"
+                >
+                  <Form.Label
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 'clamp(0.95rem, 3vw, 1.05rem)',
+                      color: theme.text,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginBottom: '12px',
+                    }}
+                  >
+                    <FaLock size={16} />
+                    Confirmar senha
+                  </Form.Label>
+                  <PasswordField
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
+                    placeholder="Digite a senha novamente"
+                    theme={theme}
+                    matchStatus={getPasswordMatchStatus(confirmPassword, password)}
+                  />
+                  <PasswordFieldHint
+                    length={confirmPassword.length}
+                    maxLength={PASSWORD_MIN_LENGTH}
+                    textSecondary={theme.textSecondary}
+                    matchStatus={getPasswordMatchStatus(confirmPassword, password)}
+                  />
+                </Form.Group>
+              )}
+
+              {error && (
+                <Alert
+                  variant="danger"
+                  className="animate__animated animate__shakeX"
+                  style={{
+                    borderRadius: '14px',
+                    marginBottom: '20px',
+                    border: 'none',
+                    background: theme.alertBg,
+                    color: theme.alertText,
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 20px)',
+                    fontSize: 'clamp(0.9rem, 2.5vw, 1rem)',
+                  }}
+                >
+                  <FaExclamationCircle size={18} style={{ flexShrink: 0 }} />
+                  {error}
+                </Alert>
+              )}
 
               <Button
                 type="submit"
                 className="smooth-transition"
-                data-aos="fade-up"
-                data-aos-duration="500"
-                data-aos-delay="300"
                 style={{
                   width: '100%',
                   padding: 'clamp(14px, 3vw, 18px)',
@@ -316,7 +452,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
             </Form>
           </Card.Body>
         </Card>
-      </Container>
+      </div>
     </div>
   );
 }
