@@ -1,4 +1,5 @@
 import {
+  FaAt,
   FaBan,
   FaBellSlash,
   FaCheck,
@@ -352,6 +353,25 @@ export function RoomListItem({
             {room.userBlocked && <FaBan size={12} color="#ff4444" style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+            {room.mentionCount > 0 && (
+              <span
+                title="Você foi mencionado"
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  boxSizing: 'border-box',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  background: '#f59e0b',
+                  flexShrink: 0,
+                }}
+              >
+                <FaAt size={10} />
+              </span>
+            )}
             {room.unreadCount > 0 &&
               (() => {
                 const unreadLabel = room.unreadCount > 99 ? '99+' : String(room.unreadCount);
