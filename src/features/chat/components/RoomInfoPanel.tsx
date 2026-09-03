@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUsers } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCopy, FaCrown, FaImage, FaSignOutAlt, FaUserSlash, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
@@ -343,6 +343,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
+  const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
 
   const copyCode = (code: string, participantId?: string) => {
     if (!navigator.clipboard) {
@@ -380,6 +381,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const handleLeaveGroup = () => {
     socket?.emit('group:leave', { roomId: room.id });
     onLeftGroup();
+  };
+
+  const handlePromoteAdmin = (userId: string) => {
+    socket?.emit('group:promote-admin', { roomId: room.id, userId });
+  };
+
+  const handleRemoveMember = (userId: string) => {
+    socket?.emit('group:remove-member', { roomId: room.id, userId });
   };
 
   return (
@@ -651,40 +660,86 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                         {participant.status === 'online' && (
                           <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4caf50' }} />
                         )}
+                        {participant.isAdmin && <FaCrown size={12} color={theme.primary} title="Administrador" />}
                       </div>
                       <div style={{ fontSize: '0.8rem', color: theme.textSecondary }}>{getLastSeen(participant)}</div>
                     </div>
 
-                    <div
-                      onClick={() => copyCode(participant.nickname, participant.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        padding: '8px 12px',
-                        background: `${theme.primary}15`,
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        fontFamily: 'monospace',
-                        color: theme.primary,
-                        border: `1.5px solid ${theme.primary}`,
-                        fontWeight: 700,
-                        minHeight: '36px',
-                      }}
-                    >
-                      {copiedParticipantId === participant.id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {isCurrentUserAdmin && participant.id !== currentUserId && (
                         <>
-                          <FaCheck size={14} />
-                          <span>Copiado!</span>
-                        </>
-                      ) : (
-                        <>
-                          <FaCopy size={14} />
-                          <span style={{ letterSpacing: '1px' }}>{participant.nickname}</span>
+                          {!participant.isAdmin && (
+                            <button
+                              onClick={() => handlePromoteAdmin(participant.id)}
+                              title="Promover a administrador"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                border: `1.5px solid ${theme.primary}`,
+                                background: `${theme.primary}15`,
+                                color: theme.primary,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <FaCrown size={14} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveMember(participant.id)}
+                            title="Remover do grupo"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '8px',
+                              border: '1.5px solid #f44336',
+                              background: 'rgba(244, 67, 54, 0.1)',
+                              color: '#f44336',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <FaUserSlash size={14} />
+                          </button>
                         </>
                       )}
+
+                      <div
+                        onClick={() => copyCode(participant.nickname, participant.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          padding: '8px 12px',
+                          background: `${theme.primary}15`,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '0.9rem',
+                          fontFamily: 'monospace',
+                          color: theme.primary,
+                          border: `1.5px solid ${theme.primary}`,
+                          fontWeight: 700,
+                          minHeight: '36px',
+                        }}
+                      >
+                        {copiedParticipantId === participant.id ? (
+                          <>
+                            <FaCheck size={14} />
+                            <span>Copiado!</span>
+                          </>
+                        ) : (
+                          <>
+                            <FaCopy size={14} />
+                            <span style={{ letterSpacing: '1px' }}>{participant.nickname}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
