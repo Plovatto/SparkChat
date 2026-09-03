@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSocket, type MessageReplySnapshot, type MessageType, type MessageView } from '@lib/socket';
+import { useSocket, type MessageFileMeta, type MessageReplySnapshot, type MessageType, type MessageView } from '@lib/socket';
 import type { ChatMessage } from '../types';
 
 export interface RoomMessagesCurrentUser {
@@ -10,9 +10,10 @@ export interface RoomMessagesCurrentUser {
 
 export interface SendMessageInput {
   content: string;
-  type: Extract<MessageType, 'text' | 'image' | 'audio'>;
+  type: Extract<MessageType, 'text' | 'image' | 'audio' | 'file'>;
   duration?: number;
   replyTo?: MessageView | null;
+  fileMeta?: MessageFileMeta;
 }
 
 export interface RoomMessagesState {
@@ -49,6 +50,7 @@ function buildReplySnapshot(message: MessageView | null | undefined): MessageRep
     content: message.content,
     type: message.type,
     duration: message.duration,
+    fileMeta: message.fileMeta,
     sender: message.sender,
   };
 }
@@ -297,6 +299,7 @@ export function useRoomMessages(
         playedBy: [],
         replyTo: buildReplySnapshot(input.replyTo),
         mentionedUserIds: [],
+        fileMeta: input.fileMeta ?? null,
         clientTempId,
         pending: true,
       };
@@ -311,6 +314,7 @@ export function useRoomMessages(
         duration: input.duration,
         replyToMessageId: input.replyTo?.id,
         clientTempId,
+        fileMeta: input.fileMeta,
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],

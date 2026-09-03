@@ -10,10 +10,12 @@ import { useTheme } from '@features/theme';
 import { formatAudioTime, resolveActiveUserNames } from '@lib/format';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView } from '@lib/socket';
-import { uploadChatAudio, uploadChatImage } from '../api/chat-api';
+import { uploadChatAudio, uploadChatFile, uploadChatImage } from '../api/chat-api';
+import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
+import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
@@ -261,8 +263,10 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
-  const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | null>(null);
+  const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | 'file' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const isRepliedMessageVideo = repliedMessage?.type === 'file' && Boolean(repliedMessage.fileMeta?.mimeType.startsWith('video/'));
+  const repliedVideoThumbnail = useReplyVideoThumbnail(isRepliedMessageVideo, repliedMessage?.content);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current;
@@ -463,6 +467,30 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     }
   };
 
+  const sendFileMessages = async (files: File[], replyTo: MessageView | null) => {
+    setUploadingMediaType('file');
+    try {
+      for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        if (!file) {
+          continue;
+        }
+        const uploaded = await uploadChatFile(file);
+        sendMessage({
+          content: uploaded.url,
+          type: 'file',
+          replyTo: index === 0 ? replyTo : null,
+          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size },
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      window.alert(error instanceof Error ? error.message : 'Não foi possível enviar um dos arquivos. Tente novamente.');
+    } finally {
+      setUploadingMediaType(null);
+    }
+  };
+
   const handleRecordingStart = () => {
     socket?.emit('recording:start', { roomId: room.id });
   };
@@ -475,7 +503,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     socket?.emit('audio:played', { messageId });
   };
 
-  const handleSend = ({ text, imageFiles }: MessageInputSubmitPayload) => {
+  const handleSend = ({ text, imageFiles, documentFiles }: MessageInputSubmitPayload) => {
     const trimmed = text.trim();
 
     if (trimmed) {
@@ -484,6 +512,10 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
 
     if (imageFiles.length > 0) {
       void sendImageMessages(imageFiles, trimmed ? null : repliedMessage);
+    }
+
+    if (documentFiles.length > 0) {
+      void sendFileMessages(documentFiles, trimmed || imageFiles.length > 0 ? null : repliedMessage);
     }
 
     setRepliedMessage(null);
@@ -539,7 +571,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDraggingFile(false);
-    messageInputRef.current?.addImages(Array.from(event.dataTransfer.files));
+    messageInputRef.current?.addFiles(Array.from(event.dataTransfer.files));
   };
 
   return (
@@ -588,7 +620,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                 boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
               }}
             >
-              Solte a imagem aqui
+              Solte o arquivo aqui
             </div>
           </div>
         )}
@@ -814,7 +846,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           >
             <Spinner size={16} />
             <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic' }}>
-              {uploadingMediaType === 'image' ? 'Enviando imagem...' : 'Enviando áudio...'}
+              {uploadingMediaType === 'image'
+                ? 'Enviando imagem...'
+                : uploadingMediaType === 'audio'
+                  ? 'Enviando áudio...'
+                  : 'Enviando arquivo...'}
             </span>
           </div>
         )}
@@ -896,6 +932,27 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                   <FaPlay size={12} />
                   <span>Áudio {formatAudioTime(repliedMessage.duration ?? 0)}</span>
                 </div>
+              ) : repliedMessage.type === 'file' ? (
+                isRepliedMessageVideo ? (
+                  <img
+                    src={repliedVideoThumbnail ?? undefined}
+                    alt="thumb"
+                    style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: 'rgba(0, 0, 0, 0.15)' }}
+                  />
+                ) : (
+                  (() => {
+                    const fileIcon = getFileTypeIcon(repliedMessage.fileMeta?.mimeType ?? '');
+                    const FileIcon = fileIcon.icon;
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                        <FileIcon size={14} color={fileIcon.color} style={{ flexShrink: 0 }} />
+                        <span style={{ display: 'inline-block', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {repliedMessage.fileMeta?.name ?? fileIcon.label}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )
               ) : (
                 <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {repliedMessage.content}

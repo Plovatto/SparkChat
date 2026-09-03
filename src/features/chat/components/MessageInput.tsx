@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -11,19 +10,21 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
-import { FaImage, FaMicrophone, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
+import { PendingAttachmentTile } from './PendingAttachmentTile';
 
 export interface MessageInputHandle {
   focus: () => void;
-  addImages: (files: File[]) => void;
+  addFiles: (files: File[]) => void;
 }
 
 export interface MessageInputSubmitPayload {
   text: string;
   imageFiles: File[];
+  documentFiles: File[];
 }
 
 export interface AudioSendPayload {
@@ -50,11 +51,8 @@ interface MessageInputProps {
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
 const MENTION_SUGGESTION_LIMIT = 5;
-
-interface PendingImage {
-  file: File;
-  previewUrl: string;
-}
+const DOCUMENT_ACCEPT = '.pdf,.mp4,.webm,.mov,.avi,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv';
+const ATTACHMENT_ACCEPT = `image/*,${DOCUMENT_ACCEPT}`;
 
 function formatRecordingTime(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -74,13 +72,13 @@ function interpolateLevels(levels: number[]): number[] {
   return interpolated;
 }
 
-interface PendingImagesPreviewProps {
-  images: PendingImage[];
+interface PendingAttachmentsPreviewProps {
+  files: File[];
   theme: ThemePalette;
   onRemove?: (index: number) => void;
 }
 
-function PendingImagesPreview({ images, theme, onRemove }: PendingImagesPreviewProps) {
+function PendingAttachmentsPreview({ files, theme, onRemove }: PendingAttachmentsPreviewProps) {
   return (
     <div
       className="chat-preview-bar"
@@ -91,41 +89,25 @@ function PendingImagesPreview({ images, theme, onRemove }: PendingImagesPreviewP
       }}
     >
       <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>
-        {images.length > 1 ? `${images.length} imagens selecionadas` : 'Anexo pendente'}
+        {files.length > 1 ? `${files.length} anexos selecionados` : 'Anexo pendente'}
       </div>
-      <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', padding: '2px 4px 4px 0' }}>
-        {images.map((image, index) => (
-          <div key={image.previewUrl} style={{ position: 'relative', flexShrink: 0 }}>
-            <img
-              src={image.previewUrl}
-              alt="anexo"
-              style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 10, display: 'block' }}
-            />
-            {onRemove && (
-              <button
-                onClick={() => onRemove(index)}
-                title="Remover"
-                style={{
-                  position: 'absolute',
-                  top: 3,
-                  right: 3,
-                  width: 20,
-                  height: 20,
-                  borderRadius: '50%',
-                  background: '#ef4444',
-                  color: 'white',
-                  border: `2px solid ${theme.surfaceLight}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                <FaTimes size={9} />
-              </button>
-            )}
-          </div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '10px',
+          maxHeight: '190px',
+          overflowY: 'auto',
+          padding: '10px 10px 4px 4px',
+        }}
+      >
+        {files.map((file, index) => (
+          <PendingAttachmentTile
+            key={`${file.name}-${file.lastModified}-${index}`}
+            file={file}
+            theme={theme}
+            onRemove={onRemove ? () => onRemove(index) : undefined}
+          />
         ))}
       </div>
     </div>
@@ -276,11 +258,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 ) {
   const { theme, baseTheme } = useTheme();
   const [message, setMessage] = useState('');
-  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
-  const pendingImagesRef = useRef<PendingImage[]>(pendingImages);
-  pendingImagesRef.current = pendingImages;
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const { isRecording, recordingTime, audioLevels, startRecording, stopRecording, cancelRecording } =
     useAudioRecorder();
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -347,50 +327,27 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     }
   };
 
-  const addPendingImages = (files: File[]) => {
-    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) {
+  const addPendingAttachments = (files: File[]) => {
+    if (files.length === 0) {
       return;
     }
 
-    setPendingImages((previous) => [
-      ...previous,
-      ...imageFiles.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
-    ]);
+    setPendingAttachments((previous) => [...previous, ...files]);
   };
 
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
-    addImages: addPendingImages,
+    addFiles: addPendingAttachments,
   }));
 
-  useEffect(() => {
-    return () => {
-      pendingImagesRef.current.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-    };
-  }, []);
-
-  const clearAllPendingImages = () => {
-    setPendingImages((previous) => {
-      previous.forEach((image) => URL.revokeObjectURL(image.previewUrl));
-      return [];
-    });
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const removePendingImage = (index: number) => {
-    setPendingImages((previous) => {
-      const target = previous[index];
-      if (target) {
-        URL.revokeObjectURL(target.previewUrl);
-      }
-      return previous.filter((_, itemIndex) => itemIndex !== index);
-    });
-  };
-
-  const handleImagePick = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentPick = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    addPendingImages(files);
+    addPendingAttachments(files);
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
@@ -399,7 +356,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       .map((item) => item.getAsFile())
       .filter((file): file is File => file !== null);
 
-    addPendingImages(files);
+    addPendingAttachments(files);
   };
 
   const isBlocked = isBlockedBy || userBlocked;
@@ -407,14 +364,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = message.trim();
-    if ((!trimmed && pendingImages.length === 0) || isBlocked) {
+    if ((!trimmed && pendingAttachments.length === 0) || isBlocked) {
       return;
     }
 
-    onSend({ text: trimmed, imageFiles: pendingImages.map((image) => image.file) });
+    onSend({
+      text: trimmed,
+      imageFiles: pendingAttachments.filter((file) => file.type.startsWith('image/')),
+      documentFiles: pendingAttachments.filter((file) => !file.type.startsWith('image/')),
+    });
     setMessage('');
     setMentionQuery(null);
-    clearAllPendingImages();
+    setPendingAttachments([]);
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
@@ -453,7 +414,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   if (isRecording) {
     return (
       <>
-        {pendingImages.length > 0 && <PendingImagesPreview images={pendingImages} theme={theme} />}
+        {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} theme={theme} />}
         <RecordingBar
           theme={theme}
           recordingTime={recordingTime}
@@ -467,8 +428,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   return (
     <>
-      {pendingImages.length > 0 && (
-        <PendingImagesPreview images={pendingImages} theme={theme} onRemove={removePendingImage} />
+      {pendingAttachments.length > 0 && (
+        <PendingAttachmentsPreview files={pendingAttachments} theme={theme} onRemove={removePendingAttachment} />
       )}
       <Form
         onSubmit={handleSubmit}
@@ -484,9 +445,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       >
         <input
           type="file"
-          ref={fileInputRef}
-          onChange={handleImagePick}
-          accept="image/*"
+          ref={attachmentInputRef}
+          onChange={handleAttachmentPick}
+          accept={ATTACHMENT_ACCEPT}
           multiple
           style={{ display: 'none' }}
         />
@@ -494,9 +455,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <>
             <Button
               variant="link"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => attachmentInputRef.current?.click()}
               disabled={isBlocked}
-              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar imagens'}
+              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar anexo'}
               style={{
                 color: theme.primary,
                 padding: '10px',
@@ -524,7 +485,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 }
               }}
             >
-              <FaImage size={18} />
+              <FaPaperclip size={18} />
             </Button>
             <Button
               variant="link"
@@ -636,7 +597,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }}
           />
         </div>
-        {(message.trim() || pendingImages.length > 0) && (
+        {(message.trim() || pendingAttachments.length > 0) && (
           <Button
             type="submit"
             className="send-button-appear"
