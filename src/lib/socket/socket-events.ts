@@ -36,6 +36,7 @@ export interface RoomParticipant {
   avatar: number;
   status: SocketUserStatus;
   lastSeen: string;
+  isAdmin: boolean;
 }
 
 export type MessageType = 'text' | 'system' | 'image' | 'audio';
@@ -118,6 +119,7 @@ export interface ServerToClientEvents {
   'group:left': (payload: { roomId: string }) => void;
   'group:user-joined': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'group:user-left': (payload: { roomId: string; userId: string; userName: string; participants: RoomParticipant[] }) => void;
+  'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
@@ -145,6 +147,8 @@ export interface ClientToServerEvents {
   'room:join-by-code': (payload: { roomCode: string }) => void;
   'room:delete': (payload: { roomId: string }) => void;
   'group:leave': (payload: { roomId: string }) => void;
+  'group:remove-member': (payload: { roomId: string; userId: string }) => void;
+  'group:promote-admin': (payload: { roomId: string; userId: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
   'message:send': (payload: {
