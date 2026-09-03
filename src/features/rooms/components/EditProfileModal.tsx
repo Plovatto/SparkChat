@@ -681,14 +681,32 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                       padding: '10px 14px',
                     }}
                   >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.text }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+                      <span
+                        style={{
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          color: theme.text,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {session.device}
                         {session.isCurrent && (
                           <span style={{ color: theme.primary, fontWeight: 600 }}> · Este dispositivo</span>
                         )}
                       </span>
-                      <span style={{ fontSize: '0.78rem', color: theme.textSecondary }}>
+                      <span
+                        style={{
+                          fontSize: '0.78rem',
+                          color: theme.textSecondary,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          display: 'block',
+                        }}
+                      >
                         {AUTH_METHOD_LABEL[session.authMethod]} · Último uso: {formatSessionDate(session.lastUsedAt)}
                       </span>
                     </div>
@@ -702,6 +720,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
+                        flexShrink: 0,
                       }}
                     >
                       <FaSignOutAlt size={16} />

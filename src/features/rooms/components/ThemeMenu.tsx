@@ -29,6 +29,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
           borderRadius: '10px',
           padding: '8px',
           minWidth: '240px',
+          maxWidth: 'calc(100vw - 20px)',
           maxHeight: '400px',
           overflowY: 'auto',
           zIndex: 99999,
