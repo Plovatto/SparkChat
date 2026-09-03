@@ -111,7 +111,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     document.documentElement.style.setProperty('--scrollbar-thumb', theme.headerGradient);
-  }, [theme.headerGradient]);
+    document.documentElement.style.setProperty('--scrollbar-thumb-color', theme.primary);
+  }, [theme.headerGradient, theme.primary]);
 
   const value: ThemeContextValue = useMemo(
     () => ({
