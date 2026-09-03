@@ -111,7 +111,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
         <AccordionSection title="Balões de mensagem" icon={<FaComments size={12} />} theme={theme}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={bubbleCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <input
                     type="color"
@@ -144,7 +144,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
             </div>
 
             <div style={bubbleCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <input
                     type="color"
