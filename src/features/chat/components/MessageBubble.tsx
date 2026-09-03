@@ -9,6 +9,7 @@ import {
   FaPlay,
   FaRegClock,
   FaReply,
+  FaShare,
   FaTrash,
 } from 'react-icons/fa';
 import { IconPillButton } from '@components/common/IconPillButton';
@@ -42,6 +43,7 @@ interface MessageBubbleProps {
   onSelect: () => void;
   onReply: () => void;
   onDelete: () => void;
+  onForward: () => void;
   onAudioPlayed: (messageId: string) => void;
   onRetry: () => void;
 }
@@ -66,9 +68,10 @@ interface MessageActionsRowProps {
   theme: ThemePalette;
   onReply: () => void;
   onDelete: () => void;
+  onForward: () => void;
 }
 
-export function MessageActionsRow({ isOwn, theme, onReply, onDelete }: MessageActionsRowProps) {
+export function MessageActionsRow({ isOwn, theme, onReply, onDelete, onForward }: MessageActionsRowProps) {
   return (
     <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px' }}>
       <IconPillButton
@@ -82,6 +85,19 @@ export function MessageActionsRow({ isOwn, theme, onReply, onDelete }: MessageAc
         iconBackground={`${theme.primary}26`}
         iconColor={theme.primary}
         label="Responder"
+      />
+
+      <IconPillButton
+        onClick={(event) => {
+          event.stopPropagation();
+          onForward();
+        }}
+        background={theme.surface}
+        textColor={theme.text}
+        icon={<FaShare size={11} />}
+        iconBackground={`${theme.primary}26`}
+        iconColor={theme.primary}
+        label="Encaminhar"
       />
 
       {isOwn && (
@@ -278,6 +294,7 @@ export function MessageBubble({
   onSelect,
   onReply,
   onDelete,
+  onForward,
   onAudioPlayed,
   onRetry,
 }: MessageBubbleProps) {
@@ -422,11 +439,11 @@ export function MessageBubble({
     return (
       <div
         className="animate__animated animate__fadeIn"
-        style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '15px 0' }}
+        style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '4px 0' }}
       >
         <div
           style={{
-            background: theme.primary,
+            background: `${theme.primary}A0`,
             color: theme.headerTextColor,
             borderRadius: '12px',
             padding: '8px 16px',
@@ -555,7 +572,9 @@ export function MessageBubble({
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
-          {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
+          {isSelected && (
+            <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} onForward={onForward} />
+          )}
           {isImageMessage && (
             <ImageModal isOpen={isImageModalOpen} images={[message.content]} onClose={() => setIsImageModalOpen(false)} />
           )}
@@ -726,12 +745,17 @@ export function MessageBubble({
               style={{
                 background: isOwn ? 'rgba(255, 255, 255, 0.18)' : baseTheme === 'light' ? '#77777730' : 'rgba(255, 255, 255, 0.15)',
                 border: 'none',
-                borderRadius: '999px',
+                borderRadius: '50%',
                 color: isOwn ? 'white' : baseTheme === 'light' ? '#555555ff' : '#ffffffc7',
                 cursor: 'pointer',
-                fontSize: '0.7rem',
+                fontSize: '0.62rem',
                 fontWeight: 700,
-                padding: '3px 7px',
+                width: '30px',
+                height: '30px',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
@@ -802,6 +826,7 @@ interface ImageGroupBubbleProps {
   onSelect: () => void;
   onReply: () => void;
   onDelete: () => void;
+  onForward: () => void;
   onRetry: () => void;
 }
 
@@ -819,6 +844,7 @@ export function ImageGroupBubble({
   onSelect,
   onReply,
   onDelete,
+  onForward,
   onRetry,
 }: ImageGroupBubbleProps) {
   const { theme, getRoomAppearance } = useTheme();
@@ -848,7 +874,9 @@ export function ImageGroupBubble({
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
-          {isSelected && <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} />}
+          {isSelected && (
+            <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} onForward={onForward} />
+          )}
           <ImageModal
             isOpen={modalIndex !== null}
             images={images.map((image) => image.content)}
