@@ -296,6 +296,7 @@ export function useRoomMessages(
         readBy: [],
         playedBy: [],
         replyTo: buildReplySnapshot(input.replyTo),
+        mentionedUserIds: [],
         clientTempId,
         pending: true,
       };
