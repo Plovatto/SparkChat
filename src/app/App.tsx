@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
+import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
 import { ChatArea, useChatTriggerEffects } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
-import type { User } from '@features/auth';
+import type { PendingRegistration, User } from '@features/auth';
 import {
   useAudioContextPrimer,
   useMessageNotifications,
@@ -19,10 +20,19 @@ import { AppBackground } from './AppBackground';
 
 export function App() {
   const { user, isRestoring, login, logout, updateUser } = useAuthSession();
+  const [pendingRegistration, setPendingRegistration] = useState<PendingRegistration | null>(null);
 
   return (
-    <SocketProvider enabled={user !== null}>
-      <AuthGate user={user} isRestoring={isRestoring} onLogin={login} onLogout={logout} onUserUpdate={updateUser} />
+    <SocketProvider enabled={user !== null || pendingRegistration !== null}>
+      <AuthGate
+        user={user}
+        isRestoring={isRestoring}
+        pendingRegistration={pendingRegistration}
+        onRegisterStart={setPendingRegistration}
+        onLogin={login}
+        onLogout={logout}
+        onUserUpdate={updateUser}
+      />
     </SocketProvider>
   );
 }
@@ -30,16 +40,50 @@ export function App() {
 interface AuthGateProps {
   user: User | null;
   isRestoring: boolean;
+  pendingRegistration: PendingRegistration | null;
+  onRegisterStart: (input: PendingRegistration | null) => void;
   onLogin: (user: User) => void;
   onLogout: () => void;
   onUserUpdate: (patch: Partial<User>) => void;
 }
 
-function AuthGate({ user, isRestoring, onLogin, onLogout, onUserUpdate }: AuthGateProps) {
+function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onLogin, onLogout, onUserUpdate }: AuthGateProps) {
+  const { theme } = useTheme();
+  const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<{ userId: string; nickname: string; recoveryFile: string } | null>(null);
+  const [isSocketReady, setIsSocketReady] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+
+  useEffect(() => {
+    if (!user) {
+      setIsSocketReady(false);
+    }
+  }, [user]);
+
   useSocketAuthSync({
     user,
-    onRegistered: onUserUpdate,
-    onError: (message) => console.error(message),
+    pendingRegistration,
+    onRegistered: ({ user: registered, sessionToken, recoveryFile, authMethod }) => {
+      onLogin({
+        id: registered.id,
+        nickname: registered.nickname,
+        avatar: registered.avatar,
+        sessionToken,
+        authMethod,
+        status: registered.status,
+        theme: registered.theme,
+      });
+      setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
+      setIsSocketReady(true);
+    },
+    onResumed: ({ user: resumed, authMethod }) => {
+      onUserUpdate({ nickname: resumed.nickname, avatar: resumed.avatar, authMethod, status: resumed.status, theme: resumed.theme });
+      setIsSocketReady(true);
+    },
+    onResumeFailed: onLogout,
+    onRegisterFailed: (message) => {
+      setRegisterError(message);
+      onRegisterStart(null);
+    },
   });
   useThemeSync(user);
 
@@ -49,17 +93,33 @@ function AuthGate({ user, isRestoring, onLogin, onLogout, onUserUpdate }: AuthGa
 
   return (
     <AppBackground>
-      {!user ? <LoginScreen onAuthenticated={onLogin} /> : <ChatShell user={user} onLogout={onLogout} />}
+      {!user ? (
+        <LoginScreen onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
+      ) : !isSocketReady ? (
+        <LoadingScreen />
+      ) : (
+        <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={onLogout} />
+      )}
+      <RecoveryFileDownloadDialog
+        isOpen={recoveryFilePrompt !== null}
+        userId={recoveryFilePrompt?.userId ?? ''}
+        nickname={recoveryFilePrompt?.nickname ?? ''}
+        recoveryFile={recoveryFilePrompt?.recoveryFile ?? ''}
+        onClose={() => setRecoveryFilePrompt(null)}
+        theme={theme}
+        isFirstDownload
+      />
     </AppBackground>
   );
 }
 
 interface ChatShellProps {
   user: User;
+  onUserUpdate: (patch: Partial<User>) => void;
   onLogout: () => void;
 }
 
-function ChatShell({ user, onLogout }: ChatShellProps) {
+function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { socket, connected } = useSocket();
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
@@ -99,6 +159,23 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
       setSelectedRoomId(null);
     }
   };
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const startChatWith = params.get('startChat');
+
+    if (startChatWith && startChatWith !== user.nickname) {
+      socket.emit('room:create-private', { targetNickname: startChatWith });
+    }
+
+    if (startChatWith) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [socket, user.nickname]);
 
   useEffect(() => {
     if (!socket) {
@@ -156,6 +233,7 @@ function ChatShell({ user, onLogout }: ChatShellProps) {
             <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }} className={selectedRoom ? 'd-none d-md-block' : undefined}>
               <Sidebar
                 user={user}
+                onUserUpdate={onUserUpdate}
                 rooms={rooms}
                 selectedRoomId={selectedRoomId}
                 onSelectRoom={(room) => setSelectedRoomId(room.id)}
