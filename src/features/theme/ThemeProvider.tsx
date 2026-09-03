@@ -109,6 +109,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const theme = useMemo(() => mergeTheme(baseTheme, colorTheme).colors, [baseTheme, colorTheme]);
 
+  useEffect(() => {
+    document.documentElement.style.setProperty('--scrollbar-thumb', theme.headerGradient);
+  }, [theme.headerGradient]);
+
   const value: ThemeContextValue = useMemo(
     () => ({
       theme,
