@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
 import { FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
@@ -205,6 +205,7 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current;
@@ -404,6 +405,27 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
     setSelectedMessageId(null);
   };
 
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (event.dataTransfer.types.includes('Files')) {
+      setIsDraggingFile(true);
+    }
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDraggingFile(false);
+    messageInputRef.current?.addImages(Array.from(event.dataTransfer.files));
+  };
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
       <ChatHeader room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
@@ -417,8 +439,43 @@ export function ChatArea({ room, user, onBack }: ChatAreaProps) {
         onLeftGroup={handleLeftGroup}
       />
 
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div
+        style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+        {isDraggingFile && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: '8px',
+              zIndex: 20,
+              background: `${theme.primary}26`,
+              border: `3px dashed ${theme.primary}`,
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                background: theme.surface,
+                color: theme.text,
+                padding: '14px 22px',
+                borderRadius: '12px',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+              }}
+            >
+              Solte a imagem aqui
+            </div>
+          </div>
+        )}
         {showOverlay && (
           <div
             style={{
