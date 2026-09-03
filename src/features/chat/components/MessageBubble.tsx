@@ -3,7 +3,9 @@ import { format } from 'date-fns';
 import {
   FaBan,
   FaCheck,
+  FaDownload,
   FaExclamationCircle,
+  FaExpand,
   FaImage,
   FaPause,
   FaPlay,
@@ -17,11 +19,19 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
-import { formatAudioTime, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
+import { downloadFromUrl } from '@lib/download-file';
+import { formatAudioTime, formatFileSize, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { ChatMessage } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
+import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
+import { clampAspectRatio } from '../utils/clamp-aspect-ratio';
+import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { renderPdfThumbnail, type PdfThumbnail } from '../utils/render-pdf-thumbnail';
+import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
 import { ImageModal } from './ImageModal';
+import { PdfPreviewModal } from './PdfPreviewModal';
+import { VideoPreviewModal } from './VideoPreviewModal';
 
 export interface CurrentAudioRef {
   id: string;
@@ -51,6 +61,13 @@ interface MessageBubbleProps {
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
 const PLAYBACK_RATES = [1, 1.5, 2];
+const PDF_THUMBNAIL_WIDTH = 380;
+const VIDEO_THUMBNAIL_WIDTH = 380;
+const CHAT_ATTACHMENT_MAX_WIDTH = 380;
+const CHAT_FILE_CARD_MAX_WIDTH = 280;
+const CHAT_ATTACHMENT_MIN_RATIO = 0.8;
+const CHAT_ATTACHMENT_MAX_RATIO = 1.91;
+const REPLY_QUOTE_HEIGHT = 52;
 const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
 
 function renderMessageContent(text: string, participants: RoomParticipant[], accentColor: string): ReactNode {
@@ -93,7 +110,7 @@ interface MessageActionsRowProps {
 
 export function MessageActionsRow({ isOwn, theme, onReply, onDelete, onForward }: MessageActionsRowProps) {
   return (
-    <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px' }}>
+    <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px', margin: '3px 0' }}>
       <IconPillButton
         onClick={(event) => {
           event.stopPropagation();
@@ -200,7 +217,7 @@ function BubbleShell({
           flexDirection: 'column',
           gap: '2px',
           padding,
-          minWidth: 0,
+          minWidth: '80px',
           maxWidth: '100%',
         }}
       >
@@ -328,10 +345,59 @@ export function MessageBubble({
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [hasBeenPlayed, setHasBeenPlayed] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [pdfThumbnail, setPdfThumbnail] = useState<PdfThumbnail | null>(null);
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+  const [videoThumbnail, setVideoThumbnail] = useState<VideoThumbnail | null>(null);
+  const [isVideoPreviewOpen, setIsVideoPreviewOpen] = useState(false);
+  const [imageDisplayHeight, setImageDisplayHeight] = useState<number | null>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isAudioMessage = message.type === 'audio';
   const audioWaveform = useAudioWaveform(isAudioMessage ? message.content : null);
+  const isPdfFile = message.type === 'file' && message.fileMeta?.mimeType === 'application/pdf';
+  const isVideoFile = message.type === 'file' && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
+  const isReplyToImage = message.replyTo?.type === 'image';
+  const isReplyToVideo = message.replyTo?.type === 'file' && Boolean(message.replyTo.fileMeta?.mimeType.startsWith('video/'));
+
+  useEffect(() => {
+    if (!isPdfFile) {
+      return;
+    }
+
+    let cancelled = false;
+    renderPdfThumbnail(message.content, PDF_THUMBNAIL_WIDTH)
+      .then((thumbnail) => {
+        if (!cancelled) {
+          setPdfThumbnail(thumbnail);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPdfFile, message.content]);
+
+  useEffect(() => {
+    if (!isVideoFile) {
+      return;
+    }
+
+    let cancelled = false;
+    renderVideoThumbnail(message.content, VIDEO_THUMBNAIL_WIDTH)
+      .then((thumbnail) => {
+        if (!cancelled) {
+          setVideoThumbnail(thumbnail);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isVideoFile, message.content]);
+
+  const replyVideoThumbnail = useReplyVideoThumbnail(isReplyToVideo, message.replyTo?.content);
 
   useEffect(() => {
     if (!isAudioMessage) {
@@ -501,9 +567,11 @@ export function MessageBubble({
   const statusInfo = getMessageStatus(message, isOwn, isGroupChat, participants, currentUserId);
   const statusColor = statusInfo?.read ? '#4FC3F7' : 'white';
   const isImageMessage = message.type === 'image';
+  const isFileMessage = message.type === 'file';
+  const fileTypeIcon = isFileMessage ? getFileTypeIcon(message.fileMeta?.mimeType ?? '') : null;
   const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
-  const replyQuoteBg = isOwn ? 'rgba(255, 255, 255, 0.16)' : baseTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
+  const replyQuoteBg = isOwn ? 'rgba(0, 0, 0, 0.14)' : baseTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
   const replyQuoteAccent = isOwn ? 'rgba(255, 255, 255, 0.55)' : theme.primary;
 
   const handleJumpToReply = (event: { stopPropagation: () => void }) => {
@@ -520,13 +588,14 @@ export function MessageBubble({
     setTimeout(() => target.classList.remove('message-highlight-flash'), 1500);
   };
 
+  const replyThumbnailUrl = isReplyToImage ? message.replyTo?.content : isReplyToVideo ? replyVideoThumbnail : null;
+
   const replyQuote = message.replyTo && (
     <div
       onClick={handleJumpToReply}
       style={{
-        margin: '8px 10px 0',
-        padding: '6px 10px',
-        minWidth: 0,
+        margin: '8px 10px 6px',
+        minWidth: '160px',
         maxWidth: 'calc(100% - 20px)',
         boxSizing: 'border-box',
         background: replyQuoteBg,
@@ -534,44 +603,83 @@ export function MessageBubble({
         borderRadius: '6px',
         fontSize: '0.8rem',
         cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'stretch',
+        gap: '8px',
+        overflow: 'hidden',
+        height: isReplyToImage || isReplyToVideo ? `${REPLY_QUOTE_HEIGHT}px` : undefined,
       }}
     >
       <div
         style={{
-          fontWeight: 700,
-          opacity: 0.85,
-          marginBottom: '2px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          minWidth: 0,
+          flex: 1,
+          padding: isReplyToImage || isReplyToVideo ? '0 0 0 10px' : '6px 0 6px 10px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}
       >
-        {getDisplayName(message.replyTo.sender.id, message.replyTo.sender.nickname, currentUserId)}
-      </div>
-      {message.replyTo.type === 'image' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
-          <FaImage size={12} style={{ flexShrink: 0 }} />
-          <span>Imagem</span>
-        </div>
-      ) : message.replyTo.type === 'audio' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
-          <FaPlay size={12} style={{ flexShrink: 0 }} />
-          <span>Áudio {formatAudioTime(message.replyTo.duration ?? 0)}</span>
-        </div>
-      ) : (
         <div
           style={{
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
+            fontWeight: 700,
+            opacity: 0.85,
+            marginBottom: '2px',
             overflow: 'hidden',
-            wordBreak: 'break-word',
-            minWidth: 0,
-            opacity: 0.72,
-            lineHeight: 1.35,
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
-          {message.replyTo.content}
+          {getDisplayName(message.replyTo.sender.id, message.replyTo.sender.nickname, currentUserId)}
+        </div>
+        {message.replyTo.type === 'image' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
+            <FaImage size={12} style={{ flexShrink: 0 }} />
+            <span>Imagem</span>
+          </div>
+        ) : message.replyTo.type === 'audio' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
+            <FaPlay size={12} style={{ flexShrink: 0 }} />
+            <span>Áudio {formatAudioTime(message.replyTo.duration ?? 0)}</span>
+          </div>
+        ) : message.replyTo.type === 'file' ? (
+          (() => {
+            const replyFileIcon = getFileTypeIcon(message.replyTo.fileMeta?.mimeType ?? '');
+            const ReplyFileIcon = replyFileIcon.icon;
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', opacity: 0.72 }}>
+                {!isReplyToVideo && <ReplyFileIcon size={12} style={{ flexShrink: 0 }} />}
+                <span style={{ display: 'inline-block', maxWidth: '172px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {message.replyTo.fileMeta?.name ?? replyFileIcon.label}
+                </span>
+              </div>
+            );
+          })()
+        ) : (
+          <div
+            style={{
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              wordBreak: 'break-word',
+              minWidth: 0,
+              opacity: 0.72,
+            }}
+          >
+            {message.replyTo.content}
+          </div>
+        )}
+      </div>
+      {(isReplyToImage || isReplyToVideo) && (
+        <div
+          style={{
+            width: `${REPLY_QUOTE_HEIGHT}px`,
+            height: `${REPLY_QUOTE_HEIGHT}px`,
+            flexShrink: 0,
+            background: 'rgba(0, 0, 0, 0.25)',
+          }}
+        >
+          {replyThumbnailUrl && <img src={replyThumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
         </div>
       )}
     </div>
@@ -587,7 +695,7 @@ export function MessageBubble({
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
       onSelect={onSelect}
-      padding={isImageMessage ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : '6px 0'}
+      padding={isImageMessage || isVideoFile ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : isFileMessage ? '10px 0 6px' : '6px 0'}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       afterBubble={
         <>
@@ -605,7 +713,17 @@ export function MessageBubble({
 
       {isImageMessage ? (
         <>
-          <div style={{ position: 'relative', padding: '0 4px', minWidth: isImageLoaded ? undefined : '220px', minHeight: isImageLoaded ? undefined : '160px' }}>
+          <div
+            style={{
+              position: 'relative',
+              padding: '0 4px',
+              width: isImageLoaded ? `${CHAT_ATTACHMENT_MAX_WIDTH}px` : undefined,
+              maxWidth: '100%',
+              height: imageDisplayHeight ?? undefined,
+              minWidth: isImageLoaded ? undefined : '220px',
+              minHeight: isImageLoaded ? undefined : '160px',
+            }}
+          >
             {!isImageLoaded && (
               <div
                 className="shimmer-bg"
@@ -622,15 +740,23 @@ export function MessageBubble({
             <img
               src={message.content}
               alt="Imagem enviada"
-              onLoad={() => setIsImageLoaded(true)}
+              onLoad={(event) => {
+                const { naturalWidth, naturalHeight } = event.currentTarget;
+                const ratio = clampAspectRatio(naturalWidth, naturalHeight, CHAT_ATTACHMENT_MIN_RATIO, CHAT_ATTACHMENT_MAX_RATIO);
+                setImageDisplayHeight(Math.round(CHAT_ATTACHMENT_MAX_WIDTH / ratio));
+                setIsImageLoaded(true);
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 setIsImageModalOpen(true);
               }}
               style={{
                 display: 'block',
-                maxWidth: '100%',
-                maxHeight: '400px',
+                width: isImageLoaded ? '100%' : undefined,
+                height: isImageLoaded ? '100%' : undefined,
+                objectFit: isImageLoaded ? 'cover' : undefined,
+                maxWidth: isImageLoaded ? undefined : `min(100%, ${CHAT_ATTACHMENT_MAX_WIDTH}px)`,
+                maxHeight: isImageLoaded ? undefined : '470px',
                 borderRadius: '12px',
                 cursor: 'pointer',
                 opacity: isImageLoaded ? 1 : 0,
@@ -782,6 +908,171 @@ export function MessageBubble({
               {playbackRate}x
             </button>
           </div>
+        </div>
+      ) : isVideoFile ? (
+        <div style={{ padding: '0 4px' }}>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              position: 'relative',
+              width: videoThumbnail ? `${CHAT_ATTACHMENT_MAX_WIDTH}px` : '100%',
+              maxWidth: '100%',
+              height: videoThumbnail
+                ? Math.round(
+                    CHAT_ATTACHMENT_MAX_WIDTH /
+                      clampAspectRatio(videoThumbnail.width, videoThumbnail.height, CHAT_ATTACHMENT_MIN_RATIO, CHAT_ATTACHMENT_MAX_RATIO),
+                  )
+                : undefined,
+              minHeight: videoThumbnail ? undefined : '160px',
+              borderRadius: '12px',
+              background: '#000',
+              overflow: 'hidden',
+            }}
+          >
+            <video
+              src={message.content}
+              controls
+              poster={videoThumbnail?.dataUrl}
+              style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsVideoPreviewOpen(true);
+              }}
+              title="Abrir em tela cheia"
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 30,
+                height: 30,
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.55)',
+                border: 'none',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto',
+              }}
+            >
+              <FaExpand size={12} />
+            </button>
+          </div>
+          <VideoPreviewModal
+            isOpen={isVideoPreviewOpen}
+            onClose={() => setIsVideoPreviewOpen(false)}
+            url={message.content}
+            fileName={message.fileMeta?.name ?? 'Vídeo.mp4'}
+          />
+        </div>
+      ) : isFileMessage && fileTypeIcon ? (
+        <div style={{ padding: '0 9px' }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isPdfFile) {
+                setIsPdfPreviewOpen(true);
+              } else {
+                void downloadFromUrl(message.content, message.fileMeta?.name ?? 'arquivo');
+              }
+            }}
+            style={{
+              borderRadius: '12px',
+              background: isOwn ? 'rgba(255, 255, 255, 0.14)' : baseTheme === 'light' ? '#77777720' : 'rgba(255, 255, 255, 0.07)',
+              cursor: 'pointer',
+              width: '100%',
+              minWidth: '230px',
+              maxWidth: `${CHAT_FILE_CARD_MAX_WIDTH}px`,
+              overflow: 'hidden',
+            }}
+          >
+            {isPdfFile && pdfThumbnail && (
+              <img
+                src={pdfThumbnail.dataUrl}
+                alt="Prévia do PDF"
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxHeight: '70px',
+                  objectFit: 'cover',
+                  objectPosition: 'top',
+                  borderBottom: `1px solid ${isOwn ? 'rgba(255, 255, 255, 0.2)' : theme.border}`,
+                }}
+              />
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  background: `${fileTypeIcon.color}22`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <fileTypeIcon.icon size={15} color={fileTypeIcon.color} />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    color: isOwn ? 'white' : theme.text,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {message.fileMeta?.name ?? 'Arquivo'}
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.65rem',
+                    color: isOwn ? 'rgba(255, 255, 255, 0.75)' : theme.textSecondary,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isPdfFile && pdfThumbnail ? `${pdfThumbnail.pageCount} página${pdfThumbnail.pageCount === 1 ? '' : 's'} · ` : `${fileTypeIcon.label} · `}
+                  {message.fileMeta ? formatFileSize(message.fileMeta.size) : ''}
+                </div>
+              </div>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void downloadFromUrl(message.content, message.fileMeta?.name ?? 'arquivo');
+                }}
+                title="Baixar arquivo"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '4px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexShrink: 0,
+                }}
+              >
+                <FaDownload size={14} color={isOwn ? 'white' : theme.textSecondary} />
+              </button>
+            </div>
+          </div>
+          {isPdfFile && (
+            <PdfPreviewModal
+              isOpen={isPdfPreviewOpen}
+              onClose={() => setIsPdfPreviewOpen(false)}
+              url={message.content}
+              fileName={message.fileMeta?.name ?? 'Documento.pdf'}
+            />
+          )}
         </div>
       ) : (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>

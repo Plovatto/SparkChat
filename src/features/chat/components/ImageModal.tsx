@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useState, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { FaChevronLeft, FaChevronRight, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { downloadFromUrl } from '@lib/download-file';
+
+function deriveImageFileName(url: string): string {
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    const segment = pathname.split('/').pop();
+    return segment ? decodeURIComponent(segment) : 'imagem.jpg';
+  } catch {
+    return 'imagem.jpg';
+  }
+}
 
 interface ImageModalProps {
   isOpen: boolean;
   images: string[];
+  fileNames?: string[];
   startIndex?: number;
   onClose: () => void;
 }
@@ -13,7 +25,7 @@ const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.2;
 
-export function ImageModal({ isOpen, images, startIndex = 0, onClose }: ImageModalProps) {
+export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose }: ImageModalProps) {
   const [zoom, setZoom] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const hasMultiple = images.length > 1;
@@ -210,6 +222,36 @@ export function ImageModal({ isOpen, images, startIndex = 0, onClose }: ImageMod
             }}
           >
             <FaPlus />
+          </button>
+
+          <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
+
+          <button
+            onClick={() => void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentSrc))}
+            title="Baixar imagem"
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              border: 'none',
+              color: 'white',
+              width: 'clamp(34px, 9vw, 40px)',
+              height: 'clamp(34px, 9vw, 40px)',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.2s ease',
+              fontSize: '15px',
+              flexShrink: 0,
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+            }}
+          >
+            <FaDownload />
           </button>
 
           <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
