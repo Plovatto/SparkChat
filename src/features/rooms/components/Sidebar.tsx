@@ -1,4 +1,4 @@
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { Button } from 'react-bootstrap';
 import {
   FaBell,
@@ -138,6 +138,36 @@ export function Sidebar({
     }
     return getRoomLastActivityTimestamp(b) - getRoomLastActivityTimestamp(a);
   });
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+        return;
+      }
+
+      const activeElement = document.activeElement;
+      const isEditable =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        (activeElement instanceof HTMLElement && activeElement.isContentEditable);
+
+      if (isEditable || sortedRooms.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const currentIndex = sortedRooms.findIndex((room) => room.id === selectedRoomId);
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + delta + sortedRooms.length) % sortedRooms.length;
+      const nextRoom = sortedRooms[nextIndex];
+      if (nextRoom) {
+        onSelectRoom(nextRoom);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [sortedRooms, selectedRoomId, onSelectRoom]);
 
   const avatar = AVATARS[user.avatar];
 
