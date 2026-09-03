@@ -25,6 +25,7 @@ export interface SessionSummary {
   device: string;
   createdAt: string;
   lastUsedAt: string;
+  isCurrent: boolean;
 }
 
 export type RoomType = 'private' | 'group';
