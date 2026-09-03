@@ -442,7 +442,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         if (!file) {
           continue;
         }
-        const content = await uploadChatImage(file);
+        const content = await uploadChatImage(file, { userId: user.id, sessionToken: user.sessionToken });
         sendMessage({ content, type: 'image', replyTo: index === 0 ? replyTo : null });
       }
     } catch (error) {
@@ -456,7 +456,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
     setUploadingMediaType('audio');
     try {
-      const content = await uploadChatAudio(blob, mimeType);
+      const content = await uploadChatAudio(blob, mimeType, { userId: user.id, sessionToken: user.sessionToken });
       sendMessage({ content, type: 'audio', duration, replyTo: repliedMessage });
       setRepliedMessage(null);
     } catch (error) {
@@ -475,7 +475,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         if (!file) {
           continue;
         }
-        const uploaded = await uploadChatFile(file);
+        const uploaded = await uploadChatFile(file, { userId: user.id, sessionToken: user.sessionToken });
         sendMessage({
           content: uploaded.url,
           type: 'file',
