@@ -57,12 +57,15 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
       return;
     }
 
+    const type = message.type === 'image' || message.type === 'audio' || message.type === 'file' ? message.type : 'text';
+
     for (const roomId of selectedRoomIds) {
       socket.emit('message:send', {
         roomId,
         content: message.content,
-        type: message.type === 'image' || message.type === 'audio' ? message.type : 'text',
+        type,
         duration: message.duration ?? undefined,
+        fileMeta: message.fileMeta ?? undefined,
       });
     }
 
