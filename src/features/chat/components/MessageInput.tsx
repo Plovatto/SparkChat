@@ -2,11 +2,13 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
   type ClipboardEvent,
   type FormEvent,
+  type KeyboardEvent,
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { FaImage, FaMicrophone, FaPaperPlane, FaTimes } from 'react-icons/fa';
@@ -30,6 +32,11 @@ export interface AudioSendPayload {
   duration: number;
 }
 
+export interface MentionCandidate {
+  id: string;
+  nickname: string;
+}
+
 interface MessageInputProps {
   onSend: (payload: MessageInputSubmitPayload) => void;
   onSendAudio: (payload: AudioSendPayload) => void;
@@ -38,7 +45,11 @@ interface MessageInputProps {
   onRecordingStop: () => void;
   isBlockedBy: boolean;
   userBlocked: boolean;
+  mentionCandidates?: MentionCandidate[];
 }
+
+const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
+const MENTION_SUGGESTION_LIMIT = 5;
 
 interface PendingImage {
   file: File;
@@ -260,7 +271,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked },
+  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates },
   ref,
 ) {
   const { theme, baseTheme } = useTheme();
@@ -272,6 +283,69 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isRecording, recordingTime, audioLevels, startRecording, stopRecording, cancelRecording } =
     useAudioRecorder();
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
+
+  const filteredMentionCandidates = useMemo(() => {
+    if (mentionQuery === null || !mentionCandidates || mentionCandidates.length === 0) {
+      return [];
+    }
+    const query = mentionQuery.toLowerCase();
+    return mentionCandidates
+      .filter((candidate) => candidate.nickname.toLowerCase().startsWith(query))
+      .slice(0, MENTION_SUGGESTION_LIMIT);
+  }, [mentionQuery, mentionCandidates]);
+
+  const updateMentionQuery = (value: string, cursorPosition: number) => {
+    if (!mentionCandidates || mentionCandidates.length === 0) {
+      setMentionQuery(null);
+      return;
+    }
+
+    const match = value.slice(0, cursorPosition).match(MENTION_QUERY_PATTERN);
+    setMentionQuery(match ? (match[1] ?? '') : null);
+    setMentionActiveIndex(0);
+  };
+
+  const selectMentionCandidate = (nickname: string) => {
+    const input = inputRef.current;
+    const cursorPosition = input?.selectionStart ?? message.length;
+    const beforeCursor = message.slice(0, cursorPosition);
+    const afterCursor = message.slice(cursorPosition);
+    const replacedBeforeCursor = beforeCursor.replace(MENTION_QUERY_PATTERN, (matched) =>
+      matched.startsWith(' ') ? ` @${nickname} ` : `@${nickname} `,
+    );
+
+    setMessage(replacedBeforeCursor + afterCursor);
+    setMentionQuery(null);
+
+    setTimeout(() => {
+      input?.focus();
+      input?.setSelectionRange(replacedBeforeCursor.length, replacedBeforeCursor.length);
+    }, 0);
+  };
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (mentionQuery === null || filteredMentionCandidates.length === 0) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setMentionActiveIndex((previous) => (previous + 1) % filteredMentionCandidates.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setMentionActiveIndex((previous) => (previous - 1 + filteredMentionCandidates.length) % filteredMentionCandidates.length);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      const candidate = filteredMentionCandidates[mentionActiveIndex];
+      if (candidate) {
+        selectMentionCandidate(candidate.nickname);
+      }
+    } else if (event.key === 'Escape') {
+      setMentionQuery(null);
+    }
+  };
 
   const addPendingImages = (files: File[]) => {
     const imageFiles = files.filter((file) => file.type.startsWith('image/'));
@@ -339,6 +413,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     onSend({ text: trimmed, imageFiles: pendingImages.map((image) => image.file) });
     setMessage('');
+    setMentionQuery(null);
     clearAllPendingImages();
     setTimeout(() => inputRef.current?.focus(), 10);
   };
@@ -487,38 +562,80 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </Button>
           </>
         )}
-        <Form.Control
-          ref={inputRef}
-          type="text"
-          value={message}
-          onChange={(event) => {
-            setMessage(event.target.value);
-            onTyping();
-          }}
-          onPaste={handlePaste}
-          disabled={isBlocked}
-          placeholder={
-            isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
-          }
-          autoFocus
-          style={{
-            borderRadius: '22px',
-            padding: '12px 18px',
-            border: '2px solid transparent',
-            fontSize: '0.95rem',
-            background: isBlocked ? '#f5f5f5' : theme.inputBg,
-            color: theme.text,
-            boxShadow: 'none',
-          }}
-          onFocus={(event) => {
-            event.currentTarget.style.borderColor = theme.primary;
-            event.currentTarget.style.boxShadow = `0 0 10px ${theme.primary}40`;
-          }}
-          onBlur={(event) => {
-            event.currentTarget.style.borderColor = 'transparent';
-            event.currentTarget.style.boxShadow = 'none';
-          }}
-        />
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          {mentionQuery !== null && filteredMentionCandidates.length > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: 'calc(100% + 8px)',
+                left: 0,
+                right: 0,
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
+                borderRadius: '12px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+                overflow: 'hidden',
+                zIndex: 20,
+              }}
+            >
+              {filteredMentionCandidates.map((candidate, index) => (
+                <div
+                  key={candidate.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    selectMentionCandidate(candidate.nickname);
+                  }}
+                  onMouseEnter={() => setMentionActiveIndex(index)}
+                  style={{
+                    padding: '10px 14px',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    color: theme.text,
+                    background: index === mentionActiveIndex ? `${theme.primary}18` : 'transparent',
+                  }}
+                >
+                  @{candidate.nickname}
+                </div>
+              ))}
+            </div>
+          )}
+          <Form.Control
+            ref={inputRef}
+            type="text"
+            value={message}
+            onChange={(event) => {
+              setMessage(event.target.value);
+              onTyping();
+              updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
+            }}
+            onKeyDown={handleInputKeyDown}
+            onPaste={handlePaste}
+            disabled={isBlocked}
+            placeholder={
+              isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
+            }
+            autoFocus
+            style={{
+              borderRadius: '22px',
+              padding: '12px 18px',
+              border: '2px solid transparent',
+              fontSize: '0.95rem',
+              background: isBlocked ? '#f5f5f5' : theme.inputBg,
+              color: theme.text,
+              boxShadow: 'none',
+              width: '100%',
+            }}
+            onFocus={(event) => {
+              event.currentTarget.style.borderColor = theme.primary;
+              event.currentTarget.style.boxShadow = `0 0 10px ${theme.primary}40`;
+            }}
+            onBlur={(event) => {
+              event.currentTarget.style.borderColor = 'transparent';
+              event.currentTarget.style.boxShadow = 'none';
+            }}
+          />
+        </div>
         {(message.trim() || pendingImages.length > 0) && (
           <Button
             type="submit"

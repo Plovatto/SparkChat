@@ -51,6 +51,26 @@ interface MessageBubbleProps {
 const MAX_PREVIEW_LENGTH = 200;
 const WAVEFORM_BAR_COUNT = 40;
 const PLAYBACK_RATES = [1, 1.5, 2];
+const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
+
+function renderMessageContent(text: string, participants: RoomParticipant[], accentColor: string): ReactNode {
+  if (participants.length === 0 || !text.includes('@')) {
+    return text;
+  }
+
+  const nicknames = new Set(participants.map((participant) => participant.nickname.toLowerCase()));
+
+  return text.split(MENTION_TOKEN_PATTERN).map((part, index) => {
+    if (part.startsWith('@') && nicknames.has(part.slice(1).toLowerCase())) {
+      return (
+        <span key={index} style={{ fontWeight: 700, color: accentColor }}>
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
 
 type StatusInfo = ReturnType<typeof getMessageStatus>;
 
@@ -775,7 +795,7 @@ export function MessageBubble({
               wordBreak: 'break-word',
             }}
           >
-            {displayContent}
+            {renderMessageContent(displayContent, participants, isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary)}
             {showExpand && (
               <>
                 {' '}

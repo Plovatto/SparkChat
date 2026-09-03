@@ -244,6 +244,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     () => buildVisibleReceipts(renderItems, room?.type === 'group', room?.participants ?? [], user.id),
     [renderItems, room?.type, room?.participants, user.id],
   );
+  const mentionCandidates = useMemo(
+    () =>
+      room?.type === 'group'
+        ? room.participants.filter((participant) => participant.id !== user.id).map((participant) => ({ id: participant.id, nickname: participant.nickname }))
+        : undefined,
+    [room?.type, room?.participants, user.id],
+  );
   const lastMessageIdRef = useRef<string | null>(null);
   const isReadyForLoadMoreRef = useRef(false);
   const hasUserScrolledRef = useRef(false);
@@ -915,6 +922,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         onRecordingStop={handleRecordingStop}
         isBlockedBy={room.isBlockedBy}
         userBlocked={room.userBlocked}
+        mentionCandidates={mentionCandidates}
       />
 
       <ConfirmDialog
