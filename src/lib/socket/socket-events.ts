@@ -9,16 +9,22 @@ export interface SocketUser {
   id: string;
   nickname: string;
   avatar: number;
-  loginCode: string;
-  chatCode: string;
   status: SocketUserStatus;
   theme: SocketUserTheme;
 }
 
-export interface JoinPayload {
-  nickname?: string;
-  avatar?: number;
-  loginCode?: string | null;
+export type JoinPayload =
+  | { mode: 'register'; nickname: string; avatar: number; password: string }
+  | { mode: 'resume'; userId: string; sessionToken: string };
+
+export type AuthMethod = 'password' | 'keyfile';
+
+export interface SessionSummary {
+  id: string;
+  authMethod: AuthMethod;
+  device: string;
+  createdAt: string;
+  lastUsedAt: string;
 }
 
 export type RoomType = 'private' | 'group';
@@ -28,7 +34,6 @@ export interface RoomParticipant {
   nickname: string;
   avatar: number;
   status: SocketUserStatus;
-  chatCode: string;
   lastSeen: string;
 }
 
@@ -91,14 +96,18 @@ export interface RoomSummary {
 }
 
 export interface ServerToClientEvents {
-  'user:registered': (payload: { user: SocketUser }) => void;
+  'user:registered': (payload: { user: SocketUser; sessionToken: string; recoveryFile: string; authMethod: AuthMethod }) => void;
+  'user:resumed': (payload: { user: SocketUser; authMethod: AuthMethod }) => void;
   'user:online': (payload: { userId: string; nickname: string; avatar: number }) => void;
   'user:offline': (payload: {
     userId: string;
     user: { id: string; status: SocketUserStatus; lastSeen: string };
   }) => void;
   'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number }) => void;
-  'user:profile-updated-success': (payload: { user: SocketUser }) => void;
+  'user:profile-updated-success': (payload: { user: SocketUser; recoveryFile: string | null }) => void;
+  'user:password-changed': (payload: { recoveryFile: string }) => void;
+  'user:recovery-file-regenerated': (payload: { recoveryFile: string }) => void;
+  'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
   error: (payload: { message: string; clientTempId?: string }) => void;
   'rooms:list': (payload: { rooms: RoomSummary[] }) => void;
   'room:created': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
@@ -125,8 +134,12 @@ export interface ClientToServerEvents {
   'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
   'user:update-theme': (payload: SocketUserTheme) => void;
   'user:visibility': (payload: { visible: boolean }) => void;
+  'user:change-password': (payload: { currentPassword?: string; newPassword: string }) => void;
+  'user:regenerate-recovery-file': () => void;
+  'user:list-sessions': () => void;
+  'user:revoke-session': (payload: { sessionId: string }) => void;
   'rooms:get': () => void;
-  'room:create-private': (payload: { targetChatCode: string }) => void;
+  'room:create-private': (payload: { targetNickname: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
   'room:join-by-code': (payload: { roomCode: string }) => void;
   'room:delete': (payload: { roomId: string }) => void;

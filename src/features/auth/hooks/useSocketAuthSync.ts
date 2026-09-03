@@ -1,38 +1,73 @@
 import { useEffect, useRef } from 'react';
 import { useSocket, type SocketUser } from '@lib/socket';
-import type { User } from '../types';
+import type { AuthMethod, PendingRegistration, User } from '../types';
+
+export interface RegisteredPayload {
+  user: SocketUser;
+  sessionToken: string;
+  recoveryFile: string;
+  authMethod: AuthMethod;
+}
+
+export interface ResumedPayload {
+  user: SocketUser;
+  authMethod: AuthMethod;
+}
 
 export interface SocketAuthSyncOptions {
   user: User | null;
-  onRegistered: (user: User) => void;
-  onError: (message: string) => void;
+  pendingRegistration: PendingRegistration | null;
+  onRegistered: (payload: RegisteredPayload) => void;
+  onResumed: (payload: ResumedPayload) => void;
+  onResumeFailed: () => void;
+  onRegisterFailed: (message: string) => void;
 }
 
-export function useSocketAuthSync({ user, onRegistered, onError }: SocketAuthSyncOptions): void {
+export function useSocketAuthSync({
+  user,
+  pendingRegistration,
+  onRegistered,
+  onResumed,
+  onResumeFailed,
+  onRegisterFailed,
+}: SocketAuthSyncOptions): void {
   const { socket, connected } = useSocket();
   const hasJoinedRef = useRef(false);
+  const pendingModeRef = useRef<'register' | 'resume' | null>(null);
 
   useEffect(() => {
     if (!connected) {
       hasJoinedRef.current = false;
+      pendingModeRef.current = null;
     }
   }, [connected]);
 
   useEffect(() => {
-    if (!socket || !connected || !user || hasJoinedRef.current) {
+    if (!socket || !connected || hasJoinedRef.current) {
       return;
     }
 
-    hasJoinedRef.current = true;
-    socket.emit('user:join', {
-      nickname: user.nickname,
-      avatar: user.avatar,
-      loginCode: user.loginCode ?? null,
-    });
-  }, [socket, connected, user]);
+    if (user) {
+      hasJoinedRef.current = true;
+      pendingModeRef.current = 'resume';
+      socket.emit('user:join', { mode: 'resume', userId: user.id, sessionToken: user.sessionToken });
+      return;
+    }
+
+    if (pendingRegistration) {
+      hasJoinedRef.current = true;
+      pendingModeRef.current = 'register';
+      socket.emit('user:join', {
+        mode: 'register',
+        nickname: pendingRegistration.nickname,
+        avatar: pendingRegistration.avatar,
+        password: pendingRegistration.password,
+      });
+    }
+  }, [socket, connected, user, pendingRegistration]);
 
   useEffect(() => {
-    if (!socket || !connected || !user) {
+    if (!socket || !user) {
       return;
     }
 
@@ -45,28 +80,43 @@ export function useSocketAuthSync({ user, onRegistered, onError }: SocketAuthSyn
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [socket, connected, user]);
+  }, [socket, user]);
 
   useEffect(() => {
     if (!socket) {
       return;
     }
 
-    const handleRegistered = ({ user: registered }: { user: SocketUser }) => {
-      onRegistered(registered);
+    const handleRegistered = (payload: RegisteredPayload) => {
+      pendingModeRef.current = null;
+      onRegistered(payload);
     };
+
+    const handleResumed = (payload: ResumedPayload) => {
+      pendingModeRef.current = null;
+      onResumed(payload);
+    };
+
     const handleError = ({ message }: { message: string }) => {
-      onError(message);
+      const mode = pendingModeRef.current;
+      pendingModeRef.current = null;
+      hasJoinedRef.current = false;
+
+      if (mode === 'resume') {
+        onResumeFailed();
+      } else if (mode === 'register') {
+        onRegisterFailed(message);
+      }
     };
 
     socket.on('user:registered', handleRegistered);
-    socket.on('user:profile-updated-success', handleRegistered);
+    socket.on('user:resumed', handleResumed);
     socket.on('error', handleError);
 
     return () => {
       socket.off('user:registered', handleRegistered);
-      socket.off('user:profile-updated-success', handleRegistered);
+      socket.off('user:resumed', handleResumed);
       socket.off('error', handleError);
     };
-  }, [socket, onRegistered, onError]);
+  }, [socket, onRegistered, onResumed, onResumeFailed, onRegisterFailed]);
 }

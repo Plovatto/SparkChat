@@ -2,24 +2,32 @@ import type { IconType } from 'react-icons';
 
 export type LoginMode = 'choose' | 'new' | 'existing';
 
+export type AuthMethod = 'password' | 'keyfile';
+
 export interface AuthUserTheme {
   baseTheme: string;
   colorTheme: string;
 }
 
 export interface User {
+  id: string;
   nickname: string;
   avatar: number;
-  id?: string;
-  loginCode?: string | null;
-  chatCode?: string;
+  sessionToken: string;
+  authMethod?: AuthMethod;
   status?: 'online' | 'offline';
   theme?: AuthUserTheme;
 }
 
-export interface CreateAccountInput {
+export interface PendingRegistration {
   nickname: string;
   avatar: number;
+  password: string;
+}
+
+export interface LoginCredentials {
+  nickname: string;
+  password: string;
 }
 
 export interface Avatar {
