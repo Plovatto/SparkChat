@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { clearSession, getStoredSession, saveSession } from '../api/session-storage';
+import { getStoredSession, saveSession } from '../api/session-storage';
 import type { User } from '../types';
 
 const INITIAL_LOAD_DELAY_MS = 800;
@@ -35,13 +35,16 @@ export function useAuthSession(): AuthSession {
   const logout = useCallback(() => {
     setIsRestoring(true);
     setUser(null);
-    clearSession();
+    localStorage.clear();
     setTimeout(() => setIsRestoring(false), LOGOUT_TRANSITION_DELAY_MS);
   }, []);
 
   const updateUser = useCallback((patch: Partial<User>) => {
     setUser((previous) => {
-      const next = previous ? { ...previous, ...patch } : (patch as User);
+      if (!previous) {
+        return previous;
+      }
+      const next = { ...previous, ...patch };
       saveSession(next);
       return next;
     });

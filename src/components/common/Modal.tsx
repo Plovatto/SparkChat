@@ -18,9 +18,10 @@ interface ModalProps {
   showCloseButton?: boolean;
   theme: ModalPalette;
   children: ReactNode;
+  maxWidth?: string;
 }
 
-export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, children }: ModalProps) {
+export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, children, maxWidth = '500px' }: ModalProps) {
   useEffect(() => {
     document.body.style.overflow = isOpen ? 'hidden' : 'auto';
 
@@ -60,7 +61,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
           zIndex: 10000,
           animation: 'modalPanelSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
           width: '90%',
-          maxWidth: '500px',
+          maxWidth,
         }}
       >
         <div
