@@ -251,8 +251,8 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
           {senderLabel}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-            {message.content.substring(0, 32)}
-            {message.content.length > 32 ? '...' : ''}
+            {message.content.substring(0, 45)}
+            {message.content.length > 45 ? '...' : ''}
           </span>
         </span>
       )}

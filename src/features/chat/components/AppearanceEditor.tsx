@@ -141,6 +141,27 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                 textColor={theme.text}
                 textSecondaryColor={theme.textSecondary}
               />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <Slider
+                  label="Escurecimento do texto"
+                  valueLabel={appearance.ownTextIntensity === null ? 'Automático' : `${appearance.ownTextIntensity}%`}
+                  value={appearance.ownTextIntensity ?? 50}
+                  min={0}
+                  max={100}
+                  onChange={(value) => update({ ownTextIntensity: value })}
+                  accentColor={theme.primary}
+                  textColor={theme.text}
+                  textSecondaryColor={theme.textSecondary}
+                />
+                {appearance.ownTextIntensity !== null && (
+                  <button
+                    onClick={() => update({ ownTextIntensity: null })}
+                    style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: theme.primary, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  >
+                    Restaurar padrão
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={bubbleCardStyle}>
@@ -174,6 +195,27 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                 textColor={theme.text}
                 textSecondaryColor={theme.textSecondary}
               />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <Slider
+                  label="Escurecimento do texto"
+                  valueLabel={appearance.otherTextIntensity === null ? 'Automático' : `${appearance.otherTextIntensity}%`}
+                  value={appearance.otherTextIntensity ?? 50}
+                  min={0}
+                  max={100}
+                  onChange={(value) => update({ otherTextIntensity: value })}
+                  accentColor={theme.primary}
+                  textColor={theme.text}
+                  textSecondaryColor={theme.textSecondary}
+                />
+                {appearance.otherTextIntensity !== null && (
+                  <button
+                    onClick={() => update({ otherTextIntensity: null })}
+                    style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: theme.primary, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                  >
+                    Restaurar padrão
+                  </button>
+                )}
+              </div>
             </div>
 
             <Slider
