@@ -1,11 +1,12 @@
 import { useEffect, useState, type CSSProperties, type FocusEvent, type FormEvent } from 'react';
+import type { IconType } from 'react-icons';
 import { FaArrowRight, FaExclamationTriangle, FaUser, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
+import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useSocket } from '@lib/socket';
-import { useAutoDismiss } from '@lib/use-auto-dismiss';
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -14,6 +15,9 @@ interface NewChatModalProps {
 
 type ChatType = 'private' | 'group';
 type GroupMode = 'join' | 'create';
+
+const ROOM_CODE_MIN_LENGTH = 6;
+const GROUP_NAME_MIN_LENGTH = 3;
 
 function OrDivider({ theme }: { theme: ThemePalette }) {
   return (
@@ -62,29 +66,32 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   }, [isOpen]);
 
   useEffect(() => {
-    if (!socket || !isOpen) return;
+    if (!socket || !isOpen) {
+      return;
+    }
 
     const handleError = ({ message }: { message: string }) => {
       setIsSubmitting(false);
       setError(message);
     };
-    const handleRoomCreated = () => onClose();
-    const handleRoomJoined = () => onClose();
+    const handleRoomOpened = () => onClose();
 
     socket.on('error', handleError);
-    socket.on('room:created', handleRoomCreated);
-    socket.on('room:joined', handleRoomJoined);
+    socket.on('room:created', handleRoomOpened);
+    socket.on('room:joined', handleRoomOpened);
 
     return () => {
       socket.off('error', handleError);
-      socket.off('room:created', handleRoomCreated);
-      socket.off('room:joined', handleRoomJoined);
+      socket.off('room:created', handleRoomOpened);
+      socket.off('room:joined', handleRoomOpened);
     };
   }, [socket, isOpen, onClose]);
 
   const handleStartPrivateChat = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting) {
+      return;
+    }
     if (!targetNickname.trim()) {
       setError('Digite o username do seu amigo');
       return;
@@ -96,8 +103,10 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
   const handleJoinRoom = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
-    if (roomCode.trim().length < 6) {
+    if (isSubmitting) {
+      return;
+    }
+    if (roomCode.trim().length < ROOM_CODE_MIN_LENGTH) {
       setError('Código de sala inválido');
       return;
     }
@@ -108,9 +117,11 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
   const handleCreateGroup = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
-    if (groupName.trim().length < 3) {
-      setError('Nome da sala deve ter pelo menos 3 caracteres');
+    if (isSubmitting) {
+      return;
+    }
+    if (groupName.trim().length < GROUP_NAME_MIN_LENGTH) {
+      setError(`Nome da sala deve ter pelo menos ${GROUP_NAME_MIN_LENGTH} caracteres`);
       return;
     }
     setIsSubmitting(true);
@@ -177,6 +188,11 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     gap: '8px',
   };
 
+  const submittingButtonStyle: CSSProperties = {
+    opacity: isSubmitting ? 0.7 : 1,
+    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+  };
+
   const focusInput = (event: FocusEvent<HTMLInputElement>) => {
     event.currentTarget.style.borderColor = theme.primary;
     event.currentTarget.style.boxShadow = `0 0 0 3px ${theme.primary}1A`;
@@ -187,70 +203,55 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     event.currentTarget.style.boxShadow = 'none';
   };
 
+  const submitIcon = isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />;
+
+  const renderTab = (type: ChatType, Icon: IconType, label: string) => {
+    const isActive = chatType === type;
+
+    return (
+      <button
+        onClick={() => {
+          setChatType(type);
+          setError('');
+        }}
+        style={{
+          flex: 1,
+          padding: '12px 16px',
+          border: 'none',
+          background: 'transparent',
+          color: isActive ? theme.primary : theme.textSecondary,
+          fontSize: '0.95rem',
+          fontWeight: isActive ? 700 : 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          borderBottom: isActive ? `3px solid ${theme.primary}` : `2px solid ${theme.border}`,
+        }}
+        onMouseEnter={(event) => {
+          if (!isActive) {
+            event.currentTarget.style.color = theme.primary;
+          }
+        }}
+        onMouseLeave={(event) => {
+          if (!isActive) {
+            event.currentTarget.style.color = theme.textSecondary;
+          }
+        }}
+      >
+        <Icon size={16} />
+        {label}
+      </button>
+    );
+  };
+
   return (
     <Modal isOpen={isOpen} title="Novo Chat" onClose={onClose} theme={theme}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', marginBottom: '16px', borderBottom: `2px solid ${theme.border}` }}>
-          <button
-            onClick={() => {
-              setChatType('private');
-              setError('');
-            }}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              background: 'transparent',
-              color: chatType === 'private' ? theme.primary : theme.textSecondary,
-              fontSize: '0.95rem',
-              fontWeight: chatType === 'private' ? 700 : 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              borderBottom: chatType === 'private' ? `3px solid ${theme.primary}` : `2px solid ${theme.border}`,
-            }}
-            onMouseEnter={(event) => {
-              if (chatType !== 'private') event.currentTarget.style.color = theme.primary;
-            }}
-            onMouseLeave={(event) => {
-              if (chatType !== 'private') event.currentTarget.style.color = theme.textSecondary;
-            }}
-          >
-            <FaUser size={16} />
-            Privado
-          </button>
-          <button
-            onClick={() => {
-              setChatType('group');
-              setError('');
-            }}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              background: 'transparent',
-              color: chatType === 'group' ? theme.primary : theme.textSecondary,
-              fontSize: '0.95rem',
-              fontWeight: chatType === 'group' ? 700 : 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              borderBottom: chatType === 'group' ? `3px solid ${theme.primary}` : `2px solid ${theme.border}`,
-            }}
-            onMouseEnter={(event) => {
-              if (chatType !== 'group') event.currentTarget.style.color = theme.primary;
-            }}
-            onMouseLeave={(event) => {
-              if (chatType !== 'group') event.currentTarget.style.color = theme.textSecondary;
-            }}
-          >
-            <FaUsers size={16} />
-            Grupo
-          </button>
+          {renderTab('private', FaUser, 'Privado')}
+          {renderTab('group', FaUsers, 'Grupo')}
         </div>
 
         {error && (
@@ -302,7 +303,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             <button
               type="submit"
               disabled={isSubmitting}
-              style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
+              style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, ...submittingButtonStyle }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.transform = 'translateY(-2px)';
                 event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}40`;
@@ -312,7 +313,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
               }}
             >
-              {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+              {submitIcon}
               {isSubmitting ? 'Iniciando...' : 'Iniciar Chat'}
             </button>
           </form>
@@ -346,7 +347,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
+                  style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, ...submittingButtonStyle }}
                   onMouseEnter={(event) => {
                     event.currentTarget.style.transform = 'translateY(-2px)';
                     event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}30`;
@@ -356,7 +357,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
                   }}
                 >
-                  {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+                  {submitIcon}
                   {isSubmitting ? 'Entrando...' : 'Entrar na Sala'}
                 </button>
               </form>
@@ -409,7 +410,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  style={{ ...primaryButtonStyle, opacity: isSubmitting ? 0.7 : 1, cursor: isSubmitting ? 'not-allowed' : 'pointer' }}
+                  style={{ ...primaryButtonStyle, ...submittingButtonStyle }}
                   onMouseEnter={(event) => {
                     event.currentTarget.style.transform = 'translateY(-2px)';
                   }}
@@ -417,7 +418,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     event.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                  {isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />}
+                  {submitIcon}
                   {isSubmitting ? 'Criando...' : 'Criar Sala'}
                 </button>
               </form>
