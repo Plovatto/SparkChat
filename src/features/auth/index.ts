@@ -3,4 +3,4 @@ export { useAuthSession } from './hooks/useAuthSession';
 export { useSocketAuthSync } from './hooks/useSocketAuthSync';
 export type { AuthSession } from './hooks/useAuthSession';
 export type { RegisteredPayload } from './hooks/useSocketAuthSync';
-export type { LoginCredentials, PendingRegistration, User } from './types';
+export type { LoginCredentials, PendingE2eCredential, PendingRegistration, User } from './types';

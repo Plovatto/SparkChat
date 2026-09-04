@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { getStoredSession, saveSession } from '../api/session-storage';
-import type { User } from '../types';
+import type { PendingE2eCredential, User } from '../types';
 
 const INITIAL_LOAD_DELAY_MS = 800;
 const LOGOUT_TRANSITION_DELAY_MS = 300;
@@ -8,14 +9,16 @@ const LOGOUT_TRANSITION_DELAY_MS = 300;
 export interface AuthSession {
   user: User | null;
   isRestoring: boolean;
-  login: (user: User) => void;
+  login: (user: User, e2eCredential?: PendingE2eCredential) => void;
   logout: () => void;
   updateUser: (patch: Partial<User>) => void;
+  consumePendingE2eCredential: () => PendingE2eCredential | null;
 }
 
 export function useAuthSession(): AuthSession {
   const [user, setUser] = useState<User | null>(null);
   const [isRestoring, setIsRestoring] = useState(true);
+  const pendingE2eCredentialRef = useRef<PendingE2eCredential | null>(null);
 
   useEffect(() => {
     const stored = getStoredSession();
@@ -27,7 +30,8 @@ export function useAuthSession(): AuthSession {
     return () => clearTimeout(timer);
   }, []);
 
-  const login = useCallback((nextUser: User) => {
+  const login = useCallback((nextUser: User, e2eCredential?: PendingE2eCredential) => {
+    pendingE2eCredentialRef.current = e2eCredential ?? null;
     setUser(nextUser);
     saveSession(nextUser);
   }, []);
@@ -36,6 +40,8 @@ export function useAuthSession(): AuthSession {
     setIsRestoring(true);
     setUser(null);
     localStorage.clear();
+    void clearIdentity();
+    void clearRoomKeys();
     setTimeout(() => setIsRestoring(false), LOGOUT_TRANSITION_DELAY_MS);
   }, []);
 
@@ -50,5 +56,11 @@ export function useAuthSession(): AuthSession {
     });
   }, []);
 
-  return { user, isRestoring, login, logout, updateUser };
+  const consumePendingE2eCredential = useCallback((): PendingE2eCredential | null => {
+    const credential = pendingE2eCredentialRef.current;
+    pendingE2eCredentialRef.current = null;
+    return credential;
+  }, []);
+
+  return { user, isRestoring, login, logout, updateUser, consumePendingE2eCredential };
 }

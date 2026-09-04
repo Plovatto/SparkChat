@@ -3,7 +3,7 @@ import { Alert, Button, Card, Container, Form } from 'react-bootstrap';
 import { FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileUpload, FaKey, FaLock, FaUser } from 'react-icons/fa';
 import { useAutoDismiss } from '@lib/use-auto-dismiss';
 import { login, loginWithKeyfile } from '../api/auth-api';
-import type { LoginThemePalette, User } from '../types';
+import type { LoginThemePalette, PendingE2eCredential, User } from '../types';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -13,7 +13,7 @@ interface LoginFormProps {
   theme: LoginThemePalette;
   onToggleTheme: () => void;
   onBack: () => void;
-  onSubmit: (user: User) => void;
+  onSubmit: (user: User, e2eCredential?: PendingE2eCredential) => void;
 }
 
 export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: LoginFormProps) {
@@ -38,7 +38,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
 
     try {
       const user = await login({ nickname: nickname.trim(), password });
-      onSubmit(user);
+      onSubmit(user, { type: 'password', password });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor. Tente novamente!');
       setIsLoading(false);
@@ -58,8 +58,8 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
     setError('');
 
     try {
-      const user = await loginWithKeyfile(file);
-      onSubmit(user);
+      const { user, recoveryToken } = await loginWithKeyfile(file);
+      onSubmit(user, { type: 'keyfile', recoveryToken });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor. Tente novamente!');
       setIsLoading(false);

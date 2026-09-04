@@ -9,18 +9,22 @@ interface LoginResponse {
   sessionToken: string;
 }
 
+interface KeyfileLoginResponse extends LoginResponse {
+  recoveryToken: string;
+}
+
 interface NicknameAvailabilityResponse {
   status: NicknameAvailabilityStatus;
 }
 
-async function parseLoginResponse(response: Response): Promise<User> {
-  const data = (await response.json().catch(() => null)) as Partial<LoginResponse> | null;
+async function parseLoginResponse<T extends LoginResponse>(response: Response): Promise<T> {
+  const data = (await response.json().catch(() => null)) as Partial<T> | null;
 
   if (!response.ok || !data?.user || !data.sessionToken) {
     throw new Error(data?.message ?? 'Não foi possível entrar. Tente novamente!');
   }
 
-  return { ...data.user, sessionToken: data.sessionToken };
+  return data as T;
 }
 
 export async function login({ nickname, password }: LoginCredentials): Promise<User> {
@@ -30,11 +34,11 @@ export async function login({ nickname, password }: LoginCredentials): Promise<U
     body: JSON.stringify({ nickname, password }),
   });
 
-  const user = await parseLoginResponse(response);
-  return { ...user, authMethod: 'password' };
+  const data = await parseLoginResponse<LoginResponse>(response);
+  return { ...data.user, sessionToken: data.sessionToken, authMethod: 'password' };
 }
 
-export async function loginWithKeyfile(file: File): Promise<User> {
+export async function loginWithKeyfile(file: File): Promise<{ user: User; recoveryToken: string }> {
   const formData = new FormData();
   formData.append('keyfile', file);
 
@@ -43,8 +47,11 @@ export async function loginWithKeyfile(file: File): Promise<User> {
     body: formData,
   });
 
-  const user = await parseLoginResponse(response);
-  return { ...user, authMethod: 'keyfile' };
+  const data = await parseLoginResponse<KeyfileLoginResponse>(response);
+  return {
+    user: { ...data.user, sessionToken: data.sessionToken, authMethod: 'keyfile' },
+    recoveryToken: data.recoveryToken,
+  };
 }
 
 export async function checkNicknameAvailability(nickname: string): Promise<NicknameAvailabilityStatus> {
