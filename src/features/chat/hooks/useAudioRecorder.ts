@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createAudioContext } from '@lib/audio/shared-audio-context';
 
 const WAVEFORM_BAR_COUNT = 60;
 const NOISE_GATE_THRESHOLD = 15;
@@ -69,10 +70,7 @@ export function useAudioRecorder(): AudioRecorderControls {
       audioChunksRef.current = [];
       setRecordingTime(0);
 
-      const AudioContextClass =
-        window.AudioContext ??
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const audioContext = new AudioContextClass();
+      const audioContext = createAudioContext();
       audioContextRef.current = audioContext;
 
       const analyser = audioContext.createAnalyser();

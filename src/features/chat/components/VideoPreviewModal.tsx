@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { FaDownload, FaTimes } from 'react-icons/fa';
+import { OverlayIconButton } from '@components/common/OverlayIconButton';
+import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
+import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadFromUrl } from '@lib/download-file';
 
 interface VideoPreviewModalProps {
@@ -10,44 +12,9 @@ interface VideoPreviewModalProps {
   fileName: string;
 }
 
-const controlButtonStyle = {
-  background: 'rgba(255, 255, 255, 0.12)',
-  border: 'none',
-  color: 'white',
-  width: 'clamp(34px, 9vw, 40px)',
-  height: 'clamp(34px, 9vw, 40px)',
-  borderRadius: '50%',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  transition: 'background 0.2s ease',
-  fontSize: '15px',
-  flexShrink: 0,
-} as const;
-
 export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPreviewModalProps) {
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : 'auto';
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  useBodyScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) {
     return null;
@@ -66,7 +33,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           zIndex: 10040,
-          animation: 'imageModalFadeIn 0.3s ease-out',
+          animation: 'mediaOverlayFadeIn 0.3s ease-out',
         }}
         onClick={onClose}
       />
@@ -102,52 +69,18 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             padding: '6px',
             border: '2px solid rgba(255, 255, 255, 0.25)',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
-            animation: 'imageModalSlideDown 0.4s ease-out',
+            animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
-          <button
-            onClick={() => void downloadFromUrl(url, fileName)}
-            title="Baixar vídeo"
-            style={controlButtonStyle}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-            }}
-          >
+          <OverlayIconButton onClick={() => void downloadFromUrl(url, fileName)} title="Baixar vídeo">
             <FaDownload />
-          </button>
+          </OverlayIconButton>
 
           <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
 
-          <button
-            onClick={onClose}
-            title="Fechar vídeo (ESC)"
-            style={{
-              background: 'rgba(239, 68, 68, 0.85)',
-              border: 'none',
-              color: 'white',
-              width: 'clamp(34px, 9vw, 40px)',
-              height: 'clamp(34px, 9vw, 40px)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s ease',
-              fontSize: '16px',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(239, 68, 68, 1)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(239, 68, 68, 0.85)';
-            }}
-          >
+          <OverlayIconButton onClick={onClose} title="Fechar vídeo (ESC)" variant="danger">
             <FaTimes />
-          </button>
+          </OverlayIconButton>
         </div>
 
         <div
@@ -182,7 +115,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            animation: 'imageModalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            animation: 'mediaOverlayZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
           <video
@@ -200,23 +133,6 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
           />
         </div>
       </div>
-
-      <style>{`
-        @keyframes imageModalFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes imageModalSlideDown {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes imageModalSlideIn {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
     </>,
     document.body,
   );

@@ -1,9 +1,4 @@
-let sharedAudioContext: AudioContext | null = null;
-
-function getAudioContext(): AudioContext {
-  sharedAudioContext ??= new AudioContext();
-  return sharedAudioContext;
-}
+import { getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audio-context';
 
 function playTone(context: AudioContext, frequency: number, startTime: number, duration: number): void {
   const oscillator = context.createOscillator();
@@ -30,10 +25,7 @@ function scheduleNotificationTones(context: AudioContext): void {
 
 export function primeNotificationSound(): void {
   try {
-    const context = getAudioContext();
-    if (context.state === 'suspended') {
-      void context.resume();
-    }
+    resumeIfSuspended(getSharedAudioContext());
   } catch {
     return;
   }
@@ -41,7 +33,7 @@ export function primeNotificationSound(): void {
 
 export function playNotificationSound(): void {
   try {
-    const context = getAudioContext();
+    const context = getSharedAudioContext();
     if (context.state === 'suspended') {
       context
         .resume()
