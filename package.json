@@ -19,6 +19,7 @@
     "aos": "^2.3.4",
     "bootstrap": "^5.3.3",
     "date-fns": "^4.1.0",
+    "libsodium-wrappers-sumo": "^0.8.4",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.0.0",
     "react-bootstrap": "^2.10.7",
