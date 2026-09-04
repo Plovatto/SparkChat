@@ -38,7 +38,7 @@ export function mergeTheme(baseId: ThemeBaseId, colorId: ColorThemeId): MergedTh
       primary: color.primary,
       secondary: color.secondary,
       messageOwn: messageOwnBg,
-      messageOwnText: getContrastTextColor(messageOwnBg),
+      messageOwnText: color.textColor,
       messageOther: messageOtherBg,
       messageOtherText: getContrastTextColor(messageOtherBg),
       headerGradient: color.headerGradient,
