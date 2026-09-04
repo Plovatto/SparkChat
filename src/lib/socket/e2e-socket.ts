@@ -145,6 +145,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
         content: string;
         caption?: string;
         fileMeta?: { name: string; mimeType: string; size: number };
+        linkPreview?: { url: string; title: string; description: string | null; imageUrl: string | null; siteName: string | null };
       };
       const contentPromise = encryptOutgoingContent(payload.roomId, payload.type ?? 'text', payload.content).catch(
         (error: unknown) => {
@@ -170,14 +171,35 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
             })
         : Promise.resolve(undefined);
 
-      void Promise.all([contentPromise, captionPromise, fileMetaPromise]).then(([content, caption, fileMeta]) => {
-        originalEmit(event, {
-          ...payload,
-          content,
-          ...(caption !== undefined ? { caption } : {}),
-          ...(fileMeta !== undefined ? { fileMeta } : {}),
-        });
-      });
+      const encryptNullable = (value: string | null): Promise<string | null> =>
+        value ? encryptTextIfPossible(payload.roomId, value) : Promise.resolve(null);
+
+      const linkPreviewPromise = payload.linkPreview
+        ? Promise.all([
+            encryptTextIfPossible(payload.roomId, payload.linkPreview.url),
+            encryptTextIfPossible(payload.roomId, payload.linkPreview.title),
+            encryptNullable(payload.linkPreview.description),
+            encryptNullable(payload.linkPreview.imageUrl),
+            encryptNullable(payload.linkPreview.siteName),
+          ])
+            .then(([url, title, description, imageUrl, siteName]) => ({ url, title, description, imageUrl, siteName }))
+            .catch((error: unknown) => {
+              console.error('[e2e] failed to encrypt outgoing linkPreview, sending it as-is', error);
+              return payload.linkPreview;
+            })
+        : Promise.resolve(undefined);
+
+      void Promise.all([contentPromise, captionPromise, fileMetaPromise, linkPreviewPromise]).then(
+        ([content, caption, fileMeta, linkPreview]) => {
+          originalEmit(event, {
+            ...payload,
+            content,
+            ...(caption !== undefined ? { caption } : {}),
+            ...(fileMeta !== undefined ? { fileMeta } : {}),
+            ...(linkPreview !== undefined ? { linkPreview } : {}),
+          });
+        },
+      );
       return socket;
     }
     return originalEmit(event, ...args);

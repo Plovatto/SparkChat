@@ -11,9 +11,13 @@ import {
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import type { LinkPreviewAuth } from '@lib/api/link-preview';
+import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
+import { useLinkPreview } from '../hooks/useLinkPreview';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import { PendingAttachmentTile } from './PendingAttachmentTile';
 
 export interface MessageInputHandle {
@@ -25,6 +29,7 @@ export interface MessageInputSubmitPayload {
   text: string;
   imageFiles: File[];
   documentFiles: File[];
+  linkPreview?: MessageLinkPreview;
 }
 
 export interface AudioSendPayload {
@@ -48,6 +53,7 @@ interface MessageInputProps {
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
   maxLength?: number;
+  auth: LinkPreviewAuth;
 }
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
@@ -254,12 +260,13 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength },
+  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
   ref,
 ) {
   const { theme, baseTheme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const linkPreview = useLinkPreview(message, auth.userId, auth.sessionToken);
   const [shouldAutoFocus] = useState(
     () => typeof window === 'undefined' || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches,
   );
@@ -376,10 +383,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       text: trimmed,
       imageFiles: pendingAttachments.filter((file) => file.type.startsWith('image/')),
       documentFiles: pendingAttachments.filter((file) => !file.type.startsWith('image/')),
+      linkPreview: linkPreview.preview ?? undefined,
     });
     setMessage('');
     setMentionQuery(null);
     setPendingAttachments([]);
+    linkPreview.reset();
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
@@ -434,6 +443,11 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     <>
       {pendingAttachments.length > 0 && (
         <PendingAttachmentsPreview files={pendingAttachments} theme={theme} onRemove={removePendingAttachment} />
+      )}
+      {pendingAttachments.length === 0 && linkPreview.preview && (
+        <div style={{ padding: '10px 14px 0', background: theme.surface }}>
+          <LinkPreviewCard preview={linkPreview.preview} theme={theme} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
+        </div>
       )}
       <Form
         onSubmit={handleSubmit}

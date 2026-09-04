@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   FaAt,
   FaBan,
@@ -38,6 +39,43 @@ interface RoomListItemProps {
   recordingUserIds: string[];
   isFavorite: boolean;
   isMuted: boolean;
+}
+
+const PREVIEW_LENGTH_SMALL_SCREEN = 70;
+const PREVIEW_LENGTH_MEDIUM_SCREEN = 190;
+const PREVIEW_LENGTH_LARGE_SCREEN = 100;
+const MEDIUM_SCREEN_MIN_WIDTH = 480;
+const SPLIT_SCREEN_MIN_WIDTH = 870;
+
+function resolvePreviewLength(width: number): number {
+  if (width >= SPLIT_SCREEN_MIN_WIDTH) {
+    return PREVIEW_LENGTH_LARGE_SCREEN;
+  }
+  if (width >= MEDIUM_SCREEN_MIN_WIDTH) {
+    return PREVIEW_LENGTH_MEDIUM_SCREEN;
+  }
+  return PREVIEW_LENGTH_SMALL_SCREEN;
+}
+
+function useMessagePreviewLength(): number {
+  const [length, setLength] = useState(() =>
+    typeof window === 'undefined' ? PREVIEW_LENGTH_LARGE_SCREEN : resolvePreviewLength(window.innerWidth),
+  );
+
+  useEffect(() => {
+    const mediumQuery = window.matchMedia(`(min-width: ${MEDIUM_SCREEN_MIN_WIDTH}px)`);
+    const splitQuery = window.matchMedia(`(min-width: ${SPLIT_SCREEN_MIN_WIDTH}px)`);
+    const update = () => setLength(resolvePreviewLength(window.innerWidth));
+    update();
+    mediumQuery.addEventListener('change', update);
+    splitQuery.addEventListener('change', update);
+    return () => {
+      mediumQuery.removeEventListener('change', update);
+      splitQuery.removeEventListener('change', update);
+    };
+  }, []);
+
+  return length;
 }
 
 function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
@@ -108,7 +146,7 @@ function ActivityPreview({
     <p
       style={{
         fontSize: '0.82rem',
-        lineHeight: 1,
+        lineHeight: 1.5,
         color: theme.primary,
         margin: 0,
         whiteSpace: 'nowrap',
@@ -144,6 +182,7 @@ function ActivityPreview({
 
 function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: User; theme: RoomThemePalette }) {
   const message = room.lastMessage;
+  const previewLength = useMessagePreviewLength();
 
   if (!message) {
     return null;
@@ -151,15 +190,17 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
 
   const previewStyle = {
     fontSize: '0.82rem',
-    lineHeight: 1.2,
+    lineHeight: 1.5,
     color: theme.textSecondary,
     margin: 0,
     whiteSpace: 'nowrap' as const,
     textOverflow: 'ellipsis' as const,
+    overflow: 'hidden' as const,
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
     maxWidth: '100%',
+    minWidth: 0,
   };
 
   if (message.deletedForEveryone) {
@@ -178,7 +219,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id ?? '');
   const showGroupSender = room.type === 'group' && !isOwnMessage;
   const senderLabel = showGroupSender && (
-    <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.2 }}>
+    <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.5 }}>
       {getDisplayName(
         message.sender.id,
         room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
@@ -208,7 +249,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
           const truncated = processed.substring(0, 28) + (processed.length > 28 ? '...' : '');
           const split = splitSystemMessageActor(truncated);
           return (
-            <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary, lineHeight: 1 }}>
+            <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary, lineHeight: 1.5 }}>
               {split ? (
                 <>
                   <span style={{ fontWeight: 700 }}>{split.actor}</span>
@@ -221,26 +262,26 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
           );
         })()
       ) : message.type === 'image' ? (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
           <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
-          <span style={{ flexShrink: 0, lineHeight: 1.2 }}>Imagem</span>
+          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>Imagem</span>
         </span>
       ) : message.type === 'audio' ? (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.25 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
           <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
-          <span style={{ flexShrink: 0, lineHeight: 1 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
+          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
         </span>
       ) : message.type === 'file' ? (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.5, overflow: 'hidden' }}>
           {senderLabel}
           {message.fileMeta?.mimeType.startsWith('video/') ? (
             <FaVideo size={12} style={{ flexShrink: 0, display: 'block' }} />
           ) : (
             <FaPaperclip size={12} style={{ flexShrink: 0, display: 'block' }} />
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.2 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}>
             {(() => {
               const fileName = message.fileMeta?.name ?? 'Arquivo';
               return fileName.length > 35 ? `${fileName.substring(0, 35)}...` : fileName;
@@ -248,11 +289,11 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
           </span>
         </span>
       ) : (
-        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.25, overflow: 'hidden' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.5, overflow: 'hidden' }}>
           {senderLabel}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>
-            {message.content.substring(0, 45)}
-            {message.content.length > 45 ? '...' : ''}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.5 }}>
+            {message.content.substring(0, previewLength)}
+            {message.content.length > previewLength ? '...' : ''}
           </span>
         </span>
       )}
