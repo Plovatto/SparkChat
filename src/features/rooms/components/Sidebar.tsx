@@ -19,6 +19,7 @@ import {
 } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
+import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
 import { useTheme } from '@features/theme';
@@ -122,8 +123,11 @@ export function Sidebar({
     setIsSelectionMode(false);
   };
 
+  const assistantRoomId = rooms.find(isAssistantRoom)?.id;
+  const favoritableSelectedIds = Array.from(selectedIds).filter((roomId) => roomId !== assistantRoomId);
+
   const handleFavoriteSelected = () => {
-    toggleFavorites(Array.from(selectedIds));
+    toggleFavorites(favoritableSelectedIds);
     setSelectedIds(new Set());
     setIsSelectionMode(false);
   };
@@ -134,10 +138,15 @@ export function Sidebar({
     setIsSelectionMode(false);
   };
 
-  const allSelectedAreFavorited = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => favoriteRoomIds.has(roomId));
+  const allSelectedAreFavorited =
+    favoritableSelectedIds.length > 0 && favoritableSelectedIds.every((roomId) => favoriteRoomIds.has(roomId));
   const allSelectedAreMuted = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => mutedRoomIds.has(roomId));
 
   const sortedRooms = [...rooms].sort((a, b) => {
+    const assistantDiff = Number(!isAssistantRoom(a)) - Number(!isAssistantRoom(b));
+    if (assistantDiff !== 0) {
+      return assistantDiff;
+    }
     const favoriteDiff = Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id));
     if (favoriteDiff !== 0) {
       return favoriteDiff;
@@ -626,7 +635,7 @@ export function Sidebar({
                 onToggleSelect={() => toggleRoomSelected(room.id)}
                 typingUserIds={typingUserIds[room.id] ?? []}
                 recordingUserIds={recordingUserIds[room.id] ?? []}
-                isFavorite={favoriteRoomIds.has(room.id)}
+                isFavorite={!isAssistantRoom(room) && favoriteRoomIds.has(room.id)}
                 isMuted={mutedRoomIds.has(room.id)}
               />
             ))}
@@ -647,19 +656,21 @@ export function Sidebar({
             justifyContent: 'center',
           }}
         >
-          <IconPillButton
-            onClick={handleFavoriteSelected}
-            background={theme.surfaceLight}
-            textColor={theme.text}
-            fontSize="0.78rem"
-            gap="7px"
-            paddingRight="12px"
-            withShadow={false}
-            icon={<FaStar size={11} />}
-            iconBackground="rgba(251, 191, 36, 0.22)"
-            iconColor="#fbbf24"
-            label={allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
-          />
+          {favoritableSelectedIds.length > 0 && (
+            <IconPillButton
+              onClick={handleFavoriteSelected}
+              background={theme.surfaceLight}
+              textColor={theme.text}
+              fontSize="0.78rem"
+              gap="7px"
+              paddingRight="12px"
+              withShadow={false}
+              icon={<FaStar size={11} />}
+              iconBackground="rgba(251, 191, 36, 0.22)"
+              iconColor="#fbbf24"
+              label={allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
+            />
+          )}
           <IconPillButton
             onClick={handleMuteSelected}
             background={theme.surfaceLight}

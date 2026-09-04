@@ -26,6 +26,7 @@ export {
   decryptRoomSummaries,
   decryptRoomSummary,
   encryptOutgoingContent,
+  encryptTextIfPossible,
   E2E_PREFIX,
 } from './message-crypto';
 export { encryptAttachmentIfPossible } from './attachment-crypto';

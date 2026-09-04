@@ -3,7 +3,7 @@ import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
-import { ChatArea, useChatTriggerEffects } from '@features/chat';
+import { ChatArea, useChatTriggerEffects, useEnsureAssistantChat } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
@@ -185,6 +185,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   );
   useUnreadBadge(totalUnread);
   useChatTriggerEffects(selectedRoomId, user.id, soundPreference.isEnabled);
+  useEnsureAssistantChat(rooms, isLoaded);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {
