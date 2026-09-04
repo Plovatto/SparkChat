@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
 import { Button } from 'react-bootstrap';
-import { FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
+import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
@@ -259,9 +259,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const lastMessageIdRef = useRef<string | null>(null);
   const isReadyForLoadMoreRef = useRef(false);
   const hasUserScrolledRef = useRef(false);
+  const isAtBottomRef = useRef(true);
+  const activityRef = useRef({ typing: false, recording: false });
   const messageInputRef = useRef<MessageInputHandle>(null);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
@@ -316,8 +320,55 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       };
     }
 
-    scrollToBottom('smooth');
-  }, [messages, scrollToBottom]);
+    const isOwnMessage = lastMessage?.sender.id === user.id;
+    if (isAtBottomRef.current || isOwnMessage) {
+      scrollToBottom('smooth');
+    }
+  }, [messages, scrollToBottom, user.id]);
+
+  useEffect(() => {
+    const isTypingNow = typingUserIds.length > 0;
+    const isRecordingNow = recordingUserIds.length > 0;
+    const previous = activityRef.current;
+
+    if (isAtBottomRef.current && ((isTypingNow && !previous.typing) || (isRecordingNow && !previous.recording))) {
+      scrollToBottom('smooth');
+    }
+
+    activityRef.current = { typing: isTypingNow, recording: isRecordingNow };
+  }, [typingUserIds, recordingUserIds, scrollToBottom]);
+
+  const handleComposerTyping = useCallback(() => {
+    notifyTyping();
+    if (isAtBottomRef.current) {
+      scrollToBottom('smooth');
+    }
+  }, [notifyTyping, scrollToBottom]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const updateButtonPosition = () => {
+      const rect = container.getBoundingClientRect();
+      setScrollButtonPosition({
+        top: rect.bottom - 42 - 18,
+        left: rect.right - 42 - 18,
+      });
+    };
+
+    updateButtonPosition();
+    window.addEventListener('resize', updateButtonPosition);
+    const resizeObserver = new ResizeObserver(updateButtonPosition);
+    resizeObserver.observe(container);
+
+    return () => {
+      window.removeEventListener('resize', updateButtonPosition);
+      resizeObserver.disconnect();
+    };
+  }, [room?.id, isInfoOpen]);
 
   useLayoutEffect(() => {
     const anchor = prependAnchorRef.current;
@@ -403,6 +454,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
 
     if (container) {
       applyStuckDateHeaderOpacity(container, stuckDayKeysRef.current, true);
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const threshold = isAtBottomRef.current ? 550 : 510;
+      const atBottom = distanceFromBottom < threshold;
+      if (atBottom !== isAtBottomRef.current) {
+        isAtBottomRef.current = atBottom;
+        setIsAtBottom(atBottom);
+      }
     }
     if (scrollIdleTimeoutRef.current) {
       window.clearTimeout(scrollIdleTimeoutRef.current);
@@ -425,6 +483,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     setIsInfoOpen(false);
     setSelectedMessageId(null);
     setRepliedMessage(null);
+    isAtBottomRef.current = true;
+    setIsAtBottom(true);
   }, [room?.id]);
 
   useEffect(() => {
@@ -792,11 +852,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                 alignItems: 'center',
                 gap: '10px',
                 padding: '12px 15px',
-                background: 'rgba(255, 107, 107, 0.1)',
+                background: theme.surface,
                 borderRadius: '15px',
-                maxWidth: '300px',
+                width: 'fit-content',
+                maxWidth: '100%',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                border: '1px solid rgba(255, 107, 107, 0.2)',
               }}
             >
               <div
@@ -804,12 +864,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                   width: '8px',
                   height: '8px',
                   borderRadius: '100%',
-                  background: '#ff6b6b',
+                  background: theme.primary,
                   animation: 'blink 1s infinite',
                   flexShrink: 0,
                 }}
               />
-              <span style={{ fontSize: '0.85rem', color: '#ff6b6b', fontStyle: 'italic', fontWeight: 500 }}>
+              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', fontWeight: 500, whiteSpace: 'nowrap' }}>
                 {recordingText}
               </span>
             </div>
@@ -832,11 +892,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                 padding: '12px 15px',
                 background: theme.surface,
                 borderRadius: '15px',
-                maxWidth: '200px',
+                width: 'fit-content',
+                maxWidth: '100%',
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
               }}
             >
-              <div style={{ display: 'flex', gap: '4px' }}>
+              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                 {[0, 1, 2].map((index) => (
                   <span
                     key={index}
@@ -851,7 +912,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                   />
                 ))}
               </div>
-              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic' }}>{typingText}</span>
+              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                {typingText}
+              </span>
             </div>
           );
         })()}
@@ -881,6 +944,40 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           </div>
         )}
         </div>
+        <button
+          onClick={() => {
+            isAtBottomRef.current = true;
+            setIsAtBottom(true);
+            scrollToBottom('smooth');
+          }}
+          title="Ir para a última mensagem"
+          aria-hidden={isAtBottom}
+          tabIndex={isAtBottom ? -1 : 0}
+          style={{
+            position: 'fixed',
+            top: scrollButtonPosition?.top ?? 0,
+            left: scrollButtonPosition?.left ?? 0,
+            visibility: scrollButtonPosition ? 'visible' : 'hidden',
+            width: '42px',
+            height: '42px',
+            borderRadius: '50%',
+            border: 'none',
+            background: theme.surface,
+            color: theme.primary,
+            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 5,
+            opacity: isAtBottom ? 0 : 1,
+            transform: isAtBottom ? 'scale(0.85)' : 'scale(1)',
+            pointerEvents: isAtBottom ? 'none' : 'auto',
+            transition: 'opacity 0.18s ease, transform 0.18s ease',
+          }}
+        >
+          <FaArrowDown size={16} />
+        </button>
         </div>
       </div>
 
@@ -1000,7 +1097,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         ref={messageInputRef}
         onSend={handleSend}
         onSendAudio={(payload) => void handleSendAudio(payload)}
-        onTyping={notifyTyping}
+        onTyping={handleComposerTyping}
         onRecordingStart={handleRecordingStart}
         onRecordingStop={handleRecordingStop}
         isBlockedBy={room.isBlockedBy}

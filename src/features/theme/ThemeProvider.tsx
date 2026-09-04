@@ -142,7 +142,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const getRoomAppearance = useCallback(
     (roomId: string): ChatAppearance => {
-      return roomAppearance[roomId] ?? globalAppearance ?? DEFAULT_CHAT_APPEARANCE;
+      return { ...DEFAULT_CHAT_APPEARANCE, ...(roomAppearance[roomId] ?? globalAppearance ?? {}) };
     },
     [roomAppearance, globalAppearance],
   );
@@ -151,7 +151,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     (roomId: string, patch: Partial<ChatAppearance>, applyToAll: boolean) => {
       if (applyToAll) {
         setGlobalAppearanceState((previous) => {
-          const next = { ...(previous ?? DEFAULT_CHAT_APPEARANCE), ...patch };
+          const next = { ...DEFAULT_CHAT_APPEARANCE, ...(previous ?? {}), ...patch };
           localStorage.setItem(GLOBAL_APPEARANCE_STORAGE_KEY, JSON.stringify(next));
           return next;
         });
@@ -159,7 +159,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       }
 
       setRoomAppearanceState((previous) => {
-        const base = previous[roomId] ?? globalAppearance ?? DEFAULT_CHAT_APPEARANCE;
+        const base = { ...DEFAULT_CHAT_APPEARANCE, ...(previous[roomId] ?? globalAppearance ?? {}) };
         const next = { ...previous, [roomId]: { ...base, ...patch } };
         localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(next));
         return next;
