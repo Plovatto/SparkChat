@@ -3,6 +3,7 @@ import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
+import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import { ChatArea, useChatTriggerEffects, useEnsureAssistantChat } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
@@ -21,6 +22,7 @@ import {
 } from '@features/notifications';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useTheme, useThemeSync } from '@features/theme';
+import { useMediaQuery } from '@hooks/useMediaQuery';
 import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -155,24 +157,6 @@ function AuthGate({
   );
 }
 
-const SPLIT_LAYOUT_BREAKPOINT_PX = 870;
-
-function useIsWideLayout(): boolean {
-  const [isWide, setIsWide] = useState(
-    () => typeof window === 'undefined' || window.innerWidth >= SPLIT_LAYOUT_BREAKPOINT_PX,
-  );
-
-  useEffect(() => {
-    const query = window.matchMedia(`(min-width: ${SPLIT_LAYOUT_BREAKPOINT_PX}px)`);
-    const update = () => setIsWide(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-
-  return isWide;
-}
-
 interface ChatShellProps {
   user: User;
   onUserUpdate: (patch: Partial<User>) => void;
@@ -183,7 +167,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { socket, connected } = useSocket();
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const isWideLayout = useIsWideLayout();
+  const isWideLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;

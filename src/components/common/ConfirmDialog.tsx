@@ -1,5 +1,5 @@
 import { FaTimes, FaTrash } from 'react-icons/fa';
-import type { RoomThemePalette } from '@features/rooms/constants/default-theme';
+import type { ThemePalette } from '@features/theme';
 import { Modal } from './Modal';
 
 interface ConfirmDialogProps {
@@ -9,7 +9,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
-  theme: RoomThemePalette;
+  theme: ThemePalette;
 }
 
 export function ConfirmDialog({ isOpen, title, message, confirmLabel = 'Deletar para todos', onConfirm, onCancel, theme }: ConfirmDialogProps) {

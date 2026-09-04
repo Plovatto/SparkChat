@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { FaMoon, FaSun } from 'react-icons/fa';
 import type { LoginThemePalette } from '../types';
 
@@ -9,6 +9,9 @@ interface ThemeToggleButtonProps {
   top?: string;
   right?: string;
 }
+
+const ROTATION_STEP_DEGREES = 18;
+const ROTATION_FRAME_MS = 16;
 
 export function ThemeToggleButton({
   darkMode,
@@ -21,33 +24,43 @@ export function ThemeToggleButton({
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isSpinning = rotation !== 0;
 
+  const stopSpinning = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  useEffect(() => stopSpinning, []);
+
   const handleClick = () => {
     onToggle();
     setRotation(0);
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
+    stopSpinning();
 
     let currentRotation = 0;
     intervalRef.current = setInterval(() => {
-      currentRotation += 18;
+      currentRotation += ROTATION_STEP_DEGREES;
       setRotation(currentRotation);
 
-      if (currentRotation >= 360 && intervalRef.current) {
-        clearInterval(intervalRef.current);
+      if (currentRotation >= 360) {
+        stopSpinning();
         setRotation(0);
       }
-    }, 16);
+    }, ROTATION_FRAME_MS);
   };
 
   const handleMouseEnter = (event: MouseEvent<HTMLButtonElement>) => {
-    if (isSpinning) return;
+    if (isSpinning) {
+      return;
+    }
     event.currentTarget.style.transform = 'scale(1.1) rotate(10deg)';
   };
 
   const handleMouseLeave = (event: MouseEvent<HTMLButtonElement>) => {
-    if (isSpinning) return;
+    if (isSpinning) {
+      return;
+    }
     event.currentTarget.style.transform = 'scale(1) rotate(0deg)';
   };
 
