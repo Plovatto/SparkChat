@@ -1,4 +1,4 @@
-import type { AppSocket, MessageFileMeta, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
+import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
 import { ensureRoomKeyForDecryption, getCachedRoomKey } from './room-keys';
 import { getSodium } from './sodium';
@@ -121,6 +121,33 @@ async function decryptFileMetaIfNeeded(
   return { ...fileMeta, name, mimeType };
 }
 
+async function decryptNullableTextIfNeeded(socket: AppSocket, value: string | null, roomId: string): Promise<string | null> {
+  if (!value) {
+    return null;
+  }
+  return decryptTextContentIfNeeded(socket, value, roomId);
+}
+
+async function decryptLinkPreviewIfNeeded(
+  socket: AppSocket,
+  linkPreview: MessageLinkPreview | null | undefined,
+  roomId: string,
+): Promise<MessageLinkPreview | null> {
+  if (!linkPreview) {
+    return null;
+  }
+
+  const [url, title, description, imageUrl, siteName] = await Promise.all([
+    decryptTextContentIfNeeded(socket, linkPreview.url, roomId),
+    decryptTextContentIfNeeded(socket, linkPreview.title, roomId),
+    decryptNullableTextIfNeeded(socket, linkPreview.description, roomId),
+    decryptNullableTextIfNeeded(socket, linkPreview.imageUrl, roomId),
+    decryptNullableTextIfNeeded(socket, linkPreview.siteName, roomId),
+  ]);
+
+  return { url, title, description, imageUrl, siteName };
+}
+
 async function decryptReplySnapshot(
   socket: AppSocket,
   reply: MessageReplySnapshot | null,
@@ -139,12 +166,13 @@ async function decryptReplySnapshot(
 
 export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId);
-  const [content, replyTo, caption] = await Promise.all([
+  const [content, replyTo, caption, linkPreview] = await Promise.all([
     resolveContent(socket, message.content, message.roomId, message.type, fileMeta),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
     decryptCaptionIfNeeded(socket, message.caption, message.roomId),
+    decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId),
   ]);
-  return { ...message, content, replyTo, caption, fileMeta };
+  return { ...message, content, replyTo, caption, fileMeta, linkPreview };
 }
 
 export function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {
