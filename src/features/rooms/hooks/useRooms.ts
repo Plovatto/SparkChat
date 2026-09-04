@@ -91,7 +91,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
           }
 
           const isCurrentRoom = room.id === selectedRoomId;
-          const isMentioned = Boolean(currentUserId) && message.mentionedUserIds.includes(currentUserId ?? '');
+          const isMentioned = currentUserId !== undefined && message.mentionedUserIds.includes(currentUserId);
           return {
             ...room,
             lastMessage: message,

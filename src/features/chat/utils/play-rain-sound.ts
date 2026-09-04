@@ -1,4 +1,4 @@
-import { createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from './shared-audio-context';
+import { createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audio-context';
 
 export function playRainSound(): void {
   try {

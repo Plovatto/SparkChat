@@ -1,9 +1,11 @@
-import { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaLink, FaUser } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
+import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import type { RoomParticipant, RoomSummary } from '@features/rooms';
+import { useClipboardCopy } from '@hooks/useClipboardCopy';
+import { shareLinkNatively } from '@lib/share-link';
+import type { RoomSummary } from '@lib/socket';
 
 interface ChatHeaderProps {
   room: RoomSummary;
@@ -12,31 +14,21 @@ interface ChatHeaderProps {
   onOpenInfo: () => void;
 }
 
-function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
-  return room.participants.find((participant) => participant.id !== userId);
-}
+const COPY_KEY_CODE = 'code';
+const COPY_KEY_LINK = 'link';
 
 export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHeaderProps) {
   const { theme } = useTheme();
-  const [codeCopied, setCodeCopied] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const clipboard = useClipboardCopy();
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
-  const roomName = room.type === 'group' ? (room.name ?? 'Grupo') : (otherUser?.nickname ?? 'Usuário');
+  const roomName = getRoomDisplayName(room, currentUserId);
 
   const copyRoomCode = () => {
-    if (!room.roomCode || !navigator.clipboard) {
-      return;
+    if (room.roomCode) {
+      clipboard.copy(room.roomCode, COPY_KEY_CODE);
     }
-
-    navigator.clipboard
-      .writeText(room.roomCode)
-      .then(() => {
-        setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
-      })
-      .catch(() => setCodeCopied(false));
   };
 
   const shareInviteLink = () => {
@@ -45,23 +37,9 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
     }
 
     const link = `${window.location.origin}${window.location.pathname}?join=${room.roomCode}`;
-
-    if (navigator.share) {
-      navigator.share({ title: 'SparkChat', text: `Entre no grupo "${roomName}" no SparkChat!`, url: link }).catch(() => undefined);
-      return;
+    if (!shareLinkNatively({ text: `Entre no grupo "${roomName}" no SparkChat!`, url: link })) {
+      clipboard.copy(link, COPY_KEY_LINK);
     }
-
-    if (!navigator.clipboard) {
-      return;
-    }
-
-    navigator.clipboard
-      .writeText(link)
-      .then(() => {
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 2000);
-      })
-      .catch(() => setLinkCopied(false));
   };
 
   return (
@@ -218,7 +196,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                   event.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                {codeCopied ? <FaCheck size={8} /> : <FaCopy size={8} />}
+                {clipboard.isCopied(COPY_KEY_CODE) ? <FaCheck size={8} /> : <FaCopy size={8} />}
                 <span>{room.roomCode}</span>
               </div>
 
@@ -246,7 +224,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                   event.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                {linkCopied ? <FaCheck size={8} /> : <FaLink size={8} />}
+                {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} /> : <FaLink size={8} />}
               </div>
             </div>
           )}

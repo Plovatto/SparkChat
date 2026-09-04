@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react';
 import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
-import { fetchLinkPreviewImageObjectUrl, type LinkPreviewAuth } from '@lib/api/link-preview';
+import { fetchLinkPreviewImageObjectUrl } from '@lib/api/link-preview';
+import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
 import type { ThemePalette } from '@features/theme';
+import { resolveBubbleInnerPalette } from '../utils/bubble-palette';
 
 interface LinkPreviewCardProps {
   preview: MessageLinkPreview;
   theme: ThemePalette;
-  auth: LinkPreviewAuth;
+  auth: SessionAuth;
   variant: 'composer' | 'bubble';
   isOwn?: boolean;
   baseTheme?: string;
   onDismiss?: () => void;
 }
 
-function useLinkPreviewImage(imageUrl: string | null, userId: string, sessionToken: string): string | null {
+function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string | null {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const { userId, sessionToken } = auth;
 
   useEffect(() => {
     if (!imageUrl) {
@@ -48,27 +51,17 @@ function useLinkPreviewImage(imageUrl: string | null, userId: string, sessionTok
   return objectUrl;
 }
 
-export function LinkPreviewCard({ preview, theme, auth, variant, isOwn, baseTheme, onDismiss }: LinkPreviewCardProps) {
-  const imageObjectUrl = useLinkPreviewImage(preview.imageUrl, auth.userId, auth.sessionToken);
+export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, baseTheme = 'dark', onDismiss }: LinkPreviewCardProps) {
+  const imageObjectUrl = useLinkPreviewImage(preview.imageUrl, auth);
   const isComposer = variant === 'composer';
+  const innerPalette = resolveBubbleInnerPalette(isOwn, baseTheme);
 
-  const cardBackground = isComposer
-    ? theme.background
-    : isOwn
-      ? 'rgba(255, 255, 255, 0.14)'
-      : baseTheme === 'light'
-        ? '#77777720'
-        : 'rgba(255, 255, 255, 0.07)';
+  const cardBackground = isComposer ? theme.background : innerPalette.background;
   const titleColor = isComposer ? theme.text : isOwn ? 'white' : theme.text;
   const siteNameColor = isComposer ? theme.textSecondary : isOwn ? 'rgba(255, 255, 255, 0.75)' : theme.textSecondary;
-  const iconBackground = isComposer
-    ? theme.surface
-    : isOwn
-      ? 'rgba(255, 255, 255, 0.18)'
-      : baseTheme === 'light'
-        ? '#77777730'
-        : 'rgba(255, 255, 255, 0.15)';
+  const iconBackground = isComposer ? theme.surface : innerPalette.iconBackground;
   const iconColor = isComposer ? theme.primary : isOwn ? 'white' : theme.primary;
+  const openPreview = isComposer ? undefined : () => window.open(preview.url, '_blank', 'noopener,noreferrer');
 
   const textBlock = (
     <div style={{ minWidth: 0, flex: 1 }}>
@@ -130,13 +123,13 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn, baseThem
   if (imageObjectUrl && !isComposer) {
     return (
       <div
-        onClick={isComposer ? undefined : () => window.open(preview.url, '_blank', 'noopener,noreferrer')}
+        onClick={openPreview}
         style={{
           background: cardBackground,
-          border: isComposer ? `1px solid ${theme.border}` : 'none',
+          border: 'none',
           borderRadius: '10px',
           overflow: 'hidden',
-          cursor: isComposer ? 'default' : 'pointer',
+          cursor: 'pointer',
           maxWidth: '100%',
           position: 'relative',
         }}
@@ -156,7 +149,7 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn, baseThem
 
   return (
     <div
-      onClick={isComposer ? undefined : () => window.open(preview.url, '_blank', 'noopener,noreferrer')}
+      onClick={openPreview}
       style={{
         display: 'flex',
         gap: '10px',

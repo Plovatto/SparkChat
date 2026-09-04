@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   FaCheck,
   FaDesktop,
@@ -17,16 +17,19 @@ import {
 import { Modal } from '@components/common/Modal';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Switch } from '@components/common/Switch';
-import { AVATARS } from '@features/auth/constants/avatars';
+import type { User } from '@features/auth';
 import { PasswordField, PasswordFieldHint } from '@features/auth/components/PasswordField';
+import { AVATARS } from '@features/auth/constants/avatars';
+import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
-import type { User } from '@features/auth';
-import { rewrapIdentityAfterPasswordChange, rewrapIdentityAfterRecoveryRegenerate } from '@lib/e2ee';
-import { useSocket, type AuthMethod, type SessionSummary, type SocketUser } from '@lib/socket';
-import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
-import { useAutoDismiss } from '@lib/use-auto-dismiss';
 import { useTheme } from '@features/theme';
+import { useAutoDismiss } from '@hooks/useAutoDismiss';
+import { useClipboardCopy } from '@hooks/useClipboardCopy';
+import { rewrapIdentityAfterPasswordChange, rewrapIdentityAfterRecoveryRegenerate } from '@lib/e2ee';
+import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
+import { shareLinkNatively } from '@lib/share-link';
+import { useSocket, type AuthMethod, type SessionSummary, type SocketUser } from '@lib/socket';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -39,24 +42,63 @@ interface EditProfileModalProps {
 }
 
 type ProfileTab = 'profile' | 'security' | 'system';
+type PendingAction = 'profile' | 'password' | 'regenerate';
 
-const NICKNAME_MAX_LENGTH = 20;
-const PASSWORD_MIN_LENGTH = 12;
 const WRONG_PASSWORD_MESSAGE = 'Senha atual incorreta.';
+const LOGOUT_AFTER_PASSWORD_CHANGE_MS = 1600;
 
 const AUTH_METHOD_LABEL: Record<AuthMethod, string> = {
   password: 'Entrou com senha',
   keyfile: 'Entrou com arquivo de recuperação',
 };
 
+const TABS: { id: ProfileTab; label: string; icon: typeof FaUser }[] = [
+  { id: 'profile', label: 'Perfil', icon: FaUser },
+  { id: 'security', label: 'Segurança', icon: FaShieldAlt },
+  { id: 'system', label: 'Sistema', icon: FaDesktop },
+];
+
 function formatSessionDate(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function buildRecoveryFileName(nickname: string): string {
+  return `sparkchat-${nickname.toLowerCase()}.sparkkey`;
+}
+
+interface InfoNoticeProps {
+  icon: ReactNode;
+  background: string;
+  children: ReactNode;
+}
+
+function InfoNotice({ icon, background, children }: InfoNoticeProps) {
+  const { theme } = useTheme();
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: '10px',
+        alignItems: 'flex-start',
+        background,
+        borderRadius: '10px',
+        padding: '10px 14px',
+        fontSize: '0.82rem',
+        color: theme.textSecondary,
+      }}
+    >
+      {icon}
+      <span>{children}</span>
+    </div>
+  );
 }
 
 export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound }: EditProfileModalProps) {
   const { theme } = useTheme();
   const { socket } = useSocket();
   const { avatarSize, iconSize } = useResponsiveAvatarSize();
+  const clipboard = useClipboardCopy();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [nickname, setNickname] = useState(user.nickname);
@@ -77,11 +119,10 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const [autoSaveFeedback, setAutoSaveFeedback] = useState('');
   useAutoDismiss(autoSaveFeedback, setAutoSaveFeedback);
 
-  const [linkCopied, setLinkCopied] = useState(false);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<string | null>(null);
   const [pendingLogoutAfterDownload, setPendingLogoutAfterDownload] = useState(false);
-  const pendingActionRef = useRef<'profile' | 'password' | 'regenerate' | null>(null);
+  const pendingActionRef = useRef<PendingAction | null>(null);
   const pendingPasswordRef = useRef('');
   const isRevokingOwnSessionRef = useRef(false);
 
@@ -106,8 +147,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     }
 
     const trySilentRecoveryFileUpdate = async (recoveryFile: string, nicknameForFile: string): Promise<boolean> => {
-      const filename = `sparkchat-${nicknameForFile.toLowerCase()}.sparkkey`;
-      const saved = await tryAutoOverwrite(recoveryFile, filename, user.id);
+      const saved = await tryAutoOverwrite(recoveryFile, buildRecoveryFileName(nicknameForFile), user.id);
       if (saved) {
         setAutoSaveFeedback('Arquivo de recuperação atualizado automaticamente.');
       }
@@ -129,9 +169,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
         onClose();
         return;
       }
-      if (socket) {
-        void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
-      }
+      void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
       if (await trySilentRecoveryFileUpdate(recoveryFile, updated.nickname)) {
         onClose();
         return;
@@ -146,11 +184,11 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      if (socket && changedPassword) {
+      if (changedPassword) {
         void rewrapIdentityAfterPasswordChange(socket, user.id, changedPassword, recoveryToken);
       }
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
-        setTimeout(onLogout, 1600);
+        setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
         return;
       }
       setPendingLogoutAfterDownload(true);
@@ -159,9 +197,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
     const handleRecoveryFileRegenerated = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
       pendingActionRef.current = null;
-      if (socket) {
-        void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
-      }
+      void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         return;
       }
@@ -215,23 +251,9 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
   const handleShare = () => {
     const link = `${window.location.origin}${window.location.pathname}?startChat=${encodeURIComponent(user.nickname)}`;
-
-    if (navigator.share) {
-      navigator.share({ title: 'SparkChat', text: `Fale comigo no SparkChat! Meu username é ${user.nickname}`, url: link }).catch(() => undefined);
-      return;
+    if (!shareLinkNatively({ text: `Fale comigo no SparkChat! Meu username é ${user.nickname}`, url: link })) {
+      clipboard.copy(link);
     }
-
-    if (!navigator.clipboard) {
-      return;
-    }
-
-    navigator.clipboard
-      .writeText(link)
-      .then(() => {
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 2000);
-      })
-      .catch(() => undefined);
   };
 
   const handleChangePassword = () => {
@@ -311,6 +333,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
   const needsCurrentPassword = user.authMethod !== 'keyfile';
   const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword);
+  const otherSessionsCount = sessions.filter((session) => !session.isCurrent).length;
 
   return (
     <Modal
@@ -322,13 +345,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       maxWidth="600px"
     >
       <div style={{ display: 'flex', borderBottom: `2px solid ${theme.border}`, marginBottom: '20px' }}>
-        {(
-          [
-            { id: 'profile' as const, label: 'Perfil', icon: FaUser },
-            { id: 'security' as const, label: 'Segurança', icon: FaShieldAlt },
-            { id: 'system' as const, label: 'Sistema', icon: FaDesktop },
-          ]
-        ).map(({ id, label, icon: Icon }) => (
+        {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -424,8 +441,8 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 cursor: 'pointer',
               }}
             >
-              {linkCopied ? <FaCheck size={14} /> : <FaShareAlt size={14} />}
-              {linkCopied ? 'Link copiado!' : 'Compartilhar link de chat'}
+              {clipboard.isCopied() ? <FaCheck size={14} /> : <FaShareAlt size={14} />}
+              {clipboard.isCopied() ? 'Link copiado!' : 'Compartilhar link de chat'}
             </button>
           </div>
 
@@ -531,21 +548,9 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
               dense
             />
           ) : (
-            <div
-              style={{
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'flex-start',
-                background: 'rgba(102, 126, 234, 0.12)',
-                borderRadius: '10px',
-                padding: '10px 14px',
-                fontSize: '0.82rem',
-                color: theme.textSecondary,
-              }}
-            >
-              <FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.</span>
-            </div>
+            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} background="rgba(102, 126, 234, 0.12)">
+              Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.
+            </InfoNotice>
           )}
 
           <div style={{ marginTop: '14px' }}>
@@ -580,41 +585,18 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
           {passwordError && <small style={{ color: '#ef4444' }}>{passwordError}</small>}
           {passwordError === WRONG_PASSWORD_MESSAGE && (
-            <div
-              style={{
-                display: 'flex',
-                gap: '10px',
-                alignItems: 'flex-start',
-                background: 'rgba(102, 126, 234, 0.12)',
-                borderRadius: '10px',
-                padding: '10px 14px',
-                fontSize: '0.82rem',
-                color: theme.textSecondary,
-              }}
-            >
-              <FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />
-              <span>
-                Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a
-                senha sem precisar da atual.
-              </span>
-            </div>
+            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} background="rgba(102, 126, 234, 0.12)">
+              Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da
+              atual.
+            </InfoNotice>
           )}
 
-          <div
-            style={{
-              display: 'flex',
-              gap: '10px',
-              alignItems: 'flex-start',
-              background: 'rgba(239, 68, 68, 0.12)',
-              borderRadius: '10px',
-              padding: '10px 14px',
-              fontSize: '0.82rem',
-              color: theme.textSecondary,
-            }}
+          <InfoNotice
+            icon={<FaExclamationTriangle size={13} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />}
+            background="rgba(239, 68, 68, 0.12)"
           >
-            <FaExclamationTriangle size={13} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.</span>
-          </div>
+            Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.
+          </InfoNotice>
 
           <button
             onClick={handleChangePassword}
@@ -693,7 +675,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
               <small style={{ color: theme.textSecondary }}>Dispositivos com sessão ativa</small>
-              {sessions.filter((session) => !session.isCurrent).length > 0 && (
+              {otherSessionsCount > 0 && (
                 <button
                   onClick={handleRevokeOtherSessions}
                   style={{

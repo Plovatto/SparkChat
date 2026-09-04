@@ -15,9 +15,17 @@ export interface RoomMessagesCurrentUser {
   avatar: number;
 }
 
+type SendableMessageType = Extract<MessageType, 'text' | 'image' | 'audio' | 'file'>;
+
+const SENDABLE_MESSAGE_TYPES: readonly MessageType[] = ['text', 'image', 'audio', 'file'];
+
+function isSendableMessageType(type: MessageType): type is SendableMessageType {
+  return SENDABLE_MESSAGE_TYPES.includes(type);
+}
+
 export interface SendMessageInput {
   content: string;
-  type: Extract<MessageType, 'text' | 'image' | 'audio' | 'file'>;
+  type: SendableMessageType;
   duration?: number;
   replyTo?: MessageView | null;
   fileMeta?: MessageFileMeta;
@@ -351,7 +359,7 @@ export function useRoomMessages(
   const retryMessage = useCallback(
     (clientTempId: string) => {
       const target = messagesRef.current.find((message) => message.clientTempId === clientTempId);
-      if (!target || !socket || !roomId) {
+      if (!target || !socket || !roomId || !isSendableMessageType(target.type)) {
         return;
       }
 
@@ -365,7 +373,7 @@ export function useRoomMessages(
       socket.emit('message:send', {
         roomId,
         content: target.content,
-        type: target.type as Extract<MessageType, 'text' | 'image' | 'audio'>,
+        type: target.type,
         duration: target.duration ?? undefined,
         replyToMessageId: target.replyTo?.id,
         clientTempId,
