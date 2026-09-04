@@ -47,6 +47,7 @@ interface MessageInputProps {
   isBlockedBy: boolean;
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
+  maxLength?: number;
 }
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
@@ -253,7 +254,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates },
+  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength },
   ref,
 ) {
   const { theme, baseTheme } = useTheme();
@@ -572,6 +573,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }}
             onKeyDown={handleInputKeyDown}
             onPaste={handlePaste}
+            maxLength={maxLength}
             disabled={isBlocked}
             placeholder={
               isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
