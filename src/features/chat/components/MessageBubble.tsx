@@ -19,6 +19,7 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
 import type { RoomParticipant } from '@features/rooms';
+import type { LinkPreviewAuth } from '@lib/api/link-preview';
 import { downloadFromUrl } from '@lib/download-file';
 import { formatAudioTime, formatFileSize, getDisplayName, processSystemMessage, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
@@ -26,10 +27,12 @@ import type { ChatMessage } from '../types';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { clampAspectRatio } from '../utils/clamp-aspect-ratio';
+import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail, type PdfThumbnail } from '../utils/render-pdf-thumbnail';
 import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
 import { ImageModal } from './ImageModal';
+import { LinkPreviewCard } from './LinkPreviewCard';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { VideoPreviewModal } from './VideoPreviewModal';
 
@@ -47,6 +50,7 @@ interface MessageBubbleProps {
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
+  auth: LinkPreviewAuth;
   isSelected: boolean;
   currentAudioRef: MutableRefObject<CurrentAudioRef | null>;
   receipt: MessageReceiptInfo | null;
@@ -65,6 +69,7 @@ const PDF_THUMBNAIL_WIDTH = 380;
 const VIDEO_THUMBNAIL_WIDTH = 380;
 const CHAT_ATTACHMENT_MAX_WIDTH = 260;
 const CHAT_FILE_CARD_MAX_WIDTH = 280;
+const LINK_PREVIEW_BUBBLE_WIDTH = 300;
 const CHAT_ATTACHMENT_MIN_RATIO = 1.1;
 const CHAT_ATTACHMENT_MAX_RATIO = 1.91;
 const REPLY_QUOTE_HEIGHT = 52;
@@ -167,6 +172,8 @@ interface BubbleShellProps {
   extraClassName?: string;
   afterBubble?: ReactNode;
   children: ReactNode;
+  minWidth?: string;
+  cornerRadius?: number;
 }
 
 function BubbleShell({
@@ -182,6 +189,8 @@ function BubbleShell({
   extraClassName = '',
   afterBubble,
   children,
+  minWidth = '80px',
+  cornerRadius = 16,
 }: BubbleShellProps) {
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
@@ -208,7 +217,9 @@ function BubbleShell({
         style={{
           background: bubbleStyle.background,
           color: bubbleStyle.textColor,
-          borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          borderRadius: isOwn
+            ? `${cornerRadius}px ${cornerRadius}px 4px ${cornerRadius}px`
+            : `${cornerRadius}px ${cornerRadius}px ${cornerRadius}px 4px`,
           boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
           backdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           WebkitBackdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
@@ -216,7 +227,7 @@ function BubbleShell({
           flexDirection: 'column',
           gap: '2px',
           padding,
-          minWidth: '80px',
+          minWidth,
           maxWidth: '100%',
         }}
       >
@@ -324,6 +335,7 @@ export function MessageBubble({
   participants,
   currentUserId,
   currentNickname,
+  auth,
   isSelected,
   currentAudioRef,
   receipt,
@@ -604,6 +616,8 @@ export function MessageBubble({
   const fileTypeIcon = isFileMessage ? getFileTypeIcon(message.fileMeta?.mimeType ?? '') : null;
   const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
+  const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
+  const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(message.content) : '';
   const replyQuoteBg = isOwn ? 'rgba(0, 0, 0, 0.14)' : baseTheme === 'light' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)';
   const replyQuoteAccent = isOwn ? 'rgba(255, 255, 255, 0.55)' : theme.primary;
 
@@ -696,6 +710,7 @@ export function MessageBubble({
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
               minWidth: 0,
               opacity: 0.72,
             }}
@@ -729,8 +744,10 @@ export function MessageBubble({
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
       onSelect={onSelect}
-      padding={isImageMessage || isVideoFile ? '4px 0 6px' : isAudioMessage ? '8px 0 6px' : isFileMessage ? '10px 0 6px' : '6px 0'}
+      padding={isImageMessage || isVideoFile ? '8px 0 10px' : isAudioMessage ? '8px 0 6px' : isFileMessage ? '10px 0 6px' : '6px 0'}
+      cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
+      minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '160px') : undefined}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
@@ -750,7 +767,7 @@ export function MessageBubble({
           <div
             style={{
               position: 'relative',
-              padding: '0 4px',
+              padding: '0 10px',
               width: isImageLoaded ? `${CHAT_ATTACHMENT_MAX_WIDTH}px` : undefined,
               maxWidth: '100%',
               height: imageDisplayHeight ?? undefined,
@@ -764,8 +781,8 @@ export function MessageBubble({
                 style={
                   {
                     position: 'absolute',
-                    inset: '0 4px',
-                    borderRadius: '12px',
+                    inset: '0 10px',
+                    borderRadius: '16px',
                     '--shimmer-a': theme.surfaceLight,
                   } as CSSProperties
                 }
@@ -791,7 +808,7 @@ export function MessageBubble({
                 objectFit: isImageLoaded ? 'cover' : undefined,
                 maxWidth: isImageLoaded ? undefined : `min(100%, ${CHAT_ATTACHMENT_MAX_WIDTH}px)`,
                 maxHeight: isImageLoaded ? undefined : '320px',
-                borderRadius: '12px',
+                borderRadius: '16px',
                 cursor: 'pointer',
                 opacity: isImageLoaded ? 1 : 0,
                 transition: 'opacity 0.25s ease',
@@ -944,7 +961,7 @@ export function MessageBubble({
           </div>
         </div>
       ) : isVideoFile ? (
-        <div style={{ padding: '0 4px' }}>
+        <div style={{ padding: '0 10px' }}>
           <div
             onClick={(event) => event.stopPropagation()}
             style={{
@@ -958,7 +975,7 @@ export function MessageBubble({
                   )
                 : undefined,
               minHeight: videoThumbnail ? undefined : '160px',
-              borderRadius: '12px',
+              borderRadius: '16px',
               background: '#000',
               overflow: 'hidden',
             }}
@@ -1108,7 +1125,7 @@ export function MessageBubble({
             />
           )}
         </div>
-      ) : (
+      ) : hasLinkPreview ? null : (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
           <p
             style={{
@@ -1118,6 +1135,7 @@ export function MessageBubble({
               whiteSpace: 'pre-wrap',
               fontWeight: 500,
               wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
             }}
           >
             {renderMessageContent(displayContent, participants, isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary)}
@@ -1154,6 +1172,30 @@ export function MessageBubble({
         </div>
       )}
 
+      {hasLinkPreview && message.linkPreview && (
+        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
+          <LinkPreviewCard preview={message.linkPreview} theme={theme} auth={auth} variant="bubble" isOwn={isOwn} baseTheme={baseTheme} />
+        </div>
+      )}
+
+      {hasLinkPreview && linkPreviewCaption && (
+        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              fontWeight: 500,
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+            }}
+          >
+            {linkPreviewCaption}
+          </p>
+        </div>
+      )}
+
       {message.type !== 'text' && message.caption && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
           <p
@@ -1164,6 +1206,7 @@ export function MessageBubble({
               whiteSpace: 'pre-wrap',
               fontWeight: 500,
               wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
             }}
           >
             {message.caption}
@@ -1233,6 +1276,7 @@ export function ImageGroupBubble({
       currentUserId={currentUserId}
       onSelect={onSelect}
       padding="4px 0 6px"
+      cornerRadius={20}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
@@ -1250,7 +1294,7 @@ export function ImageGroupBubble({
     >
       <div
         style={{
-          padding: '0 4px',
+          padding: '0 10px',
           display: 'grid',
           gridTemplateColumns: visibleTiles.length === 1 ? '1fr' : 'repeat(2, 1fr)',
           gap: '3px',
@@ -1268,7 +1312,7 @@ export function ImageGroupBubble({
               style={{
                 position: 'relative',
                 aspectRatio: '1',
-                borderRadius: '10px',
+                borderRadius: '14px',
                 overflow: 'hidden',
                 cursor: 'pointer',
               }}

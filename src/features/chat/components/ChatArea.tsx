@@ -579,7 +579,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     socket?.emit('audio:played', { messageId });
   };
 
-  const handleSend = ({ text, imageFiles, documentFiles }: MessageInputSubmitPayload) => {
+  const handleSend = ({ text, imageFiles, documentFiles, linkPreview }: MessageInputSubmitPayload) => {
     const trimmed = text.trim();
     const hasAttachments = imageFiles.length > 0 || documentFiles.length > 0;
 
@@ -591,7 +591,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               room.participants.map((participant) => ({ id: participant.id, nickname: participant.nickname })),
             )
           : undefined;
-      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds });
+      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds, linkPreview });
     }
 
     const caption = hasAttachments && trimmed ? trimmed : undefined;
@@ -802,10 +802,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                           participants={room.participants}
                           currentUserId={user.id}
                           currentNickname={user.nickname}
+                          auth={{ userId: user.id, sessionToken: user.sessionToken }}
                           isSelected={selectedMessageId === item.message.id}
                           currentAudioRef={currentAudioRef}
                           receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                          onSelect={() => setSelectedMessageId(item.message.id)}
+                          onSelect={() =>
+                            setSelectedMessageId((current) => (current === item.message.id ? null : item.message.id))
+                          }
                           onReply={() => handleReply(item.message)}
                           onDelete={() => setMessageIdPendingDelete(item.message.id)}
                           onForward={() => handleForward(item.message)}
@@ -822,7 +825,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                           currentUserId={user.id}
                           isSelected={selectedMessageId === anchorMessage.id}
                           receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                          onSelect={() => setSelectedMessageId(anchorMessage.id)}
+                          onSelect={() =>
+                            setSelectedMessageId((current) => (current === anchorMessage.id ? null : anchorMessage.id))
+                          }
                           onReply={() => handleReply(anchorMessage)}
                           onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
                           onForward={() => handleForward(anchorMessage)}
@@ -1104,6 +1109,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         userBlocked={room.userBlocked}
         mentionCandidates={mentionCandidates}
         maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+        auth={{ userId: user.id, sessionToken: user.sessionToken }}
       />
 
       <ConfirmDialog

@@ -271,6 +271,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     socket?.emit('user:revoke-session', { sessionId });
   };
 
+  const handleRevokeOtherSessions = () => {
+    for (const session of sessions) {
+      if (!session.isCurrent) {
+        socket?.emit('user:revoke-session', { sessionId: session.id });
+      }
+    }
+  };
+
   const handleRecoveryDialogClose = () => {
     setRecoveryFilePrompt(null);
     if (pendingLogoutAfterDownload) {
@@ -683,9 +691,25 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           </div>
 
           <div>
-            <small style={{ color: theme.textSecondary, display: 'block', marginBottom: '8px' }}>
-              Dispositivos com sessão ativa
-            </small>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+              <small style={{ color: theme.textSecondary }}>Dispositivos com sessão ativa</small>
+              {sessions.filter((session) => !session.isCurrent).length > 0 && (
+                <button
+                  onClick={handleRevokeOtherSessions}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#ef4444',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
+                >
+                  Encerrar todas as outras
+                </button>
+              )}
+            </div>
             {sessions.length === 0 ? (
               <small style={{ color: theme.textSecondary }}>Nenhuma outra sessão ativa.</small>
             ) : (
