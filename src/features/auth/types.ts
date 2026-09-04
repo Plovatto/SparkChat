@@ -31,6 +31,10 @@ export interface LoginCredentials {
   password: string;
 }
 
+export type PendingE2eCredential =
+  | { type: 'password'; password: string }
+  | { type: 'keyfile'; recoveryToken: string };
+
 export interface Avatar {
   icon: IconType;
   name: string;

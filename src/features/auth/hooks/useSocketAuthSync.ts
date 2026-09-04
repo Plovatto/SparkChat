@@ -6,6 +6,7 @@ export interface RegisteredPayload {
   user: SocketUser;
   sessionToken: string;
   recoveryFile: string;
+  recoveryToken: string;
   authMethod: AuthMethod;
 }
 

@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import '../styles/auth.css';
 import { useLoginTheme } from '../hooks/useLoginTheme';
-import type { LoginMode, PendingRegistration, User } from '../types';
+import type { LoginMode, PendingE2eCredential, PendingRegistration, User } from '../types';
 import { ChooseModeCard } from './ChooseModeCard';
 import { CreateAccountForm } from './CreateAccountForm';
 import { LoginForm } from './LoginForm';
 
 interface LoginScreenProps {
   onRegister: (input: PendingRegistration) => void;
-  onLogin: (user: User) => void;
+  onLogin: (user: User, e2eCredential?: PendingE2eCredential) => void;
   registerError?: string;
 }
 

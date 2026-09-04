@@ -5,7 +5,13 @@ import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownl
 import { Spinner } from '@components/common/Spinner';
 import { ChatArea, useChatTriggerEffects } from '@features/chat';
 import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
-import type { PendingRegistration, User } from '@features/auth';
+import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
+import {
+  ensureIdentityAfterKeyfileLogin,
+  ensureIdentityAfterPasswordLogin,
+  hydrateCurrentIdentity,
+  setupIdentityAfterRegister,
+} from '@lib/e2ee';
 import {
   useAudioContextPrimer,
   useMessageNotifications,
@@ -19,7 +25,7 @@ import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
 export function App() {
-  const { user, isRestoring, login, logout, updateUser } = useAuthSession();
+  const { user, isRestoring, login, logout, updateUser, consumePendingE2eCredential } = useAuthSession();
   const [pendingRegistration, setPendingRegistration] = useState<PendingRegistration | null>(null);
 
   return (
@@ -32,6 +38,7 @@ export function App() {
         onLogin={login}
         onLogout={logout}
         onUserUpdate={updateUser}
+        consumePendingE2eCredential={consumePendingE2eCredential}
       />
     </SocketProvider>
   );
@@ -42,13 +49,24 @@ interface AuthGateProps {
   isRestoring: boolean;
   pendingRegistration: PendingRegistration | null;
   onRegisterStart: (input: PendingRegistration | null) => void;
-  onLogin: (user: User) => void;
+  onLogin: (user: User, e2eCredential?: PendingE2eCredential) => void;
   onLogout: () => void;
   onUserUpdate: (patch: Partial<User>) => void;
+  consumePendingE2eCredential: () => PendingE2eCredential | null;
 }
 
-function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onLogin, onLogout, onUserUpdate }: AuthGateProps) {
+function AuthGate({
+  user,
+  isRestoring,
+  pendingRegistration,
+  onRegisterStart,
+  onLogin,
+  onLogout,
+  onUserUpdate,
+  consumePendingE2eCredential,
+}: AuthGateProps) {
   const { theme } = useTheme();
+  const { socket } = useSocket();
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<{ userId: string; nickname: string; recoveryFile: string } | null>(null);
   const [isSocketReady, setIsSocketReady] = useState(false);
   const [registerError, setRegisterError] = useState('');
@@ -62,7 +80,7 @@ function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onL
   useSocketAuthSync({
     user,
     pendingRegistration,
-    onRegistered: ({ user: registered, sessionToken, recoveryFile, authMethod }) => {
+    onRegistered: ({ user: registered, sessionToken, recoveryFile, recoveryToken, authMethod }) => {
       onLogin({
         id: registered.id,
         nickname: registered.nickname,
@@ -75,6 +93,10 @@ function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onL
       });
       setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
       setIsSocketReady(true);
+
+      if (socket && pendingRegistration) {
+        void setupIdentityAfterRegister(socket, registered.id, pendingRegistration.password, recoveryToken);
+      }
     },
     onResumed: ({ user: resumed, authMethod }) => {
       onUserUpdate({
@@ -86,6 +108,17 @@ function AuthGate({ user, isRestoring, pendingRegistration, onRegisterStart, onL
         theme: resumed.theme,
       });
       setIsSocketReady(true);
+
+      if (socket) {
+        const credential = consumePendingE2eCredential();
+        if (credential?.type === 'password') {
+          void ensureIdentityAfterPasswordLogin(socket, resumed.id, credential.password);
+        } else if (credential?.type === 'keyfile') {
+          void ensureIdentityAfterKeyfileLogin(socket, resumed.id, credential.recoveryToken);
+        } else {
+          void hydrateCurrentIdentity(resumed.id);
+        }
+      }
     },
     onResumeFailed: onLogout,
     onRegisterFailed: (message) => {

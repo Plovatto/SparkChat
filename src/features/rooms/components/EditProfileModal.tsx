@@ -22,6 +22,7 @@ import { PasswordField, PasswordFieldHint } from '@features/auth/components/Pass
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import type { User } from '@features/auth';
+import { rewrapIdentityAfterPasswordChange, rewrapIdentityAfterRecoveryRegenerate } from '@lib/e2ee';
 import { useSocket, type AuthMethod, type SessionSummary, type SocketUser } from '@lib/socket';
 import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { useAutoDismiss } from '@lib/use-auto-dismiss';
@@ -81,6 +82,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<string | null>(null);
   const [pendingLogoutAfterDownload, setPendingLogoutAfterDownload] = useState(false);
   const pendingActionRef = useRef<'profile' | 'password' | 'regenerate' | null>(null);
+  const pendingPasswordRef = useRef('');
   const isRevokingOwnSessionRef = useRef(false);
 
   useEffect(() => {
@@ -112,12 +114,23 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       return saved;
     };
 
-    const handleProfileUpdated = async ({ user: updated, recoveryFile }: { user: SocketUser; recoveryFile: string | null }) => {
+    const handleProfileUpdated = async ({
+      user: updated,
+      recoveryFile,
+      recoveryToken,
+    }: {
+      user: SocketUser;
+      recoveryFile: string | null;
+      recoveryToken: string | null;
+    }) => {
       pendingActionRef.current = null;
       onUserUpdate({ nickname: updated.nickname, avatar: updated.avatar });
-      if (!recoveryFile) {
+      if (!recoveryFile || !recoveryToken) {
         onClose();
         return;
+      }
+      if (socket) {
+        void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
       }
       if (await trySilentRecoveryFileUpdate(recoveryFile, updated.nickname)) {
         onClose();
@@ -126,11 +139,16 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       setRecoveryFilePrompt(recoveryFile);
     };
 
-    const handlePasswordChanged = async ({ recoveryFile }: { recoveryFile: string }) => {
+    const handlePasswordChanged = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
       pendingActionRef.current = null;
+      const changedPassword = pendingPasswordRef.current;
+      pendingPasswordRef.current = '';
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
+      if (socket && changedPassword) {
+        void rewrapIdentityAfterPasswordChange(socket, user.id, changedPassword, recoveryToken);
+      }
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         setTimeout(onLogout, 1600);
         return;
@@ -139,8 +157,11 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       setRecoveryFilePrompt(recoveryFile);
     };
 
-    const handleRecoveryFileRegenerated = async ({ recoveryFile }: { recoveryFile: string }) => {
+    const handleRecoveryFileRegenerated = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
       pendingActionRef.current = null;
+      if (socket) {
+        void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
+      }
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         return;
       }
@@ -159,6 +180,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
       if (action === 'password') {
+        pendingPasswordRef.current = '';
         setPasswordError(message);
       } else if (action === 'regenerate') {
         setRegenerateError(message);
@@ -226,6 +248,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     }
 
     pendingActionRef.current = 'password';
+    pendingPasswordRef.current = newPassword;
     void ensureAutoSavePermission(user.id);
     socket?.emit('user:change-password', {
       currentPassword: currentPassword || undefined,
