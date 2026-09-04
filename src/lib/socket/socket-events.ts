@@ -51,6 +51,14 @@ export interface MessageFileMeta {
   size: number;
 }
 
+export interface MessageLinkPreview {
+  url: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+}
+
 export interface MessageSender {
   id: string;
   nickname: string;
@@ -84,6 +92,7 @@ export interface MessageView {
   mentionedUserIds: string[];
   fileMeta: MessageFileMeta | null;
   caption: string | null;
+  linkPreview: MessageLinkPreview | null;
 }
 
 export interface BlockStatusPayload {
@@ -135,6 +144,7 @@ export interface ServerToClientEvents {
   'user:password-changed': (payload: { recoveryFile: string; recoveryToken: string }) => void;
   'user:recovery-file-regenerated': (payload: { recoveryFile: string; recoveryToken: string }) => void;
   'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
+  'user:session-revoked': () => void;
   'e2e:public-keys': (payload: { keys: E2ePublicKeyEntry[] }) => void;
   'e2e:my-keys': (payload: {
     publicKey: string | null;
@@ -206,6 +216,7 @@ export interface ClientToServerEvents {
     fileMeta?: MessageFileMeta;
     mentionedUserIds?: string[];
     caption?: string;
+    linkPreview?: MessageLinkPreview;
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSocket, type MessageFileMeta, type MessageReplySnapshot, type MessageType, type MessageView } from '@lib/socket';
+import {
+  useSocket,
+  type MessageFileMeta,
+  type MessageLinkPreview,
+  type MessageReplySnapshot,
+  type MessageType,
+  type MessageView,
+} from '@lib/socket';
 import type { ChatMessage } from '../types';
 
 export interface RoomMessagesCurrentUser {
@@ -16,6 +23,7 @@ export interface SendMessageInput {
   fileMeta?: MessageFileMeta;
   mentionedUserIds?: string[];
   caption?: string;
+  linkPreview?: MessageLinkPreview;
 }
 
 export interface RoomMessagesState {
@@ -316,6 +324,7 @@ export function useRoomMessages(
         mentionedUserIds: input.mentionedUserIds ?? [],
         fileMeta: input.fileMeta ?? null,
         caption: input.caption ?? null,
+        linkPreview: input.linkPreview ?? null,
         clientTempId,
         pending: true,
       };
@@ -333,6 +342,7 @@ export function useRoomMessages(
         fileMeta: input.fileMeta,
         mentionedUserIds: input.mentionedUserIds,
         caption: input.caption,
+        linkPreview: input.linkPreview,
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],
@@ -361,6 +371,7 @@ export function useRoomMessages(
         clientTempId,
         fileMeta: target.fileMeta ?? undefined,
         caption: target.caption ?? undefined,
+        linkPreview: target.linkPreview ?? undefined,
       });
     },
     [socket, roomId, schedulePendingTimeout],
