@@ -121,6 +121,7 @@ function AuthGate({
       }
     },
     onResumeFailed: onLogout,
+    onSessionRevoked: onLogout,
     onRegisterFailed: (message) => {
       setRegisterError(message);
       onRegisterStart(null);
@@ -154,6 +155,24 @@ function AuthGate({
   );
 }
 
+const SPLIT_LAYOUT_BREAKPOINT_PX = 870;
+
+function useIsWideLayout(): boolean {
+  const [isWide, setIsWide] = useState(
+    () => typeof window === 'undefined' || window.innerWidth >= SPLIT_LAYOUT_BREAKPOINT_PX,
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia(`(min-width: ${SPLIT_LAYOUT_BREAKPOINT_PX}px)`);
+    const update = () => setIsWide(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+
+  return isWide;
+}
+
 interface ChatShellProps {
   user: User;
   onUserUpdate: (patch: Partial<User>) => void;
@@ -164,6 +183,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { socket, connected } = useSocket();
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const isWideLayout = useIsWideLayout();
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -277,7 +297,17 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
         )}
         <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden' }}>
           <Row style={{ height: '100%', margin: 0 }}>
-            <Col lg={4} md={5} xs={12} style={{ padding: 0, height: '100%' }} className={selectedRoom ? 'd-none d-md-block' : undefined}>
+            <Col
+              lg={5}
+              md={5}
+              xs={12}
+              style={{
+                padding: 0,
+                height: '100%',
+                display: !selectedRoom || isWideLayout ? 'block' : 'none',
+                ...(isWideLayout ? { minWidth: '300px' } : { flex: '0 0 100%', maxWidth: '100%' }),
+              }}
+            >
               <Sidebar
                 user={user}
                 onUserUpdate={onUserUpdate}
@@ -300,11 +330,15 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               />
             </Col>
             <Col
-              lg={8}
+              lg={7}
               md={7}
               xs={12}
-              style={{ padding: 0, height: '100%' }}
-              className={selectedRoom ? 'd-block' : 'd-none d-md-block'}
+              style={{
+                padding: 0,
+                height: '100%',
+                display: selectedRoom || isWideLayout ? 'block' : 'none',
+                ...(isWideLayout ? {} : { flex: '0 0 100%', maxWidth: '100%' }),
+              }}
             >
               <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
             </Col>

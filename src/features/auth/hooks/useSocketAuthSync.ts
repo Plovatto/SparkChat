@@ -22,6 +22,7 @@ export interface SocketAuthSyncOptions {
   onResumed: (payload: ResumedPayload) => void;
   onResumeFailed: () => void;
   onRegisterFailed: (message: string) => void;
+  onSessionRevoked: () => void;
 }
 
 export function useSocketAuthSync({
@@ -31,6 +32,7 @@ export function useSocketAuthSync({
   onResumed,
   onResumeFailed,
   onRegisterFailed,
+  onSessionRevoked,
 }: SocketAuthSyncOptions): void {
   const { socket, connected } = useSocket();
   const hasJoinedRef = useRef(false);
@@ -110,14 +112,22 @@ export function useSocketAuthSync({
       }
     };
 
+    const handleSessionRevoked = () => {
+      hasJoinedRef.current = false;
+      pendingModeRef.current = null;
+      onSessionRevoked();
+    };
+
     socket.on('user:registered', handleRegistered);
     socket.on('user:resumed', handleResumed);
     socket.on('error', handleError);
+    socket.on('user:session-revoked', handleSessionRevoked);
 
     return () => {
       socket.off('user:registered', handleRegistered);
       socket.off('user:resumed', handleResumed);
       socket.off('error', handleError);
+      socket.off('user:session-revoked', handleSessionRevoked);
     };
-  }, [socket, onRegistered, onResumed, onResumeFailed, onRegisterFailed]);
+  }, [socket, onRegistered, onResumed, onResumeFailed, onRegisterFailed, onSessionRevoked]);
 }
