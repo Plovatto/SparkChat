@@ -4,6 +4,7 @@ export type { AppSocket } from './socket-client';
 export type {
   AuthMethod,
   BlockStatusPayload,
+  E2ePublicKeyEntry,
   JoinPayload,
   MessageFileMeta,
   MessageReplySnapshot,

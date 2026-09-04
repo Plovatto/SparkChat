@@ -109,8 +109,19 @@ export interface RoomSummary {
   isMutuallyBlocked: boolean;
 }
 
+export interface E2ePublicKeyEntry {
+  userId: string;
+  publicKey: string;
+}
+
 export interface ServerToClientEvents {
-  'user:registered': (payload: { user: SocketUser; sessionToken: string; recoveryFile: string; authMethod: AuthMethod }) => void;
+  'user:registered': (payload: {
+    user: SocketUser;
+    sessionToken: string;
+    recoveryFile: string;
+    recoveryToken: string;
+    authMethod: AuthMethod;
+  }) => void;
   'user:resumed': (payload: { user: SocketUser; authMethod: AuthMethod }) => void;
   'user:online': (payload: { userId: string; nickname: string; avatar: number }) => void;
   'user:offline': (payload: {
@@ -118,10 +129,16 @@ export interface ServerToClientEvents {
     user: { id: string; status: SocketUserStatus; lastSeen: string };
   }) => void;
   'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number; statusText: string | null }) => void;
-  'user:profile-updated-success': (payload: { user: SocketUser; recoveryFile: string | null }) => void;
-  'user:password-changed': (payload: { recoveryFile: string }) => void;
-  'user:recovery-file-regenerated': (payload: { recoveryFile: string }) => void;
+  'user:profile-updated-success': (payload: { user: SocketUser; recoveryFile: string | null; recoveryToken: string | null }) => void;
+  'user:password-changed': (payload: { recoveryFile: string; recoveryToken: string }) => void;
+  'user:recovery-file-regenerated': (payload: { recoveryFile: string; recoveryToken: string }) => void;
   'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
+  'e2e:public-keys': (payload: { keys: E2ePublicKeyEntry[] }) => void;
+  'e2e:my-keys': (payload: {
+    publicKey: string | null;
+    encryptedPrivateKeyByPassword: string | null;
+    encryptedPrivateKeyByRecovery: string | null;
+  }) => void;
   error: (payload: { message: string; clientTempId?: string }) => void;
   'rooms:list': (payload: { rooms: RoomSummary[] }) => void;
   'room:created': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
@@ -134,6 +151,9 @@ export interface ServerToClientEvents {
   'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
+  'e2e:room-keys': (payload: { keys: { roomId: string; sealedKey: string }[] }) => void;
+  'e2e:room-key': (payload: { roomId: string; sealedKey: string }) => void;
+  'e2e:key-request': (payload: { roomId: string; requesterId: string }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
@@ -154,6 +174,13 @@ export interface ClientToServerEvents {
   'user:regenerate-recovery-file': () => void;
   'user:list-sessions': () => void;
   'user:revoke-session': (payload: { sessionId: string }) => void;
+  'e2e:publish-keys': (payload: {
+    publicKey?: string;
+    encryptedPrivateKeyByPassword?: string;
+    encryptedPrivateKeyByRecovery?: string;
+  }) => void;
+  'e2e:get-public-keys': (payload: { userIds: string[] }) => void;
+  'e2e:get-my-keys': () => void;
   'rooms:get': () => void;
   'room:create-private': (payload: { targetNickname: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
@@ -164,6 +191,9 @@ export interface ClientToServerEvents {
   'group:promote-admin': (payload: { roomId: string; userId: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
+  'e2e:publish-room-key': (payload: { roomId: string; keys: { userId: string; sealedKey: string }[] }) => void;
+  'e2e:get-room-keys': (payload: { roomIds: string[] }) => void;
+  'e2e:request-room-key': (payload: { roomId: string }) => void;
   'message:send': (payload: {
     roomId: string;
     content: string;
@@ -172,6 +202,7 @@ export interface ClientToServerEvents {
     replyToMessageId?: string;
     clientTempId?: string;
     fileMeta?: MessageFileMeta;
+    mentionedUserIds?: string[];
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;
