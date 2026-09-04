@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { FaCheck, FaComments, FaPaperPlane, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
+import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import type { RoomParticipant, RoomSummary } from '@features/rooms';
-import { useSocket } from '@lib/socket';
+import { useSocket, type RoomSummary } from '@lib/socket';
 import type { ChatMessage } from '../types';
 
 interface ForwardMessageModalProps {
@@ -15,17 +15,7 @@ interface ForwardMessageModalProps {
   message: ChatMessage | null;
 }
 
-function getOtherParticipant(room: RoomSummary, userId: string | undefined): RoomParticipant | undefined {
-  return room.participants.find((participant) => participant.id !== userId);
-}
-
-function getRoomLabel(room: RoomSummary, currentUserId: string | undefined): string {
-  if (room.type === 'group') {
-    return room.name ?? 'Grupo';
-  }
-
-  return getOtherParticipant(room, currentUserId)?.nickname ?? 'Usuário';
-}
+const CLOSE_AFTER_FORWARD_MS = 600;
 
 export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, message }: ForwardMessageModalProps) {
   const { theme } = useTheme();
@@ -71,7 +61,7 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
 
     setSentRoomIds(new Set(selectedRoomIds));
     setSelectedRoomIds(new Set());
-    setTimeout(onClose, 600);
+    setTimeout(onClose, CLOSE_AFTER_FORWARD_MS);
   };
 
   return (
@@ -127,7 +117,7 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0, fontWeight: 600, color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {getRoomLabel(room, currentUserId)}
+                  {getRoomDisplayName(room, currentUserId)}
                 </div>
 
                 {wasSent ? (

@@ -1,4 +1,4 @@
-import { createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from './shared-audio-context';
+import { createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audio-context';
 
 function playPop(context: AudioContext, startTime: number): void {
   const duration = 0.07;

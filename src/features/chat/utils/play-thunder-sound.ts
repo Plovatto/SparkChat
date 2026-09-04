@@ -1,4 +1,4 @@
-import { createBrownNoiseBuffer, createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from './shared-audio-context';
+import { createBrownNoiseBuffer, createNoiseBuffer, getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audio-context';
 
 function playCrack(context: AudioContext, startTime: number, pan: number): void {
   const duration = 0.1;

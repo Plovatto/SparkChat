@@ -14,7 +14,7 @@ export interface SocketUser {
   theme: SocketUserTheme;
 }
 
-export type JoinPayload =
+type JoinPayload =
   | { mode: 'register'; nickname: string; avatar: number; password: string }
   | { mode: 'resume'; userId: string; sessionToken: string };
 

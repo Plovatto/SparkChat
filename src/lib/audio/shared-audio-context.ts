@@ -1,7 +1,15 @@
 let sharedAudioContext: AudioContext | null = null;
 
+export function createAudioContext(): AudioContext {
+  const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+  if (!AudioContextClass) {
+    throw new Error('Web Audio API indisponível neste navegador.');
+  }
+  return new AudioContextClass();
+}
+
 export function getSharedAudioContext(): AudioContext {
-  sharedAudioContext ??= new AudioContext();
+  sharedAudioContext ??= createAudioContext();
   return sharedAudioContext;
 }
 
@@ -37,7 +45,7 @@ export function createBrownNoiseBuffer(context: AudioContext, durationSeconds: n
 
   const normalize = 0.9 / peak;
   for (let i = 0; i < bufferSize; i += 1) {
-    data[i] = data[i]! * normalize;
+    data[i] = (data[i] ?? 0) * normalize;
   }
 
   return buffer;

@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Button } from 'react-bootstrap';
 import {
   FaBell,
@@ -17,23 +17,68 @@ import {
   FaTimes,
   FaTrash,
 } from 'react-icons/fa';
-import { AVATARS } from '@features/auth/constants/avatars';
-import type { User } from '@features/auth';
-import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
+import type { User } from '@features/auth';
+import { AVATARS } from '@features/auth/constants/avatars';
+import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
+import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
-import { useSocket } from '@lib/socket';
+import { useClipboardCopy } from '@hooks/useClipboardCopy';
+import { useSocket, type RoomSummary } from '@lib/socket';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
-import type { RoomSummary } from '../types';
 import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
 import { ThemeMenu } from './ThemeMenu';
 
-const STATUS_TEXT_MAX_LENGTH = 30;
-
 function getRoomLastActivityTimestamp(room: RoomSummary): number {
   return room.lastMessage ? new Date(room.lastMessage.timestamp).getTime() : 0;
+}
+
+interface HeaderIconButtonProps {
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  title?: string;
+  disabled?: boolean;
+  children: ReactNode;
+}
+
+function HeaderIconButton({ onClick, title, disabled = false, children }: HeaderIconButtonProps) {
+  const { theme } = useTheme();
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        background: 'rgba(255, 255, 255, 0.2)',
+        border: 'none',
+        color: theme.headerTextColor,
+        width: '38px',
+        height: '38px',
+        borderRadius: '50%',
+        padding: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        flexShrink: 0,
+      }}
+      onMouseEnter={(event) => {
+        if (!disabled) {
+          event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
+        }
+      }}
+      onMouseLeave={(event) => {
+        if (!disabled) {
+          event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+        }
+      }}
+    >
+      {children}
+    </button>
+  );
 }
 
 interface SidebarProps {
@@ -77,7 +122,6 @@ export function Sidebar({
   mutedRoomIds,
   onToggleMuted,
 }: SidebarProps) {
-  const [usernameCopied, setUsernameCopied] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -88,6 +132,7 @@ export function Sidebar({
   const [statusDraft, setStatusDraft] = useState(user.statusText ?? '');
   const { theme } = useTheme();
   const { socket } = useSocket();
+  const clipboard = useClipboardCopy();
   const { favoriteRoomIds, toggleFavorites } = useFavoriteRooms();
 
   const handleThemeButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -117,10 +162,14 @@ export function Sidebar({
     setSelectedIds((previous) => (previous.size === rooms.length ? new Set() : new Set(rooms.map((room) => room.id))));
   };
 
-  const confirmDelete = () => {
-    onDeleteRooms(Array.from(selectedIds));
+  const exitSelectionMode = () => {
     setSelectedIds(new Set());
     setIsSelectionMode(false);
+  };
+
+  const confirmDelete = () => {
+    onDeleteRooms(Array.from(selectedIds));
+    exitSelectionMode();
   };
 
   const assistantRoomId = rooms.find(isAssistantRoom)?.id;
@@ -128,14 +177,12 @@ export function Sidebar({
 
   const handleFavoriteSelected = () => {
     toggleFavorites(favoritableSelectedIds);
-    setSelectedIds(new Set());
-    setIsSelectionMode(false);
+    exitSelectionMode();
   };
 
   const handleMuteSelected = () => {
     onToggleMuted(Array.from(selectedIds));
-    setSelectedIds(new Set());
-    setIsSelectionMode(false);
+    exitSelectionMode();
   };
 
   const allSelectedAreFavorited =
@@ -185,22 +232,6 @@ export function Sidebar({
   }, [sortedRooms, selectedRoomId, onSelectRoom]);
 
   const avatar = AVATARS[user.avatar];
-
-  const copyUsername = () => {
-    if (!navigator.clipboard) {
-      return;
-    }
-
-    navigator.clipboard
-      .writeText(user.nickname)
-      .then(() => {
-        setUsernameCopied(true);
-        setTimeout(() => setUsernameCopied(false), 2000);
-      })
-      .catch(() => {
-        setUsernameCopied(false);
-      });
-  };
 
   const handleStartEditStatus = () => {
     setStatusDraft(user.statusText ?? '');
@@ -296,7 +327,7 @@ export function Sidebar({
                 {user.nickname}
               </h5>
               <button
-                onClick={copyUsername}
+                onClick={() => clipboard.copy(user.nickname)}
                 title="Copiar username"
                 style={{
                   background: 'rgba(255, 255, 255, 0.2)',
@@ -322,7 +353,7 @@ export function Sidebar({
                   event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
                 }}
               >
-                {usernameCopied ? <FaCheck size={9} /> : <FaCopy size={9} />}
+                {clipboard.isCopied() ? <FaCheck size={9} /> : <FaCopy size={9} />}
               </button>
             </div>
 
@@ -376,35 +407,14 @@ export function Sidebar({
             )}
           </div>
 
-          <button
-            onClick={handleThemeButtonClick}
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              color: theme.headerTextColor,
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-            }}
-          >
+          <HeaderIconButton onClick={handleThemeButtonClick}>
             <FaPalette size={16} />
-          </button>
+          </HeaderIconButton>
 
           <ThemeMenu isOpen={showThemeMenu} position={themeMenuPosition} onClose={() => setShowThemeMenu(false)} />
 
           {notificationsSupported && (
-            <button
+            <HeaderIconButton
               onClick={onToggleNotifications}
               disabled={notificationsBlocked}
               title={
@@ -414,63 +424,14 @@ export function Sidebar({
                     ? 'Desativar notificações'
                     : 'Ativar notificações'
               }
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: 'none',
-                color: theme.headerTextColor,
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: notificationsBlocked ? 'not-allowed' : 'pointer',
-                opacity: notificationsBlocked ? 0.5 : 1,
-                flexShrink: 0,
-              }}
-              onMouseEnter={(event) => {
-                if (!notificationsBlocked) {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!notificationsBlocked) {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                }
-              }}
             >
               {notificationsEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
-            </button>
+            </HeaderIconButton>
           )}
 
-          <Button
-            variant="link"
-            onClick={onLogout}
-            title="Sair"
-            style={{
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              color: theme.headerTextColor,
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textDecoration: 'none',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-            }}
-          >
+          <HeaderIconButton onClick={onLogout} title="Sair">
             <FaSignOutAlt size={16} />
-          </Button>
+          </HeaderIconButton>
         </div>
 
         <Button

@@ -11,6 +11,7 @@ export function saveSession(user: User): void {
     sessionToken: user.sessionToken,
     ...(user.authMethod ? { authMethod: user.authMethod } : {}),
     ...(user.status ? { status: user.status } : {}),
+    ...(user.statusText !== undefined ? { statusText: user.statusText } : {}),
     ...(user.theme ? { theme: user.theme } : {}),
   };
 
