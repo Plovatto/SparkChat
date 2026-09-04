@@ -14,6 +14,7 @@ export interface SendMessageInput {
   duration?: number;
   replyTo?: MessageView | null;
   fileMeta?: MessageFileMeta;
+  mentionedUserIds?: string[];
 }
 
 export interface RoomMessagesState {
@@ -72,6 +73,7 @@ export function useRoomMessages(
   messagesRef.current = messages;
   const isLoadingOlderRef = useRef(false);
   const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedInitialPageRef = useRef(false);
 
   const clearLoadOlderTimeout = () => {
     if (loadOlderTimeoutRef.current) {
@@ -112,6 +114,7 @@ export function useRoomMessages(
     setHasMoreOlder(false);
     setIsLoadingOlder(false);
     isLoadingOlderRef.current = false;
+    hasLoadedInitialPageRef.current = false;
     clearLoadOlderTimeout();
     setTypingUserIds([]);
     setRecordingUserIds([]);
@@ -144,7 +147,7 @@ export function useRoomMessages(
         return;
       }
 
-      if (messagesRef.current.length > 0) {
+      if (hasLoadedInitialPageRef.current) {
         isLoadingOlderRef.current = false;
         setIsLoadingOlder(false);
         clearLoadOlderTimeout();
@@ -161,8 +164,18 @@ export function useRoomMessages(
         });
         socket.emit('message:mark-read', { roomId, messageIds: sortedPage.map((message) => message.id) });
       } else {
+        hasLoadedInitialPageRef.current = true;
         const initialMessages = normalizeInitialMessagesPage(payload.messages);
-        setMessages(initialMessages);
+        setMessages((previous) => {
+          if (previous.length === 0) {
+            return initialMessages;
+          }
+          const historyIds = new Set(initialMessages.map((message) => message.id));
+          const liveOnly = previous.filter((message) => !historyIds.has(message.id));
+          return [...initialMessages, ...liveOnly].sort(
+            (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
+          );
+        });
         setIsLoaded(true);
         if (initialMessages.length > 0) {
           socket.emit('message:mark-read', { roomId });
@@ -298,7 +311,7 @@ export function useRoomMessages(
         readBy: [],
         playedBy: [],
         replyTo: buildReplySnapshot(input.replyTo),
-        mentionedUserIds: [],
+        mentionedUserIds: input.mentionedUserIds ?? [],
         fileMeta: input.fileMeta ?? null,
         clientTempId,
         pending: true,
@@ -315,6 +328,7 @@ export function useRoomMessages(
         replyToMessageId: input.replyTo?.id,
         clientTempId,
         fileMeta: input.fileMeta,
+        mentionedUserIds: input.mentionedUserIds,
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],
