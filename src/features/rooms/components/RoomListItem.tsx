@@ -13,11 +13,13 @@ import {
   FaPlay,
   FaSquare,
   FaStar,
+  FaThumbtack,
   FaUser,
   FaVideo,
 } from 'react-icons/fa';
 import { AVATARS } from '@features/auth/constants/avatars';
 import type { User } from '@features/auth';
+import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { formatAudioTime, getDisplayName, processSystemMessage, resolveActiveUserNames, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomThemePalette } from '../constants/default-theme';
@@ -417,6 +419,7 @@ export function RoomListItem({
                   </span>
                 );
               })()}
+            {isAssistantRoom(room) && <FaThumbtack size={11} color="#ffffff" style={{ flexShrink: 0 }} title="Conversa fixada" />}
             {room.lastMessage && (
               <small style={{ fontSize: '0.7rem', color: theme.textSecondary, flexShrink: 0, fontWeight: 500 }}>
                 {new Date(room.lastMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

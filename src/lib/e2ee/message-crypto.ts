@@ -95,6 +95,32 @@ async function resolveContent(
     : decryptMediaContentIfNeeded(socket, content, roomId, fileMeta);
 }
 
+async function decryptCaptionIfNeeded(
+  socket: AppSocket,
+  caption: string | null | undefined,
+  roomId: string,
+): Promise<string | null> {
+  if (!caption) {
+    return null;
+  }
+  return decryptTextContentIfNeeded(socket, caption, roomId);
+}
+
+async function decryptFileMetaIfNeeded(
+  socket: AppSocket,
+  fileMeta: MessageFileMeta | null | undefined,
+  roomId: string,
+): Promise<MessageFileMeta | null> {
+  if (!fileMeta) {
+    return null;
+  }
+  const [name, mimeType] = await Promise.all([
+    decryptTextContentIfNeeded(socket, fileMeta.name, roomId),
+    decryptTextContentIfNeeded(socket, fileMeta.mimeType, roomId),
+  ]);
+  return { ...fileMeta, name, mimeType };
+}
+
 async function decryptReplySnapshot(
   socket: AppSocket,
   reply: MessageReplySnapshot | null,
@@ -103,15 +129,22 @@ async function decryptReplySnapshot(
   if (!reply) {
     return reply;
   }
-  return { ...reply, content: await resolveContent(socket, reply.content, roomId, reply.type, reply.fileMeta) };
+  const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId);
+  const [content, caption] = await Promise.all([
+    resolveContent(socket, reply.content, roomId, reply.type, fileMeta),
+    decryptCaptionIfNeeded(socket, reply.caption, roomId),
+  ]);
+  return { ...reply, content, caption, fileMeta };
 }
 
 export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
-  const [content, replyTo] = await Promise.all([
-    resolveContent(socket, message.content, message.roomId, message.type, message.fileMeta),
+  const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId);
+  const [content, replyTo, caption] = await Promise.all([
+    resolveContent(socket, message.content, message.roomId, message.type, fileMeta),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
+    decryptCaptionIfNeeded(socket, message.caption, message.roomId),
   ]);
-  return { ...message, content, replyTo };
+  return { ...message, content, replyTo, caption, fileMeta };
 }
 
 export function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {
@@ -140,4 +173,13 @@ export async function encryptOutgoingContent(roomId: string, type: string, conte
   }
 
   return encryptText(content, roomKey);
+}
+
+export async function encryptTextIfPossible(roomId: string, text: string): Promise<string> {
+  const roomKey = getCachedRoomKey(roomId);
+  if (!roomKey) {
+    return text;
+  }
+
+  return encryptText(text, roomKey);
 }

@@ -521,6 +521,40 @@ export function MessageBubble({
     );
   }
 
+  if (message.type === 'error') {
+    return (
+      <div
+        className="animate__animated animate__fadeIn"
+        style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '4px 0' }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            background: 'rgba(239, 83, 80, 0.14)',
+            border: '1px solid rgba(239, 83, 80, 0.35)',
+            color: '#ef5350',
+            borderRadius: '12px',
+            padding: '8px 16px',
+            fontSize: '0.85rem',
+            textAlign: 'left',
+            maxWidth: '80%',
+            fontWeight: 500,
+          }}
+        >
+          <FaExclamationCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <p style={{ margin: 0, lineHeight: 1.4 }}>{message.content}</p>
+            <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '2px' }}>
+              {format(new Date(message.timestamp), 'HH:mm')}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (message.type === 'system') {
     return (
       <div
@@ -1117,6 +1151,23 @@ export function MessageBubble({
                 </span>
               </>
             )}
+          </p>
+        </div>
+      )}
+
+      {message.type !== 'text' && message.caption && (
+        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.95rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              fontWeight: 500,
+              wordBreak: 'break-word',
+            }}
+          >
+            {message.caption}
           </p>
         </div>
       )}

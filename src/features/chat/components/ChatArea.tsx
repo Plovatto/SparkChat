@@ -15,6 +15,7 @@ import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
+import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import { ChatHeader } from './ChatHeader';
@@ -93,7 +94,8 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
   };
 
   for (const message of messages) {
-    const isGroupable = message.type === 'image' && !message.deletedForEveryone && !message.pending && !message.failed;
+    const isGroupable =
+      message.type === 'image' && !message.deletedForEveryone && !message.pending && !message.failed && !message.caption;
     const bufferTail = buffer[buffer.length - 1];
 
     if (isGroupable && (!bufferTail || (bufferTail.sender.id === message.sender.id && isSameDay(new Date(bufferTail.timestamp), new Date(message.timestamp))))) {
@@ -435,7 +437,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const sendImageMessages = async (files: File[], replyTo: MessageView | null) => {
+  const sendImageMessages = async (files: File[], replyTo: MessageView | null, caption?: string) => {
     setUploadingMediaType('image');
     try {
       for (let index = 0; index < files.length; index++) {
@@ -448,6 +450,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           content: uploaded.url,
           type: 'image',
           replyTo: index === 0 ? replyTo : null,
+          caption: index === 0 ? caption : undefined,
           fileMeta: { name: file.name, mimeType: uploaded.mimeType, size: file.size },
         });
       }
@@ -479,7 +482,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     }
   };
 
-  const sendFileMessages = async (files: File[], replyTo: MessageView | null) => {
+  const sendFileMessages = async (files: File[], replyTo: MessageView | null, caption?: string) => {
     setUploadingMediaType('file');
     try {
       for (let index = 0; index < files.length; index++) {
@@ -492,6 +495,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           content: uploaded.url,
           type: 'file',
           replyTo: index === 0 ? replyTo : null,
+          caption: index === 0 ? caption : undefined,
           fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size },
         });
       }
@@ -517,8 +521,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
 
   const handleSend = ({ text, imageFiles, documentFiles }: MessageInputSubmitPayload) => {
     const trimmed = text.trim();
+    const hasAttachments = imageFiles.length > 0 || documentFiles.length > 0;
 
-    if (trimmed) {
+    if (trimmed && !hasAttachments) {
       const mentionedUserIds =
         room.type === 'group'
           ? parseMentionedUserIds(
@@ -529,12 +534,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds });
     }
 
+    const caption = hasAttachments && trimmed ? trimmed : undefined;
+
     if (imageFiles.length > 0) {
-      void sendImageMessages(imageFiles, trimmed ? null : repliedMessage);
+      void sendImageMessages(imageFiles, repliedMessage, caption);
     }
 
     if (documentFiles.length > 0) {
-      void sendFileMessages(documentFiles, trimmed || imageFiles.length > 0 ? null : repliedMessage);
+      void sendFileMessages(documentFiles, imageFiles.length > 0 ? null : repliedMessage, imageFiles.length > 0 ? undefined : caption);
     }
 
     setRepliedMessage(null);
@@ -999,6 +1006,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         isBlockedBy={room.isBlockedBy}
         userBlocked={room.userBlocked}
         mentionCandidates={mentionCandidates}
+        maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
       />
 
       <ConfirmDialog

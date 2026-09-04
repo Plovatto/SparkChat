@@ -4,6 +4,7 @@ import {
   decryptRoomSummaries,
   decryptRoomSummary,
   encryptOutgoingContent,
+  encryptTextIfPossible,
   establishGroupRoomKeyOnCreate,
   establishPrivateRoomKey,
   getCurrentIdentity,
@@ -138,15 +139,45 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   genericSocket.emit = (event: string, ...args: unknown[]) => {
     if (event === 'message:send') {
-      const payload = args[0] as { roomId: string; type?: string; content: string };
-      void encryptOutgoingContent(payload.roomId, payload.type ?? 'text', payload.content)
-        .catch((error: unknown) => {
+      const payload = args[0] as {
+        roomId: string;
+        type?: string;
+        content: string;
+        caption?: string;
+        fileMeta?: { name: string; mimeType: string; size: number };
+      };
+      const contentPromise = encryptOutgoingContent(payload.roomId, payload.type ?? 'text', payload.content).catch(
+        (error: unknown) => {
           console.error('[e2e] failed to encrypt outgoing message, sending it as-is', error);
           return payload.content;
-        })
-        .then((content) => {
-          originalEmit(event, { ...payload, content });
+        },
+      );
+      const captionPromise = payload.caption
+        ? encryptTextIfPossible(payload.roomId, payload.caption).catch((error: unknown) => {
+            console.error('[e2e] failed to encrypt outgoing caption, sending it as-is', error);
+            return payload.caption as string;
+          })
+        : Promise.resolve(undefined);
+      const fileMetaPromise = payload.fileMeta
+        ? Promise.all([
+            encryptTextIfPossible(payload.roomId, payload.fileMeta.name),
+            encryptTextIfPossible(payload.roomId, payload.fileMeta.mimeType),
+          ])
+            .then(([name, mimeType]) => ({ ...payload.fileMeta, name, mimeType }))
+            .catch((error: unknown) => {
+              console.error('[e2e] failed to encrypt outgoing fileMeta, sending it as-is', error);
+              return payload.fileMeta;
+            })
+        : Promise.resolve(undefined);
+
+      void Promise.all([contentPromise, captionPromise, fileMetaPromise]).then(([content, caption, fileMeta]) => {
+        originalEmit(event, {
+          ...payload,
+          content,
+          ...(caption !== undefined ? { caption } : {}),
+          ...(fileMeta !== undefined ? { fileMeta } : {}),
         });
+      });
       return socket;
     }
     return originalEmit(event, ...args);
