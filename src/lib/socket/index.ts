@@ -7,6 +7,7 @@ export type {
   E2ePublicKeyEntry,
   JoinPayload,
   MessageFileMeta,
+  MessageLinkPreview,
   MessageReplySnapshot,
   MessageSender,
   MessageStatus,
