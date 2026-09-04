@@ -594,7 +594,8 @@ export function MessageBubble({
     <div
       onClick={handleJumpToReply}
       style={{
-        margin: '8px 10px 6px',
+        margin: '8px 10px 0',
+        marginBottom: message.type === 'text' ? 0 : '6px',
         minWidth: '160px',
         maxWidth: 'calc(100% - 20px)',
         boxSizing: 'border-box',
