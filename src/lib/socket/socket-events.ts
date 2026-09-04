@@ -41,7 +41,7 @@ export interface RoomParticipant {
   isAdmin: boolean;
 }
 
-export type MessageType = 'text' | 'system' | 'image' | 'audio' | 'file';
+export type MessageType = 'text' | 'system' | 'image' | 'audio' | 'file' | 'error';
 
 export type MessageStatus = 'sent' | 'delivered' | 'read';
 
@@ -63,6 +63,7 @@ export interface MessageReplySnapshot {
   type: MessageType;
   duration: number | null;
   fileMeta: MessageFileMeta | null;
+  caption: string | null;
   sender: MessageSender;
 }
 
@@ -82,6 +83,7 @@ export interface MessageView {
   replyTo: MessageReplySnapshot | null;
   mentionedUserIds: string[];
   fileMeta: MessageFileMeta | null;
+  caption: string | null;
 }
 
 export interface BlockStatusPayload {
@@ -203,6 +205,7 @@ export interface ClientToServerEvents {
     clientTempId?: string;
     fileMeta?: MessageFileMeta;
     mentionedUserIds?: string[];
+    caption?: string;
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;

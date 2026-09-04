@@ -15,6 +15,7 @@ export interface SendMessageInput {
   replyTo?: MessageView | null;
   fileMeta?: MessageFileMeta;
   mentionedUserIds?: string[];
+  caption?: string;
 }
 
 export interface RoomMessagesState {
@@ -52,6 +53,7 @@ function buildReplySnapshot(message: MessageView | null | undefined): MessageRep
     type: message.type,
     duration: message.duration,
     fileMeta: message.fileMeta,
+    caption: message.caption,
     sender: message.sender,
   };
 }
@@ -313,6 +315,7 @@ export function useRoomMessages(
         replyTo: buildReplySnapshot(input.replyTo),
         mentionedUserIds: input.mentionedUserIds ?? [],
         fileMeta: input.fileMeta ?? null,
+        caption: input.caption ?? null,
         clientTempId,
         pending: true,
       };
@@ -329,6 +332,7 @@ export function useRoomMessages(
         clientTempId,
         fileMeta: input.fileMeta,
         mentionedUserIds: input.mentionedUserIds,
+        caption: input.caption,
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],
@@ -355,6 +359,8 @@ export function useRoomMessages(
         duration: target.duration ?? undefined,
         replyToMessageId: target.replyTo?.id,
         clientTempId,
+        fileMeta: target.fileMeta ?? undefined,
+        caption: target.caption ?? undefined,
       });
     },
     [socket, roomId, schedulePendingTimeout],

@@ -8,6 +8,7 @@ import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
 import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { downloadFromUrl } from '@lib/download-file';
 import { useSocket, type MessageView } from '@lib/socket';
+import { isAssistantRoom } from '../utils/assistant';
 import { AppearanceEditor } from './AppearanceEditor';
 import { GalleryMediaTile } from './GalleryMediaTile';
 import { ImageModal } from './ImageModal';
@@ -524,6 +525,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
             <AppearanceEditor roomId={room.id} />
 
+            {!isAssistantRoom(room) && (
             <div style={{ display: 'flex', gap: '10px', paddingTop: '20px', borderTop: `1px solid ${theme.border}` }}>
               {room.userBlocked ? (
                 <button
@@ -583,6 +585,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 </button>
               )}
             </div>
+            )}
           </>
         )}
 
