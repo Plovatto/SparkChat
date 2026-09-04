@@ -1,9 +1,11 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Alert, Button, Card, Container, Form } from 'react-bootstrap';
-import { FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaFileUpload, FaKey, FaLock, FaUser } from 'react-icons/fa';
-import { useAutoDismiss } from '@lib/use-auto-dismiss';
+import { Button, Card, Container, Form } from 'react-bootstrap';
+import { FaCheckCircle, FaFileUpload, FaKey, FaLock, FaUser } from 'react-icons/fa';
+import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { login, loginWithKeyfile } from '../api/auth-api';
 import type { LoginThemePalette, PendingE2eCredential, User } from '../types';
+import { AuthBackButton } from './AuthBackButton';
+import { AuthErrorAlert } from './AuthErrorAlert';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -15,6 +17,8 @@ interface LoginFormProps {
   onBack: () => void;
   onSubmit: (user: User, e2eCredential?: PendingE2eCredential) => void;
 }
+
+const CONNECTION_ERROR_MESSAGE = 'Erro ao conectar com o servidor. Tente novamente!';
 
 export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: LoginFormProps) {
   const [useKeyfile, setUseKeyfile] = useState(false);
@@ -40,7 +44,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
       const user = await login({ nickname: nickname.trim(), password });
       onSubmit(user, { type: 'password', password });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor. Tente novamente!');
+      setError(err instanceof Error ? err.message : CONNECTION_ERROR_MESSAGE);
       setIsLoading(false);
     }
   };
@@ -61,7 +65,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
       const { user, recoveryToken } = await loginWithKeyfile(file);
       onSubmit(user, { type: 'keyfile', recoveryToken });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao conectar com o servidor. Tente novamente!');
+      setError(err instanceof Error ? err.message : CONNECTION_ERROR_MESSAGE);
       setIsLoading(false);
     }
   };
@@ -114,32 +118,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
               gap: 'clamp(12px, 3vw, 18px)',
             }}
           >
-            <Button
-              onClick={onBack}
-              className="smooth-transition"
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '12px 12px',
-                color: 'white',
-                backdropFilter: 'blur(10px)',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
-                e.currentTarget.style.transform = 'translateX(-3px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-                e.currentTarget.style.transform = 'translateX(0)';
-              }}
-            >
-              <FaArrowLeft size={18} />
-            </Button>
+            <AuthBackButton onClick={onBack} />
             <div style={{ flex: 1 }}>
               <h2 style={{ margin: '0 0 0 8px', fontSize: 'clamp(1.2rem, 4vw, 1.8rem)', fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center' }}>
                 Bem-vindo de volta!
@@ -151,28 +130,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
           </div>
 
           <Card.Body style={{ padding: 'clamp(50px, 5vw, 45px) clamp(25px, 5vw, 45px)', background: theme.cardBg }}>
-            {error && (
-              <Alert
-                variant="danger"
-                className="animate__animated animate__shakeX"
-                style={{
-                  borderRadius: '14px',
-                  marginBottom: '25px',
-                  border: 'none',
-                  background: theme.alertBg,
-                  color: theme.alertText,
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 20px)',
-                  fontSize: 'clamp(0.9rem, 2.5vw, 1rem)',
-                }}
-              >
-                <FaExclamationCircle size={18} style={{ flexShrink: 0 }} />
-                {error}
-              </Alert>
-            )}
+            {error && <AuthErrorAlert message={error} theme={theme} marginBottom="25px" />}
 
             {!useKeyfile ? (
               <Form onSubmit={(event) => void handlePasswordSubmit(event)} autoComplete="off">

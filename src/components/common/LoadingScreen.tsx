@@ -107,18 +107,6 @@ export function LoadingScreen() {
           Carregando...
         </p>
       </div>
-
-      <style>{`
-        @keyframes loadingPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
-        }
-
-        @keyframes loadingFloat {
-          0%, 100% { transform: translateY(0px) scale(1); }
-          50% { transform: translateY(-30px) scale(1.05); }
-        }
-      `}</style>
     </div>
   );
 }

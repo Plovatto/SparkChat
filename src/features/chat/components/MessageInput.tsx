@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { Button, Form } from 'react-bootstrap';
 import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
-import type { LinkPreviewAuth } from '@lib/api/link-preview';
+import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
 import type { ThemePalette } from '@features/theme';
@@ -38,7 +38,7 @@ export interface AudioSendPayload {
   duration: number;
 }
 
-export interface MentionCandidate {
+interface MentionCandidate {
   id: string;
   nickname: string;
 }
@@ -53,7 +53,7 @@ interface MessageInputProps {
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
   maxLength?: number;
-  auth: LinkPreviewAuth;
+  auth: SessionAuth;
 }
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
@@ -266,7 +266,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const { theme, baseTheme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
-  const linkPreview = useLinkPreview(message, auth.userId, auth.sessionToken);
+  const linkPreview = useLinkPreview(message, auth);
   const [shouldAutoFocus] = useState(
     () => typeof window === 'undefined' || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches,
   );

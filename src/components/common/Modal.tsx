@@ -1,6 +1,8 @@
-import { useEffect, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTimes } from 'react-icons/fa';
+import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
+import { useEscapeKey } from '@hooks/useEscapeKey';
 
 export interface ModalPalette {
   surface: string;
@@ -22,28 +24,8 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, children, maxWidth = '500px' }: ModalProps) {
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : 'auto';
-
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  useBodyScrollLock(isOpen);
+  useEscapeKey(isOpen, onClose);
 
   if (!isOpen) {
     return null;

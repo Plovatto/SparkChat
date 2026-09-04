@@ -16,7 +16,7 @@ interface PendingAttachmentTileProps {
   onRemove?: () => void;
 }
 
-export const PENDING_ATTACHMENT_TILE_SIZE = 76;
+const PENDING_ATTACHMENT_TILE_SIZE = 76;
 
 export function PendingAttachmentTile({ file, theme, onRemove }: PendingAttachmentTileProps) {
   const kind = getAttachmentKind(file.type);

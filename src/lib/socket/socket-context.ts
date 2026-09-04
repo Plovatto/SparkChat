@@ -1,7 +1,7 @@
 import { createContext, use } from 'react';
 import type { AppSocket } from './socket-client';
 
-export interface SocketContextValue {
+interface SocketContextValue {
   socket: AppSocket | null;
   connected: boolean;
 }

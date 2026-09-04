@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useSocket, type SocketUser } from '@lib/socket';
-import type { AuthMethod, PendingRegistration, User } from '../types';
+import { useSocket, type AuthMethod, type SocketUser } from '@lib/socket';
+import type { PendingRegistration, User } from '../types';
 
 export interface RegisteredPayload {
   user: SocketUser;

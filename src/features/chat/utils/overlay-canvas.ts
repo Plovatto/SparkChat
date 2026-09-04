@@ -66,13 +66,6 @@ function shakeSingleElement(element: HTMLElement, durationMs: number): void {
   window.setTimeout(() => element.classList.remove('chat-shake'), durationMs);
 }
 
-export function shakeElement(selector: string, durationMs = 550): void {
-  const element = document.querySelector(selector);
-  if (element instanceof HTMLElement) {
-    shakeSingleElement(element, durationMs);
-  }
-}
-
 export function shakeElements(selector: string, durationMs = 700, maxStaggerMs = 0): void {
   document.querySelectorAll(selector).forEach((element) => {
     if (!(element instanceof HTMLElement)) {

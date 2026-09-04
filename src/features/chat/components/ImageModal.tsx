@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState, type WheelEvent } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { downloadFromUrl } from '@lib/download-file';
 
 function deriveImageFileName(url: string): string {
@@ -24,6 +25,33 @@ interface ImageModalProps {
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.2;
+
+const NAV_BUTTON_STYLE: CSSProperties = {
+  position: 'fixed',
+  top: '50%',
+  transform: 'translateY(-50%)',
+  zIndex: 10055,
+  background: 'rgba(0, 0, 0, 0.6)',
+  border: '2px solid rgba(255, 255, 255, 0.25)',
+  color: 'white',
+  width: 'clamp(38px, 10vw, 48px)',
+  height: 'clamp(38px, 10vw, 48px)',
+  borderRadius: '50%',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'background 0.2s ease',
+  fontSize: '18px',
+};
+
+const CONTROL_DIVIDER_STYLE: CSSProperties = {
+  width: '1px',
+  height: '22px',
+  background: 'rgba(255, 255, 255, 0.25)',
+  margin: '0 2px',
+  flexShrink: 0,
+};
 
 export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose }: ImageModalProps) {
   const [zoom, setZoom] = useState(1);
@@ -66,11 +94,11 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, hasMultiple, goToPrevious, goToNext]);
 
-  if (!isOpen || images.length === 0) {
+  const currentSrc = images[currentIndex] ?? images[0];
+
+  if (!isOpen || !currentSrc) {
     return null;
   }
-
-  const currentSrc = images[currentIndex] ?? images[0]!;
 
   const handleZoomIn = () => setZoom((previous) => Math.min(previous + ZOOM_STEP, MAX_ZOOM));
   const handleZoomOut = () => setZoom((previous) => Math.max(previous - ZOOM_STEP, MIN_ZOOM));
@@ -81,25 +109,6 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
     } else {
       handleZoomOut();
     }
-  };
-
-  const navButtonStyle = {
-    position: 'fixed' as const,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    zIndex: 10055,
-    background: 'rgba(0, 0, 0, 0.6)',
-    border: '2px solid rgba(255, 255, 255, 0.25)',
-    color: 'white',
-    width: 'clamp(38px, 10vw, 48px)',
-    height: 'clamp(38px, 10vw, 48px)',
-    borderRadius: '50%',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'background 0.2s ease',
-    fontSize: '18px',
   };
 
   return createPortal(
@@ -115,7 +124,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           zIndex: 10040,
-          animation: 'imageModalFadeIn 0.3s ease-out',
+          animation: 'mediaOverlayFadeIn 0.3s ease-out',
         }}
         onClick={onClose}
       />
@@ -151,36 +160,12 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             padding: '6px',
             border: '2px solid rgba(255, 255, 255, 0.25)',
             boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
-            animation: 'imageModalSlideDown 0.4s ease-out',
+            animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
-          <button
-            onClick={handleZoomOut}
-            title="Diminuir zoom (-)"
-            style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              border: 'none',
-              color: 'white',
-              width: 'clamp(34px, 9vw, 40px)',
-              height: 'clamp(34px, 9vw, 40px)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s ease',
-              fontSize: '15px',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-            }}
-          >
+          <OverlayIconButton onClick={handleZoomOut} title="Diminuir zoom (-)">
             <FaMinus />
-          </button>
+          </OverlayIconButton>
 
           <div
             style={{
@@ -196,93 +181,24 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             {Math.round(zoom * 100)}%
           </div>
 
-          <button
-            onClick={handleZoomIn}
-            title="Ampliar zoom (+)"
-            style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              border: 'none',
-              color: 'white',
-              width: 'clamp(34px, 9vw, 40px)',
-              height: 'clamp(34px, 9vw, 40px)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s ease',
-              fontSize: '15px',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-            }}
-          >
+          <OverlayIconButton onClick={handleZoomIn} title="Ampliar zoom (+)">
             <FaPlus />
-          </button>
+          </OverlayIconButton>
 
-          <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
+          <div style={CONTROL_DIVIDER_STYLE} />
 
-          <button
+          <OverlayIconButton
             onClick={() => void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentSrc))}
             title="Baixar imagem"
-            style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              border: 'none',
-              color: 'white',
-              width: 'clamp(34px, 9vw, 40px)',
-              height: 'clamp(34px, 9vw, 40px)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s ease',
-              fontSize: '15px',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
-            }}
           >
             <FaDownload />
-          </button>
+          </OverlayIconButton>
 
-          <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
+          <div style={CONTROL_DIVIDER_STYLE} />
 
-          <button
-            onClick={onClose}
-            title="Fechar imagem (ESC)"
-            style={{
-              background: 'rgba(239, 68, 68, 0.85)',
-              border: 'none',
-              color: 'white',
-              width: 'clamp(34px, 9vw, 40px)',
-              height: 'clamp(34px, 9vw, 40px)',
-              borderRadius: '50%',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.2s ease',
-              fontSize: '16px',
-              flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.background = 'rgba(239, 68, 68, 1)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.background = 'rgba(239, 68, 68, 0.85)';
-            }}
-          >
+          <OverlayIconButton onClick={onClose} title="Fechar imagem (ESC)" variant="danger">
             <FaTimes />
-          </button>
+          </OverlayIconButton>
         </div>
 
         {hasMultiple && (
@@ -315,7 +231,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToPrevious();
               }}
               title="Imagem anterior"
-              style={{ ...navButtonStyle, left: 'max(12px, env(safe-area-inset-left))' }}
+              style={{ ...NAV_BUTTON_STYLE, left: 'max(12px, env(safe-area-inset-left))' }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
               }}
@@ -331,7 +247,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToNext();
               }}
               title="Próxima imagem"
-              style={{ ...navButtonStyle, right: 'max(12px, env(safe-area-inset-right))' }}
+              style={{ ...NAV_BUTTON_STYLE, right: 'max(12px, env(safe-area-inset-right))' }}
               onMouseEnter={(event) => {
                 event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
               }}
@@ -352,7 +268,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            animation: 'imageModalSlideIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            animation: 'mediaOverlayZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
           onWheel={handleWheel}
         >
@@ -378,23 +294,6 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
           />
         </div>
       </div>
-
-      <style>{`
-        @keyframes imageModalFadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes imageModalSlideDown {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes imageModalSlideIn {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
     </>,
     document.body,
   );

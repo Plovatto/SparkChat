@@ -1,27 +1,25 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { format, isSameDay, isToday, isYesterday } from 'date-fns';
-import { Button } from 'react-bootstrap';
-import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle, FaPlay, FaTimes } from 'react-icons/fa';
+import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
-import type { RoomParticipant, RoomSummary } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import { formatAudioTime, resolveActiveUserNames } from '@lib/format';
+import { resolveActiveUserNames } from '@lib/format';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
-import { useSocket, type MessageView } from '@lib/socket';
-import { uploadChatAudio, uploadChatFile, uploadChatImage } from '../api/chat-api';
-import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
+import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
+import { uploadChatAudio, uploadChatFile, uploadChatImage, type UploadedFile } from '../api/chat-api';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
-import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
+import type { CurrentAudioRef } from './AudioMessageContent';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
-import { ImageGroupBubble, MessageBubble, type CurrentAudioRef } from './MessageBubble';
+import { ImageGroupBubble } from './ImageGroupBubble';
+import { MessageBubble } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
 import {
   MessageInput,
@@ -29,6 +27,7 @@ import {
   type MessageInputHandle,
   type MessageInputSubmitPayload,
 } from './MessageInput';
+import { ReplyPreviewBar } from './ReplyPreviewBar';
 import { RoomInfoPanel } from './RoomInfoPanel';
 
 interface ChatAreaProps {
@@ -37,6 +36,8 @@ interface ChatAreaProps {
   user: User;
   onBack: () => void;
 }
+
+type AttachmentMessageType = 'image' | 'file';
 
 const DATE_CHIP_STYLE: CSSProperties = {
   fontSize: '0.78rem',
@@ -52,6 +53,17 @@ const DATE_CHIP_STYLE: CSSProperties = {
 
 const STICKY_DATE_TOP_PX = 8;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
+
+const UPLOADING_LABEL: Record<AttachmentMessageType | 'audio', string> = {
+  image: 'Enviando imagem...',
+  audio: 'Enviando áudio...',
+  file: 'Enviando arquivo...',
+};
+
+const ATTACHMENT_UPLOAD_ERROR: Record<AttachmentMessageType, string> = {
+  image: 'Não foi possível enviar uma das imagens. Tente novamente.',
+  file: 'Não foi possível enviar um dos arquivos. Tente novamente.',
+};
 
 function applyStuckDateHeaderOpacity(container: HTMLDivElement, stuckKeys: Set<string>, visible: boolean): void {
   const headers = container.querySelectorAll<HTMLElement>('[data-day-sticky]');
@@ -75,20 +87,26 @@ function formatDateSeparator(timestamp: string): string {
   return format(date, 'dd/MM/yyyy');
 }
 
-type RenderItem = { kind: 'single'; message: ChatMessage } | { kind: 'image-group'; messages: ChatMessage[] };
+type ImageGroup = [ChatMessage, ChatMessage, ...ChatMessage[]];
+type RenderItem = { kind: 'single'; message: ChatMessage } | { kind: 'image-group'; messages: ImageGroup };
+
+function isImageGroup(messages: ChatMessage[]): messages is ImageGroup {
+  return messages.length >= 2;
+}
 
 function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
   const items: RenderItem[] = [];
   let buffer: ChatMessage[] = [];
 
   const flushBuffer = () => {
-    if (buffer.length === 0) {
+    const [first] = buffer;
+    if (!first) {
       return;
     }
-    if (buffer.length === 1) {
-      items.push({ kind: 'single', message: buffer[0]! });
-    } else {
+    if (isImageGroup(buffer)) {
       items.push({ kind: 'image-group', messages: buffer });
+    } else {
+      items.push({ kind: 'single', message: first });
     }
     buffer = [];
   };
@@ -117,20 +135,20 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
 }
 
 function renderItemFirstMessage(item: RenderItem): ChatMessage {
-  return item.kind === 'single' ? item.message : item.messages[0]!;
+  return item.kind === 'single' ? item.message : item.messages[0];
 }
 
 function renderItemAnchorMessage(item: RenderItem): ChatMessage {
-  return item.kind === 'single' ? item.message : item.messages[item.messages.length - 1]!;
+  return item.kind === 'single' ? item.message : (item.messages[item.messages.length - 1] ?? item.messages[0]);
 }
 
 function renderItemKey(item: RenderItem): string {
-  return item.kind === 'single' ? item.message.id : `group-${item.messages[0]!.id}`;
+  return item.kind === 'single' ? item.message.id : `group-${item.messages[0].id}`;
 }
 
 interface DayGroup {
   dateLabel: string;
-  items: RenderItem[];
+  items: [RenderItem, ...RenderItem[]];
 }
 
 function buildDayGroups(renderItems: RenderItem[]): DayGroup[] {
@@ -211,6 +229,67 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
   return 'Várias pessoas estão digitando...';
 }
 
+interface ChatStatusPillProps {
+  indicator: ReactNode;
+  text: string;
+  italicWeight?: number;
+  maxWidth?: string;
+}
+
+function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%' }: ChatStatusPillProps) {
+  const { theme } = useTheme();
+
+  return (
+    <div
+      className="animate__animated animate__fadeInUp animate__faster"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '12px 15px',
+        background: theme.surface,
+        borderRadius: '15px',
+        width: 'fit-content',
+        maxWidth,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+      }}
+    >
+      {indicator}
+      <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', fontWeight: italicWeight, whiteSpace: 'nowrap' }}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
+interface BlockedBannerProps {
+  background: string;
+  color: string;
+  borderColor: string;
+  icon: ReactNode;
+  text: string;
+}
+
+function BlockedBanner({ background, color, borderColor, icon, text }: BlockedBannerProps) {
+  return (
+    <div
+      style={{
+        background,
+        color,
+        padding: '12px 18px',
+        borderTop: `2px solid ${borderColor}`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        fontSize: '0.9rem',
+      }}
+    >
+      {icon}
+      <strong>{text}</strong>
+    </div>
+  );
+}
+
 export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const { theme, getRoomWallpaper, getRoomAppearance } = useTheme();
   const { socket } = useSocket();
@@ -219,6 +298,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const prependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
   const stuckDayKeysRef = useRef<Set<string>>(new Set());
+  const auth = useMemo(() => ({ userId: user.id, sessionToken: user.sessionToken }), [user.id, user.sessionToken]);
 
   const captureScrollAnchor = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -237,11 +317,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     sendMessage,
     retryMessage,
     loadOlderMessages,
-  } = useRoomMessages(
-    room?.id ?? null,
-    { id: user.id ?? '', nickname: user.nickname, avatar: user.avatar },
-    captureScrollAnchor,
-  );
+  } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
   const dayGroups = useMemo(() => buildDayGroups(renderItems), [renderItems]);
@@ -270,10 +346,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
-  const [uploadingMediaType, setUploadingMediaType] = useState<'image' | 'audio' | 'file' | null>(null);
+  const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const isRepliedMessageVideo = repliedMessage?.type === 'file' && Boolean(repliedMessage.fileMeta?.mimeType.startsWith('video/'));
-  const repliedVideoThumbnail = useReplyVideoThumbnail(isRepliedMessageVideo, repliedMessage?.content);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current;
@@ -497,26 +571,29 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const sendImageMessages = async (files: File[], replyTo: MessageView | null, caption?: string) => {
-    setUploadingMediaType('image');
+  const sendAttachmentMessages = async (files: File[], type: AttachmentMessageType, replyTo: MessageView | null, caption?: string) => {
+    setUploadingMediaType(type);
     try {
       for (let index = 0; index < files.length; index++) {
         const file = files[index];
         if (!file) {
           continue;
         }
-        const uploaded = await uploadChatImage(file, { userId: user.id, sessionToken: user.sessionToken }, room.id);
+        const uploaded: UploadedFile =
+          type === 'image'
+            ? { ...(await uploadChatImage(file, auth, room.id)), name: file.name, size: file.size }
+            : await uploadChatFile(file, auth, room.id);
         sendMessage({
           content: uploaded.url,
-          type: 'image',
+          type,
           replyTo: index === 0 ? replyTo : null,
           caption: index === 0 ? caption : undefined,
-          fileMeta: { name: file.name, mimeType: uploaded.mimeType, size: file.size },
+          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size },
         });
       }
     } catch (error) {
       console.error(error);
-      window.alert('Não foi possível enviar uma das imagens. Tente novamente.');
+      window.alert(type === 'file' && error instanceof Error ? error.message : ATTACHMENT_UPLOAD_ERROR[type]);
     } finally {
       setUploadingMediaType(null);
     }
@@ -525,7 +602,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
     setUploadingMediaType('audio');
     try {
-      const uploaded = await uploadChatAudio(blob, mimeType, { userId: user.id, sessionToken: user.sessionToken }, room.id);
+      const uploaded = await uploadChatAudio(blob, mimeType, auth, room.id);
       sendMessage({
         content: uploaded.url,
         type: 'audio',
@@ -537,31 +614,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     } catch (error) {
       console.error(error);
       window.alert('Não foi possível enviar o áudio. Tente novamente.');
-    } finally {
-      setUploadingMediaType(null);
-    }
-  };
-
-  const sendFileMessages = async (files: File[], replyTo: MessageView | null, caption?: string) => {
-    setUploadingMediaType('file');
-    try {
-      for (let index = 0; index < files.length; index++) {
-        const file = files[index];
-        if (!file) {
-          continue;
-        }
-        const uploaded = await uploadChatFile(file, { userId: user.id, sessionToken: user.sessionToken }, room.id);
-        sendMessage({
-          content: uploaded.url,
-          type: 'file',
-          replyTo: index === 0 ? replyTo : null,
-          caption: index === 0 ? caption : undefined,
-          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size },
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      window.alert(error instanceof Error ? error.message : 'Não foi possível enviar um dos arquivos. Tente novamente.');
     } finally {
       setUploadingMediaType(null);
     }
@@ -597,11 +649,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     const caption = hasAttachments && trimmed ? trimmed : undefined;
 
     if (imageFiles.length > 0) {
-      void sendImageMessages(imageFiles, repliedMessage, caption);
+      void sendAttachmentMessages(imageFiles, 'image', repliedMessage, caption);
     }
 
     if (documentFiles.length > 0) {
-      void sendFileMessages(documentFiles, imageFiles.length > 0 ? null : repliedMessage, imageFiles.length > 0 ? undefined : caption);
+      const hasImages = imageFiles.length > 0;
+      void sendAttachmentMessages(documentFiles, 'file', hasImages ? null : repliedMessage, hasImages ? undefined : caption);
     }
 
     setRepliedMessage(null);
@@ -614,13 +667,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     setTimeout(() => messageInputRef.current?.focus(), 100);
   };
 
-  const handleForward = (message: ChatMessage) => {
-    setForwardingMessage(message);
-  };
-
   const handleLeftGroup = () => {
     setIsInfoOpen(false);
     onBack();
+  };
+
+  const toggleSelectedMessage = (messageId: string) => {
+    setSelectedMessageId((current) => (current === messageId ? null : messageId));
   };
 
   const wallpaper = getRoomWallpaper(room.id);
@@ -659,6 +712,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     setIsDraggingFile(false);
     messageInputRef.current?.addFiles(Array.from(event.dataTransfer.files));
   };
+
+  const recordingText = getRecordingText(recordingUserIds, room.participants);
+  const typingText = getTypingText(typingUserIds, room.participants);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
@@ -737,366 +793,205 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
             gap: '10px',
           }}
         >
-        <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-        {!areMessagesLoaded ? (
-          <MessageListSkeleton />
-        ) : messages.length === 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '300px',
-              color: theme.textSecondary,
-              fontSize: '1.1rem',
-              fontWeight: 500,
-              gap: '12px',
-            }}
-          >
-            <FaComments size={40} style={{ opacity: 0.5 }} />
-            <div>Nenhuma mensagem ainda</div>
-            <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>Comece a conversa enviando uma mensagem!</div>
-          </div>
-        ) : (
-          <>
-            {isLoadingOlder && (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
-                <Spinner size={20} />
+          <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+            {!areMessagesLoaded ? (
+              <MessageListSkeleton />
+            ) : messages.length === 0 ? (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '300px',
+                  color: theme.textSecondary,
+                  fontSize: '1.1rem',
+                  fontWeight: 500,
+                  gap: '12px',
+                }}
+              >
+                <FaComments size={40} style={{ opacity: 0.5 }} />
+                <div>Nenhuma mensagem ainda</div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>Comece a conversa enviando uma mensagem!</div>
               </div>
-            )}
-            {dayGroups.map((group) => {
-              const dayKey = `day-${renderItemKey(group.items[0]!)}`;
-
-              return (
-              <div key={dayKey} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div data-day-sentinel={dayKey} style={{ height: 0 }} />
-                <div
-                  style={{
-                    position: 'sticky',
-                    top: `${STICKY_DATE_TOP_PX}px`,
-                    zIndex: 5,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    margin: '15px 0',
-                    pointerEvents: 'none',
-                  }}
-                >
-                  <span data-day-sticky data-day-key={dayKey} style={DATE_CHIP_STYLE}>
-                    {group.dateLabel}
-                  </span>
-                </div>
-
-                {group.items.map((item) => {
-                  const anchorMessage = renderItemAnchorMessage(item);
-                  const isOwn = anchorMessage.sender.id === user.id;
+            ) : (
+              <>
+                {isLoadingOlder && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
+                    <Spinner size={20} />
+                  </div>
+                )}
+                {dayGroups.map((group) => {
+                  const dayKey = `day-${renderItemKey(group.items[0])}`;
 
                   return (
-                    <div key={renderItemKey(item)} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
-                      {item.kind === 'single' ? (
-                        <MessageBubble
-                          message={item.message}
-                          isOwn={isOwn}
-                          isGroupChat={room.type === 'group'}
-                          roomId={room.id}
-                          participants={room.participants}
-                          currentUserId={user.id}
-                          currentNickname={user.nickname}
-                          auth={{ userId: user.id, sessionToken: user.sessionToken }}
-                          isSelected={selectedMessageId === item.message.id}
-                          currentAudioRef={currentAudioRef}
-                          receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                          onSelect={() =>
-                            setSelectedMessageId((current) => (current === item.message.id ? null : item.message.id))
-                          }
-                          onReply={() => handleReply(item.message)}
-                          onDelete={() => setMessageIdPendingDelete(item.message.id)}
-                          onForward={() => handleForward(item.message)}
-                          onAudioPlayed={handleAudioPlayed}
-                          onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
-                        />
-                      ) : (
-                        <ImageGroupBubble
-                          images={item.messages}
-                          isOwn={isOwn}
-                          isGroupChat={room.type === 'group'}
-                          roomId={room.id}
-                          participants={room.participants}
-                          currentUserId={user.id}
-                          isSelected={selectedMessageId === anchorMessage.id}
-                          receipt={visibleReceipts.get(renderItemKey(item)) ?? null}
-                          onSelect={() =>
-                            setSelectedMessageId((current) => (current === anchorMessage.id ? null : anchorMessage.id))
-                          }
-                          onReply={() => handleReply(anchorMessage)}
-                          onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
-                          onForward={() => handleForward(anchorMessage)}
-                          onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
-                        />
-                      )}
+                    <div key={dayKey} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div data-day-sentinel={dayKey} style={{ height: 0 }} />
+                      <div
+                        style={{
+                          position: 'sticky',
+                          top: `${STICKY_DATE_TOP_PX}px`,
+                          zIndex: 5,
+                          display: 'flex',
+                          justifyContent: 'center',
+                          margin: '15px 0',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        <span data-day-sticky data-day-key={dayKey} style={DATE_CHIP_STYLE}>
+                          {group.dateLabel}
+                        </span>
+                      </div>
+
+                      {group.items.map((item) => {
+                        const anchorMessage = renderItemAnchorMessage(item);
+                        const isOwn = anchorMessage.sender.id === user.id;
+                        const itemKey = renderItemKey(item);
+
+                        return (
+                          <div key={itemKey} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+                            {item.kind === 'single' ? (
+                              <MessageBubble
+                                message={item.message}
+                                isOwn={isOwn}
+                                isGroupChat={room.type === 'group'}
+                                roomId={room.id}
+                                participants={room.participants}
+                                currentUserId={user.id}
+                                currentNickname={user.nickname}
+                                auth={auth}
+                                isSelected={selectedMessageId === item.message.id}
+                                currentAudioRef={currentAudioRef}
+                                receipt={visibleReceipts.get(itemKey) ?? null}
+                                onSelect={() => toggleSelectedMessage(item.message.id)}
+                                onReply={() => handleReply(item.message)}
+                                onDelete={() => setMessageIdPendingDelete(item.message.id)}
+                                onForward={() => setForwardingMessage(item.message)}
+                                onAudioPlayed={handleAudioPlayed}
+                                onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
+                              />
+                            ) : (
+                              <ImageGroupBubble
+                                images={item.messages}
+                                isOwn={isOwn}
+                                isGroupChat={room.type === 'group'}
+                                roomId={room.id}
+                                participants={room.participants}
+                                currentUserId={user.id}
+                                isSelected={selectedMessageId === anchorMessage.id}
+                                receipt={visibleReceipts.get(itemKey) ?? null}
+                                onSelect={() => toggleSelectedMessage(anchorMessage.id)}
+                                onReply={() => handleReply(anchorMessage)}
+                                onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
+                                onForward={() => setForwardingMessage(anchorMessage)}
+                                onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
-              </div>
-              );
-            })}
-          </>
-        )}
+              </>
+            )}
 
-        {(() => {
-          const recordingText = getRecordingText(recordingUserIds, room.participants);
-          if (!recordingText) {
-            return null;
-          }
-
-          return (
-            <div
-              className="animate__animated animate__fadeInUp animate__faster"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '12px 15px',
-                background: theme.surface,
-                borderRadius: '15px',
-                width: 'fit-content',
-                maxWidth: '100%',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              }}
-            >
-              <div
-                style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '100%',
-                  background: theme.primary,
-                  animation: 'blink 1s infinite',
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                {recordingText}
-              </span>
-            </div>
-          );
-        })()}
-
-        {(() => {
-          const typingText = getTypingText(typingUserIds, room.participants);
-          if (!typingText) {
-            return null;
-          }
-
-          return (
-            <div
-              className="animate__animated animate__fadeInUp animate__faster"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '12px 15px',
-                background: theme.surface,
-                borderRadius: '15px',
-                width: 'fit-content',
-                maxWidth: '100%',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              }}
-            >
-              <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                {[0, 1, 2].map((index) => (
-                  <span
-                    key={index}
+            {recordingText && (
+              <ChatStatusPill
+                indicator={
+                  <div
                     style={{
                       width: '8px',
                       height: '8px',
+                      borderRadius: '100%',
                       background: theme.primary,
-                      borderRadius: '50%',
-                      animation: 'typing 1.4s infinite',
-                      animationDelay: `${index * 0.2}s`,
+                      animation: 'blink 1s infinite',
+                      flexShrink: 0,
                     }}
                   />
-                ))}
-              </div>
-              <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                {typingText}
-              </span>
-            </div>
-          );
-        })()}
+                }
+                text={recordingText}
+                italicWeight={500}
+              />
+            )}
 
-        {uploadingMediaType && (
-          <div
-            className="animate__animated animate__fadeInUp animate__faster"
+            {typingText && (
+              <ChatStatusPill
+                indicator={
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    {[0, 1, 2].map((index) => (
+                      <span
+                        key={index}
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          background: theme.primary,
+                          borderRadius: '50%',
+                          animation: 'typing 1.4s infinite',
+                          animationDelay: `${index * 0.2}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                }
+                text={typingText}
+              />
+            )}
+
+            {uploadingMediaType && <ChatStatusPill indicator={<Spinner size={16} />} text={UPLOADING_LABEL[uploadingMediaType]} maxWidth="220px" />}
+          </div>
+          <button
+            onClick={() => {
+              isAtBottomRef.current = true;
+              setIsAtBottom(true);
+              scrollToBottom('smooth');
+            }}
+            title="Ir para a última mensagem"
+            aria-hidden={isAtBottom}
+            tabIndex={isAtBottom ? -1 : 0}
             style={{
+              position: 'fixed',
+              top: scrollButtonPosition?.top ?? 0,
+              left: scrollButtonPosition?.left ?? 0,
+              visibility: scrollButtonPosition ? 'visible' : 'hidden',
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              border: 'none',
+              background: theme.surface,
+              color: theme.primary,
+              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
-              padding: '12px 15px',
-              background: theme.surface,
-              borderRadius: '15px',
-              maxWidth: '220px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 5,
+              opacity: isAtBottom ? 0 : 1,
+              transform: isAtBottom ? 'scale(0.85)' : 'scale(1)',
+              pointerEvents: isAtBottom ? 'none' : 'auto',
+              transition: 'opacity 0.18s ease, transform 0.18s ease',
             }}
           >
-            <Spinner size={16} />
-            <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic' }}>
-              {uploadingMediaType === 'image'
-                ? 'Enviando imagem...'
-                : uploadingMediaType === 'audio'
-                  ? 'Enviando áudio...'
-                  : 'Enviando arquivo...'}
-            </span>
-          </div>
-        )}
-        </div>
-        <button
-          onClick={() => {
-            isAtBottomRef.current = true;
-            setIsAtBottom(true);
-            scrollToBottom('smooth');
-          }}
-          title="Ir para a última mensagem"
-          aria-hidden={isAtBottom}
-          tabIndex={isAtBottom ? -1 : 0}
-          style={{
-            position: 'fixed',
-            top: scrollButtonPosition?.top ?? 0,
-            left: scrollButtonPosition?.left ?? 0,
-            visibility: scrollButtonPosition ? 'visible' : 'hidden',
-            width: '42px',
-            height: '42px',
-            borderRadius: '50%',
-            border: 'none',
-            background: theme.surface,
-            color: theme.primary,
-            boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 5,
-            opacity: isAtBottom ? 0 : 1,
-            transform: isAtBottom ? 'scale(0.85)' : 'scale(1)',
-            pointerEvents: isAtBottom ? 'none' : 'auto',
-            transition: 'opacity 0.18s ease, transform 0.18s ease',
-          }}
-        >
-          <FaArrowDown size={16} />
-        </button>
+            <FaArrowDown size={16} />
+          </button>
         </div>
       </div>
 
       {room.userBlocked && (
-        <div
-          style={{
-            background: '#fff3e0',
-            color: '#e65100',
-            padding: '12px 18px',
-            borderTop: '2px solid #ff9800',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontSize: '0.9rem',
-          }}
-        >
-          <FaBan size={16} />
-          <strong>Você bloqueou este usuário</strong>
-        </div>
+        <BlockedBanner background="#fff3e0" color="#e65100" borderColor="#ff9800" icon={<FaBan size={16} />} text="Você bloqueou este usuário" />
       )}
 
       {room.isBlockedBy && (
-        <div
-          style={{
-            background: '#ffebee',
-            color: '#c62828',
-            padding: '12px 18px',
-            borderTop: '2px solid #d32f2f',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontSize: '0.9rem',
-          }}
-        >
-          <FaExclamationTriangle size={16} />
-          <strong>Você foi bloqueado por este usuário</strong>
-        </div>
+        <BlockedBanner
+          background="#ffebee"
+          color="#c62828"
+          borderColor="#d32f2f"
+          icon={<FaExclamationTriangle size={16} />}
+          text="Você foi bloqueado por este usuário"
+        />
       )}
 
-      {repliedMessage && (
-        <div
-          className="chat-preview-bar"
-          style={{
-            background: theme.surfaceLight,
-            borderLeft: `4px solid ${theme.primary}`,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            borderTop: `1px solid ${theme.border}`,
-          }}
-        >
-          <div>
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '4px' }}>
-              Respondendo {repliedMessage.sender.id === user.id ? 'a você mesmo' : `a ${repliedMessage.sender.nickname}`}
-            </div>
-            <div
-              style={{
-                fontSize: '0.9rem',
-                color: theme.text,
-                maxWidth: '300px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                overflow: 'hidden',
-              }}
-            >
-              {repliedMessage.type === 'image' ? (
-                <img
-                  src={repliedMessage.content}
-                  alt="thumb"
-                  style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-                />
-              ) : repliedMessage.type === 'audio' ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <FaPlay size={12} />
-                  <span>Áudio {formatAudioTime(repliedMessage.duration ?? 0)}</span>
-                </div>
-              ) : repliedMessage.type === 'file' ? (
-                isRepliedMessageVideo ? (
-                  <img
-                    src={repliedVideoThumbnail ?? undefined}
-                    alt="thumb"
-                    style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: 'rgba(0, 0, 0, 0.15)' }}
-                  />
-                ) : (
-                  (() => {
-                    const fileIcon = getFileTypeIcon(repliedMessage.fileMeta?.mimeType ?? '');
-                    const FileIcon = fileIcon.icon;
-                    return (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                        <FileIcon size={14} color={fileIcon.color} style={{ flexShrink: 0 }} />
-                        <span style={{ display: 'inline-block', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {repliedMessage.fileMeta?.name ?? fileIcon.label}
-                        </span>
-                      </div>
-                    );
-                  })()
-                )
-              ) : (
-                <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {repliedMessage.content}
-                </span>
-              )}
-            </div>
-          </div>
-          <Button
-            variant="link"
-            onClick={() => setRepliedMessage(null)}
-            style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto', display: 'flex', alignItems: 'center' }}
-          >
-            <FaTimes size={14} />
-          </Button>
-        </div>
-      )}
+      {repliedMessage && <ReplyPreviewBar message={repliedMessage} currentUserId={user.id} onCancel={() => setRepliedMessage(null)} />}
 
       <MessageInput
         ref={messageInputRef}
@@ -1109,7 +1004,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         userBlocked={room.userBlocked}
         mentionCandidates={mentionCandidates}
         maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
-        auth={{ userId: user.id, sessionToken: user.sessionToken }}
+        auth={auth}
       />
 
       <ConfirmDialog

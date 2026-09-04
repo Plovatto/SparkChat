@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createAudioContext } from '@lib/audio/shared-audio-context';
 
 const WAVEFORM_BAR_COUNT = 40;
 const waveformCache = new Map<string, number[]>();
@@ -42,9 +43,7 @@ export function useAudioWaveform(audioUrl: string | null): number[] {
     }
 
     let cancelled = false;
-    const AudioContextClass =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const audioContext = new AudioContextClass();
+    const audioContext = createAudioContext();
 
     fetch(audioUrl)
       .then((response) => response.arrayBuffer())

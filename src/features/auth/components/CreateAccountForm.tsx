@@ -1,13 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Alert, Button, Card, Form } from 'react-bootstrap';
-import { FaArrowLeft, FaCheckCircle, FaExclamationCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
+import { Button, Card, Form } from 'react-bootstrap';
+import { FaCheckCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
-import { useAutoDismiss } from '@lib/use-auto-dismiss';
+import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { AVATARS } from '../constants/avatars';
-import { useNicknameAvailability } from '../hooks/useNicknameAvailability';
+import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
+import { useNicknameAvailability, type NicknameCheckState } from '../hooks/useNicknameAvailability';
 import { useResponsiveAvatarSize } from '../hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '../lib/password-match';
 import type { LoginThemePalette, PendingRegistration } from '../types';
+import { AuthBackButton } from './AuthBackButton';
+import { AuthErrorAlert } from './AuthErrorAlert';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField, PasswordFieldHint } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -21,17 +24,16 @@ interface CreateAccountFormProps {
   registerError?: string;
 }
 
-const NICKNAME_MAX_LENGTH = 20;
-const PASSWORD_MIN_LENGTH = 12;
+type ResolvedNicknameCheckState = Exclude<NicknameCheckState, 'idle'>;
 
-const NICKNAME_STATUS_TEXT: Record<'checking' | 'available' | 'taken' | 'invalid', string> = {
+const NICKNAME_STATUS_TEXT: Record<ResolvedNicknameCheckState, string> = {
   checking: 'Verificando...',
   available: 'Disponível!',
   taken: 'Esse username já está em uso.',
   invalid: 'Precisa ter pelo menos 2 letras.',
 };
 
-const NICKNAME_STATUS_COLOR: Record<'checking' | 'available' | 'taken' | 'invalid', string> = {
+const NICKNAME_STATUS_COLOR: Record<ResolvedNicknameCheckState, string> = {
   checking: '#a0a0a0',
   available: '#22c55e',
   taken: '#ef4444',
@@ -127,32 +129,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               gap: 'clamp(12px, 3vw, 18px)',
             }}
           >
-            <Button
-              onClick={onBack}
-              className="smooth-transition"
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: 'none',
-                borderRadius: '12px',
-                padding: '12px 12px',
-                color: 'white',
-                backdropFilter: 'blur(10px)',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(255,255,255,0.3)';
-                event.currentTarget.style.transform = 'translateX(-3px)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-                event.currentTarget.style.transform = 'translateX(0)';
-              }}
-            >
-              <FaArrowLeft size={18} />
-            </Button>
+            <AuthBackButton onClick={onBack} />
             <div style={{ flex: 1 }}>
               <h2
                 style={{
@@ -396,28 +373,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 </Form.Group>
               )}
 
-              {error && (
-                <Alert
-                  variant="danger"
-                  className="animate__animated animate__shakeX"
-                  style={{
-                    borderRadius: '14px',
-                    marginBottom: '20px',
-                    border: 'none',
-                    background: theme.alertBg,
-                    color: theme.alertText,
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 20px)',
-                    fontSize: 'clamp(0.9rem, 2.5vw, 1rem)',
-                  }}
-                >
-                  <FaExclamationCircle size={18} style={{ flexShrink: 0 }} />
-                  {error}
-                </Alert>
-              )}
+              {error && <AuthErrorAlert message={error} theme={theme} marginBottom="20px" />}
 
               <Button
                 type="submit"

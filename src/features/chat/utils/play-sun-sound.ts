@@ -1,4 +1,4 @@
-import { getSharedAudioContext, resumeIfSuspended } from './shared-audio-context';
+import { getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audio-context';
 
 function playTone(context: AudioContext, frequency: number, startTime: number, duration: number, peakGain: number): void {
   const oscillator = context.createOscillator();
