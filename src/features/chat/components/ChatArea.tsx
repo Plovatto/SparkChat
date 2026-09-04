@@ -16,6 +16,7 @@ import { useRoomMessages } from '../hooks/useRoomMessages';
 import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { parseMentionedUserIds } from '../utils/parse-mentions';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
@@ -442,8 +443,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         if (!file) {
           continue;
         }
-        const content = await uploadChatImage(file, { userId: user.id, sessionToken: user.sessionToken });
-        sendMessage({ content, type: 'image', replyTo: index === 0 ? replyTo : null });
+        const uploaded = await uploadChatImage(file, { userId: user.id, sessionToken: user.sessionToken }, room.id);
+        sendMessage({
+          content: uploaded.url,
+          type: 'image',
+          replyTo: index === 0 ? replyTo : null,
+          fileMeta: { name: file.name, mimeType: uploaded.mimeType, size: file.size },
+        });
       }
     } catch (error) {
       console.error(error);
@@ -456,8 +462,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
     setUploadingMediaType('audio');
     try {
-      const content = await uploadChatAudio(blob, mimeType, { userId: user.id, sessionToken: user.sessionToken });
-      sendMessage({ content, type: 'audio', duration, replyTo: repliedMessage });
+      const uploaded = await uploadChatAudio(blob, mimeType, { userId: user.id, sessionToken: user.sessionToken }, room.id);
+      sendMessage({
+        content: uploaded.url,
+        type: 'audio',
+        duration,
+        replyTo: repliedMessage,
+        fileMeta: { name: `audio-${Date.now()}`, mimeType: uploaded.mimeType, size: blob.size },
+      });
       setRepliedMessage(null);
     } catch (error) {
       console.error(error);
@@ -475,7 +487,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         if (!file) {
           continue;
         }
-        const uploaded = await uploadChatFile(file, { userId: user.id, sessionToken: user.sessionToken });
+        const uploaded = await uploadChatFile(file, { userId: user.id, sessionToken: user.sessionToken }, room.id);
         sendMessage({
           content: uploaded.url,
           type: 'file',
@@ -507,7 +519,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     const trimmed = text.trim();
 
     if (trimmed) {
-      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage });
+      const mentionedUserIds =
+        room.type === 'group'
+          ? parseMentionedUserIds(
+              trimmed,
+              room.participants.map((participant) => ({ id: participant.id, nickname: participant.nickname })),
+            )
+          : undefined;
+      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds });
     }
 
     if (imageFiles.length > 0) {
