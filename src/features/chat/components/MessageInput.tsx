@@ -259,6 +259,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const { theme, baseTheme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const [shouldAutoFocus] = useState(
+    () => typeof window === 'undefined' || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const { isRecording, recordingTime, audioLevels, startRecording, stopRecording, cancelRecording } =
@@ -576,7 +579,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             placeholder={
               isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
             }
-            autoFocus
+            autoFocus={shouldAutoFocus}
             style={{
               borderRadius: '22px',
               padding: '12px 18px',

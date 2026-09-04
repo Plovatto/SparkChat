@@ -63,13 +63,12 @@ const WAVEFORM_BAR_COUNT = 40;
 const PLAYBACK_RATES = [1, 1.5, 2];
 const PDF_THUMBNAIL_WIDTH = 380;
 const VIDEO_THUMBNAIL_WIDTH = 380;
-const CHAT_ATTACHMENT_MAX_WIDTH = 380;
+const CHAT_ATTACHMENT_MAX_WIDTH = 260;
 const CHAT_FILE_CARD_MAX_WIDTH = 280;
-const CHAT_ATTACHMENT_MIN_RATIO = 0.8;
+const CHAT_ATTACHMENT_MIN_RATIO = 1.1;
 const CHAT_ATTACHMENT_MAX_RATIO = 1.91;
 const REPLY_QUOTE_HEIGHT = 52;
 const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
-
 function renderMessageContent(text: string, participants: RoomParticipant[], accentColor: string): ReactNode {
   if (participants.length === 0 || !text.includes('@')) {
     return text;
@@ -757,7 +756,7 @@ export function MessageBubble({
                 height: isImageLoaded ? '100%' : undefined,
                 objectFit: isImageLoaded ? 'cover' : undefined,
                 maxWidth: isImageLoaded ? undefined : `min(100%, ${CHAT_ATTACHMENT_MAX_WIDTH}px)`,
-                maxHeight: isImageLoaded ? undefined : '470px',
+                maxHeight: isImageLoaded ? undefined : '320px',
                 borderRadius: '12px',
                 cursor: 'pointer',
                 opacity: isImageLoaded ? 1 : 0,
