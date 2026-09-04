@@ -1,5 +1,4 @@
 export { getCurrentIdentity } from './current-identity';
-export type { CurrentIdentity } from './current-identity';
 export {
   clearIdentity,
   ensureIdentityAfterKeyfileLogin,
@@ -11,7 +10,6 @@ export {
 } from './setup-identity';
 export {
   clearRoomKeys,
-  ensureRoomKeyForDecryption,
   establishGroupRoomKeyOnCreate,
   establishPrivateRoomKey,
   handleGroupUserJoined,
@@ -27,7 +25,5 @@ export {
   decryptRoomSummary,
   encryptOutgoingContent,
   encryptTextIfPossible,
-  E2E_PREFIX,
 } from './message-crypto';
 export { encryptAttachmentIfPossible } from './attachment-crypto';
-export type { EncryptedAttachment } from './attachment-crypto';

@@ -3,7 +3,7 @@ import { decryptAttachment } from './attachment-crypto';
 import { ensureRoomKeyForDecryption, getCachedRoomKey } from './room-keys';
 import { getSodium } from './sodium';
 
-export const E2E_PREFIX = 'e2e:v1:';
+const E2E_PREFIX = 'e2e:v1:';
 
 const UNAVAILABLE_PLACEHOLDER = '🔒 Mensagem criptografada — sem chave local ainda.';
 const ENCRYPTED_MEDIA_PARAM = 'e2e';

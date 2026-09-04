@@ -5,7 +5,6 @@ export type {
   AuthMethod,
   BlockStatusPayload,
   E2ePublicKeyEntry,
-  JoinPayload,
   MessageFileMeta,
   MessageLinkPreview,
   MessageReplySnapshot,

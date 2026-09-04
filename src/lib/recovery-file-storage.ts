@@ -42,7 +42,7 @@ async function setStoredHandle(userId: string, handle: FileSystemFileHandle): Pr
   }
 }
 
-export function isFileSystemAccessSupported(): boolean {
+function isFileSystemAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showSaveFilePicker' in window;
 }
 

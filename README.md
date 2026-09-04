@@ -110,22 +110,21 @@ Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no a
 
 ```text
 src/
-├── app/              # App principal e provider global
+├── app/              # App principal, gate de autenticação e provider global
 ├── assets/           # Imagens, ícones e arquivos estáticos da aplicação
-├── components/       # Componentes reutilizáveis de interface
-├── config/           # Validação e leitura das variáveis de ambiente
-├── constants/        # Constantes compartilhadas da aplicação
+├── components/       # Componentes reutilizáveis de interface (modal, spinner, botões, etc.)
+├── config/           # Leitura das variáveis de ambiente
+├── constants/        # Constantes compartilhadas (ex.: breakpoints de layout)
 ├── features/
-│   ├── auth/         # Base da feature de autenticação
-│   ├── chat/         # Base da feature de mensagens
-│   ├── rooms/        # Base da feature de salas
-│   └── user/         # Base da feature de usuário
-├── hooks/            # Hooks reutilizáveis
-├── lib/              # Clientes de API, socket, storage e tema
-├── styles/
-│   └── globals.css   # Estilos globais
-├── types/            # Tipos compartilhados
-├── utils/            # Funções auxiliares
+│   ├── auth/         # Login, cadastro, sessão e sincronização com o socket
+│   ├── chat/         # Área de conversa, mensagens, anexos, efeitos e uploads
+│   ├── notifications/# Notificações do navegador, sons e badge de não lidas
+│   ├── rooms/        # Lista de conversas, perfil, novo chat e helpers de sala
+│   └── theme/        # Temas, papéis de parede e aparência dos balões
+├── hooks/            # Hooks reutilizáveis entre features
+├── lib/              # Clientes de API, socket, E2EE, storage, áudio e formatação
+├── styles/           # Estilos globais, animações e responsividade
+├── types/            # Declarações de tipos globais
 ├── main.tsx
 └── vite-env.d.ts
 ```

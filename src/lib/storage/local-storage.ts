@@ -14,11 +14,3 @@ export function setItem<T>(key: string, value: T): void {
     return;
   }
 }
-
-export function removeItem(key: string): void {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    return;
-  }
-}

@@ -1,19 +1,11 @@
 import { env } from '@config/env';
 import type { MessageLinkPreview } from '@lib/socket';
+import { buildAuthHeader, type SessionAuth } from './session-auth';
 
-export interface LinkPreviewAuth {
-  userId: string;
-  sessionToken: string;
-}
-
-function authHeader(auth: LinkPreviewAuth): HeadersInit {
-  return { Authorization: `Bearer ${auth.userId}:${auth.sessionToken}` };
-}
-
-export async function fetchLinkPreview(url: string, auth: LinkPreviewAuth): Promise<MessageLinkPreview | null> {
+export async function fetchLinkPreview(url: string, auth: SessionAuth): Promise<MessageLinkPreview | null> {
   const response = await fetch(`${env.apiUrl}/api/link-preview`, {
     method: 'POST',
-    headers: { ...authHeader(auth), 'Content-Type': 'application/json' },
+    headers: { ...buildAuthHeader(auth), 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
 
@@ -24,9 +16,9 @@ export async function fetchLinkPreview(url: string, auth: LinkPreviewAuth): Prom
   return (await response.json()) as MessageLinkPreview;
 }
 
-export async function fetchLinkPreviewImageObjectUrl(imageUrl: string, auth: LinkPreviewAuth): Promise<string | null> {
+export async function fetchLinkPreviewImageObjectUrl(imageUrl: string, auth: SessionAuth): Promise<string | null> {
   const response = await fetch(`${env.apiUrl}/api/link-preview/image?url=${encodeURIComponent(imageUrl)}`, {
-    headers: authHeader(auth),
+    headers: buildAuthHeader(auth),
   });
 
   if (!response.ok) {
