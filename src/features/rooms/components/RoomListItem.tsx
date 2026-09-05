@@ -1,3 +1,4 @@
+import { useState, type CSSProperties } from 'react';
 import {
   FaAt,
   FaBan,
@@ -40,6 +41,7 @@ interface RoomListItemProps {
   recordingUserIds: string[];
   isFavorite: boolean;
   isMuted: boolean;
+  entranceIndex?: number;
 }
 
 const PREVIEW_LENGTH_SMALL_SCREEN = 70;
@@ -117,6 +119,7 @@ function ActivityPreview({
 
   return (
     <p
+      className="sc-anim-fade-in"
       style={{
         fontSize: '0.82rem',
         lineHeight: 1.5,
@@ -134,7 +137,7 @@ function ActivityPreview({
     >
       {isRecording ? (
         <>
-          <FaMicrophone size={12} style={{ flexShrink: 0, display: 'block', animation: 'pulse 1.5s infinite' }} />
+          <FaMicrophone size={12} className="sc-anim-pulse-soft" style={{ flexShrink: 0, display: 'block' }} />
           <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
             gravando áudio
@@ -142,7 +145,7 @@ function ActivityPreview({
         </>
       ) : (
         <>
-          <FaEdit size={12} style={{ flexShrink: 0, display: 'block', animation: 'pulse 1.5s infinite' }} />
+          <FaEdit size={12} className="sc-anim-pulse-soft" style={{ flexShrink: 0, display: 'block' }} />
           <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
             digitando...
@@ -268,7 +271,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   const checkColor = statusInfo?.read ? theme.receiptRead : theme.textMuted;
 
   return (
-    <p style={previewStyle}>
+    <p className="sc-anim-fade-in" style={previewStyle}>
       {statusInfo && (
         <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, lineHeight: 1, width: statusInfo.icon === 'double' ? '19px' : '12px' }}>
           {statusInfo.icon === 'double' ? (
@@ -298,8 +301,10 @@ export function RoomListItem({
   recordingUserIds,
   isFavorite,
   isMuted,
+  entranceIndex = 0,
 }: RoomListItemProps) {
   const { theme } = useTheme();
+  const [staggerIndex] = useState(entranceIndex);
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
   const hasUnread = room.unreadCount > 0 && !isSelected;
@@ -317,14 +322,18 @@ export function RoomListItem({
       }}
       data-selected={!isSelectionMode && isSelected}
       data-checked={isSelectionMode && isChecked}
-      className="sc-list-item animate__animated animate__fadeInLeft animate__faster"
-      style={{
-        borderRadius: '12px',
-        padding: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-      }}
+      className="sc-list-item sc-anim-list-in sc-stagger"
+      style={
+        {
+          borderRadius: '12px',
+          padding: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          '--sc-stagger-index': staggerIndex,
+          '--sc-stagger-step': '40ms',
+        } as CSSProperties
+      }
     >
       {isSelectionMode && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', flexShrink: 0 }}>
@@ -350,6 +359,7 @@ export function RoomListItem({
           <FaCircle
             size={20}
             color={theme.online}
+            className="sc-anim-badge-pop"
             style={{
               position: 'absolute',
               bottom: '-2px',
@@ -387,6 +397,7 @@ export function RoomListItem({
             {room.mentionCount > 0 && (
               <span
                 title="Você foi mencionado"
+                className="sc-anim-badge-pop"
                 style={{
                   width: '20px',
                   height: '20px',
@@ -410,6 +421,8 @@ export function RoomListItem({
 
                 return (
                   <span
+                    key={unreadLabel}
+                    className="sc-anim-badge-pop"
                     style={{
                       fontSize: unreadLabel.length > 2 ? '0.6rem' : '0.7rem',
                       borderRadius: '50%',
@@ -443,7 +456,7 @@ export function RoomListItem({
         {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (
           <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} />
         ) : (
-          <LastMessagePreview room={room} user={user} />
+          <LastMessagePreview key={room.lastMessage?.id ?? 'empty'} room={room} user={user} />
         )}
       </div>
     </div>

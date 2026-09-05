@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MOTION_DURATION_MS } from '@features/motion';
 import { buildTheme, mix, type ThemeTokens } from '@features/theme';
 import { getItem, setItem } from '@lib/storage';
 
 const DARK_MODE_KEY = 'sparkchat:login-dark-mode';
 const WHITE = '#ffffff';
+const THEME_TRANSITION_CLASS = 'sc-theme-transition';
 
 export interface LoginThemeControls {
   darkMode: boolean;
@@ -14,8 +16,24 @@ export interface LoginThemeControls {
 export function useLoginTheme(): LoginThemeControls {
   const [darkMode, setDarkMode] = useState<boolean>(() => getItem<boolean>(DARK_MODE_KEY) ?? true);
 
+  const hasAppliedInitialModeRef = useRef(false);
+
   useEffect(() => {
     setItem(DARK_MODE_KEY, darkMode);
+
+    if (!hasAppliedInitialModeRef.current) {
+      hasAppliedInitialModeRef.current = true;
+      return;
+    }
+
+    const root = document.documentElement;
+    root.classList.add(THEME_TRANSITION_CLASS);
+    const timeout = window.setTimeout(() => root.classList.remove(THEME_TRANSITION_CLASS), MOTION_DURATION_MS.normal + 60);
+
+    return () => {
+      window.clearTimeout(timeout);
+      root.classList.remove(THEME_TRANSITION_CLASS);
+    };
   }, [darkMode]);
 
   const toggle = useCallback(() => setDarkMode((previous) => !previous), []);
