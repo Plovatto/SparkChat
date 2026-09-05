@@ -336,14 +336,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       </div>
 
       {autoSaveFeedback && (
-        <div className="sc-notice sc-notice--success" style={{ alignItems: 'center', fontWeight: 600, marginBottom: '20px', padding: '10px 14px' }}>
+        <div key={autoSaveFeedback} className="sc-notice sc-notice--success sc-anim-rise-in" style={{ alignItems: 'center', fontWeight: 600, marginBottom: '20px', padding: '10px 14px' }}>
           <FaCheck size={13} style={{ flexShrink: 0 }} />
           <span>{autoSaveFeedback}</span>
         </div>
       )}
 
       {activeTab === 'profile' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div>
               <label style={labelStyle}>Username</label>
@@ -396,13 +396,15 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                     onClick={() => setAvatar(index)}
                     data-selected={isSelected}
                     title={avatarOption.name}
-                    className="sc-avatar-option"
+                    className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
                     style={
                       {
                         width: `${avatarSize}px`,
                         height: `${avatarSize}px`,
                         '--avatar-gradient': avatarOption.bgGradient,
                         '--avatar-color': avatarOption.color,
+                        '--sc-stagger-index': Math.min(index, 11),
+                        '--sc-stagger-step': '22ms',
                       } as CSSProperties
                     }
                   >
@@ -413,7 +415,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
             </div>
           </div>
 
-          {profileError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
+          {profileError && <small key={profileError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
           {hasChanges && (
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -436,7 +438,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       )}
 
       {activeTab === 'security' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {needsCurrentPassword ? (
             <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder="Senha atual" dense />
           ) : (
@@ -451,7 +453,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           </div>
 
           {newPassword.length > 0 && (
-            <div className="animate__animated animate__fadeIn animate__faster">
+            <div className="sc-anim-rise-in">
               <PasswordField
                 value={confirmNewPassword}
                 onChange={setConfirmNewPassword}
@@ -467,7 +469,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
             </div>
           )}
 
-          {passwordError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
+          {passwordError && <small key={passwordError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
           {passwordError === WRONG_PASSWORD_MESSAGE && (
             <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
               Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da
@@ -495,7 +497,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
           <div style={{ borderTop: `2px solid ${theme.borderStrong}`, margin: '14px 0' }} />
 
-          {regenerateError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
+          {regenerateError && <small key={regenerateError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
           <button onClick={handleRegenerateRecoveryFile} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
             <FaFileDownload size={14} />
             Baixar arquivo de recuperação

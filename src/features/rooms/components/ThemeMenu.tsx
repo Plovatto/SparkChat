@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCheck, FaMobileAlt, FaPalette } from 'react-icons/fa';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { buildTheme, COLOR_THEMES, THEME_BASES, useTheme, type ColorThemeId, type ThemeBaseId } from '@features/theme';
 
 interface ThemeMenuProps {
@@ -10,9 +11,11 @@ interface ThemeMenuProps {
 }
 
 const MENU_WIDTH_PX = 340;
+const SWATCH_CASCADE_MAX_INDEX = 11;
 
 export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
   const { theme, baseTheme, colorTheme, changeBaseTheme, changeColorTheme } = useTheme();
+  const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
 
   const colorPreviews = useMemo(
     () =>
@@ -42,7 +45,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
     return () => window.removeEventListener('resize', onClose);
   }, [isOpen, onClose]);
 
-  if (!isOpen) {
+  if (!isPresent) {
     return null;
   }
 
@@ -63,11 +66,15 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
 
   return createPortal(
     <>
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998 }} onClick={onClose} />
+      <div
+        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998, pointerEvents: isExiting ? 'none' : 'auto' }}
+        onClick={onClose}
+      />
 
       <div
-        className="animate__animated animate__fadeIn animate__faster"
+        className={isExiting ? 'sc-anim-menu-out' : 'sc-anim-menu-in'}
         style={{
+          transformOrigin: 'top right',
           position: 'fixed',
           top: position.top,
           right: clampedRight,
@@ -89,7 +96,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
-          {basePreviews.map(({ baseId, name, tokens }) => {
+          {basePreviews.map(({ baseId, name, tokens }, index) => {
             const isSelected = baseTheme === baseId;
 
             return (
@@ -98,17 +105,21 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
                 type="button"
                 onClick={() => changeBaseTheme(baseId)}
                 data-selected={isSelected}
-                className="sc-menu-item"
-                style={{
-                  borderRadius: '10px',
-                  padding: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                }}
+                className="sc-menu-item sc-anim-rise-in sc-stagger"
+                style={
+                  {
+                    borderRadius: '10px',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    '--sc-stagger-index': index,
+                    '--sc-stagger-step': '45ms',
+                  } as CSSProperties
+                }
               >
                 <div
                   style={{
@@ -143,7 +154,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px' }}>
-          {colorPreviews.map(({ colorId, name, tokens }) => {
+          {colorPreviews.map(({ colorId, name, tokens }, index) => {
             const isSelected = colorTheme === colorId;
 
             return (
@@ -155,16 +166,20 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
                   onClose();
                 }}
                 data-selected={isSelected}
-                className="sc-menu-item"
-                style={{
-                  borderRadius: '8px',
-                  padding: '7px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  fontSize: '0.82rem',
-                  fontWeight: isSelected ? 700 : 500,
-                }}
+                className="sc-menu-item sc-anim-rise-in sc-stagger"
+                style={
+                  {
+                    borderRadius: '8px',
+                    padding: '7px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '0.82rem',
+                    fontWeight: isSelected ? 700 : 500,
+                    '--sc-stagger-index': Math.min(index, SWATCH_CASCADE_MAX_INDEX),
+                    '--sc-stagger-step': '18ms',
+                  } as CSSProperties
+                }
               >
                 <div
                   style={{

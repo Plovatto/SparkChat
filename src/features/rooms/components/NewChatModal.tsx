@@ -189,7 +189,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
         </div>
 
         {error && (
-          <div className="sc-notice sc-notice--danger animate__animated animate__shakeX" style={{ fontSize: '0.9rem', fontWeight: 500 }}>
+          <div key={error} className="sc-notice sc-notice--danger sc-anim-shake" style={{ fontSize: '0.9rem', fontWeight: 500 }}>
             <FaExclamationTriangle size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
             <span>{error}</span>
           </div>
@@ -197,9 +197,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
 
         {chatType === 'private' && (
           <form
-            data-aos="fade-up"
-            data-aos-duration="400"
-            className="animate__animated animate__fadeIn"
+            className="sc-anim-rise-in"
             onSubmit={handleStartPrivateChat}
             style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
           >
@@ -229,7 +227,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
         {chatType === 'group' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div
-              className={groupMode === 'join' ? 'animate__animated animate__slideInLeft animate__faster' : 'animate__animated animate__slideOutRight animate__faster'}
+              className={groupMode === 'join' ? 'sc-anim-swap-in-left' : undefined}
               style={{ display: groupMode === 'join' ? 'flex' : 'none', flexDirection: 'column', gap: '16px' }}
             >
               <form onSubmit={handleJoinRoom} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -271,7 +269,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             </div>
 
             <div
-              className={groupMode === 'create' ? 'animate__animated animate__slideInRight animate__faster' : 'animate__animated animate__slideOutLeft animate__faster'}
+              className={groupMode === 'create' ? 'sc-anim-swap-in-right' : undefined}
               style={{ display: groupMode === 'create' ? 'flex' : 'none', flexDirection: 'column', gap: '16px' }}
             >
               <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
