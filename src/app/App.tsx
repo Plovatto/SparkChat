@@ -4,8 +4,8 @@ import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
-import { ChatArea, useChatTriggerEffects, useEnsureAssistantChat } from '@features/chat';
-import { LoginScreen, useAuthSession, useSocketAuthSync } from '@features/auth';
+import { ChatArea, isAssistantRoom, useChatTriggerEffects, useEnsureAssistantChat } from '@features/chat';
+import { LoginScreen, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
   ensureIdentityAfterKeyfileLogin,
@@ -21,7 +21,7 @@ import {
   useUnreadBadge,
 } from '@features/notifications';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
-import { useTheme, useThemeSync } from '@features/theme';
+import { useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { SocketProvider, useSocket } from '@lib/socket';
 import { AppBackground } from './AppBackground';
@@ -68,6 +68,7 @@ function AuthGate({
   consumePendingE2eCredential,
 }: AuthGateProps) {
   const { theme } = useTheme();
+  const loginTheme = useLoginTheme();
   const { socket } = useSocket();
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<{ userId: string; nickname: string; recoveryFile: string } | null>(null);
   const [isSocketReady, setIsSocketReady] = useState(false);
@@ -132,15 +133,15 @@ function AuthGate({
   useThemeSync(user);
 
   if (isRestoring) {
-    return <LoadingScreen />;
+    return <LoadingScreen theme={theme} />;
   }
 
   return (
-    <AppBackground>
+    <AppBackground theme={user ? theme : loginTheme.theme}>
       {!user ? (
-        <LoginScreen onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
+        <LoginScreen loginTheme={loginTheme} onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
       ) : !isSocketReady ? (
-        <LoadingScreen />
+        <LoadingScreen theme={theme} />
       ) : (
         <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={onLogout} />
       )}
@@ -150,7 +151,6 @@ function AuthGate({
         nickname={recoveryFilePrompt?.nickname ?? ''}
         recoveryFile={recoveryFilePrompt?.recoveryFile ?? ''}
         onClose={() => setRecoveryFilePrompt(null)}
-        theme={theme}
         isFirstDownload
       />
     </AppBackground>
@@ -200,8 +200,10 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   };
 
   const handleDeleteRooms = (roomIds: string[]) => {
-    roomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
-    if (selectedRoomId && roomIds.includes(selectedRoomId)) {
+    const assistantRoomId = rooms.find(isAssistantRoom)?.id;
+    const deletableRoomIds = roomIds.filter((roomId) => roomId !== assistantRoomId);
+    deletableRoomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
+    if (selectedRoomId && deletableRoomIds.includes(selectedRoomId)) {
       setSelectedRoomId(null);
     }
   };
@@ -248,8 +250,18 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     return (
       <Container fluid className="chat-shell-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="text-center">
-          <div className="loading-spinner" style={{ width: '60px', height: '60px', margin: '0 auto 20px', border: '4px solid rgba(166, 166, 166, 0.3)', borderTop: '4px solid #ffffff', borderRadius: '50%' }} />
-          <p style={{ color: '#ffffff', fontSize: '1rem' }}>Carregando conversas...</p>
+          <div
+            className="loading-spinner"
+            style={{
+              width: '60px',
+              height: '60px',
+              margin: '0 auto 20px',
+              border: `4px solid ${withAlpha(theme.onGradient, 0.3)}`,
+              borderTop: `4px solid ${theme.onGradient}`,
+              borderRadius: '50%',
+            }}
+          />
+          <p style={{ color: theme.onGradient, fontSize: '1rem' }}>Carregando conversas...</p>
         </div>
       </Container>
     );
@@ -268,8 +280,10 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               gap: '10px',
               padding: '8px 16px',
               borderRadius: '12px',
-              background: theme.surface,
+              background: theme.surfaceElevated,
               color: theme.textSecondary,
+              border: `1px solid ${theme.border}`,
+              boxShadow: theme.shadowSm,
               fontSize: '0.85rem',
               fontWeight: 500,
               flexShrink: 0,
@@ -279,17 +293,17 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
             Conectando ao servidor...
           </div>
         )}
-        <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden' }}>
+        <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden', background: theme.canvas, boxShadow: theme.shadowLg }}>
           <Row style={{ height: '100%', margin: 0 }}>
             <Col
-              lg={5}
+              lg={4}
               md={5}
               xs={12}
               style={{
                 padding: 0,
                 height: '100%',
                 display: !selectedRoom || isWideLayout ? 'block' : 'none',
-                ...(isWideLayout ? { minWidth: '300px' } : { flex: '0 0 100%', maxWidth: '100%' }),
+                ...(isWideLayout ? { minWidth: '360px' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
               <Sidebar
@@ -314,7 +328,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               />
             </Col>
             <Col
-              lg={7}
+              lg={8}
               md={7}
               xs={12}
               style={{
