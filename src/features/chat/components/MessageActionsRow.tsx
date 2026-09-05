@@ -3,14 +3,18 @@ import { IconPillButton } from '@components/common/IconPillButton';
 
 interface MessageActionsRowProps {
   isOwn: boolean;
+  isExiting?: boolean;
   onReply: () => void;
   onDelete: () => void;
   onForward: () => void;
 }
 
-export function MessageActionsRow({ isOwn, onReply, onDelete, onForward }: MessageActionsRowProps) {
+export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward }: MessageActionsRowProps) {
   return (
-    <div className="animate__animated animate__fadeIn animate__faster" style={{ display: 'flex', gap: '8px', margin: '3px 0' }}>
+    <div
+      className={isExiting ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
+      style={{ display: 'flex', gap: '8px', margin: '3px 0', transformOrigin: isOwn ? 'top right' : 'top left' }}
+    >
       <IconPillButton
         onClick={(event) => {
           event.stopPropagation();

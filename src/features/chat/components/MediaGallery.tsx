@@ -99,7 +99,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
           overflowX: 'hidden',
         }}
       >
-        {visibleMessages.map((message) => (
+        {visibleMessages.map((message, index) => (
           <div
             key={message.id}
             role="button"
@@ -111,13 +111,17 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
                 onSelectMedia(message);
               }
             }}
-            className="sc-tile"
-            style={{
-              aspectRatio: '1',
-              borderRadius: '10px',
-              overflow: 'hidden',
-              background: theme.surfaceSunken,
-            }}
+            className="sc-tile sc-anim-pop-in sc-stagger"
+            style={
+              {
+                aspectRatio: '1',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                background: theme.surfaceSunken,
+                '--sc-stagger-index': Math.min(index, columns * 2),
+                '--sc-stagger-step': '25ms',
+              } as CSSProperties
+            }
           >
             <GalleryMediaTile message={message} />
           </div>

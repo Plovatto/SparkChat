@@ -190,7 +190,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                     className="sc-icon-btn sc-icon-btn--soft"
                     style={{ width: '26px', height: '26px', borderRadius: '6px', alignSelf: 'center', position: 'relative', top: '2px' }}
                   >
-                    {clipboard.isCopied(COPY_KEY_NICKNAME) ? <FaCheck size={13} /> : <FaCopy size={13} />}
+                    {clipboard.isCopied(COPY_KEY_NICKNAME) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
                   </button>
                 </div>
               </div>
@@ -324,7 +324,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
-                          transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                          transition: 'border-color var(--sc-dur-fast) var(--sc-ease-standard), box-shadow var(--sc-dur-normal) var(--sc-ease-standard)',
                         }}
                       >
                         <div
@@ -371,7 +371,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                           <ActionIconButton onClick={() => clipboard.copy(participant.nickname, participant.id)} title="Copiar username" tone="accent">
-                            {clipboard.isCopied(participant.id) ? <FaCheck size={13} /> : <FaCopy size={13} />}
+                            {clipboard.isCopied(participant.id) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
                           </ActionIconButton>
 
                           {canManage && !participant.isAdmin && (
@@ -423,22 +423,18 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
         onClose={() => setSelectedMedia(null)}
       />
-      {selectedMedia && isSelectedMediaVideo && (
-        <VideoPreviewModal
-          isOpen
-          onClose={() => setSelectedMedia(null)}
-          url={selectedMedia.content}
-          fileName={selectedMedia.fileMeta?.name ?? 'Vídeo.mp4'}
-        />
-      )}
-      {selectedMedia && isSelectedMediaPdf && (
-        <PdfPreviewModal
-          isOpen
-          onClose={() => setSelectedMedia(null)}
-          url={selectedMedia.content}
-          fileName={selectedMedia.fileMeta?.name ?? 'Documento.pdf'}
-        />
-      )}
+      <VideoPreviewModal
+        isOpen={isSelectedMediaVideo}
+        onClose={() => setSelectedMedia(null)}
+        url={isSelectedMediaVideo ? (selectedMedia?.content ?? '') : ''}
+        fileName={selectedMedia?.fileMeta?.name ?? 'Vídeo.mp4'}
+      />
+      <PdfPreviewModal
+        isOpen={isSelectedMediaPdf}
+        onClose={() => setSelectedMedia(null)}
+        url={isSelectedMediaPdf ? (selectedMedia?.content ?? '') : ''}
+        fileName={selectedMedia?.fileMeta?.name ?? 'Documento.pdf'}
+      />
     </>
   );
 }

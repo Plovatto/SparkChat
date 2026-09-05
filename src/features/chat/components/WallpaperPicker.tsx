@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { FaImage } from 'react-icons/fa';
 import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
 
@@ -37,7 +38,7 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
           padding: '3px',
         }}
       >
-        {CHAT_BACKGROUNDS.map((background) => {
+        {CHAT_BACKGROUNDS.map((background, index) => {
           const isSelected = currentId === background.id;
           return (
             <button
@@ -46,19 +47,23 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
               onClick={() => setRoomWallpaper(roomId, background.id, false)}
               title={background.name}
               data-selected={isSelected}
-              className="sc-tile"
-              style={{
-                height: '80px',
-                borderRadius: '10px',
-                background: background.isImage
-                  ? `${background.background} center/cover no-repeat`
-                  : (background.background ?? theme.canvas),
-                display: 'flex',
-                alignItems: 'flex-end',
-                justifyContent: 'center',
-                padding: 0,
-                overflow: 'hidden',
-              }}
+              className="sc-tile sc-anim-tile-in sc-stagger"
+              style={
+                {
+                  height: '80px',
+                  borderRadius: '10px',
+                  background: background.isImage
+                    ? `${background.background} center/cover no-repeat`
+                    : (background.background ?? theme.canvas),
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'center',
+                  padding: 0,
+                  overflow: 'hidden',
+                  '--sc-stagger-index': Math.min(index, 8),
+                  '--sc-stagger-step': '30ms',
+                } as CSSProperties
+              }
             >
               <div
                 style={{

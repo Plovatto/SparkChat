@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
 
@@ -18,6 +19,8 @@ interface MessageBubbleShellProps {
   children: ReactNode;
   minWidth?: string;
   cornerRadius?: number;
+  entrancePhase?: EntrancePhase;
+  entranceIndex?: number;
 }
 
 export function MessageBubbleShell({
@@ -36,27 +39,37 @@ export function MessageBubbleShell({
   children,
   minWidth = '80px',
   cornerRadius = 16,
+  entrancePhase = 'none',
+  entranceIndex = 0,
 }: MessageBubbleShellProps) {
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
+  const [entrance] = useState(entrancePhase);
+  const [staggerIndex] = useState(entranceIndex);
 
   return (
     <div
       data-message-bubble
       data-message-root={messageId}
-      className={`animate__animated animate__fadeInUp animate__faster chat-bubble-wrap${extraClassName}`}
+      data-own={isOwn}
+      data-live={entrance === 'live'}
+      className={`${entrance === 'none' ? '' : 'sc-anim-bubble-in sc-stagger '}chat-bubble-wrap${extraClassName}`}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
       }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
-        alignItems: isOwn ? 'flex-end' : 'flex-start',
-        alignSelf: isOwn ? 'flex-end' : 'flex-start',
-        marginBottom: '2px',
-      }}
+      style={
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '6px',
+          alignItems: isOwn ? 'flex-end' : 'flex-start',
+          alignSelf: isOwn ? 'flex-end' : 'flex-start',
+          marginBottom: '2px',
+          '--sc-stagger-index': staggerIndex,
+          '--sc-stagger-step': '38ms',
+        } as CSSProperties
+      }
     >
       <div
         data-message-id={messageId}

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaLink, FaUser } from 'react-icons/fa';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
@@ -43,7 +44,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
 
   return (
     <div
-      className="animate__animated animate__fadeInDown animate__faster chat-header-bar"
+      className="sc-anim-drop-in chat-header-bar"
       style={{
         background: theme.gradient,
         color: theme.onGradient,
@@ -62,18 +63,23 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
 
         {room.type === 'private' ? (
           <div
-            style={{
-              position: 'relative',
-              width: '45px',
-              height: '45px',
-              background: avatar?.bgGradient ?? theme.gradientControl,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: theme.shadowSm,
-              flexShrink: 0,
-            }}
+            className="sc-anim-pop-in sc-stagger"
+            style={
+              {
+                position: 'relative',
+                width: '45px',
+                height: '45px',
+                background: avatar?.bgGradient ?? theme.gradientControl,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: theme.shadowSm,
+                flexShrink: 0,
+                '--sc-stagger-index': 1,
+                '--sc-stagger-step': '45ms',
+              } as CSSProperties
+            }
           >
             {avatar ? <avatar.icon size={24} color={AVATAR_ICON_COLOR} /> : null}
             {isOnline && (
@@ -94,22 +100,27 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
           </div>
         ) : (
           <div
-            style={{
-              width: '45px',
-              height: '45px',
-              borderRadius: '50%',
-              background: theme.gradientControl,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
+            className="sc-anim-pop-in sc-stagger"
+            style={
+              {
+                width: '45px',
+                height: '45px',
+                borderRadius: '50%',
+                background: theme.gradientControl,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                '--sc-stagger-index': 1,
+                '--sc-stagger-step': '45ms',
+              } as CSSProperties
+            }
           >
             <FaComments size={22} color={theme.onGradient} />
           </div>
         )}
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="sc-anim-swap-in-left sc-stagger" style={{ flex: 1, minWidth: 0, '--sc-stagger-index': 2, '--sc-stagger-step': '45ms' } as CSSProperties}>
           <h5
             style={{
               margin: 0,
@@ -161,7 +172,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 style={{ height: '18px', padding: '0 8px', fontSize: '0.62rem', fontFamily: 'monospace', fontWeight: 600 }}
                 title="Clique para copiar o código"
               >
-                {clipboard.isCopied(COPY_KEY_CODE) ? <FaCheck size={8} /> : <FaCopy size={8} />}
+                {clipboard.isCopied(COPY_KEY_CODE) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaCopy size={8} />}
                 <span>{room.roomCode}</span>
               </button>
 
@@ -172,7 +183,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 style={{ height: '18px', width: '18px', justifyContent: 'center', padding: 0, fontSize: '0.62rem' }}
                 title="Compartilhar link de convite"
               >
-                {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} /> : <FaLink size={8} />}
+                {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaLink size={8} />}
               </button>
             </div>
           )}
