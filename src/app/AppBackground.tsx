@@ -1,9 +1,11 @@
 import type { PropsWithChildren } from 'react';
-import { useTheme } from '@features/theme';
+import type { ThemeTokens } from '@features/theme';
 
-export function AppBackground({ children }: PropsWithChildren) {
-  const { theme } = useTheme();
+interface AppBackgroundProps {
+  theme: ThemeTokens;
+}
 
+export function AppBackground({ theme, children }: PropsWithChildren<AppBackgroundProps>) {
   return (
     <div
       className="app-background"
@@ -11,7 +13,7 @@ export function AppBackground({ children }: PropsWithChildren) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme.headerGradient,
+        background: theme.gradient,
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -20,7 +22,7 @@ export function AppBackground({ children }: PropsWithChildren) {
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.2)',
+          background: theme.kind === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.06)',
           backdropFilter: 'blur(2px)',
           pointerEvents: 'none',
           zIndex: 0,

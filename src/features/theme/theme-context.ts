@@ -13,10 +13,13 @@ export interface ThemeContextValue {
   changeColorTheme: (colorId: ColorThemeId) => void;
   changeTheme: (themeId: string) => void;
   getRoomWallpaper: (roomId: string) => ChatBackground | null;
-  setRoomWallpaper: (roomId: string, backgroundId: string) => void;
+  setRoomWallpaper: (roomId: string, backgroundId: string, applyToAll: boolean) => void;
+  resetRoomWallpaper: (roomId: string, applyToAll: boolean) => void;
+  hasRoomWallpaperOverride: (roomId: string) => boolean;
   getRoomAppearance: (roomId: string) => ChatAppearance;
   setRoomAppearance: (roomId: string, patch: Partial<ChatAppearance>, applyToAll: boolean) => void;
   resetRoomAppearance: (roomId: string, applyToAll: boolean) => void;
+  hasRoomAppearanceOverride: (roomId: string) => boolean;
 }
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
