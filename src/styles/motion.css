@@ -1,0 +1,991 @@
+:root {
+  --sc-dur-instant: 90ms;
+  --sc-dur-fast: 140ms;
+  --sc-dur-normal: 220ms;
+  --sc-dur-slow: 320ms;
+  --sc-dur-slower: 460ms;
+  --sc-dur-hero: 620ms;
+
+  --sc-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --sc-ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --sc-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --sc-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --sc-ease-spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --sc-lift-hover: -2px;
+  --sc-lift-hover-strong: -3px;
+  --sc-scale-hover: 1.02;
+  --sc-scale-hover-icon: 1.12;
+  --sc-scale-press: 0.97;
+  --sc-scale-press-icon: 0.9;
+
+  --sc-sheen: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0.4) 50%, transparent 100%);
+
+  --sc-duration: var(--sc-dur-fast);
+  --sc-duration-slow: var(--sc-dur-slow);
+  --sc-ease: var(--sc-ease-standard);
+  --sc-spring: var(--sc-ease-spring);
+
+  --sc-anim-delay: 0ms;
+  --sc-stagger-index: 0;
+  --sc-stagger-step: 55ms;
+}
+
+@keyframes scFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scRiseIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scRiseOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+}
+
+@keyframes scDropIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scPopOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes scBubbleInStart {
+  0% {
+    opacity: 0;
+    transform: translate3d(-26px, 16px, 0) scale(0.88) rotate(-1.6deg);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes scBubbleInEnd {
+  0% {
+    opacity: 0;
+    transform: translate3d(26px, 16px, 0) scale(0.88) rotate(1.6deg);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes scRingPulse {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes scHeroIn {
+  0% {
+    opacity: 0;
+    transform: perspective(1200px) translate3d(0, 34px, 0) rotateX(9deg) scale(0.93);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1200px) translate3d(0, 0, 0) rotateX(0deg) scale(1);
+  }
+}
+
+@keyframes scTileIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.82);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scListIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-12px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scSwapInFromRight {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scSwapInFromLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-18px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scMenuIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scMenuOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0) scale(0.97);
+  }
+}
+
+@keyframes scModalPanelIn {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -42%) scale(0.9);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes scModalPanelOut {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.97);
+  }
+}
+
+@keyframes scMediaChromeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scMediaContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scMediaContentOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes scShake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    transform: translate3d(-7px, 0, 0);
+  }
+  30% {
+    transform: translate3d(6px, 0, 0);
+  }
+  45% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  60% {
+    transform: translate3d(3px, 0, 0);
+  }
+  80% {
+    transform: translate3d(-1px, 0, 0);
+  }
+}
+
+@keyframes scChatShake {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  10% {
+    transform: translate(-8px, 2px) rotate(-1deg);
+  }
+  20% {
+    transform: translate(7px, -2px) rotate(0.9deg);
+  }
+  30% {
+    transform: translate(-6px, 2px) rotate(-0.8deg);
+  }
+  40% {
+    transform: translate(5px, -1px) rotate(0.6deg);
+  }
+  50% {
+    transform: translate(-4px, 1px) rotate(-0.5deg);
+  }
+  60% {
+    transform: translate(3px, -1px) rotate(0.4deg);
+  }
+  70% {
+    transform: translate(-2px, 1px) rotate(-0.3deg);
+  }
+  80% {
+    transform: translate(2px, 0) rotate(0.2deg);
+  }
+  90% {
+    transform: translate(-1px, 0);
+  }
+}
+
+@keyframes scBadgePop {
+  0% {
+    transform: scale(0.5);
+  }
+  55% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes scAttention {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.035);
+  }
+  70% {
+    transform: scale(0.995);
+  }
+}
+
+@keyframes scSendButtonIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-32deg);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes scTypingDot {
+  0%,
+  55%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  25% {
+    transform: translate3d(0, -5px, 0) scale(1.15);
+    opacity: 1;
+  }
+}
+
+@keyframes scBlink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(0.82);
+  }
+}
+
+@keyframes scPulseSoft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes scFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes scFloatSoft {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -12px, 0);
+  }
+}
+
+@keyframes scSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scShimmerSweep {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes scSheenSweep {
+  0% {
+    transform: translateX(-240%) skewX(-16deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(340%) skewX(-16deg);
+    opacity: 0;
+  }
+}
+
+@keyframes scLoadingPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes scLoadingFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -30px, 0) scale(1.05);
+  }
+}
+
+@keyframes scMessageHighlightFlash {
+  0% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+  15% {
+    box-shadow: 0 0 0 3px var(--sc-message-highlight);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+
+@keyframes scAuthShimmer {
+  from {
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes scAppFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sc-anim-fade-in,
+.sc-anim-rise-in,
+.sc-anim-drop-in,
+.sc-anim-pop-in,
+.sc-anim-bubble-in,
+.sc-anim-list-in,
+.sc-anim-swap-in-left,
+.sc-anim-swap-in-right,
+.sc-anim-menu-in,
+.sc-anim-shake,
+.sc-anim-attention,
+.sc-anim-badge-pop,
+.sc-anim-send-in,
+.sc-anim-media-chrome-in,
+.sc-anim-media-content-in,
+.sc-anim-hero-in,
+.sc-anim-tile-in {
+  animation-delay: var(--sc-anim-delay, 0ms);
+  animation-fill-mode: backwards;
+}
+
+.sc-anim-fade-out,
+.sc-anim-rise-out,
+.sc-anim-pop-out,
+.sc-anim-menu-out,
+.sc-anim-media-content-out {
+  animation-delay: var(--sc-anim-delay, 0ms);
+  animation-fill-mode: forwards;
+}
+
+.sc-anim-fade-in {
+  animation-name: scFadeIn;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-enter);
+}
+
+.sc-anim-fade-out {
+  animation-name: scFadeOut;
+  animation-duration: var(--sc-dur-fast);
+  animation-timing-function: var(--sc-ease-exit);
+}
+
+.sc-anim-rise-in {
+  animation-name: scRiseIn;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-enter);
+}
+
+.sc-anim-rise-out {
+  animation-name: scRiseOut;
+  animation-duration: var(--sc-dur-fast);
+  animation-timing-function: var(--sc-ease-exit);
+}
+
+.sc-anim-drop-in {
+  animation-name: scDropIn;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-enter);
+}
+
+.sc-anim-pop-in {
+  animation-name: scPopIn;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-spring);
+}
+
+.sc-anim-pop-out {
+  animation-name: scPopOut;
+  animation-duration: var(--sc-dur-fast);
+  animation-timing-function: var(--sc-ease-exit);
+}
+
+.sc-anim-bubble-in {
+  animation-name: scBubbleInStart;
+  animation-duration: var(--sc-dur-slower);
+  animation-timing-function: var(--sc-ease-spring);
+}
+
+.sc-anim-bubble-in[data-own='true'] {
+  animation-name: scBubbleInEnd;
+}
+
+.chat-bubble-wrap[data-live='true'] .sc-bubble::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid var(--sc-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: scRingPulse var(--sc-dur-slower) var(--sc-ease-exit) var(--sc-dur-normal) both;
+}
+
+.sc-anim-hero-in {
+  animation-name: scHeroIn;
+  animation-duration: var(--sc-dur-hero);
+  animation-timing-function: var(--sc-ease-spring-soft);
+}
+
+.sc-anim-tile-in {
+  animation-name: scTileIn;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-spring);
+}
+
+.sc-anim-list-in {
+  animation-name: scListIn;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-enter);
+}
+
+.sc-anim-swap-in-left {
+  animation-name: scSwapInFromLeft;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-spring-soft);
+}
+
+.sc-anim-swap-in-right {
+  animation-name: scSwapInFromRight;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-spring-soft);
+}
+
+.sc-anim-menu-in {
+  animation-name: scMenuIn;
+  animation-duration: var(--sc-dur-normal);
+  animation-timing-function: var(--sc-ease-spring-soft);
+}
+
+.sc-anim-menu-out {
+  animation-name: scMenuOut;
+  animation-duration: var(--sc-dur-fast);
+  animation-timing-function: var(--sc-ease-exit);
+}
+
+.sc-anim-shake {
+  animation-name: scShake;
+  animation-duration: var(--sc-dur-slower);
+  animation-timing-function: cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.sc-anim-attention {
+  animation-name: scAttention;
+  animation-duration: 1.1s;
+  animation-timing-function: var(--sc-ease-standard);
+}
+
+.sc-anim-badge-pop {
+  animation-name: scBadgePop;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-spring);
+}
+
+.sc-anim-send-in {
+  animation-name: scSendButtonIn;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-spring);
+}
+
+.sc-anim-media-chrome-in {
+  animation-name: scMediaChromeIn;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-enter);
+}
+
+.sc-anim-media-content-in {
+  animation-name: scMediaContentIn;
+  animation-duration: var(--sc-dur-slow);
+  animation-timing-function: var(--sc-ease-spring-soft);
+}
+
+.sc-anim-media-content-out {
+  animation-name: scMediaContentOut;
+  animation-duration: var(--sc-dur-fast);
+  animation-timing-function: var(--sc-ease-exit);
+}
+
+.sc-anim-fade-out,
+.sc-anim-rise-out,
+.sc-anim-pop-out,
+.sc-anim-menu-out,
+.sc-anim-media-content-out {
+  pointer-events: none;
+}
+
+.sc-stagger {
+  --sc-anim-delay: calc(var(--sc-stagger-index, 0) * var(--sc-stagger-step, 55ms));
+}
+
+.sc-anim-blink {
+  animation: scBlink 1.1s var(--sc-ease-standard) infinite;
+}
+
+.sc-anim-pulse-soft {
+  animation: scPulseSoft 1.5s var(--sc-ease-standard) infinite;
+}
+
+.sc-anim-typing-dot {
+  animation: scTypingDot 1.3s var(--sc-ease-standard) infinite;
+  animation-delay: var(--sc-anim-delay, 0ms);
+}
+
+.sc-modal-backdrop {
+  animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
+.sc-modal-backdrop.is-exiting {
+  animation: scFadeOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-modal-panel {
+  animation: scModalPanelIn var(--sc-dur-slower) var(--sc-ease-spring) backwards;
+}
+
+.sc-modal-panel.is-exiting {
+  animation: scModalPanelOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-media-gallery-grid .sc-tile img {
+  transition: transform var(--sc-dur-slow) var(--sc-ease-standard);
+}
+
+.sc-media-gallery-grid .sc-tile:hover img {
+  transform: scale(1.08);
+}
+
+.sc-media-nav-btn {
+  transform: translateY(-50%);
+}
+
+.sc-media-nav-btn:hover:not(:disabled) {
+  transform: translateY(-50%) scale(var(--sc-scale-hover-icon));
+}
+
+.sc-media-nav-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(var(--sc-scale-press-icon));
+}
+
+.float-soft {
+  animation: scFloatSoft 3s var(--sc-ease-standard) infinite;
+}
+
+.animate-float {
+  animation: scFloat 3s var(--sc-ease-standard) infinite;
+}
+
+.loading-spinner {
+  animation: scSpin 1s linear infinite;
+}
+
+.sc-loading-ring-reverse {
+  animation: scSpin 1.5s linear infinite reverse;
+}
+
+.sc-loading-orb {
+  animation: scLoadingFloat 8s var(--sc-ease-standard) infinite;
+}
+
+.sc-loading-orb--slow {
+  animation: scLoadingFloat 10s var(--sc-ease-standard) infinite reverse;
+}
+
+.sc-loading-pulse {
+  animation: scLoadingPulse 2s var(--sc-ease-standard) infinite;
+}
+
+.chat-shake {
+  animation: scChatShake 1s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.message-highlight-flash {
+  animation: scMessageHighlightFlash 1.4s var(--sc-ease-standard);
+}
+
+.hover-lift {
+  transition:
+    transform var(--sc-dur-slow) var(--sc-ease-spring-soft),
+    box-shadow var(--sc-dur-slow) var(--sc-ease-standard);
+}
+
+.hover-lift:hover {
+  transform: translate3d(0, -5px, 0);
+  box-shadow: var(--sc-shadow-lg, 0 10px 30px rgba(0, 0, 0, 0.2));
+}
+
+.shimmer-bg {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--shimmer-a, #cccccc);
+}
+
+.shimmer-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, var(--sc-skeleton-highlight, rgba(255, 255, 255, 0.4)) 50%, transparent 100%);
+  transform: translate3d(-100%, 0, 0);
+  animation: scShimmerSweep 1.5s var(--sc-ease-standard) infinite;
+  pointer-events: none;
+}
+
+.auth-shimmer-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.auth-shimmer-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transform: translate3d(-100%, 0, 0);
+  animation: scAuthShimmer 3s var(--sc-ease-standard) infinite;
+}
+
+#root {
+  animation: scAppFadeIn var(--sc-dur-slow) var(--sc-ease-enter);
+}
+
+button {
+  position: relative;
+  overflow: hidden;
+}
+
+button:not(.sc-tab)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, currentColor 0%, transparent 62%);
+  opacity: 0;
+  transform: scale(0.35);
+  transition:
+    transform var(--sc-dur-slower) var(--sc-ease-standard),
+    opacity var(--sc-dur-slower) var(--sc-ease-standard);
+  pointer-events: none;
+}
+
+button:not(.sc-tab):active:not(:disabled)::after {
+  opacity: 0.24;
+  transform: scale(2);
+  transition-duration: var(--sc-dur-instant), 60ms;
+}
+
+html.sc-theme-transition,
+html.sc-theme-transition *,
+html.sc-theme-transition *::before,
+html.sc-theme-transition *::after {
+  transition-property: background-color, border-color, color, fill, stroke !important;
+  transition-duration: var(--sc-dur-normal) !important;
+  transition-timing-function: var(--sc-ease-standard) !important;
+  transition-delay: 0ms !important;
+}
+
+@media (hover: none) {
+  .hover-lift:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-anim-fade-in,
+  .sc-anim-rise-in,
+  .sc-anim-drop-in,
+  .sc-anim-pop-in,
+  .sc-anim-bubble-in,
+  .sc-anim-bubble-in[data-own='true'],
+  .sc-anim-list-in,
+  .sc-anim-swap-in-left,
+  .sc-anim-swap-in-right,
+  .sc-anim-menu-in,
+    .sc-anim-media-chrome-in,
+  .sc-anim-media-content-in,
+  .sc-anim-hero-in,
+  .sc-anim-tile-in,
+  .sc-modal-backdrop,
+  .sc-modal-panel {
+    animation-name: scFadeIn;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+    animation-delay: 0ms;
+  }
+
+  .sc-anim-fade-out,
+  .sc-anim-rise-out,
+  .sc-anim-pop-out,
+  .sc-anim-menu-out,
+    .sc-anim-media-content-out,
+  .sc-modal-backdrop.is-exiting,
+  .sc-modal-panel.is-exiting {
+    animation-name: scFadeOut;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+    animation-delay: 0ms;
+  }
+
+  .sc-anim-shake,
+  .sc-anim-attention,
+  .sc-anim-badge-pop,
+  .sc-anim-send-in,
+  .chat-shake,
+  .float-soft,
+  .animate-float,
+  .chat-bubble-wrap[data-live='true'] .sc-bubble::after {
+    animation: none;
+  }
+
+  .sc-anim-blink,
+  .sc-anim-pulse-soft,
+  .sc-anim-typing-dot {
+    animation: scPulseSoft 2.4s linear infinite;
+  }
+
+  .shimmer-bg::after,
+  .auth-shimmer-overlay::after {
+    animation: none;
+    opacity: 0.35;
+    transform: none;
+  }
+
+  .loading-spinner {
+    animation-duration: 2.4s;
+  }
+
+  .sc-loading-ring-reverse {
+    animation-duration: 3.4s;
+  }
+
+  .sc-loading-orb {
+    animation: none;
+  }
+
+  .sc-loading-pulse {
+    animation: scLoadingPulse 3.6s linear infinite;
+  }
+
+  #root {
+    animation: none;
+  }
+
+  button:not(.sc-tab)::after,
+  button:not(.sc-tab):active:not(:disabled)::after {
+    transition-duration: 1ms;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+
+  .sc-media-nav-btn:hover:not(:disabled),
+  .sc-media-nav-btn:active:not(:disabled) {
+    transform: translateY(-50%);
+  }
+
+  .sc-media-gallery-grid .sc-tile:hover img {
+    transform: none;
+  }
+
+  .message-highlight-flash {
+    animation-duration: var(--sc-dur-slow);
+  }
+
+  html.sc-theme-transition,
+  html.sc-theme-transition *,
+  html.sc-theme-transition *::before,
+  html.sc-theme-transition *::after {
+    transition-duration: 1ms !important;
+  }
+}
