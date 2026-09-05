@@ -1,64 +1,43 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { buildTheme } from './build-theme';
 import { DEFAULT_CHAT_APPEARANCE, type ChatAppearance } from './constants/chat-appearance';
 import { CHAT_BACKGROUNDS, type ChatBackground } from './constants/chat-backgrounds';
-import { COLOR_THEMES, type ColorThemeId } from './constants/color-themes';
-import { THEME_BASES, type ThemeBaseId } from './constants/theme-bases';
-import { mergeTheme } from './merge-theme';
+import type { ColorThemeId } from './constants/color-themes';
+import type { ThemeBaseId } from './constants/theme-bases';
 import { ThemeContext, type ThemeContextValue } from './theme-context';
+import { applyThemeCssVars } from './theme-css-vars';
+import { isColorThemeId, isThemeBaseId } from './theme-guards';
 
-const BASE_STORAGE_KEY = 'chatBaseTheme';
-const COLOR_STORAGE_KEY = 'chatColorTheme';
+export const BASE_STORAGE_KEY = 'chatBaseTheme';
+export const COLOR_STORAGE_KEY = 'chatColorTheme';
 const WALLPAPER_STORAGE_KEY = 'chatRoomWallpapers';
+const GLOBAL_WALLPAPER_STORAGE_KEY = 'chatGlobalWallpaper';
 const APPEARANCE_STORAGE_KEY = 'chatRoomAppearance';
 const GLOBAL_APPEARANCE_STORAGE_KEY = 'chatGlobalAppearance';
 const DEFAULT_BASE: ThemeBaseId = 'dark';
 const DEFAULT_COLOR: ColorThemeId = 'standard';
 
-function readStoredWallpapers(): Record<string, string> {
+function readStoredJson<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(WALLPAPER_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function readStoredRoomAppearance(): Record<string, ChatAppearance> {
-  try {
-    const raw = localStorage.getItem(APPEARANCE_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-    const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, ChatAppearance>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function readStoredGlobalAppearance(): ChatAppearance | null {
-  try {
-    const raw = localStorage.getItem(GLOBAL_APPEARANCE_STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) {
       return null;
     }
     const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as ChatAppearance) : null;
+    return parsed && typeof parsed === 'object' ? (parsed as T) : null;
   } catch {
     return null;
   }
 }
 
-function isThemeBaseId(value: string): value is ThemeBaseId {
-  return value in THEME_BASES;
+function readStoredBase(): ThemeBaseId {
+  const saved = localStorage.getItem(BASE_STORAGE_KEY);
+  return saved && isThemeBaseId(saved) ? saved : DEFAULT_BASE;
 }
 
-function isColorThemeId(value: string): value is ColorThemeId {
-  return value in COLOR_THEMES;
+function readStoredColor(): ColorThemeId {
+  const saved = localStorage.getItem(COLOR_STORAGE_KEY);
+  return saved && isColorThemeId(saved) ? saved : DEFAULT_COLOR;
 }
 
 interface ThemeProviderProps {
@@ -66,27 +45,14 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [baseTheme, setBaseTheme] = useState<ThemeBaseId>(DEFAULT_BASE);
-  const [colorTheme, setColorTheme] = useState<ColorThemeId>(DEFAULT_COLOR);
-  const [roomWallpapers, setRoomWallpapers] = useState<Record<string, string>>({});
-  const [roomAppearance, setRoomAppearanceState] = useState<Record<string, ChatAppearance>>({});
-  const [globalAppearance, setGlobalAppearanceState] = useState<ChatAppearance | null>(null);
-
-  useEffect(() => {
-    const savedBase = localStorage.getItem(BASE_STORAGE_KEY);
-    if (savedBase && isThemeBaseId(savedBase)) {
-      setBaseTheme(savedBase);
-    }
-
-    const savedColor = localStorage.getItem(COLOR_STORAGE_KEY);
-    if (savedColor && isColorThemeId(savedColor)) {
-      setColorTheme(savedColor);
-    }
-
-    setRoomWallpapers(readStoredWallpapers());
-    setRoomAppearanceState(readStoredRoomAppearance());
-    setGlobalAppearanceState(readStoredGlobalAppearance());
-  }, []);
+  const [baseTheme, setBaseTheme] = useState<ThemeBaseId>(readStoredBase);
+  const [colorTheme, setColorTheme] = useState<ColorThemeId>(readStoredColor);
+  const [roomWallpapers, setRoomWallpapers] = useState<Record<string, string>>(() => readStoredJson<Record<string, string>>(WALLPAPER_STORAGE_KEY) ?? {});
+  const [globalWallpaper, setGlobalWallpaperState] = useState<string | null>(() => localStorage.getItem(GLOBAL_WALLPAPER_STORAGE_KEY));
+  const [roomAppearance, setRoomAppearanceState] = useState<Record<string, ChatAppearance>>(
+    () => readStoredJson<Record<string, ChatAppearance>>(APPEARANCE_STORAGE_KEY) ?? {},
+  );
+  const [globalAppearance, setGlobalAppearanceState] = useState<ChatAppearance | null>(() => readStoredJson<ChatAppearance>(GLOBAL_APPEARANCE_STORAGE_KEY));
 
   const changeBaseTheme = useCallback((baseId: ThemeBaseId) => {
     setBaseTheme(baseId);
@@ -121,7 +87,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     [changeBaseTheme, changeColorTheme],
   );
 
-  const setRoomWallpaper = useCallback((roomId: string, backgroundId: string) => {
+  const setRoomWallpaper = useCallback((roomId: string, backgroundId: string, applyToAll: boolean) => {
+    if (applyToAll) {
+      setGlobalWallpaperState(backgroundId);
+      localStorage.setItem(GLOBAL_WALLPAPER_STORAGE_KEY, backgroundId);
+      return;
+    }
+
     setRoomWallpapers((previous) => {
       const next = { ...previous, [roomId]: backgroundId };
       localStorage.setItem(WALLPAPER_STORAGE_KEY, JSON.stringify(next));
@@ -129,15 +101,32 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     });
   }, []);
 
+  const resetRoomWallpaper = useCallback((roomId: string, applyToAll: boolean) => {
+    if (applyToAll) {
+      setGlobalWallpaperState(null);
+      localStorage.removeItem(GLOBAL_WALLPAPER_STORAGE_KEY);
+      return;
+    }
+
+    setRoomWallpapers((previous) => {
+      const next = { ...previous };
+      delete next[roomId];
+      localStorage.setItem(WALLPAPER_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const hasRoomWallpaperOverride = useCallback((roomId: string) => roomId in roomWallpapers, [roomWallpapers]);
+
   const getRoomWallpaper = useCallback(
     (roomId: string): ChatBackground | null => {
-      const backgroundId = roomWallpapers[roomId];
+      const backgroundId = roomWallpapers[roomId] ?? globalWallpaper;
       if (!backgroundId) {
         return null;
       }
       return CHAT_BACKGROUNDS.find((background) => background.id === backgroundId) ?? null;
     },
-    [roomWallpapers],
+    [roomWallpapers, globalWallpaper],
   );
 
   const getRoomAppearance = useCallback(
@@ -183,12 +172,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     });
   }, []);
 
-  const theme = useMemo(() => mergeTheme(baseTheme, colorTheme).colors, [baseTheme, colorTheme]);
+  const hasRoomAppearanceOverride = useCallback((roomId: string) => roomId in roomAppearance, [roomAppearance]);
+
+  const theme = useMemo(() => buildTheme(baseTheme, colorTheme).tokens, [baseTheme, colorTheme]);
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--scrollbar-thumb', theme.headerGradient);
-    document.documentElement.style.setProperty('--scrollbar-thumb-color', theme.primary);
-  }, [theme.headerGradient, theme.primary]);
+    applyThemeCssVars(theme);
+  }, [theme]);
 
   const value: ThemeContextValue = useMemo(
     () => ({
@@ -200,9 +190,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       changeTheme,
       getRoomWallpaper,
       setRoomWallpaper,
+      resetRoomWallpaper,
+      hasRoomWallpaperOverride,
       getRoomAppearance,
       setRoomAppearance,
       resetRoomAppearance,
+      hasRoomAppearanceOverride,
     }),
     [
       theme,
@@ -213,9 +206,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       changeTheme,
       getRoomWallpaper,
       setRoomWallpaper,
+      resetRoomWallpaper,
+      hasRoomWallpaperOverride,
       getRoomAppearance,
       setRoomAppearance,
       resetRoomAppearance,
+      hasRoomAppearanceOverride,
     ],
   );
 

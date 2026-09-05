@@ -41,13 +41,12 @@ type AttachmentMessageType = 'image' | 'file';
 
 const DATE_CHIP_STYLE: CSSProperties = {
   fontSize: '0.78rem',
-  color: '#ffffff',
   fontWeight: 600,
   whiteSpace: 'nowrap',
   padding: '5px 14px',
   borderRadius: '999px',
-  background: 'rgba(0, 0, 0, 0.55)',
-  boxShadow: '0 1px 4px rgba(0, 0, 0, 0.2)',
+  backdropFilter: 'blur(6px)',
+  WebkitBackdropFilter: 'blur(6px)',
   transition: 'opacity 0.3s ease',
 };
 
@@ -247,11 +246,12 @@ function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%' }: Ch
         alignItems: 'center',
         gap: '10px',
         padding: '12px 15px',
-        background: theme.surface,
+        background: theme.surfaceElevated,
+        border: `1px solid ${theme.borderSubtle}`,
         borderRadius: '15px',
         width: 'fit-content',
         maxWidth,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        boxShadow: theme.shadowSm,
       }}
     >
       {indicator}
@@ -263,14 +263,17 @@ function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%' }: Ch
 }
 
 interface BlockedBannerProps {
-  background: string;
-  color: string;
-  borderColor: string;
+  tone: 'warning' | 'danger';
   icon: ReactNode;
   text: string;
 }
 
-function BlockedBanner({ background, color, borderColor, icon, text }: BlockedBannerProps) {
+function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
+  const { theme } = useTheme();
+  const background = tone === 'warning' ? theme.warningSoft : theme.dangerSoft;
+  const color = tone === 'warning' ? theme.warningText : theme.dangerText;
+  const borderColor = tone === 'warning' ? theme.warning : theme.danger;
+
   return (
     <div
       style={{
@@ -348,6 +351,27 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!selectedMessageId) {
+      return;
+    }
+    const container = scrollContainerRef.current;
+    const target = container?.querySelector<HTMLElement>(`[data-message-root="${selectedMessageId}"]`);
+    if (!container || !target) {
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const EDGE_PADDING_PX = 12;
+
+    if (targetRect.bottom > containerRect.bottom) {
+      container.scrollTop += targetRect.bottom - containerRect.bottom + EDGE_PADDING_PX;
+    } else if (targetRect.top < containerRect.top) {
+      container.scrollTop -= containerRect.top - targetRect.top + EDGE_PADDING_PX;
+    }
+  }, [selectedMessageId]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
     const container = scrollContainerRef.current;
@@ -682,7 +706,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     ? wallpaper.isImage
       ? `${wallpaper.background} center/cover`
       : wallpaper.background
-    : theme.background;
+    : theme.canvas;
   const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
   const confirmDeleteMessage = () => {
@@ -717,7 +741,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const typingText = getTypingText(typingUserIds, room.participants);
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.background }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.canvas }}>
       <ChatHeader room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
       <RoomInfoPanel
         isOpen={isInfoOpen}
@@ -738,12 +762,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
         {isDraggingFile && (
           <div
+            className="sc-drop-zone"
             style={{
               position: 'absolute',
               inset: '8px',
               zIndex: 20,
-              background: `${theme.primary}26`,
-              border: `3px dashed ${theme.primary}`,
               borderRadius: '16px',
               display: 'flex',
               alignItems: 'center',
@@ -753,13 +776,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           >
             <div
               style={{
-                background: theme.surface,
-                color: theme.text,
+                background: theme.surfaceElevated,
+                color: theme.accentText,
                 padding: '14px 22px',
                 borderRadius: '12px',
                 fontWeight: 700,
                 fontSize: '0.95rem',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+                boxShadow: theme.shadowMd,
+                border: `1px solid ${theme.accent}`,
               }}
             >
               Solte o arquivo aqui
@@ -810,9 +834,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                   gap: '12px',
                 }}
               >
-                <FaComments size={40} style={{ opacity: 0.5 }} />
+                <FaComments size={40} style={{ color: theme.accentText, opacity: 0.6 }} />
                 <div>Nenhuma mensagem ainda</div>
-                <div style={{ fontSize: '0.9rem', opacity: 0.7 }}>Comece a conversa enviando uma mensagem!</div>
+                <div style={{ fontSize: '0.9rem', color: theme.textMuted }}>Comece a conversa enviando uma mensagem!</div>
               </div>
             ) : (
               <>
@@ -838,7 +862,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                           pointerEvents: 'none',
                         }}
                       >
-                        <span data-day-sticky data-day-key={dayKey} style={DATE_CHIP_STYLE}>
+                        <span
+                          data-day-sticky
+                          data-day-key={dayKey}
+                          style={{ ...DATE_CHIP_STYLE, background: theme.dateChip, color: theme.dateChipText, boxShadow: theme.shadowSm }}
+                        >
                           {group.dateLabel}
                         </span>
                       </div>
@@ -904,7 +932,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                       width: '8px',
                       height: '8px',
                       borderRadius: '100%',
-                      background: theme.primary,
+                      background: theme.accent,
                       animation: 'blink 1s infinite',
                       flexShrink: 0,
                     }}
@@ -925,7 +953,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                         style={{
                           width: '8px',
                           height: '8px',
-                          background: theme.primary,
+                          background: theme.accent,
                           borderRadius: '50%',
                           animation: 'typing 1.4s infinite',
                           animationDelay: `${index * 0.2}s`,
@@ -938,7 +966,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               />
             )}
 
-            {uploadingMediaType && <ChatStatusPill indicator={<Spinner size={16} />} text={UPLOADING_LABEL[uploadingMediaType]} maxWidth="220px" />}
+            {uploadingMediaType && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <ChatStatusPill indicator={<Spinner size={16} />} text={UPLOADING_LABEL[uploadingMediaType]} maxWidth="220px" />
+              </div>
+            )}
           </div>
           <button
             onClick={() => {
@@ -949,6 +981,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
             title="Ir para a última mensagem"
             aria-hidden={isAtBottom}
             tabIndex={isAtBottom ? -1 : 0}
+            className="sc-icon-btn sc-icon-btn--surface"
             style={{
               position: 'fixed',
               top: scrollButtonPosition?.top ?? 0,
@@ -956,20 +989,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               visibility: scrollButtonPosition ? 'visible' : 'hidden',
               width: '42px',
               height: '42px',
-              borderRadius: '50%',
-              border: 'none',
-              background: theme.surface,
-              color: theme.primary,
-              boxShadow: '0 4px 14px rgba(0,0,0,0.25)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
+              border: `1px solid ${theme.border}`,
               zIndex: 5,
               opacity: isAtBottom ? 0 : 1,
-              transform: isAtBottom ? 'scale(0.85)' : 'scale(1)',
+              transform: isAtBottom ? 'scale(0.85)' : undefined,
               pointerEvents: isAtBottom ? 'none' : 'auto',
-              transition: 'opacity 0.18s ease, transform 0.18s ease',
             }}
           >
             <FaArrowDown size={16} />
@@ -978,17 +1002,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       </div>
 
       {room.userBlocked && (
-        <BlockedBanner background="#fff3e0" color="#e65100" borderColor="#ff9800" icon={<FaBan size={16} />} text="Você bloqueou este usuário" />
+        <BlockedBanner tone="warning" icon={<FaBan size={16} />} text="Você bloqueou este usuário" />
       )}
 
       {room.isBlockedBy && (
-        <BlockedBanner
-          background="#ffebee"
-          color="#c62828"
-          borderColor="#d32f2f"
-          icon={<FaExclamationTriangle size={16} />}
-          text="Você foi bloqueado por este usuário"
-        />
+        <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text="Você foi bloqueado por este usuário" />
       )}
 
       {repliedMessage && <ReplyPreviewBar message={repliedMessage} currentUserId={user.id} onCancel={() => setRepliedMessage(null)} />}
@@ -1013,7 +1031,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         message="Tem certeza que deseja deletar esta mensagem para todos?"
         onConfirm={confirmDeleteMessage}
         onCancel={() => setMessageIdPendingDelete(null)}
-        theme={theme}
       />
 
       <ForwardMessageModal

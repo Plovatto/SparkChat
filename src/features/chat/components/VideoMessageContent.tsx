@@ -41,7 +41,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
           height: thumbnail ? fitAttachmentHeight(thumbnail.width, thumbnail.height) : undefined,
           minHeight: thumbnail ? undefined : '160px',
           borderRadius: '16px',
-          background: '#000',
+          background: '#000000',
           overflow: 'hidden',
         }}
       >
@@ -52,27 +52,14 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
         />
         <button
+          type="button"
           onClick={(event) => {
             event.stopPropagation();
             setIsPreviewOpen(true);
           }}
           title="Abrir em tela cheia"
-          style={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: 'rgba(0, 0, 0, 0.55)',
-            border: 'none',
-            color: 'white',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-          }}
+          className="sc-icon-btn sc-icon-btn--scrim-solid"
+          style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderWidth: '1px', pointerEvents: 'auto' }}
         >
           <FaExpand size={12} />
         </button>

@@ -65,9 +65,9 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Encaminhar mensagem" theme={theme}>
+    <Modal isOpen={isOpen} onClose={onClose} title="Encaminhar mensagem">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto', padding: '2px' }}>
           {rooms.length === 0 && (
             <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '20px 0' }}>
               Nenhuma conversa disponível
@@ -83,16 +83,26 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
             return (
               <div
                 key={room.id}
+                role="checkbox"
+                aria-checked={isSelected}
+                tabIndex={wasSent ? -1 : 0}
                 onClick={() => !wasSent && toggleRoom(room.id)}
+                onKeyDown={(event) => {
+                  if (!wasSent && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    toggleRoom(room.id);
+                  }
+                }}
+                data-selected={isSelected}
+                data-static={wasSent}
+                className="sc-card sc-card--interactive"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
                   padding: '10px 12px',
                   borderRadius: '10px',
-                  cursor: wasSent ? 'default' : 'pointer',
-                  background: isSelected ? `${theme.primary}15` : theme.background,
-                  border: `1.5px solid ${isSelected ? theme.primary : theme.border}`,
+                  borderWidth: '1.5px',
                 }}
               >
                 <div
@@ -100,7 +110,7 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
                     width: '38px',
                     height: '38px',
                     borderRadius: '50%',
-                    background: `${theme.primary}20`,
+                    background: theme.accentSoft,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -108,62 +118,31 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
                   }}
                 >
                   {room.type === 'group' ? (
-                    <FaUsers size={16} color={theme.primary} />
+                    <FaUsers size={16} color={theme.accentText} />
                   ) : avatar ? (
-                    <avatar.icon size={18} color={theme.primary} />
+                    <avatar.icon size={18} color={theme.accentText} />
                   ) : (
-                    <FaComments size={16} color={theme.primary} />
+                    <FaComments size={16} color={theme.accentText} />
                   )}
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ flex: 1, minWidth: 0, fontWeight: 600, color: theme.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {getRoomDisplayName(room, currentUserId)}
                 </div>
 
                 {wasSent ? (
-                  <FaCheck size={14} color={theme.primary} />
+                  <FaCheck size={14} color={theme.successText} />
                 ) : (
-                  <div
-                    style={{
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      border: `2px solid ${isSelected ? theme.primary : theme.border}`,
-                      background: isSelected ? theme.primary : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {isSelected && <FaCheck size={10} color="white" />}
-                  </div>
+                  <span className="sc-checkbox" data-checked={isSelected}>
+                    {isSelected && <FaCheck size={10} />}
+                  </span>
                 )}
               </div>
             );
           })}
         </div>
 
-        <button
-          onClick={handleForward}
-          disabled={selectedRoomIds.size === 0}
-          style={{
-            width: '100%',
-            padding: '12px 20px',
-            borderRadius: '10px',
-            border: 'none',
-            background: theme.primary,
-            color: 'white',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            cursor: selectedRoomIds.size === 0 ? 'not-allowed' : 'pointer',
-            opacity: selectedRoomIds.size === 0 ? 0.6 : 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-          }}
-        >
+        <button onClick={handleForward} disabled={selectedRoomIds.size === 0} className="sc-btn sc-btn--primary sc-btn--lift" style={{ width: '100%', padding: '12px 20px' }}>
           <FaPaperPlane size={14} />
           {selectedRoomIds.size > 0 ? `Encaminhar (${selectedRoomIds.size})` : 'Encaminhar'}
         </button>
