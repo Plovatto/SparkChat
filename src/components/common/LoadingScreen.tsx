@@ -23,6 +23,7 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
       }}
     >
       <div
+        className="sc-loading-orb"
         style={{
           position: 'absolute',
           width: '400px',
@@ -31,10 +32,10 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
           background: `radial-gradient(circle, ${withAlpha(ink, 0.15)} 0%, ${withAlpha(ink, 0.05)} 100%)`,
           top: '-150px',
           left: '-150px',
-          animation: 'loadingFloat 8s ease-in-out infinite',
         }}
       />
       <div
+        className="sc-loading-orb sc-loading-orb--slow"
         style={{
           position: 'absolute',
           width: '300px',
@@ -43,7 +44,6 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
           background: `radial-gradient(circle, ${withAlpha(ink, 0.1)} 0%, ${withAlpha(ink, 0.02)} 100%)`,
           bottom: '-100px',
           right: '-100px',
-          animation: 'loadingFloat 10s ease-in-out infinite reverse',
         }}
       />
 
@@ -61,6 +61,7 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
             }}
           />
           <div
+            className="sc-loading-ring-reverse"
             style={{
               position: 'absolute',
               width: '70px',
@@ -70,7 +71,6 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
               border: `3px solid ${withAlpha(ink, 0.15)}`,
               borderBottom: `3px solid ${withAlpha(ink, 0.7)}`,
               borderRadius: '50%',
-              animation: 'spin 1.5s linear infinite reverse',
             }}
           />
           <div
@@ -89,12 +89,12 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
         </div>
 
         <h2
+          className="sc-loading-pulse"
           style={{
             color: ink,
             fontWeight: 700,
             marginBottom: '15px',
             fontSize: '2rem',
-            animation: 'loadingPulse 2s ease-in-out infinite',
             textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
           }}
         >
@@ -102,10 +102,10 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
           SparkChat
         </h2>
         <p
+          className="sc-loading-pulse"
           style={{
             color: withAlpha(ink, 0.92),
             fontSize: '1.1rem',
-            animation: 'loadingPulse 2s ease-in-out infinite',
             letterSpacing: '0.5px',
           }}
         >
