@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   FaCheck,
   FaDesktop,
@@ -68,26 +68,13 @@ function buildRecoveryFileName(nickname: string): string {
 
 interface InfoNoticeProps {
   icon: ReactNode;
-  background: string;
+  tone: 'info' | 'danger';
   children: ReactNode;
 }
 
-function InfoNotice({ icon, background, children }: InfoNoticeProps) {
-  const { theme } = useTheme();
-
+function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '10px',
-        alignItems: 'flex-start',
-        background,
-        borderRadius: '10px',
-        padding: '10px 14px',
-        fontSize: '0.82rem',
-        color: theme.textSecondary,
-      }}
-    >
+    <div className={`sc-notice sc-notice--${tone}`} style={{ padding: '10px 14px', fontSize: '0.82rem' }}>
       {icon}
       <span>{children}</span>
     </div>
@@ -311,26 +298,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     onClose();
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '15px clamp(14px, 3vw, 22px)',
-    paddingRight: '46px',
-    border: `1.5px solid ${theme.border}`,
-    borderRadius: '14px',
-    fontSize: '0.95rem',
-    background: theme.background,
-    color: theme.text,
-    boxSizing: 'border-box' as const,
-    outline: 'none',
-  };
-
-  const passwordFieldTheme = {
-    inputBorder: theme.border,
-    inputBg: theme.background,
-    inputText: theme.text,
-    textSecondary: theme.textSecondary,
-  };
-
+  const labelStyle: CSSProperties = { fontWeight: 600, display: 'block', marginBottom: '10px', color: theme.textPrimary, fontSize: '0.95rem' };
   const needsCurrentPassword = user.authMethod !== 'keyfile';
   const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword);
   const otherSessionsCount = sessions.filter((session) => !session.isCurrent).length;
@@ -341,7 +309,6 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       onClose={recoveryFilePrompt === null ? onClose : () => {}}
       showCloseButton={recoveryFilePrompt === null}
       title="Editar Perfil"
-      theme={theme}
       maxWidth="600px"
     >
       <div style={{ display: 'flex', borderBottom: `2px solid ${theme.border}`, marginBottom: '20px' }}>
@@ -349,20 +316,17 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           <button
             key={id}
             onClick={() => setActiveTab(id)}
+            data-active={activeTab === id}
+            className="sc-tab"
             style={{
               flex: 1,
               padding: '12px 8px',
-              border: 'none',
-              background: 'transparent',
-              color: activeTab === id ? theme.primary : theme.textSecondary,
               fontSize: '0.9rem',
-              fontWeight: activeTab === id ? 700 : 600,
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              borderBottom: activeTab === id ? `3px solid ${theme.primary}` : '3px solid transparent',
+              borderRadius: '8px 8px 0 0',
             }}
           >
             <Icon size={14} />
@@ -372,20 +336,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       </div>
 
       {autoSaveFeedback && (
-        <div
-          style={{
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'center',
-            background: 'rgba(34, 197, 94, 0.12)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            fontSize: '0.85rem',
-            color: '#22c55e',
-            fontWeight: 600,
-            marginBottom: '20px',
-          }}
-        >
+        <div className="sc-notice sc-notice--success" style={{ alignItems: 'center', fontWeight: 600, marginBottom: '20px', padding: '10px 14px' }}>
           <FaCheck size={13} style={{ flexShrink: 0 }} />
           <span>{autoSaveFeedback}</span>
         </div>
@@ -395,9 +346,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div>
-              <label style={{ fontWeight: 600, display: 'block', marginBottom: '10px', color: theme.text, fontSize: '0.95rem' }}>
-                Username
-              </label>
+              <label style={labelStyle}>Username</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
@@ -405,52 +354,27 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                   onChange={(event) => setNickname(event.target.value)}
                   maxLength={NICKNAME_MAX_LENGTH}
                   placeholder="Digite seu username"
-                  className="smooth-transition"
-                  style={inputStyle}
-                  onFocus={(event) => {
-                    event.currentTarget.style.borderColor = '#667eea';
-                    event.currentTarget.style.boxShadow = '0 0 0 4px rgba(102, 126, 234, 0.1)';
-                  }}
-                  onBlur={(event) => {
-                    event.currentTarget.style.borderColor = theme.border;
-                    event.currentTarget.style.boxShadow = 'none';
-                  }}
+                  className="sc-input"
+                  style={{ padding: '15px clamp(14px, 3vw, 22px)', paddingRight: '46px', borderRadius: '14px', fontSize: '0.95rem' }}
                 />
                 <FaPen
                   size={14}
-                  color={theme.textSecondary}
+                  color={theme.textMuted}
                   style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
                 />
               </div>
             </div>
 
-            <button
-              onClick={handleShare}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                padding: '11px 16px',
-                borderRadius: '10px',
-                border: `1.5px solid ${theme.border}`,
-                background: theme.background,
-                color: theme.text,
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
+            <button onClick={handleShare} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
               {clipboard.isCopied() ? <FaCheck size={14} /> : <FaShareAlt size={14} />}
               {clipboard.isCopied() ? 'Link copiado!' : 'Compartilhar link de chat'}
             </button>
           </div>
 
           <div>
-            <label style={{ fontWeight: 600, display: 'block', marginBottom: '12px', color: theme.text, fontSize: '0.95rem' }}>
-              Avatar
-            </label>
+            <label style={{ ...labelStyle, marginBottom: '12px' }}>Avatar</label>
             <div
+              className="sc-card"
               style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(auto-fill, ${avatarSize}px)`,
@@ -461,9 +385,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 overflowY: 'auto',
                 scrollbarGutter: 'stable both-edges',
                 padding: '24px 16px',
-                background: theme.background,
                 borderRadius: '18px',
-                border: `1px solid ${theme.border}`,
               }}
             >
               {AVATARS.map((avatarOption, index) => {
@@ -472,28 +394,26 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                   <button
                     key={avatarOption.name}
                     onClick={() => setAvatar(index)}
-                    style={{
-                      width: `${avatarSize}px`,
-                      height: `${avatarSize}px`,
-                      borderRadius: '16px',
-                      background: isSelected ? avatarOption.bgGradient : theme.surface,
-                      border: isSelected ? `3px solid ${avatarOption.color}` : `2px solid ${theme.border}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                      transition: 'transform 0.15s ease',
-                    }}
+                    data-selected={isSelected}
+                    title={avatarOption.name}
+                    className="sc-avatar-option"
+                    style={
+                      {
+                        width: `${avatarSize}px`,
+                        height: `${avatarSize}px`,
+                        '--avatar-gradient': avatarOption.bgGradient,
+                        '--avatar-color': avatarOption.color,
+                      } as CSSProperties
+                    }
                   >
-                    <avatarOption.icon size={iconSize} color={isSelected ? 'white' : theme.text} />
+                    <avatarOption.icon size={iconSize} />
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {profileError && <small style={{ color: '#ef4444' }}>{profileError}</small>}
+          {profileError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
           {hasChanges && (
             <div style={{ display: 'flex', gap: '12px' }}>
@@ -502,34 +422,12 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                   setNickname(user.nickname);
                   setAvatar(user.avatar);
                 }}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  border: `1.5px solid ${theme.border}`,
-                  background: theme.background,
-                  color: theme.text,
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="sc-btn sc-btn--secondary"
+                style={{ flex: 1, padding: '12px 20px' }}
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleSaveProfile}
-                style={{
-                  flex: 1,
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: theme.headerGradient,
-                  color: 'white',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={handleSaveProfile} className="sc-btn sc-btn--gradient sc-btn--lift" style={{ flex: 1, padding: '12px 20px' }}>
                 Salvar Alterações
               </button>
             </div>
@@ -538,30 +436,18 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       )}
 
       {activeTab === 'security' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {needsCurrentPassword ? (
-            <PasswordField
-              value={currentPassword}
-              onChange={setCurrentPassword}
-              placeholder="Senha atual"
-              theme={passwordFieldTheme}
-              dense
-            />
+            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder="Senha atual" dense />
           ) : (
-            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} background="rgba(102, 126, 234, 0.12)">
+            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
               Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.
             </InfoNotice>
           )}
 
-          <div style={{ marginTop: '14px' }}>
-            <PasswordField
-              value={newPassword}
-              onChange={setNewPassword}
-              placeholder={`Nova senha (mín. ${PASSWORD_MIN_LENGTH} caracteres)`}
-              theme={passwordFieldTheme}
-              dense
-            />
-            <PasswordFieldHint length={newPassword.length} maxLength={PASSWORD_MIN_LENGTH} textSecondary={theme.textSecondary} />
+          <div style={{ marginTop: '9px' }}>
+            <PasswordField value={newPassword} onChange={setNewPassword} placeholder={`Nova senha (mín. ${PASSWORD_MIN_LENGTH} caracteres)`} dense />
+            <PasswordFieldHint length={newPassword.length} maxLength={PASSWORD_MIN_LENGTH} />
           </div>
 
           {newPassword.length > 0 && (
@@ -570,77 +456,47 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 value={confirmNewPassword}
                 onChange={setConfirmNewPassword}
                 placeholder="Confirmar nova senha"
-                theme={passwordFieldTheme}
                 matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
                 dense
               />
               <PasswordFieldHint
                 length={confirmNewPassword.length}
                 maxLength={PASSWORD_MIN_LENGTH}
-                textSecondary={theme.textSecondary}
                 matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
               />
             </div>
           )}
 
-          {passwordError && <small style={{ color: '#ef4444' }}>{passwordError}</small>}
+          {passwordError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
           {passwordError === WRONG_PASSWORD_MESSAGE && (
-            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} background="rgba(102, 126, 234, 0.12)">
+            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
               Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da
               atual.
             </InfoNotice>
           )}
 
-          <InfoNotice
-            icon={<FaExclamationTriangle size={13} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />}
-            background="rgba(239, 68, 68, 0.12)"
-          >
-            Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.
-          </InfoNotice>
+          {newPassword.length > 0 && (
+            <>
+              <InfoNotice icon={<FaExclamationTriangle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="danger">
+                Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.
+              </InfoNotice>
 
-          <button
-            onClick={handleChangePassword}
-            disabled={changePasswordDisabled}
-            style={{
-              padding: '11px 16px',
-              borderRadius: '10px',
-              border: 'none',
-              background: theme.headerGradient,
-              color: 'white',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: changePasswordDisabled ? 'not-allowed' : 'pointer',
-              opacity: changePasswordDisabled ? 0.5 : 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-            }}
-          >
-            <FaLock size={14} />
-            Trocar senha
-          </button>
+              <button
+                onClick={handleChangePassword}
+                disabled={changePasswordDisabled}
+                className="sc-btn sc-btn--gradient sc-btn--lift"
+                style={{ padding: '11px 16px', fontSize: '0.9rem' }}
+              >
+                <FaLock size={14} />
+                Trocar senha
+              </button>
+            </>
+          )}
 
-          <div style={{ borderTop: `1.5px solid ${theme.border}`, margin: '10px 0' }} />
+          <div style={{ borderTop: `2px solid ${theme.borderStrong}`, margin: '14px 0' }} />
 
-          {regenerateError && <small style={{ color: '#ef4444' }}>{regenerateError}</small>}
-          <button
-            onClick={handleRegenerateRecoveryFile}
-            style={{
-              padding: '11px 16px',
-              borderRadius: '10px',
-              border: `1.5px solid ${theme.border}`,
-              background: theme.background,
-              color: theme.text,
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-            }}
-          >
+          {regenerateError && <small style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
+          <button onClick={handleRegenerateRecoveryFile} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
             <FaFileDownload size={14} />
             Baixar arquivo de recuperação
           </button>
@@ -650,44 +506,28 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       {activeTab === 'system' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div
+            className="sc-card"
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '12px',
-              background: theme.background,
-              border: `1.5px solid ${theme.border}`,
               borderRadius: '10px',
               padding: '12px 16px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {soundEnabled ? (
-                <FaVolumeUp size={16} color={theme.text} />
-              ) : (
-                <FaVolumeMute size={16} color={theme.textSecondary} />
-              )}
-              <span style={{ fontWeight: 600, color: theme.text, fontSize: '0.95rem' }}>Sons do app</span>
+              {soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
+              <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>Sons do app</span>
             </div>
-            <Switch checked={soundEnabled} onChange={onToggleSound} accentColor={theme.primary} trackColor={theme.border} />
+            <Switch checked={soundEnabled} onChange={onToggleSound} />
           </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
               <small style={{ color: theme.textSecondary }}>Dispositivos com sessão ativa</small>
               {otherSessionsCount > 0 && (
-                <button
-                  onClick={handleRevokeOtherSessions}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#ef4444',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    padding: 0,
-                  }}
-                >
+                <button onClick={handleRevokeOtherSessions} className="sc-btn sc-btn--text-danger" style={{ fontSize: '0.78rem' }}>
                   Encerrar todas as outras
                 </button>
               )}
@@ -699,13 +539,12 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 {sessions.map((session) => (
                   <div
                     key={session.id}
+                    className="sc-card"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '10px',
-                      background: theme.background,
-                      border: session.isCurrent ? `1px solid ${theme.primary}` : `1px solid ${theme.border}`,
                       borderRadius: '10px',
                       padding: '10px 14px',
                     }}
@@ -715,16 +554,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                         style={{
                           fontSize: '0.85rem',
                           fontWeight: 600,
-                          color: theme.text,
+                          color: theme.textPrimary,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
                         }}
                       >
                         {session.device}
-                        {session.isCurrent && (
-                          <span style={{ color: theme.primary, fontWeight: 600 }}> · Este dispositivo</span>
-                        )}
+                        {session.isCurrent && <span style={{ color: theme.accentText, fontWeight: 600 }}> · Este dispositivo</span>}
                       </span>
                       <span
                         style={{
@@ -742,17 +579,10 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                     <button
                       onClick={() => handleRevokeSession(session.id)}
                       title="Encerrar esta sessão"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#ef4444',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                      }}
+                      className="sc-icon-btn sc-icon-btn--danger-soft"
+                      style={{ width: '34px', height: '34px', borderRadius: '9px' }}
                     >
-                      <FaSignOutAlt size={16} />
+                      <FaSignOutAlt size={15} />
                     </button>
                   </div>
                 ))}
@@ -768,7 +598,6 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
         nickname={nickname}
         recoveryFile={recoveryFilePrompt ?? ''}
         onClose={handleRecoveryDialogClose}
-        theme={theme}
       />
     </Modal>
   );
