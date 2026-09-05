@@ -23,8 +23,6 @@ export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '1
       <button
         type="button"
         onClick={handleClick}
-        data-aos="fade-left"
-        data-aos-delay="300"
         className="sc-toggle-icon"
         style={{
           width: '48px',
@@ -35,8 +33,8 @@ export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '1
           justifyContent: 'center',
           fontSize: '1.3rem',
           transform: `rotateY(${spinCount * 360}deg)`,
-          transition: `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-          willChange: 'transform',
+          transition: `transform ${SPIN_DURATION_MS}ms var(--sc-ease-spring-soft)`,
+          willChange: spinCount > 0 ? 'transform' : undefined,
         }}
         title={darkMode ? 'Modo Claro' : 'Modo Escuro'}
         aria-label={darkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}

@@ -9,7 +9,7 @@ export function AuthErrorAlert({ message, marginBottom }: AuthErrorAlertProps) {
   return (
     <div
       role="alert"
-      className="sc-notice sc-notice--danger animate__animated animate__shakeX"
+      className="sc-notice sc-notice--danger sc-anim-shake"
       style={{
         borderRadius: '14px',
         marginBottom,
