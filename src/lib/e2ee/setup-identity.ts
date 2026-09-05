@@ -1,5 +1,5 @@
 import type { AppSocket } from '@lib/socket';
-import { setCurrentIdentity } from './current-identity';
+import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
 import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
 import {
@@ -107,7 +107,11 @@ async function rewrapIdentityAfterPasswordChangeImpl(
   newPassword: string,
   newRecoveryToken: string,
 ): Promise<void> {
-  let cached = await loadPrivateKey(userId);
+  // The identity held in memory is the authoritative one — reading only from IndexedDB would miss
+  // it whenever that write failed, and bailing out below would then leave the server holding a
+  // private key still wrapped with the previous password, locking every other device out.
+  const active = getCurrentIdentity();
+  let cached = active?.userId === userId ? { publicKey: active.publicKey, privateKey: active.privateKey } : await loadPrivateKey(userId);
 
   if (!cached) {
     const myKeys = await requestMyKeys(socket);
@@ -138,7 +142,8 @@ async function rewrapIdentityAfterRecoveryRegenerateImpl(
   userId: string,
   newRecoveryToken: string,
 ): Promise<void> {
-  const cached = await loadPrivateKey(userId);
+  const active = getCurrentIdentity();
+  const cached = active?.userId === userId ? { publicKey: active.publicKey, privateKey: active.privateKey } : await loadPrivateKey(userId);
   if (!cached) {
     return;
   }

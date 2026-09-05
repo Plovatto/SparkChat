@@ -1,56 +1,77 @@
 import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
+import { createBatchedLookup } from './batched-lookup';
 import { getCurrentIdentity } from './current-identity';
-import { clearRoomKeyStore, loadRoomKey, saveRoomKey } from './key-store';
+import { clearRoomKeyStore, deleteRoomKey, loadRoomKey, saveRoomKey } from './key-store';
 import { safeAsync } from './safe-async';
 import { getSodium } from './sodium';
+
+interface SealedRoomKeyEntry {
+  roomId: string;
+  sealedKey: string;
+}
 
 const REQUEST_TIMEOUT_MS = 8000;
 
 const memoryCache = new Map<string, Uint8Array>();
 const pendingLookups = new Map<string, Promise<Uint8Array | null>>();
 const knownParticipantsByRoom = new Map<string, Set<string>>();
+const refetchedRoomIds = new Set<string>();
+const pendingRefetches = new Map<string, Promise<Uint8Array | null>>();
 
-function requestRoomKeys(socket: AppSocket, roomIds: string[]): Promise<{ roomId: string; sealedKey: string }[]> {
+function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<SealedRoomKeyEntry[]> {
   return new Promise((resolve) => {
+    const requested = new Set(roomIds);
     let settled = false;
+    let timeoutId = 0;
 
-    const finish = (value: { roomId: string; sealedKey: string }[]) => {
+    const finish = (value: SealedRoomKeyEntry[]) => {
       if (settled) {
         return;
       }
       settled = true;
+      window.clearTimeout(timeoutId);
       socket.off('e2e:room-keys', handleKeys);
       resolve(value);
     };
 
-    const handleKeys = (payload: { keys: { roomId: string; sealedKey: string }[] }) => finish(payload.keys);
+    const handleKeys = (payload: { keys: SealedRoomKeyEntry[] }) => {
+      finish(payload.keys.filter((entry) => requested.has(entry.roomId)));
+    };
 
     socket.on('e2e:room-keys', handleKeys);
     socket.emit('e2e:get-room-keys', { roomIds });
-    setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
+    timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
   });
 }
 
-function requestPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePublicKeyEntry[]> {
+function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePublicKeyEntry[]> {
   return new Promise((resolve) => {
+    const requested = new Set(userIds);
     let settled = false;
+    let timeoutId = 0;
 
     const finish = (value: E2ePublicKeyEntry[]) => {
       if (settled) {
         return;
       }
       settled = true;
+      window.clearTimeout(timeoutId);
       socket.off('e2e:public-keys', handleKeys);
       resolve(value);
     };
 
-    const handleKeys = (payload: { keys: E2ePublicKeyEntry[] }) => finish(payload.keys);
+    const handleKeys = (payload: { keys: E2ePublicKeyEntry[] }) => {
+      finish(payload.keys.filter((entry) => requested.has(entry.userId)));
+    };
 
     socket.on('e2e:public-keys', handleKeys);
     socket.emit('e2e:get-public-keys', { userIds });
-    setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
+    timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
   });
 }
+
+const lookupSealedRoomKey = createBatchedLookup(fetchRoomKeys, (entry) => entry.roomId);
+const lookupPublicKey = createBatchedLookup(fetchPublicKeys, (entry) => entry.userId);
 
 async function unsealRoomKey(sealedKeyBase64: string): Promise<Uint8Array | null> {
   const identity = getCurrentIdentity();
@@ -102,7 +123,7 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
       return persisted;
     }
 
-    const [entry] = await requestRoomKeys(socket, [roomId]);
+    const entry = await lookupSealedRoomKey(socket, roomId);
     if (!entry) {
       return null;
     }
@@ -112,7 +133,7 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
       return null;
     }
 
-    cacheRoomKey(roomId, unsealed);
+    cacheRoomKey(entry.roomId, unsealed);
     return unsealed;
   })();
 
@@ -121,6 +142,38 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
     return await lookup;
   } finally {
     pendingLookups.delete(roomId);
+  }
+}
+
+// A room key that is present but cannot open the room's messages means the locally stored copy is
+// stale or wrong. The authoritative copy lives on the server, sealed to this user's public key, so
+// drop the local one and fetch it again. A whole page of messages fails together, so every caller
+// shares the single in-flight refetch and then retries with the repaired key; once that refetch has
+// happened the room is not fetched again, which keeps a genuinely undecryptable message from
+// turning into a refetch loop.
+export async function refetchRoomKeyAfterDecryptionFailure(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
+  const inFlight = pendingRefetches.get(roomId);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  if (refetchedRoomIds.has(roomId)) {
+    return memoryCache.get(roomId) ?? null;
+  }
+  refetchedRoomIds.add(roomId);
+
+  const refetch = (async () => {
+    memoryCache.delete(roomId);
+    pendingLookups.delete(roomId);
+    await deleteRoomKey(roomId);
+    return ensureRoomKeyForDecryption(socket, roomId);
+  })();
+
+  pendingRefetches.set(roomId, refetch);
+  try {
+    return await refetch;
+  } finally {
+    pendingRefetches.delete(roomId);
   }
 }
 
@@ -159,8 +212,7 @@ async function establishPrivateRoomKeyImpl(
     return;
   }
 
-  const [publicKeys] = await Promise.all([requestPublicKeys(socket, [otherParticipant.id])]);
-  const otherPublicKey = publicKeys.find((entry) => entry.userId === otherParticipant.id)?.publicKey;
+  const otherPublicKey = (await lookupPublicKey(socket, otherParticipant.id))?.publicKey;
   if (!otherPublicKey) {
     return;
   }
@@ -239,8 +291,7 @@ async function sealAndPublishForParticipant(socket: AppSocket, roomId: string, t
     return;
   }
 
-  const publicKeys = await requestPublicKeys(socket, [targetUserId]);
-  const targetPublicKey = publicKeys.find((entry) => entry.userId === targetUserId)?.publicKey;
+  const targetPublicKey = (await lookupPublicKey(socket, targetUserId))?.publicKey;
   if (!targetPublicKey) {
     return;
   }
@@ -273,6 +324,8 @@ async function clearRoomKeysImpl(): Promise<void> {
   memoryCache.clear();
   pendingLookups.clear();
   knownParticipantsByRoom.clear();
+  refetchedRoomIds.clear();
+  pendingRefetches.clear();
   await clearRoomKeyStore();
 }
 
