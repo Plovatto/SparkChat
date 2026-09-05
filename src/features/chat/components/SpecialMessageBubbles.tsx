@@ -2,20 +2,23 @@ import { format } from 'date-fns';
 import { FaBan, FaExclamationCircle } from 'react-icons/fa';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { processSystemMessage, splitSystemMessageActor } from '@lib/format';
+import type { EntrancePhase } from '@features/motion';
 import type { MessageView } from '@lib/socket';
 
 interface DeletedMessageBubbleProps {
   isOwn: boolean;
+  entrancePhase: EntrancePhase;
   roomId: string;
 }
 
-export function DeletedMessageBubble({ isOwn, roomId }: DeletedMessageBubbleProps) {
+export function DeletedMessageBubble({ isOwn, roomId, entrancePhase }: DeletedMessageBubbleProps) {
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
 
   return (
     <div
-      className="animate__animated animate__fadeInUp animate__faster chat-bubble-wrap"
+      className={`${entrancePhase === 'none' ? '' : 'sc-anim-bubble-in '}chat-bubble-wrap`}
+      data-own={isOwn}
       style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -49,14 +52,15 @@ export function DeletedMessageBubble({ isOwn, roomId }: DeletedMessageBubbleProp
 
 interface ErrorMessageBubbleProps {
   message: MessageView;
+  entrancePhase: EntrancePhase;
 }
 
-export function ErrorMessageBubble({ message }: ErrorMessageBubbleProps) {
+export function ErrorMessageBubble({ message, entrancePhase }: ErrorMessageBubbleProps) {
   const { theme } = useTheme();
 
   return (
     <div
-      className="animate__animated animate__fadeIn"
+      className={entrancePhase === 'none' ? undefined : 'sc-anim-rise-in'}
       style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '4px 0' }}
     >
       <div
@@ -90,16 +94,17 @@ export function ErrorMessageBubble({ message }: ErrorMessageBubbleProps) {
 interface SystemMessageBubbleProps {
   message: MessageView;
   currentNickname: string;
+  entrancePhase: EntrancePhase;
 }
 
-export function SystemMessageBubble({ message, currentNickname }: SystemMessageBubbleProps) {
+export function SystemMessageBubble({ message, currentNickname, entrancePhase }: SystemMessageBubbleProps) {
   const { theme } = useTheme();
   const processed = processSystemMessage(message.content, currentNickname);
   const split = splitSystemMessageActor(processed);
 
   return (
     <div
-      className="animate__animated animate__fadeIn"
+      className={entrancePhase === 'none' ? undefined : 'sc-anim-rise-in'}
       style={{ display: 'flex', justifyContent: 'center', width: '100%', margin: '4px 0' }}
     >
       <div

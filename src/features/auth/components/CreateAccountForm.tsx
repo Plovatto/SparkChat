@@ -101,7 +101,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <div
-        className="animate__animated animate__fadeIn auth-container--form"
+        className="sc-anim-hero-in auth-container--form"
         style={{
           position: 'fixed',
           top: '50%',
@@ -200,7 +200,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                         onClick={() => setSelectedAvatar(index)}
                         data-selected={isSelected}
                         title={avatar.name}
-                        className="sc-avatar-option"
+                        className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
                         style={
                           {
                             width: '100%',
@@ -209,6 +209,8 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                             justifySelf: 'center',
                             '--avatar-gradient': avatar.bgGradient,
                             '--avatar-color': avatar.color,
+                            '--sc-stagger-index': Math.min(index, 11),
+                            '--sc-stagger-step': '22ms',
                           } as CSSProperties
                         }
                       >
@@ -294,7 +296,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               </Form.Group>
 
               {password.length > 0 && (
-                <Form.Group style={{ marginBottom: '14px' }} className="animate__animated animate__fadeIn animate__faster">
+                <Form.Group style={{ marginBottom: '14px' }} className="sc-anim-rise-in">
                   <Form.Label style={labelStyle}>
                     <FaLock size={16} />
                     Confirmar senha
@@ -313,7 +315,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 </Form.Group>
               )}
 
-              {error && <AuthErrorAlert message={error} marginBottom="20px" />}
+              {error && <AuthErrorAlert key={error} message={error} marginBottom="20px" />}
 
               <button
                 type="submit"

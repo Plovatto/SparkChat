@@ -85,7 +85,7 @@ export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
             objectFit: 'cover',
             display: 'block',
             opacity: isLoaded ? 1 : 0,
-            transition: 'opacity 0.25s ease',
+            transition: 'opacity var(--sc-dur-normal) var(--sc-ease-standard)',
           }}
         />
         {isVideo && (

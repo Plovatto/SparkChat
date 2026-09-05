@@ -31,7 +31,7 @@ export function MessageListSkeleton() {
   const { theme } = useTheme();
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: '100%' }}>
+    <div className="sc-anim-fade-in" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: '100%' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', padding: '10px 4px', width: '100%' }}>
         {BUBBLES.map((bubble, index) => (
           <div

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { MOTION_DURATION_MS } from '@features/motion';
 import { buildTheme } from './build-theme';
 import { DEFAULT_CHAT_APPEARANCE, type ChatAppearance } from './constants/chat-appearance';
 import { CHAT_BACKGROUNDS, type ChatBackground } from './constants/chat-backgrounds';
@@ -16,6 +17,7 @@ const APPEARANCE_STORAGE_KEY = 'chatRoomAppearance';
 const GLOBAL_APPEARANCE_STORAGE_KEY = 'chatGlobalAppearance';
 const DEFAULT_BASE: ThemeBaseId = 'dark';
 const DEFAULT_COLOR: ColorThemeId = 'standard';
+const THEME_TRANSITION_CLASS = 'sc-theme-transition';
 
 function readStoredJson<T>(key: string): T | null {
   try {
@@ -179,6 +181,24 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     applyThemeCssVars(theme);
   }, [theme]);
+
+  const hasAppliedInitialThemeRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasAppliedInitialThemeRef.current) {
+      hasAppliedInitialThemeRef.current = true;
+      return;
+    }
+
+    const root = document.documentElement;
+    root.classList.add(THEME_TRANSITION_CLASS);
+    const timeout = window.setTimeout(() => root.classList.remove(THEME_TRANSITION_CLASS), MOTION_DURATION_MS.normal + 60);
+
+    return () => {
+      window.clearTimeout(timeout);
+      root.classList.remove(THEME_TRANSITION_CLASS);
+    };
+  }, [baseTheme, colorTheme]);
 
   const value: ThemeContextValue = useMemo(
     () => ({

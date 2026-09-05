@@ -10,7 +10,6 @@ export const MEDIA_VIEWER_BACKDROP_STYLE: CSSProperties = {
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
   zIndex: 10040,
-  animation: 'mediaOverlayFadeIn 0.3s ease-out',
 };
 
 export const MEDIA_VIEWER_CHROME_STYLE: CSSProperties = {

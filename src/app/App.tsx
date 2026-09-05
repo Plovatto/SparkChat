@@ -110,18 +110,24 @@ function AuthGate({
         statusText: resumed.statusText,
         theme: resumed.theme,
       });
-      setIsSocketReady(true);
 
-      if (socket) {
-        const credential = consumePendingE2eCredential();
-        if (credential?.type === 'password') {
-          void ensureIdentityAfterPasswordLogin(socket, resumed.id, credential.password);
-        } else if (credential?.type === 'keyfile') {
-          void ensureIdentityAfterKeyfileLogin(socket, resumed.id, credential.recoveryToken);
-        } else {
-          void hydrateCurrentIdentity(resumed.id);
-        }
+      if (!socket) {
+        setIsSocketReady(true);
+        return;
       }
+
+      // The chat only opens once the E2EE identity is in place: everything the room list pulls in
+      // is decrypted on arrival, so starting before the private key is loaded would render the
+      // whole history as undecryptable and leave rooms without their keys.
+      const credential = consumePendingE2eCredential();
+      const restoreIdentity =
+        credential?.type === 'password'
+          ? ensureIdentityAfterPasswordLogin(socket, resumed.id, credential.password)
+          : credential?.type === 'keyfile'
+            ? ensureIdentityAfterKeyfileLogin(socket, resumed.id, credential.recoveryToken)
+            : hydrateCurrentIdentity(resumed.id);
+
+      void restoreIdentity.finally(() => setIsSocketReady(true));
     },
     onResumeFailed: onLogout,
     onSessionRevoked: onLogout,
@@ -249,7 +255,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   if (!isLoaded) {
     return (
       <Container fluid className="chat-shell-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="text-center">
+        <div className="text-center sc-anim-fade-in">
           <div
             className="loading-spinner"
             style={{
@@ -261,7 +267,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               borderRadius: '50%',
             }}
           />
-          <p style={{ color: theme.onGradient, fontSize: '1rem' }}>Carregando conversas...</p>
+          <p className="sc-anim-pulse-soft" style={{ color: theme.onGradient, fontSize: '1rem' }}>
+            Carregando conversas...
+          </p>
         </div>
       </Container>
     );
@@ -272,7 +280,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {!connected && (
           <div
-            className="animate__animated animate__fadeInDown animate__faster"
+            className="sc-anim-drop-in"
             style={{
               display: 'flex',
               alignItems: 'center',

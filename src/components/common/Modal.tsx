@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTimes } from 'react-icons/fa';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
@@ -14,18 +15,33 @@ interface ModalProps {
   maxWidth?: string;
 }
 
+interface ModalContent {
+  title?: string;
+  children: ReactNode;
+}
+
 export function Modal({ isOpen, title, onClose, showCloseButton = true, children, maxWidth = '500px' }: ModalProps) {
   const { theme } = useTheme();
+  const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.normal);
+  const lastContentRef = useRef<ModalContent>({ children: null });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
-  if (!isOpen) {
+  if (isOpen) {
+    lastContentRef.current = { title, children };
+  }
+
+  if (!isPresent) {
     return null;
   }
+
+  const content = isOpen ? { title, children } : lastContentRef.current;
+  const exitClassName = isExiting ? ' is-exiting' : '';
 
   return createPortal(
     <>
       <div
+        className={`sc-modal-backdrop${exitClassName}`}
         style={{
           position: 'fixed',
           top: 0,
@@ -36,19 +52,18 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           zIndex: 9999,
-          animation: 'modalBackdropFadeIn 0.3s ease-out',
         }}
         onClick={onClose}
       />
 
       <div
+        className={`sc-modal-panel${exitClassName}`}
         style={{
           position: 'fixed',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           zIndex: 10000,
-          animation: 'modalPanelSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
           width: '90%',
           maxWidth,
         }}
@@ -65,7 +80,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
             flexDirection: 'column',
           }}
         >
-          {title && (
+          {content.title && (
             <div
               style={{
                 padding: '20px 24px',
@@ -77,7 +92,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
                 flexShrink: 0,
               }}
             >
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme.onGradient, letterSpacing: '-0.3px' }}>{title}</h2>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme.onGradient, letterSpacing: '-0.3px' }}>{content.title}</h2>
               {showCloseButton && (
                 <button
                   onClick={onClose}
@@ -102,7 +117,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
               scrollbarGutter: 'stable both-edges',
             }}
           >
-            {children}
+            {content.children}
           </div>
         </div>
       </div>

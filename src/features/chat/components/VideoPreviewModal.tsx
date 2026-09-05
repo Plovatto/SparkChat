@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaDownload, FaTimes } from 'react-icons/fa';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadFromUrl } from '@lib/download-file';
@@ -20,16 +22,25 @@ interface VideoPreviewModalProps {
 }
 
 export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPreviewModalProps) {
+  const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
+  const lastSourceRef = useRef({ url, fileName });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
-  if (!isOpen) {
+  if (isOpen && url) {
+    lastSourceRef.current = { url, fileName };
+  }
+
+  if (!isPresent) {
     return null;
   }
 
+  const source = isOpen && url ? { url, fileName } : lastSourceRef.current;
+  const chromeClassName = isExiting ? 'sc-anim-fade-out' : 'sc-anim-media-chrome-in';
+
   return createPortal(
     <>
-      <div style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
+      <div className={`sc-modal-backdrop${isExiting ? ' is-exiting' : ''}`} style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
 
       <div
         style={{
@@ -47,6 +58,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
         }}
       >
         <div
+          className={chromeClassName}
           style={{
             ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
@@ -57,10 +69,9 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             gap: 'clamp(2px, 1vw, 6px)',
             zIndex: 10055,
             padding: '6px',
-            animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
-          <OverlayIconButton onClick={() => void downloadFromUrl(url, fileName)} title="Baixar vídeo">
+          <OverlayIconButton onClick={() => void downloadFromUrl(source.url, source.fileName)} title="Baixar vídeo">
             <FaDownload />
           </OverlayIconButton>
 
@@ -72,6 +83,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
         </div>
 
         <div
+          className={chromeClassName}
           style={{
             ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
@@ -88,10 +100,11 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             whiteSpace: 'nowrap',
           }}
         >
-          {fileName}
+          {source.fileName}
         </div>
 
         <div
+          className={isExiting ? 'sc-anim-media-content-out' : 'sc-anim-media-content-in'}
           style={{
             position: 'relative',
             maxHeight: '92vh',
@@ -99,11 +112,10 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            animation: 'mediaOverlayZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
         >
           <video
-            src={url}
+            src={source.url}
             controls
             autoPlay
             style={{

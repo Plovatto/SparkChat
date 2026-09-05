@@ -13,6 +13,7 @@ export function MessageReceiptRow({ receipt, isOwn }: MessageReceiptRowProps) {
 
   return (
     <div
+      className="sc-anim-rise-in"
       style={{
         display: 'flex',
         alignItems: 'center',

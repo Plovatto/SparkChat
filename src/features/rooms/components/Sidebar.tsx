@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import {
   FaBell,
   FaBellSlash,
@@ -29,6 +29,8 @@ import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
 import { ThemeMenu } from './ThemeMenu';
+
+const ROOM_CASCADE_MAX_INDEX = 8;
 
 function getRoomLastActivityTimestamp(room: RoomSummary): number {
   return room.lastMessage ? new Date(room.lastMessage.timestamp).getTime() : 0;
@@ -299,7 +301,7 @@ export function Sidebar({
                 className="sc-icon-btn sc-icon-btn--header"
                 style={{ width: '17px', height: '17px', borderRadius: '5px', alignSelf: 'center', position: 'relative', top: '2px' }}
               >
-                {clipboard.isCopied() ? <FaCheck size={9} /> : <FaCopy size={9} />}
+                {clipboard.isCopied() ? <FaCheck size={9} className="sc-anim-badge-pop" /> : <FaCopy size={9} />}
               </button>
             </div>
 
@@ -373,7 +375,7 @@ export function Sidebar({
         </div>
 
         <button
-          className="sc-btn sc-btn--header animate__animated animate__pulse"
+          className="sc-btn sc-btn--header sc-anim-attention"
           onClick={onNewChat}
           style={{ width: '100%', padding: '11px', borderRadius: '10px' }}
         >
@@ -393,12 +395,12 @@ export function Sidebar({
           gap: '8px',
           minHeight: '48px',
           boxSizing: 'border-box',
-          transition: 'background 0.15s ease',
+          transition: 'background var(--sc-dur-normal) var(--sc-ease-standard)',
         }}
       >
         {isSelectionMode ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="sc-anim-swap-in-left" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 onClick={toggleSelectionMode}
                 title="Fechar modo seleção"
@@ -415,7 +417,7 @@ export function Sidebar({
             <button
               onClick={toggleSelectAll}
               title={selectedIds.size === rooms.length ? 'Desmarcar tudo' : 'Selecionar tudo'}
-              className="sc-icon-btn sc-icon-btn--ghost"
+              className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
               style={{ width: '30px', height: '30px', color: selectedIds.size === rooms.length ? theme.accentText : theme.textPrimary }}
             >
               {selectedIds.size === rooms.length ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
@@ -424,6 +426,7 @@ export function Sidebar({
         ) : (
           <>
             <h6
+              className="sc-anim-swap-in-left"
               style={{
                 padding: '5px 12px',
                 fontSize: '0.7rem',
@@ -441,7 +444,7 @@ export function Sidebar({
               <button
                 onClick={toggleSelectionMode}
                 title="Entrar no modo seleção"
-                className="sc-btn sc-btn--ghost-border"
+                className="sc-btn sc-btn--ghost-border sc-anim-swap-in-right"
                 style={{ borderRadius: '999px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 700, gap: '6px' }}
               >
                 <FaCheckCircle size={12} />
@@ -455,15 +458,23 @@ export function Sidebar({
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
         {rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
-            <FaComments size={50} style={{ opacity: 0.3, marginBottom: '15px' }} />
-            <p style={{ fontSize: '0.9rem', margin: '5px 0' }}>Nenhuma conversa ainda</p>
-            <p style={{ fontSize: '0.85rem', margin: '5px 0', color: theme.textMuted }}>Clique em &quot;Novo Chat&quot;</p>
+            <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
+            <p className="sc-anim-rise-in sc-stagger" style={{ fontSize: '0.9rem', margin: '5px 0', '--sc-stagger-index': 1 } as CSSProperties}>
+              Nenhuma conversa ainda
+            </p>
+            <p
+              className="sc-anim-rise-in sc-stagger"
+              style={{ fontSize: '0.85rem', margin: '5px 0', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
+            >
+              Clique em &quot;Novo Chat&quot;
+            </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {sortedRooms.map((room) => (
+            {sortedRooms.map((room, index) => (
               <RoomListItem
                 key={room.id}
+                entranceIndex={Math.min(index, ROOM_CASCADE_MAX_INDEX)}
                 room={room}
                 user={user}
                 isSelected={room.id === selectedRoomId}
@@ -483,7 +494,7 @@ export function Sidebar({
 
       {isSelectionMode && selectedIds.size > 0 && (
         <div
-          className="animate__animated animate__fadeInUp animate__faster"
+          className="sc-anim-rise-in"
           style={{
             background: theme.sidebar,
             borderTop: `1px solid ${theme.border}`,

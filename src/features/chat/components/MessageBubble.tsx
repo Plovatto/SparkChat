@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
@@ -36,6 +37,8 @@ interface MessageBubbleProps {
   onForward: () => void;
   onAudioPlayed: (messageId: string) => void;
   onRetry: () => void;
+  entrancePhase?: EntrancePhase;
+  entranceIndex?: number;
 }
 
 const MAX_PREVIEW_LENGTH = 200;
@@ -102,20 +105,25 @@ export function MessageBubble({
   onForward,
   onAudioPlayed,
   onRetry,
+  entrancePhase = 'none',
+  entranceIndex = 0,
 }: MessageBubbleProps) {
   const { theme, getRoomAppearance } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [entrance] = useState(entrancePhase);
+  const [staggerIndex] = useState(entranceIndex);
+  const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
 
   if (message.deletedForEveryone) {
-    return <DeletedMessageBubble isOwn={isOwn} roomId={roomId} />;
+    return <DeletedMessageBubble isOwn={isOwn} roomId={roomId} entrancePhase={entrance} />;
   }
 
   if (message.type === 'error') {
-    return <ErrorMessageBubble message={message} />;
+    return <ErrorMessageBubble message={message} entrancePhase={entrance} />;
   }
 
   if (message.type === 'system') {
-    return <SystemMessageBubble message={message} currentNickname={currentNickname} />;
+    return <SystemMessageBubble message={message} currentNickname={currentNickname} entrancePhase={entrance} />;
   }
 
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
@@ -202,12 +210,22 @@ export function MessageBubble({
       onSelect={onSelect}
       padding={resolveBubblePadding(message, isVideoFile)}
       cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
+      entrancePhase={entrance}
+      entranceIndex={staggerIndex}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '64px') : undefined}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {isSelected && <MessageActionsRow isOwn={isOwn} onReply={onReply} onDelete={onDelete} onForward={onForward} />}
+          {actionsPresence.isPresent && (
+            <MessageActionsRow
+              isOwn={isOwn}
+              isExiting={actionsPresence.isExiting}
+              onReply={onReply}
+              onDelete={onDelete}
+              onForward={onForward}
+            />
+          )}
         </>
       }
     >
