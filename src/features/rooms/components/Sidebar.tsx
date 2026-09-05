@@ -1,5 +1,4 @@
 import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { Button } from 'react-bootstrap';
 import {
   FaBell,
   FaBellSlash,
@@ -20,7 +19,7 @@ import {
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
 import type { User } from '@features/auth';
-import { AVATARS } from '@features/auth/constants/avatars';
+import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
@@ -43,39 +42,8 @@ interface HeaderIconButtonProps {
 }
 
 function HeaderIconButton({ onClick, title, disabled = false, children }: HeaderIconButtonProps) {
-  const { theme } = useTheme();
-
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      style={{
-        background: 'rgba(255, 255, 255, 0.2)',
-        border: 'none',
-        color: theme.headerTextColor,
-        width: '38px',
-        height: '38px',
-        borderRadius: '50%',
-        padding: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.5 : 1,
-        flexShrink: 0,
-      }}
-      onMouseEnter={(event) => {
-        if (!disabled) {
-          event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-        }
-      }}
-      onMouseLeave={(event) => {
-        if (!disabled) {
-          event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-        }
-      }}
-    >
+    <button onClick={onClick} disabled={disabled} title={title} className="sc-icon-btn sc-icon-btn--header" style={{ width: '38px', height: '38px' }}>
       {children}
     </button>
   );
@@ -147,6 +115,9 @@ export function Sidebar({
   };
 
   const toggleRoomSelected = (roomId: string) => {
+    if (roomId === assistantRoomId) {
+      return;
+    }
     setSelectedIds((previous) => {
       const next = new Set(previous);
       if (next.has(roomId)) {
@@ -158,8 +129,10 @@ export function Sidebar({
     });
   };
 
+  const selectableRooms = rooms.filter((room) => !isAssistantRoom(room));
+
   const toggleSelectAll = () => {
-    setSelectedIds((previous) => (previous.size === rooms.length ? new Set() : new Set(rooms.map((room) => room.id))));
+    setSelectedIds((previous) => (previous.size === selectableRooms.length ? new Set() : new Set(selectableRooms.map((room) => room.id))));
   };
 
   const exitSelectionMode = () => {
@@ -260,54 +233,48 @@ export function Sidebar({
   };
 
   return (
-    <div style={{ height: '100%', background: theme.sidebarBg, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100%', background: theme.sidebar, display: 'flex', flexDirection: 'column' }}>
       <div
         className="sidebar-header-bar"
         style={{
-          background: theme.headerGradient,
-          color: theme.headerTextColor,
-          boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
+          background: theme.gradient,
+          color: theme.onGradient,
+          boxShadow: theme.shadowMd,
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
           <div
             onClick={() => setIsProfileOpen(true)}
+            className="sc-header-avatar"
             style={{
               position: 'relative',
               width: '55px',
               height: '55px',
-              background: avatar?.bgGradient ?? theme.headerGradient,
+              background: avatar?.bgGradient ?? theme.gradient,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 3px 10px rgba(0,0,0,0.15)',
-              cursor: 'pointer',
+              boxShadow: theme.shadowSm,
               flexShrink: 0,
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.opacity = '0.8';
-              event.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.opacity = '1';
-              event.currentTarget.style.transform = 'scale(1)';
             }}
             title="Clique para editar perfil"
           >
-            {avatar ? <avatar.icon size={28} color="white" /> : null}
+            {avatar ? <avatar.icon size={28} color={AVATAR_ICON_COLOR} /> : null}
             <FaCircle
               size={13}
-              color="#4caf50"
+              color={theme.online}
               style={{
                 position: 'absolute',
                 bottom: '2px',
                 right: '2px',
-                background: 'white',
+                background: theme.surfaceElevated,
                 borderRadius: '50%',
                 padding: '2px',
-                border: '2px solid white',
-                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                border: `2px solid ${theme.surfaceElevated}`,
+                boxShadow: theme.shadowSm,
               }}
             />
           </div>
@@ -329,29 +296,8 @@ export function Sidebar({
               <button
                 onClick={() => clipboard.copy(user.nickname)}
                 title="Copiar username"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  color: theme.headerTextColor,
-                  width: '17px',
-                  height: '17px',
-                  borderRadius: '5px',
-                  padding: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  alignSelf: 'center',
-                  position: 'relative',
-                  top: '2px',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.35)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                }}
+                className="sc-icon-btn sc-icon-btn--header"
+                style={{ width: '17px', height: '17px', borderRadius: '5px', alignSelf: 'center', position: 'relative', top: '2px' }}
               >
                 {clipboard.isCopied() ? <FaCheck size={9} /> : <FaCopy size={9} />}
               </button>
@@ -367,36 +313,28 @@ export function Sidebar({
                 onChange={(event) => setStatusDraft(event.target.value)}
                 onBlur={commitStatusDraft}
                 onKeyDown={handleStatusInputKeyDown}
+                className="sc-input sc-input--header"
                 style={{
                   marginTop: '3px',
                   marginLeft: '-6px',
                   width: 'calc(100% + 6px)',
                   maxWidth: '226px',
-                  boxSizing: 'border-box',
                   lineHeight: 1.3,
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  border: 'none',
-                  borderRadius: '5px',
-                  padding: '2px 6px',
-                  color: theme.headerTextColor,
-                  fontSize: '0.78rem',
-                  outline: 'none',
                 }}
               />
             ) : (
               <div
                 onClick={handleStartEditStatus}
                 title="Clique para editar seu status"
+                className="sc-header-status"
                 style={{
                   marginTop: '3px',
                   marginLeft: '-6px',
                   padding: '2px 6px',
-                  borderRadius: '5px',
                   lineHeight: 1.3,
                   fontSize: '0.78rem',
-                  opacity: user.statusText ? 0.9 : 0.6,
+                  color: user.statusText ? theme.onGradient : theme.onGradientMuted,
                   fontStyle: user.statusText ? 'normal' : 'italic',
-                  cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -407,7 +345,7 @@ export function Sidebar({
             )}
           </div>
 
-          <HeaderIconButton onClick={handleThemeButtonClick}>
+          <HeaderIconButton onClick={handleThemeButtonClick} title="Temas">
             <FaPalette size={16} />
           </HeaderIconButton>
 
@@ -434,32 +372,13 @@ export function Sidebar({
           </HeaderIconButton>
         </div>
 
-        <Button
-          className="animate__animated animate__pulse"
+        <button
+          className="sc-btn sc-btn--header animate__animated animate__pulse"
           onClick={onNewChat}
-          style={{
-            width: '100%',
-            padding: '11px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: 'none',
-            color: theme.headerTextColor,
-            borderRadius: '10px',
-            fontSize: '0.95rem',
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-          }}
+          style={{ width: '100%', padding: '11px', borderRadius: '10px' }}
         >
           <FaPlus size={14} /> Novo Chat
-        </Button>
+        </button>
       </div>
 
       <div
@@ -468,8 +387,8 @@ export function Sidebar({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '10px 12px',
-          borderBottom: `1px solid ${theme.border}`,
-          background: isSelectionMode ? theme.surfaceLight : theme.sidebarBg,
+          borderBottom: `1px solid ${theme.borderSubtle}`,
+          background: isSelectionMode ? theme.surfaceSelected : theme.sidebar,
           flexShrink: 0,
           gap: '8px',
           minHeight: '48px',
@@ -483,23 +402,12 @@ export function Sidebar({
               <button
                 onClick={toggleSelectionMode}
                 title="Fechar modo seleção"
-                style={{
-                  background: theme.surface,
-                  border: 'none',
-                  color: theme.text,
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
+                className="sc-icon-btn sc-icon-btn--ghost"
+                style={{ width: '30px', height: '30px', color: theme.textPrimary }}
               >
                 <FaTimes size={13} />
               </button>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.text }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textPrimary }}>
                 {selectedIds.size > 0 ? `${selectedIds.size} selecionada${selectedIds.size > 1 ? 's' : ''}` : 'Selecionar conversas'}
               </span>
             </div>
@@ -507,19 +415,8 @@ export function Sidebar({
             <button
               onClick={toggleSelectAll}
               title={selectedIds.size === rooms.length ? 'Desmarcar tudo' : 'Selecionar tudo'}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: theme.text,
-                width: '30px',
-                height: '30px',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
+              className="sc-icon-btn sc-icon-btn--ghost"
+              style={{ width: '30px', height: '30px', color: selectedIds.size === rooms.length ? theme.accentText : theme.textPrimary }}
             >
               {selectedIds.size === rooms.length ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
             </button>
@@ -544,27 +441,8 @@ export function Sidebar({
               <button
                 onClick={toggleSelectionMode}
                 title="Entrar no modo seleção"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: `1.5px solid ${theme.border}`,
-                  color: theme.text,
-                  borderRadius: '999px',
-                  padding: '6px 14px',
-                  cursor: 'pointer',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
-                  event.currentTarget.style.borderColor = theme.primary;
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                  event.currentTarget.style.borderColor = theme.border;
-                }}
+                className="sc-btn sc-btn--ghost-border"
+                style={{ borderRadius: '999px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 700, gap: '6px' }}
               >
                 <FaCheckCircle size={12} />
                 Selecionar
@@ -579,7 +457,7 @@ export function Sidebar({
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
             <FaComments size={50} style={{ opacity: 0.3, marginBottom: '15px' }} />
             <p style={{ fontSize: '0.9rem', margin: '5px 0' }}>Nenhuma conversa ainda</p>
-            <p style={{ fontSize: '0.85rem', margin: '5px 0', opacity: 0.7 }}>Clique em &quot;Novo Chat&quot;</p>
+            <p style={{ fontSize: '0.85rem', margin: '5px 0', color: theme.textMuted }}>Clique em &quot;Novo Chat&quot;</p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -590,8 +468,7 @@ export function Sidebar({
                 user={user}
                 isSelected={room.id === selectedRoomId}
                 onSelect={() => onSelectRoom(room)}
-                theme={theme}
-                isSelectionMode={isSelectionMode}
+                isSelectionMode={isSelectionMode && !isAssistantRoom(room)}
                 isChecked={selectedIds.has(room.id)}
                 onToggleSelect={() => toggleRoomSelected(room.id)}
                 typingUserIds={typingUserIds[room.id] ?? []}
@@ -608,9 +485,9 @@ export function Sidebar({
         <div
           className="animate__animated animate__fadeInUp animate__faster"
           style={{
-            background: theme.surface,
+            background: theme.sidebar,
             borderTop: `1px solid ${theme.border}`,
-            boxShadow: '0 -4px 14px rgba(0, 0, 0, 0.12)',
+            boxShadow: theme.shadowMd,
             padding: '10px 12px',
             display: 'flex',
             gap: '8px',
@@ -620,42 +497,33 @@ export function Sidebar({
           {favoritableSelectedIds.length > 0 && (
             <IconPillButton
               onClick={handleFavoriteSelected}
-              background={theme.surfaceLight}
-              textColor={theme.text}
               fontSize="0.78rem"
               gap="7px"
               paddingRight="12px"
               withShadow={false}
               icon={<FaStar size={11} />}
-              iconBackground="rgba(251, 191, 36, 0.22)"
-              iconColor="#fbbf24"
+              tone="warning"
               label={allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
             />
           )}
           <IconPillButton
             onClick={handleMuteSelected}
-            background={theme.surfaceLight}
-            textColor={theme.text}
             fontSize="0.78rem"
             gap="7px"
             paddingRight="12px"
             withShadow={false}
             icon={allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
-            iconBackground={`${theme.primary}26`}
-            iconColor={theme.primary}
+            tone="accent"
             label={allSelectedAreMuted ? 'Reativar' : 'Silenciar'}
           />
           <IconPillButton
             onClick={() => setShowConfirmDelete(true)}
-            background={theme.surfaceLight}
-            textColor={theme.text}
             fontSize="0.78rem"
             gap="7px"
             paddingRight="12px"
             withShadow={false}
             icon={<FaTrash size={11} />}
-            iconBackground="rgba(239, 68, 68, 0.16)"
-            iconColor="#ef4444"
+            tone="danger"
             label="Excluir"
           />
         </div>
@@ -668,7 +536,6 @@ export function Sidebar({
         confirmLabel="Excluir"
         onConfirm={confirmDelete}
         onCancel={() => setShowConfirmDelete(false)}
-        theme={theme}
       />
 
       <EditProfileModal
