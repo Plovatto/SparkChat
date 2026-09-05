@@ -36,7 +36,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
                 {
                   position: 'absolute',
                   inset: 0,
-                  '--shimmer-a': theme.surfaceLight,
+                  '--shimmer-a': theme.skeleton,
                 } as CSSProperties
               }
             />
@@ -53,9 +53,9 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
           padding: '20px',
           textAlign: 'center',
           color: theme.textSecondary,
-          background: theme.background,
+          background: theme.surfaceSunken,
           borderRadius: '10px',
-          border: `1px dashed ${theme.border}`,
+          border: `1px dashed ${theme.borderStrong}`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -88,6 +88,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
         <FaImage /> Mídias ({mediaMessages.length})
       </div>
       <div
+        className="sc-media-gallery-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: `repeat(${columns}, 1fr)`,
@@ -101,59 +102,32 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
         {visibleMessages.map((message) => (
           <div
             key={message.id}
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectMedia(message)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onSelectMedia(message);
+              }
+            }}
+            className="sc-tile"
             style={{
               aspectRatio: '1',
               borderRadius: '10px',
               overflow: 'hidden',
-              cursor: 'pointer',
-              border: `2px solid ${theme.border}`,
-              transition: 'all 0.3s',
-              position: 'relative',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.borderColor = theme.primary;
-              event.currentTarget.style.transform = 'scale(1.05)';
-              event.currentTarget.style.boxShadow = `0 6px 16px ${theme.primary}40`;
-              event.currentTarget.style.zIndex = '10';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.borderColor = theme.border;
-              event.currentTarget.style.transform = 'scale(1)';
-              event.currentTarget.style.boxShadow = 'none';
-              event.currentTarget.style.zIndex = '1';
+              background: theme.surfaceSunken,
             }}
           >
-            <GalleryMediaTile message={message} theme={theme} />
+            <GalleryMediaTile message={message} />
           </div>
         ))}
       </div>
       {mediaMessages.length > columns && (
         <button
           onClick={() => setShowAll((previous) => !previous)}
-          style={{
-            display: 'flex',
-            width: '100%',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-            marginTop: '12px',
-            background: `${theme.primary}18`,
-            border: 'none',
-            color: theme.primary,
-            borderRadius: '10px',
-            padding: '9px 16px',
-            cursor: 'pointer',
-            fontSize: '0.82rem',
-            fontWeight: 700,
-            transition: 'background 0.15s ease',
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.background = `${theme.primary}28`;
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = `${theme.primary}18`;
-          }}
+          className="sc-btn sc-btn--soft"
+          style={{ width: '100%', marginTop: '12px', gap: '6px', padding: '9px 16px', fontSize: '0.82rem', fontWeight: 700 }}
         >
           {showAll ? 'Ver menos' : `Ver todas (${mediaMessages.length})`}
         </button>

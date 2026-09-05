@@ -103,7 +103,7 @@ export function MessageBubble({
   onAudioPlayed,
   onRetry,
 }: MessageBubbleProps) {
-  const { theme, baseTheme, getRoomAppearance } = useTheme();
+  const { theme, getRoomAppearance } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (message.deletedForEveryone) {
@@ -128,18 +128,18 @@ export function MessageBubble({
   const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(message.content) : '';
-  const textAccentColor = isOwn ? 'rgba(255, 255, 255, 0.95)' : theme.primary;
+  const textAccentColor = bubbleStyle.accentColor;
 
   const renderBody = () => {
     if (isImageMessage) {
-      return <ImageMessageContent message={message} theme={theme} />;
+      return <ImageMessageContent message={message} />;
     }
     if (isAudioMessage) {
       return (
         <AudioMessageContent
           message={message}
           isOwn={isOwn}
-          baseTheme={baseTheme}
+          bubble={bubbleStyle}
           currentUserId={currentUserId}
           currentAudioRef={currentAudioRef}
           onAudioPlayed={onAudioPlayed}
@@ -150,15 +150,7 @@ export function MessageBubble({
       return <VideoMessageContent message={message} />;
     }
     if (isFileMessage) {
-      return (
-        <FileMessageContent
-          message={message}
-          isOwn={isOwn}
-          baseTheme={baseTheme}
-          theme={theme}
-          fileTypeIcon={getFileTypeIcon(message.fileMeta?.mimeType ?? '')}
-        />
-      );
+      return <FileMessageContent message={message} bubble={bubbleStyle} fileTypeIcon={getFileTypeIcon(message.fileMeta?.mimeType ?? '')} />;
     }
     if (hasLinkPreview) {
       return null;
@@ -185,13 +177,8 @@ export function MessageBubble({
                     setIsExpanded((previous) => !previous);
                   }
                 }}
-                style={{
-                  whiteSpace: 'nowrap',
-                  fontWeight: 700,
-                  textDecoration: 'underline',
-                  cursor: 'pointer',
-                  color: textAccentColor,
-                }}
+                className="sc-link"
+                style={{ whiteSpace: 'nowrap', fontWeight: 700, textDecoration: 'underline', color: textAccentColor }}
               >
                 {isExpanded ? 'ver menos' : 'ver mais'}
               </span>
@@ -211,36 +198,28 @@ export function MessageBubble({
       senderId={message.sender.id}
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
+      isSelected={isSelected}
       onSelect={onSelect}
       padding={resolveBubblePadding(message, isVideoFile)}
       cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
-      minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '160px') : undefined}
+      minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '64px') : undefined}
       afterBubble={
         <>
-          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
-          {isSelected && (
-            <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} onForward={onForward} />
-          )}
+          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
+          {isSelected && <MessageActionsRow isOwn={isOwn} onReply={onReply} onDelete={onDelete} onForward={onForward} />}
         </>
       }
     >
       {message.replyTo && (
-        <MessageReplyQuote
-          replyTo={message.replyTo}
-          parentType={message.type}
-          isOwn={isOwn}
-          baseTheme={baseTheme}
-          theme={theme}
-          currentUserId={currentUserId}
-        />
+        <MessageReplyQuote replyTo={message.replyTo} parentType={message.type} isOwn={isOwn} bubble={bubbleStyle} currentUserId={currentUserId} />
       )}
 
       {renderBody()}
 
       {hasLinkPreview && message.linkPreview && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-          <LinkPreviewCard preview={message.linkPreview} theme={theme} auth={auth} variant="bubble" isOwn={isOwn} baseTheme={baseTheme} />
+          <LinkPreviewCard preview={message.linkPreview} auth={auth} variant="bubble" bubble={bubbleStyle} />
         </div>
       )}
 
@@ -256,7 +235,7 @@ export function MessageBubble({
         </div>
       )}
 
-      <MessageMeta message={message} isOwn={isOwn} textColor={bubbleStyle.textColor} statusInfo={statusInfo} onRetry={onRetry} />
+      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={onRetry} />
     </MessageBubbleShell>
   );
 }

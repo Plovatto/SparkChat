@@ -1,14 +1,14 @@
-import { AVATARS } from '@features/auth/constants/avatars';
-import type { ThemePalette } from '@features/theme';
+import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { useTheme } from '@features/theme';
 import type { MessageReceiptInfo } from '@lib/message-status';
 
 interface MessageReceiptRowProps {
   receipt: MessageReceiptInfo;
   isOwn: boolean;
-  theme: ThemePalette;
 }
 
-export function MessageReceiptRow({ receipt, isOwn, theme }: MessageReceiptRowProps) {
+export function MessageReceiptRow({ receipt, isOwn }: MessageReceiptRowProps) {
+  const { theme } = useTheme();
   const label = receipt.type === 'read' ? 'Lida por:' : 'Entregue para:';
 
   return (
@@ -18,8 +18,7 @@ export function MessageReceiptRow({ receipt, isOwn, theme }: MessageReceiptRowPr
         alignItems: 'center',
         gap: '4px',
         fontSize: '0.7rem',
-        color: theme.textSecondary,
-        opacity: 0.7,
+        color: theme.textMuted,
         marginTop: '4px',
         marginLeft: isOwn ? 'auto' : 0,
         paddingLeft: isOwn ? 0 : '12px',
@@ -38,15 +37,15 @@ export function MessageReceiptRow({ receipt, isOwn, theme }: MessageReceiptRowPr
                 width: '16px',
                 height: '16px',
                 borderRadius: '50%',
-                background: avatar?.color ?? theme.primary,
+                background: avatar?.color ?? theme.accent,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                border: `1px solid ${theme.primary}33`,
+                border: `1px solid ${theme.borderStrong}`,
                 flexShrink: 0,
               }}
             >
-              {Icon && <Icon size={10} color="white" />}
+              {Icon && <Icon size={10} color={AVATAR_ICON_COLOR} />}
             </div>
           );
         })}

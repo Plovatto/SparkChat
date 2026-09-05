@@ -45,7 +45,7 @@ export function MessageListSkeleton() {
                 borderRadius: bubble.isImage ? '14px' : bubbleRadius(bubble.align),
                 opacity: 0.4 + (index / (BUBBLES.length - 1)) * 0.6,
                 flexShrink: 0,
-                '--shimmer-a': theme.surfaceLight,
+                '--shimmer-a': theme.skeleton,
               } as CSSProperties
             }
           />

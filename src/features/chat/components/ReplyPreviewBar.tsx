@@ -1,4 +1,3 @@
-import { Button } from 'react-bootstrap';
 import { FaPlay, FaTimes } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import { formatAudioTime } from '@lib/format';
@@ -43,7 +42,7 @@ export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPrevi
           <img
             src={videoThumbnail ?? undefined}
             alt="thumb"
-            style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: 'rgba(0, 0, 0, 0.15)' }}
+            style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: theme.skeleton }}
           />
         );
       }
@@ -71,8 +70,8 @@ export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPrevi
     <div
       className="chat-preview-bar"
       style={{
-        background: theme.surfaceLight,
-        borderLeft: `4px solid ${theme.primary}`,
+        background: theme.surfaceSelected,
+        borderLeft: `4px solid ${theme.accent}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -80,13 +79,13 @@ export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPrevi
       }}
     >
       <div>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '4px' }}>
+        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accentText, marginBottom: '4px' }}>
           Respondendo {message.sender.id === currentUserId ? 'a você mesmo' : `a ${message.sender.nickname}`}
         </div>
         <div
           style={{
             fontSize: '0.9rem',
-            color: theme.text,
+            color: theme.textPrimary,
             maxWidth: '300px',
             display: 'flex',
             alignItems: 'center',
@@ -97,13 +96,9 @@ export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPrevi
           {renderPreview()}
         </div>
       </div>
-      <Button
-        variant="link"
-        onClick={onCancel}
-        style={{ color: theme.textSecondary, padding: '4px 8px', minWidth: 'auto', display: 'flex', alignItems: 'center' }}
-      >
+      <button type="button" onClick={onCancel} title="Cancelar resposta" className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '32px', height: '32px' }}>
         <FaTimes size={14} />
-      </Button>
+      </button>
     </div>
   );
 }

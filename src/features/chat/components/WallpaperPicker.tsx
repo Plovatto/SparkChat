@@ -40,45 +40,32 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
         {CHAT_BACKGROUNDS.map((background) => {
           const isSelected = currentId === background.id;
           return (
-            <div
+            <button
+              type="button"
               key={background.id}
-              onClick={() => setRoomWallpaper(roomId, background.id)}
+              onClick={() => setRoomWallpaper(roomId, background.id, false)}
               title={background.name}
+              data-selected={isSelected}
+              className="sc-tile"
               style={{
                 height: '80px',
                 borderRadius: '10px',
                 background: background.isImage
                   ? `${background.background} center/cover no-repeat`
-                  : (background.background ?? theme.background),
-                cursor: 'pointer',
-                border: isSelected ? '3px solid #667eea' : `2px solid ${theme.border}`,
-                boxShadow: isSelected ? '0 0 0 2px #667eea40' : 'none',
-                transition: 'all 0.2s',
+                  : (background.background ?? theme.canvas),
                 display: 'flex',
                 alignItems: 'flex-end',
                 justifyContent: 'center',
-                position: 'relative',
+                padding: 0,
                 overflow: 'hidden',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.transform = 'scale(1.05)';
-                if (!isSelected) {
-                  event.currentTarget.style.borderColor = theme.primary;
-                }
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.transform = 'scale(1)';
-                if (!isSelected) {
-                  event.currentTarget.style.borderColor = theme.border;
-                }
               }}
             >
               <div
                 style={{
                   width: '100%',
                   padding: '5px',
-                  background: 'rgba(0,0,0,0.5)',
-                  color: 'white',
+                  background: theme.scrim,
+                  color: theme.onScrim,
                   fontSize: '0.7rem',
                   fontWeight: 600,
                   textAlign: 'center',
@@ -86,7 +73,7 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
               >
                 {background.name}
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
