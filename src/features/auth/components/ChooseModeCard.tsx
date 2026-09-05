@@ -1,55 +1,18 @@
-import type { MouseEvent } from 'react';
-import { Button, Card, Container } from 'react-bootstrap';
+import { Card, Container } from 'react-bootstrap';
 import { FaKey, FaPlusCircle } from 'react-icons/fa';
 import Logo from '@/assets/Logo.svg';
-import type { LoginThemePalette } from '../types';
+import type { ThemeTokens } from '@features/theme';
 import { ThemeToggleButton } from './ThemeToggleButton';
 
 interface ChooseModeCardProps {
   darkMode: boolean;
-  theme: LoginThemePalette;
+  theme: ThemeTokens;
   onToggleTheme: () => void;
   onNewUser: () => void;
   onExistingUser: () => void;
 }
 
-export function ChooseModeCard({
-  darkMode,
-  theme,
-  onToggleTheme,
-  onNewUser,
-  onExistingUser,
-}: ChooseModeCardProps) {
-  const handlePrimaryEnter = (event: MouseEvent<HTMLButtonElement>) => {
-    event.currentTarget.style.transform = 'translateY(-3px)';
-    event.currentTarget.style.boxShadow = '0 12px 30px rgba(102, 126, 234, 0.35)';
-  };
-
-  const handlePrimaryLeave = (event: MouseEvent<HTMLButtonElement>) => {
-    event.currentTarget.style.transform = 'translateY(0)';
-    event.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.25)';
-  };
-
-  const handleOutlineEnter = (event: MouseEvent<HTMLButtonElement>) => {
-    event.currentTarget.style.borderColor = '#667eea';
-    event.currentTarget.style.color = '#667eea';
-    event.currentTarget.style.transform = 'translateY(-3px)';
-    event.currentTarget.style.boxShadow = darkMode
-      ? '0 8px 20px rgba(102, 126, 234, 0.3)'
-      : '0 8px 20px rgba(102, 126, 234, 0.15)';
-    event.currentTarget.style.background = darkMode ? 'rgba(102, 126, 234, 0.1)' : '#f7fafc';
-  };
-
-  const handleOutlineLeave = (event: MouseEvent<HTMLButtonElement>) => {
-    event.currentTarget.style.borderColor = theme.buttonOutlineBorder;
-    event.currentTarget.style.color = theme.buttonOutlineText;
-    event.currentTarget.style.transform = 'translateY(0)';
-    event.currentTarget.style.boxShadow = darkMode
-      ? '0 4px 12px rgba(0,0,0,0.2)'
-      : '0 4px 12px rgba(0,0,0,0.05)';
-    event.currentTarget.style.background = theme.buttonOutlineBg;
-  };
-
+export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onExistingUser }: ChooseModeCardProps) {
   return (
     <div
       style={{
@@ -65,27 +28,28 @@ export function ChooseModeCard({
         data-aos="zoom-in"
         data-aos-duration="800"
         className="animate__animated animate__fadeIn auth-container"
-        style={{ maxWidth: '450px' }}
+        style={{ maxWidth: 'clamp(400px, 90vw, 480px)' }}
       >
         <Card
           className="hover-lift"
           style={{
             borderRadius: '28px',
-            border: darkMode ? `1px solid ${theme.cardBorder}` : 'none',
-            background: theme.cardBg,
+            border: `1px solid ${theme.borderSubtle}`,
+            background: theme.surfaceElevated,
+            boxShadow: theme.shadowLg,
             overflow: 'hidden',
             transition: 'all 0.3s ease',
             position: 'relative',
           }}
         >
-          <ThemeToggleButton darkMode={darkMode} theme={theme} onToggle={onToggleTheme} top="10px" right="10px" />
+          <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="10px" right="10px" />
 
           <div
             style={{
-              background: 'linear-gradient(135deg, #566fe2ff 0%, #733baaff 100%)',
+              background: theme.gradient,
               padding: 'clamp(80px, 8vw, 50px)',
               textAlign: 'center',
-              color: 'white',
+              color: theme.onGradient,
               position: 'relative',
             }}
           >
@@ -111,7 +75,7 @@ export function ChooseModeCard({
                 marginBottom: 'clamp(8px, 2vw, 10px)',
                 fontWeight: 800,
                 textShadow: '0 2px 20px rgba(0,0,0,0.2)',
-                color: 'white',
+                color: theme.onGradient,
                 position: 'relative',
                 letterSpacing: '-0.5px',
               }}
@@ -124,77 +88,58 @@ export function ChooseModeCard({
               data-aos-delay="300"
               style={{
                 fontSize: 'clamp(0.95rem, 3vw, 1.10rem)',
-                opacity: 0.95,
                 fontWeight: 300,
                 margin: 0,
                 position: 'relative',
                 maxWidth: '100%',
-                color: 'white',
+                color: theme.onGradientMuted,
               }}
             >
               Onde as conversas ganham energia
             </p>
           </div>
 
-          <Card.Body style={{ padding: 'clamp(45px, 6vw, 45px)', background: theme.cardBg }}>
+          <Card.Body style={{ padding: 'clamp(45px, 6vw, 45px)', background: theme.surfaceElevated }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 3vw, 16px)' }}>
-              <Button
+              <button
+                type="button"
                 onClick={onNewUser}
                 data-aos="fade-up"
                 data-aos-duration="500"
                 data-aos-delay="100"
-                className="smooth-transition"
+                className="sc-btn sc-btn--gradient sc-btn--lift"
                 style={{
                   width: '100%',
                   padding: 'clamp(16px, 3vw, 20px)',
                   fontSize: 'clamp(1rem, 3vw, 1.15rem)',
                   fontWeight: 700,
-                  border: 'none',
                   borderRadius: '16px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  boxShadow: '0 8px 20px rgba(102, 126, 234, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   gap: 'clamp(8px, 2vw, 10px)',
                 }}
-                onMouseEnter={handlePrimaryEnter}
-                onMouseLeave={handlePrimaryLeave}
               >
                 <FaPlusCircle size={20} />
                 <span>Criar Nova Conta</span>
-              </Button>
+              </button>
 
-              <Button
+              <button
+                type="button"
                 onClick={onExistingUser}
                 data-aos="fade-up"
                 data-aos-duration="500"
                 data-aos-delay="200"
-                className="smooth-transition"
-                variant="outline-secondary"
+                className="sc-btn sc-btn--outline sc-btn--lift"
                 style={{
                   width: '100%',
                   padding: 'clamp(16px, 3vw, 20px)',
                   fontSize: 'clamp(1rem, 3vw, 1.15rem)',
                   fontWeight: 700,
                   borderRadius: '16px',
-                  border: `2px solid ${theme.buttonOutlineBorder}`,
-                  background: theme.buttonOutlineBg,
-                  color: theme.buttonOutlineText,
-                  boxShadow: darkMode ? '0 4px 12px rgba(0,0,0,0.2)' : '0 4px 12px rgba(0,0,0,0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
                   gap: 'clamp(8px, 2vw, 10px)',
-                  transition: 'all 0.3s ease',
                 }}
-                onMouseEnter={handleOutlineEnter}
-                onMouseLeave={handleOutlineLeave}
               >
                 <FaKey size={20} />
                 <span>Já tenho conta</span>
-              </Button>
+              </button>
             </div>
 
             <div

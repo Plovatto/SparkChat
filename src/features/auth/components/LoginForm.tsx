@@ -1,9 +1,11 @@
-import { useRef, useState, type FormEvent } from 'react';
-import { Button, Card, Container, Form } from 'react-bootstrap';
+import { useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { Card, Container, Form } from 'react-bootstrap';
 import { FaCheckCircle, FaFileUpload, FaKey, FaLock, FaUser } from 'react-icons/fa';
+import { Spinner } from '@components/common/Spinner';
+import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { login, loginWithKeyfile } from '../api/auth-api';
-import type { LoginThemePalette, PendingE2eCredential, User } from '../types';
+import type { PendingE2eCredential, User } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
@@ -12,7 +14,7 @@ import { ThemeToggleButton } from './ThemeToggleButton';
 
 interface LoginFormProps {
   darkMode: boolean;
-  theme: LoginThemePalette;
+  theme: ThemeTokens;
   onToggleTheme: () => void;
   onBack: () => void;
   onSubmit: (user: User, e2eCredential?: PendingE2eCredential) => void;
@@ -75,6 +77,24 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
     setError('');
   };
 
+  const labelStyle: CSSProperties = {
+    fontWeight: 700,
+    fontSize: 'clamp(0.95rem, 3vw, 1.05rem)',
+    color: theme.textPrimary,
+    marginBottom: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  };
+
+  const inputStyle: CSSProperties = {
+    padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
+    fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
+    borderRadius: '14px',
+    borderWidth: '2px',
+    fontWeight: 500,
+  };
+
   return (
     <div
       style={{
@@ -96,23 +116,21 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
           className="hover-lift"
           style={{
             borderRadius: '28px',
-            boxShadow: darkMode
-              ? '0 20px 60px rgba(0, 0, 0, 0.4), 0 0 1px rgba(102, 126, 234, 0.2)'
-              : '0 20px 60px rgba(102, 126, 234, 0.15), 0 0 1px rgba(0,0,0,0.1)',
-            border: darkMode ? `1px solid ${theme.cardBorder}` : 'none',
-            background: theme.cardBg,
+            boxShadow: theme.shadowLg,
+            border: `1px solid ${theme.borderSubtle}`,
+            background: theme.surfaceElevated,
             overflow: 'hidden',
             transition: 'all 0.3s ease',
             position: 'relative',
           }}
         >
-          <ThemeToggleButton darkMode={darkMode} theme={theme} onToggle={onToggleTheme} top="15px" right="15px" />
+          <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="15px" right="15px" />
 
           <div
             style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              background: theme.gradient,
               padding: 'clamp(35px, 4vw, 35px) clamp(0px, 5vw, 45px)',
-              color: 'white',
+              color: theme.onGradient,
               display: 'flex',
               alignItems: 'center',
               gap: 'clamp(12px, 3vw, 18px)',
@@ -123,24 +141,24 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
               <h2 style={{ margin: '0 0 0 8px', fontSize: 'clamp(1.2rem, 4vw, 1.8rem)', fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center' }}>
                 Bem-vindo de volta!
               </h2>
-              <p style={{ margin: '4px 0 0 8px', opacity: 0.95, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
+              <p style={{ margin: '4px 0 0 8px', color: theme.onGradientMuted, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
                 {useKeyfile ? 'Entre com seu arquivo de recuperação' : 'Entre com username e senha'}
               </p>
             </div>
           </div>
 
-          <Card.Body style={{ padding: 'clamp(50px, 5vw, 45px) clamp(25px, 5vw, 45px)', background: theme.cardBg }}>
-            {error && <AuthErrorAlert message={error} theme={theme} marginBottom="25px" />}
+          <Card.Body style={{ padding: 'clamp(50px, 5vw, 45px) clamp(25px, 5vw, 45px)', background: theme.surfaceElevated }}>
+            {error && <AuthErrorAlert message={error} marginBottom="25px" />}
 
             {!useKeyfile ? (
               <Form onSubmit={(event) => void handlePasswordSubmit(event)} autoComplete="off">
                 <AutofillDecoyFields />
-                <Form.Group style={{ marginBottom: '20px' }}>
-                  <Form.Label style={{ fontWeight: 700, fontSize: 'clamp(0.95rem, 3vw, 1.05rem)', color: theme.text, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Form.Group style={{ marginBottom: '10px' }}>
+                  <Form.Label style={labelStyle}>
                     <FaUser size={16} />
                     Username
                   </Form.Label>
-                  <Form.Control
+                  <input
                     type="text"
                     placeholder="Seu username"
                     value={nickname}
@@ -153,21 +171,13 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                     autoCapitalize="off"
                     spellCheck={false}
                     name="sparkchat-field-a"
-                    className="smooth-transition"
-                    style={{
-                      padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
-                      fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
-                      borderRadius: '14px',
-                      border: `2px solid ${theme.inputBorder}`,
-                      fontWeight: 500,
-                      background: theme.inputBg,
-                      color: theme.inputText,
-                    }}
+                    className="sc-input"
+                    style={inputStyle}
                   />
                 </Form.Group>
 
                 <Form.Group style={{ marginBottom: '30px' }}>
-                  <Form.Label style={{ fontWeight: 700, fontSize: 'clamp(0.95rem, 3vw, 1.05rem)', color: theme.text, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Form.Label style={labelStyle}>
                     <FaLock size={16} />
                     Senha
                   </Form.Label>
@@ -178,71 +188,49 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                       setError('');
                     }}
                     placeholder="Sua senha"
-                    theme={theme}
                   />
                 </Form.Group>
 
-                <SubmitButton isLoading={isLoading} />
+                <SubmitButton isLoading={isLoading} theme={theme} />
               </Form>
             ) : (
               <Form onSubmit={(event) => void handleKeyfileSubmit(event)}>
                 <Form.Group style={{ marginBottom: '30px' }}>
-                  <Form.Label style={{ fontWeight: 700, fontSize: 'clamp(0.95rem, 3vw, 1.05rem)', color: theme.text, marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Form.Label style={labelStyle}>
                     <FaFileUpload size={16} />
                     Arquivo de recuperação
                   </Form.Label>
-                  <Form.Control
+                  <input
                     ref={fileInputRef}
                     type="file"
                     accept=".sparkkey"
                     onChange={() => setError('')}
-                    className="smooth-transition"
-                    style={{
-                      padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
-                      fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
-                      borderRadius: '14px',
-                      border: `2px solid ${theme.inputBorder}`,
-                      background: theme.inputBg,
-                      color: theme.inputText,
-                    }}
+                    className="sc-input sc-input--file"
+                    style={{ ...inputStyle, fontSize: 'clamp(0.85rem, 2.5vw, 1rem)' }}
                   />
                 </Form.Group>
 
-                <SubmitButton isLoading={isLoading} />
+                <SubmitButton isLoading={isLoading} theme={theme} />
               </Form>
             )}
 
             <button
               type="button"
               onClick={toggleMode}
-              className="smooth-transition"
+              className="sc-btn sc-btn--secondary"
               style={{
                 marginTop: '25px',
                 width: '100%',
                 padding: 'clamp(14px, 3vw, 18px)',
-                background: theme.infoBg,
-                border: `1px solid ${theme.infoBorder}`,
                 borderRadius: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 gap: '10px',
-                textAlign: 'center',
-              }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.borderColor = '#667eea';
-                event.currentTarget.style.background = 'rgba(102, 126, 234, 0.08)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.borderColor = theme.infoBorder;
-                event.currentTarget.style.background = theme.infoBg;
+                whiteSpace: 'normal',
+                fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)',
+                lineHeight: 1.4,
               }}
             >
-              <FaKey size={15} style={{ flexShrink: 0, color: theme.infoText }} />
-              <span style={{ color: theme.infoText, fontWeight: 600, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', lineHeight: 1.4 }}>
-                {useKeyfile ? 'Entrar com username e senha' : 'Entrar com o arquivo de recuperação?'}
-              </span>
+              <FaKey size={15} style={{ flexShrink: 0 }} />
+              <span>{useKeyfile ? 'Entrar com username e senha' : 'Entrar com o arquivo de recuperação?'}</span>
             </button>
           </Card.Body>
         </Card>
@@ -251,33 +239,25 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
   );
 }
 
-function SubmitButton({ isLoading }: { isLoading: boolean }) {
+function SubmitButton({ isLoading, theme }: { isLoading: boolean; theme: ThemeTokens }) {
   return (
-    <Button
+    <button
       type="submit"
       disabled={isLoading}
-      className="smooth-transition"
+      className="sc-btn sc-btn--gradient sc-btn--lift"
       style={{
         width: '100%',
         padding: 'clamp(14px, 3vw, 18px)',
         fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
         fontWeight: 700,
-        border: 'none',
         borderRadius: '14px',
-        background: isLoading ? '#999999' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-        boxShadow: isLoading ? 'none' : '0 8px 20px rgba(102, 126, 234, 0.25)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         gap: 'clamp(8px, 2vw, 10px)',
-        cursor: isLoading ? 'wait' : 'pointer',
-        opacity: isLoading ? 0.7 : 1,
+        cursor: isLoading ? 'wait' : undefined,
       }}
     >
       {isLoading ? (
         <>
-          <div className="auth-spinner" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTop: '2px solid white', borderRadius: '50%' }} />
+          <Spinner size={18} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />
           <span>Entrando...</span>
         </>
       ) : (
@@ -286,6 +266,6 @@ function SubmitButton({ isLoading }: { isLoading: boolean }) {
           <span>Entrar</span>
         </>
       )}
-    </Button>
+    </button>
   );
 }
