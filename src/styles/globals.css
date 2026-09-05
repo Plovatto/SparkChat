@@ -10,7 +10,8 @@ body,
 }
 
 body {
-  background: transparent;
+  background: var(--sc-canvas, #1b1d24);
+  color: var(--sc-text-primary, #f4f5f8);
   min-height: 100vh;
   padding: 0;
   font-family:
@@ -37,13 +38,13 @@ body {
 
 @keyframes messageHighlightFlash {
   0% {
-    box-shadow: 0 0 0 3px rgba(255, 214, 51, 0);
+    box-shadow: 0 0 0 3px transparent;
   }
   15% {
-    box-shadow: 0 0 0 3px rgba(255, 214, 51, 0.9);
+    box-shadow: 0 0 0 3px var(--sc-message-highlight);
   }
   100% {
-    box-shadow: 0 0 0 3px rgba(255, 214, 51, 0);
+    box-shadow: 0 0 0 3px transparent;
   }
 }
 
@@ -53,7 +54,7 @@ body {
 
 html {
   scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb-color, rgba(150, 150, 220, 0.6)) transparent;
+  scrollbar-color: var(--sc-scrollbar-thumb, rgba(150, 150, 220, 0.6)) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -66,38 +67,28 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--scrollbar-thumb, rgba(128, 128, 128, 0.5));
+  background: var(--sc-scrollbar-thumb, rgba(128, 128, 128, 0.5));
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  filter: brightness(1.15);
+  background: var(--sc-scrollbar-thumb-hover, rgba(128, 128, 128, 0.7));
 }
 
 ::selection {
-  background: rgba(102, 126, 234, 0.3);
+  background: var(--sc-selection, rgba(102, 126, 234, 0.3));
   color: inherit;
 }
 
 ::-moz-selection {
-  background: rgba(102, 126, 234, 0.3);
+  background: var(--sc-selection, rgba(102, 126, 234, 0.3));
   color: inherit;
 }
 
 input::placeholder,
-textarea::placeholder,
-.form-control::placeholder {
-  color: #a0a0a0 !important;
-  opacity: 0.8 !important;
-}
-
-@media (prefers-color-scheme: light) {
-  input::placeholder,
-  textarea::placeholder,
-  .form-control::placeholder {
-    color: #808080 !important;
-    opacity: 0.7 !important;
-  }
+textarea::placeholder {
+  color: var(--sc-placeholder, #8a8f9c);
+  opacity: 1;
 }
 
 button {
@@ -105,22 +96,22 @@ button {
   overflow: hidden;
 }
 
-button::after {
+button:not(.sc-tab)::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  transform: translate(-50%, -50%);
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at center, currentColor 0%, transparent 62%);
+  opacity: 0;
+  transform: scale(0.35);
   transition:
-    width 0.6s,
-    height 0.6s;
+    transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
-button:active::after {
-  width: 300px;
-  height: 300px;
+button:not(.sc-tab):active::after {
+  opacity: 0.24;
+  transform: scale(2);
+  transition-duration: 0.1s, 0.06s;
 }

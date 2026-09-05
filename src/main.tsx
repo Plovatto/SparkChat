@@ -8,6 +8,8 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'animate.css';
 import 'aos/dist/aos.css';
 import '@/styles/globals.css';
+import '@/styles/theme.css';
+import '@/styles/cursor.css';
 import '@/styles/animations.css';
 import '@/styles/responsive.css';
 
