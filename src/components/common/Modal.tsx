@@ -1,29 +1,21 @@
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { FaTimes } from 'react-icons/fa';
+import { useTheme } from '@features/theme';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
-
-export interface ModalPalette {
-  surface: string;
-  border: string;
-  text: string;
-  textSecondary: string;
-  headerGradient: string;
-  headerTextColor: string;
-}
 
 interface ModalProps {
   isOpen: boolean;
   title?: string;
   onClose: () => void;
   showCloseButton?: boolean;
-  theme: ModalPalette;
   children: ReactNode;
   maxWidth?: string;
 }
 
-export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, children, maxWidth = '500px' }: ModalProps) {
+export function Modal({ isOpen, title, onClose, showCloseButton = true, children, maxWidth = '500px' }: ModalProps) {
+  const { theme } = useTheme();
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
@@ -40,7 +32,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.62)',
+          background: theme.overlay,
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           zIndex: 9999,
@@ -63,9 +55,10 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
       >
         <div
           style={{
-            background: theme.surface,
+            background: theme.surfaceElevated,
+            border: `1px solid ${theme.borderSubtle}`,
             borderRadius: '18px',
-            boxShadow: '0 24px 70px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.2)',
+            boxShadow: theme.shadowLg,
             overflow: 'hidden',
             maxHeight: '90vh',
             display: 'flex',
@@ -79,39 +72,19 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                background: theme.headerGradient,
-                boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
+                background: theme.gradient,
+                boxShadow: theme.shadowSm,
                 flexShrink: 0,
               }}
             >
-              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme.headerTextColor, letterSpacing: '-0.3px' }}>
-                {title}
-              </h2>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: theme.onGradient, letterSpacing: '-0.3px' }}>{title}</h2>
               {showCloseButton && (
                 <button
                   onClick={onClose}
                   title="Fechar"
                   aria-label="Fechar"
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.18)',
-                    border: 'none',
-                    color: theme.headerTextColor,
-                    cursor: 'pointer',
-                    width: '34px',
-                    height: '34px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '50%',
-                    flexShrink: 0,
-                    transition: 'background 0.15s ease',
-                  }}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.3)';
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)';
-                  }}
+                  className="sc-icon-btn sc-icon-btn--header"
+                  style={{ width: '34px', height: '34px' }}
                 >
                   <FaTimes size={15} />
                 </button>
@@ -125,7 +98,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, theme, c
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
-              color: theme.text,
+              color: theme.textPrimary,
               scrollbarGutter: 'stable both-edges',
             }}
           >

@@ -22,6 +22,8 @@ import {
 } from 'react-icons/fa';
 import type { Avatar } from '../types';
 
+export const AVATAR_ICON_COLOR = '#ffffff';
+
 export const AVATARS: Avatar[] = [
   { icon: FaUser, name: 'User', color: '#829bffff', bgGradient: 'linear-gradient(135deg, #b1bef8ff 0%, #945cdeff 100%)' },
   { icon: FaRobot, name: 'Robot', color: '#9244c9ff', bgGradient: 'linear-gradient(135deg, #764ba2 0%, #ec74ffff 100%)' },

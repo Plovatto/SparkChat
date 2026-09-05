@@ -26,11 +26,11 @@ export function DeletedMessageBubble({ isOwn, roomId }: DeletedMessageBubbleProp
       <div
         style={{
           background: bubbleStyle.background,
-          color: bubbleStyle.textColor,
-          opacity: 0.65,
+          color: bubbleStyle.mutedTextColor,
+          opacity: 0.7,
           borderRadius: isOwn ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
           padding: '10px 14px',
-          boxShadow: isOwn ? '0 2px 10px rgba(0, 0, 0, 0.18)' : '0 2px 8px rgba(0, 0, 0, 0.08)',
+          boxShadow: isOwn ? theme.shadowMd : theme.shadowSm,
           backdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           WebkitBackdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           fontStyle: 'italic',
@@ -52,6 +52,8 @@ interface ErrorMessageBubbleProps {
 }
 
 export function ErrorMessageBubble({ message }: ErrorMessageBubbleProps) {
+  const { theme } = useTheme();
+
   return (
     <div
       className="animate__animated animate__fadeIn"
@@ -62,9 +64,9 @@ export function ErrorMessageBubble({ message }: ErrorMessageBubbleProps) {
           display: 'flex',
           alignItems: 'flex-start',
           gap: '8px',
-          background: 'rgba(239, 83, 80, 0.14)',
-          border: '1px solid rgba(239, 83, 80, 0.35)',
-          color: '#ef5350',
+          background: theme.dangerSoft,
+          border: `1px solid ${theme.danger}`,
+          color: theme.dangerText,
           borderRadius: '12px',
           padding: '8px 16px',
           fontSize: '0.85rem',
@@ -102,8 +104,9 @@ export function SystemMessageBubble({ message, currentNickname }: SystemMessageB
     >
       <div
         style={{
-          background: `${theme.primary}A0`,
-          color: theme.headerTextColor,
+          background: theme.messageSystem,
+          color: theme.messageSystemText,
+          border: `1px solid ${theme.accentSoft}`,
           borderRadius: '12px',
           padding: '8px 16px',
           fontSize: '0.85rem',
@@ -111,6 +114,7 @@ export function SystemMessageBubble({ message, currentNickname }: SystemMessageB
           maxWidth: '80%',
           fontStyle: 'italic',
           fontWeight: 500,
+          boxShadow: theme.shadowSm,
         }}
       >
         <p style={{ margin: 0, lineHeight: 1.4 }}>
@@ -123,7 +127,7 @@ export function SystemMessageBubble({ message, currentNickname }: SystemMessageB
             processed
           )}
         </p>
-        <span style={{ fontSize: '0.7rem', opacity: 0.7, display: 'block', marginTop: '4px' }}>
+        <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '4px' }}>
           {format(new Date(message.timestamp), 'HH:mm')}
         </span>
       </div>

@@ -9,12 +9,10 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { Button, Form } from 'react-bootstrap';
 import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
-import type { ThemePalette } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
 import { useLinkPreview } from '../hooks/useLinkPreview';
 import { LinkPreviewCard } from './LinkPreviewCard';
@@ -81,17 +79,18 @@ function interpolateLevels(levels: number[]): number[] {
 
 interface PendingAttachmentsPreviewProps {
   files: File[];
-  theme: ThemePalette;
   onRemove?: (index: number) => void;
 }
 
-function PendingAttachmentsPreview({ files, theme, onRemove }: PendingAttachmentsPreviewProps) {
+function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPreviewProps) {
+  const { theme } = useTheme();
+
   return (
     <div
       className="chat-preview-bar"
       style={{
-        background: theme.surfaceLight,
-        borderLeft: `4px solid ${theme.primary}`,
+        background: theme.surfaceSelected,
+        borderLeft: `4px solid ${theme.accent}`,
         borderTop: `1px solid ${theme.border}`,
       }}
     >
@@ -112,7 +111,6 @@ function PendingAttachmentsPreview({ files, theme, onRemove }: PendingAttachment
           <PendingAttachmentTile
             key={`${file.name}-${file.lastModified}-${index}`}
             file={file}
-            theme={theme}
             onRemove={onRemove ? () => onRemove(index) : undefined}
           />
         ))}
@@ -122,14 +120,14 @@ function PendingAttachmentsPreview({ files, theme, onRemove }: PendingAttachment
 }
 
 interface RecordingBarProps {
-  theme: ThemePalette;
   recordingTime: number;
   audioLevels: number[];
   onCancel: () => void;
   onSend: () => void;
 }
 
-function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: RecordingBarProps) {
+function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: RecordingBarProps) {
+  const { theme } = useTheme();
   const bars = interpolateLevels(audioLevels);
 
   return (
@@ -137,39 +135,16 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
       className="chat-input-bar"
       style={{
         background: theme.surface,
-        boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+        boxShadow: theme.shadowSm,
         display: 'flex',
         gap: '12px',
         alignItems: 'center',
         borderTop: `1px solid ${theme.border}`,
       }}
     >
-      <Button
-        onClick={onCancel}
-        title="Descartar"
-        style={{
-          background: 'rgba(255, 107, 107, 0.15)',
-          border: 'none',
-          borderRadius: '50%',
-          width: '38px',
-          height: '38px',
-          padding: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          transition: 'background 0.2s',
-          color: '#ff6b6b',
-        }}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.background = 'rgba(255, 107, 107, 0.25)';
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.background = 'rgba(255, 107, 107, 0.15)';
-        }}
-      >
+      <button type="button" onClick={onCancel} title="Descartar" className="sc-icon-btn sc-icon-btn--danger-soft" style={{ width: '38px', height: '38px' }}>
         <FaTimes size={15} />
-      </Button>
+      </button>
 
       <div
         style={{
@@ -178,7 +153,8 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
           gap: '10px',
           flex: 1,
           minWidth: 0,
-          background: theme.surfaceLight,
+          background: theme.surfaceSunken,
+          border: `1px solid ${theme.borderSubtle}`,
           borderRadius: '999px',
           padding: '8px 16px',
           boxSizing: 'border-box',
@@ -189,7 +165,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            background: '#ff6b6b',
+            background: theme.danger,
             animation: 'blink 1s infinite',
             flexShrink: 0,
           }}
@@ -212,7 +188,7 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
               style={{
                 flex: '0 0 3px',
                 height: `${Math.max(15, Math.min(100, level))}%`,
-                background: theme.primary,
+                background: theme.accent,
                 borderRadius: '3px',
                 transition: 'height 0.08s ease-out',
               }}
@@ -220,40 +196,15 @@ function RecordingBar({ theme, recordingTime, audioLevels, onCancel, onSend }: R
           ))}
         </div>
 
-        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.text, minWidth: '38px', textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, minWidth: '38px', textAlign: 'right', flexShrink: 0 }}>
           {formatRecordingTime(recordingTime)}
         </div>
       </div>
 
       {recordingTime >= 1 && (
-        <Button
-          onClick={onSend}
-          title="Enviar"
-          style={{
-            background: theme.primary,
-            border: 'none',
-            borderRadius: '50%',
-            width: '38px',
-            height: '38px',
-            padding: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '0.9rem',
-            color: 'white',
-            flexShrink: 0,
-            transition: 'transform 0.2s',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.transform = 'scale(1)';
-          }}
-        >
+        <button type="button" onClick={onSend} title="Enviar" className="sc-icon-btn sc-icon-btn--primary" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
           <FaPaperPlane />
-        </Button>
+        </button>
       )}
     </div>
   );
@@ -263,7 +214,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
   ref,
 ) {
-  const { theme, baseTheme } = useTheme();
+  const { theme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const linkPreview = useLinkPreview(message, auth);
@@ -427,9 +378,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   if (isRecording) {
     return (
       <>
-        {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} theme={theme} />}
+        {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} />}
         <RecordingBar
-          theme={theme}
           recordingTime={recordingTime}
           audioLevels={audioLevels}
           onCancel={handleCancelRecordingClick}
@@ -439,22 +389,22 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     );
   }
 
+  const blockedTitle = isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : null;
+
   return (
     <>
-      {pendingAttachments.length > 0 && (
-        <PendingAttachmentsPreview files={pendingAttachments} theme={theme} onRemove={removePendingAttachment} />
-      )}
+      {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div style={{ padding: '10px 14px 0', background: theme.surface }}>
-          <LinkPreviewCard preview={linkPreview.preview} theme={theme} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
+          <LinkPreviewCard preview={linkPreview.preview} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
         </div>
       )}
-      <Form
+      <form
         onSubmit={handleSubmit}
         className="chat-input-bar"
         style={{
           background: theme.surface,
-          boxShadow: '0 -2px 10px rgba(0,0,0,0.05)',
+          boxShadow: theme.shadowSm,
           display: 'flex',
           gap: '10px',
           alignItems: 'center',
@@ -471,74 +421,26 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         />
         {!message.trim() && (
           <>
-            <Button
-              variant="link"
+            <button
+              type="button"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isBlocked}
-              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Enviar anexo'}
-              style={{
-                color: theme.primary,
-                padding: '10px',
-                borderRadius: '50%',
-                width: '44px',
-                height: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: baseTheme === 'light' ? '#e1e1e1ff' : theme.surfaceLight,
-                textDecoration: 'none',
-                flexShrink: 0,
-                transition: 'all 0.2s',
-                opacity: isBlocked ? 0.5 : 1,
-                cursor: isBlocked ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={(event) => {
-                if (!isBlocked) {
-                  event.currentTarget.style.opacity = '0.8';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!isBlocked) {
-                  event.currentTarget.style.opacity = '1';
-                }
-              }}
+              title={blockedTitle ?? 'Enviar anexo'}
+              className="sc-icon-btn sc-icon-btn--muted"
+              style={{ width: '44px', height: '44px' }}
             >
               <FaPaperclip size={18} />
-            </Button>
-            <Button
-              variant="link"
+            </button>
+            <button
+              type="button"
               onClick={() => void handleMicClick()}
               disabled={isBlocked}
-              title={isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : 'Gravar áudio'}
-              style={{
-                color: theme.primary,
-                padding: '10px',
-                borderRadius: '50%',
-                width: '44px',
-                height: '44px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: baseTheme === 'light' ? '#e1e1e1ff' : theme.surfaceLight,
-                textDecoration: 'none',
-                flexShrink: 0,
-                transition: 'all 0.2s',
-                opacity: isBlocked ? 0.5 : 1,
-                cursor: isBlocked ? 'not-allowed' : 'pointer',
-              }}
-              onMouseEnter={(event) => {
-                if (!isBlocked) {
-                  event.currentTarget.style.opacity = '0.8';
-                }
-              }}
-              onMouseLeave={(event) => {
-                if (!isBlocked) {
-                  event.currentTarget.style.opacity = '1';
-                }
-              }}
+              title={blockedTitle ?? 'Gravar áudio'}
+              className="sc-icon-btn sc-icon-btn--muted"
+              style={{ width: '44px', height: '44px' }}
             >
               <FaMicrophone size={18} />
-            </Button>
+            </button>
           </>
         )}
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
@@ -549,29 +451,32 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 bottom: 'calc(100% + 8px)',
                 left: 0,
                 right: 0,
-                background: theme.surface,
+                background: theme.surfaceElevated,
                 border: `1px solid ${theme.border}`,
                 borderRadius: '12px',
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+                boxShadow: theme.shadowMd,
                 overflow: 'hidden',
                 zIndex: 20,
+                padding: '4px',
               }}
             >
               {filteredMentionCandidates.map((candidate, index) => (
                 <div
                   key={candidate.id}
+                  role="option"
+                  aria-selected={index === mentionActiveIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     selectMentionCandidate(candidate.nickname);
                   }}
                   onMouseEnter={() => setMentionActiveIndex(index)}
+                  data-active={index === mentionActiveIndex}
+                  className="sc-menu-item"
                   style={{
                     padding: '10px 14px',
-                    cursor: 'pointer',
+                    borderRadius: '8px',
                     fontSize: '0.9rem',
                     fontWeight: 600,
-                    color: theme.text,
-                    background: index === mentionActiveIndex ? `${theme.primary}18` : 'transparent',
                   }}
                 >
                   @{candidate.nickname}
@@ -579,7 +484,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               ))}
             </div>
           )}
-          <Form.Control
+          <input
             ref={inputRef}
             type="text"
             value={message}
@@ -596,55 +501,20 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
             }
             autoFocus={shouldAutoFocus}
-            style={{
-              borderRadius: '22px',
-              padding: '12px 18px',
-              border: '2px solid transparent',
-              fontSize: '0.95rem',
-              background: isBlocked ? '#f5f5f5' : theme.inputBg,
-              color: theme.text,
-              boxShadow: 'none',
-              width: '100%',
-            }}
-            onFocus={(event) => {
-              event.currentTarget.style.borderColor = theme.primary;
-              event.currentTarget.style.boxShadow = `0 0 10px ${theme.primary}40`;
-            }}
-            onBlur={(event) => {
-              event.currentTarget.style.borderColor = 'transparent';
-              event.currentTarget.style.boxShadow = 'none';
-            }}
+            className="sc-input sc-input--composer"
           />
         </div>
         {(message.trim() || pendingAttachments.length > 0) && (
-          <Button
+          <button
             type="submit"
-            className="send-button-appear"
-            style={{
-              background: theme.headerGradient,
-              border: 'none',
-              borderRadius: '50%',
-              width: '44px',
-              height: '44px',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1rem',
-              flexShrink: 0,
-              boxShadow: '0 3px 12px rgba(0,0,0,0.15)',
-            }}
-            onMouseEnter={(event) => {
-              event.currentTarget.style.transform = 'scale(1.1) rotate(15deg)';
-            }}
-            onMouseLeave={(event) => {
-              event.currentTarget.style.transform = 'scale(1) rotate(0deg)';
-            }}
+            title="Enviar"
+            className="sc-icon-btn sc-icon-btn--gradient send-button-appear"
+            style={{ width: '44px', height: '44px', fontSize: '1rem' }}
           >
             <FaPaperPlane />
-          </Button>
+          </button>
         )}
-      </Form>
+      </form>
     </>
   );
 });

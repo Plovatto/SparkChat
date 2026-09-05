@@ -12,14 +12,14 @@ export function EmptyChatState() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme.background,
+        background: theme.canvas,
         color: theme.textSecondary,
         padding: '40px',
         textAlign: 'center',
       }}
     >
-      <FaComments size={100} className="animate-float" style={{ marginBottom: '30px', opacity: 0.2 }} />
-      <h2 style={{ fontSize: '2rem', marginBottom: '15px', color: theme.text, fontWeight: 700 }}>Selecione uma conversa</h2>
+      <FaComments size={100} className="animate-float" style={{ marginBottom: '30px', color: theme.accentText, opacity: 0.35 }} />
+      <h2 style={{ fontSize: '2rem', marginBottom: '15px', color: theme.textPrimary, fontWeight: 700 }}>Selecione uma conversa</h2>
       <p style={{ fontSize: '1.1rem', color: theme.textSecondary, maxWidth: '400px' }}>
         Escolha um chat existente ou clique em &quot;Novo Chat&quot; para começar
       </p>

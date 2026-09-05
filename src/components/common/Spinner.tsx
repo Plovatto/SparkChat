@@ -16,8 +16,8 @@ export function Spinner({ size = 22, trackColor, accentColor }: SpinnerProps) {
       style={{
         width: size,
         height: size,
-        border: `${borderWidth}px solid ${trackColor ?? theme.border}`,
-        borderTop: `${borderWidth}px solid ${accentColor ?? theme.primary}`,
+        border: `${borderWidth}px solid ${trackColor ?? theme.borderStrong}`,
+        borderTop: `${borderWidth}px solid ${accentColor ?? theme.accent}`,
         borderRadius: '50%',
         flexShrink: 0,
       }}

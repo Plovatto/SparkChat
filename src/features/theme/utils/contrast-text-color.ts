@@ -1,29 +1,28 @@
-export function getContrastTextColor(backgroundColor: string): string {
-  let r: number;
-  let g: number;
-  let b: number;
+import { contrastRatio, toHex } from './color';
 
+const LIGHT_TEXT = '#ffffff';
+const DARK_TEXT = '#171a21';
+
+function normalize(backgroundColor: string): string | null {
   if (backgroundColor.startsWith('#')) {
-    let hex = backgroundColor.slice(1);
-    if (hex.length === 3) {
-      hex = hex
-        .split('')
-        .map((char) => char + char)
-        .join('');
-    }
-
-    r = parseInt(hex.substring(0, 2), 16);
-    g = parseInt(hex.substring(2, 4), 16);
-    b = parseInt(hex.substring(4, 6), 16);
-  } else if (backgroundColor.startsWith('rgb')) {
-    const [red, green, blue] = backgroundColor.match(/\d+/g)?.map(Number) ?? [0, 0, 0];
-    r = red ?? 0;
-    g = green ?? 0;
-    b = blue ?? 0;
-  } else {
-    return '#ffffff';
+    return backgroundColor.length > 7 ? backgroundColor.slice(0, 7) : backgroundColor;
   }
 
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#000000' : '#ffffff';
+  if (backgroundColor.startsWith('rgb')) {
+    const [red, green, blue] = backgroundColor.match(/\d+/g)?.map(Number) ?? [];
+    return toHex({ r: red ?? 0, g: green ?? 0, b: blue ?? 0 });
+  }
+
+  return null;
+}
+
+export function getContrastTextColor(backgroundColor: string): string {
+  const hex = normalize(backgroundColor);
+  if (!hex) {
+    return LIGHT_TEXT;
+  }
+
+  const lightContrast = contrastRatio(LIGHT_TEXT, hex);
+  const darkContrast = contrastRatio(DARK_TEXT, hex);
+  return lightContrast >= 2.6 && lightContrast >= darkContrast * 0.6 ? LIGHT_TEXT : DARK_TEXT;
 }

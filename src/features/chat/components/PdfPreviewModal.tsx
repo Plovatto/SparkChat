@@ -1,5 +1,4 @@
 import { Modal } from '@components/common/Modal';
-import { useTheme } from '@features/theme';
 
 interface PdfPreviewModalProps {
   isOpen: boolean;
@@ -9,10 +8,8 @@ interface PdfPreviewModalProps {
 }
 
 export function PdfPreviewModal({ isOpen, onClose, url, fileName }: PdfPreviewModalProps) {
-  const { theme } = useTheme();
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={fileName} theme={theme} maxWidth="900px">
+    <Modal isOpen={isOpen} onClose={onClose} title={fileName} maxWidth="900px">
       <iframe
         src={url}
         title={fileName}

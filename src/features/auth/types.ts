@@ -35,28 +35,3 @@ export interface Avatar {
   color: string;
   bgGradient: string;
 }
-
-export interface LoginThemePalette {
-  background: string;
-  textColor: string;
-  buttonColor: string;
-  buttonTextColor: string;
-  bg: string;
-  cardBg: string;
-  cardBorder: string;
-  text: string;
-  textSecondary: string;
-  inputBg: string;
-  inputBorder: string;
-  inputText: string;
-  avatarGridBg: string;
-  avatarBorder: string;
-  buttonOutlineBg: string;
-  buttonOutlineBorder: string;
-  buttonOutlineText: string;
-  alertBg: string;
-  alertText: string;
-  infoBg: string;
-  infoBorder: string;
-  infoText: string;
-}

@@ -4,6 +4,13 @@ import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadFromUrl } from '@lib/download-file';
+import {
+  MEDIA_VIEWER_BACKDROP_STYLE,
+  MEDIA_VIEWER_CHROME_STYLE,
+  MEDIA_VIEWER_CONTENT_SHADOW,
+  MEDIA_VIEWER_DIVIDER_STYLE,
+  MEDIA_VIEWER_VIDEO_BACKGROUND,
+} from './media-viewer-styles';
 
 interface VideoPreviewModalProps {
   isOpen: boolean;
@@ -22,21 +29,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
 
   return createPortal(
     <>
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 10040,
-          animation: 'mediaOverlayFadeIn 0.3s ease-out',
-        }}
-        onClick={onClose}
-      />
+      <div style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
 
       <div
         style={{
@@ -55,6 +48,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
       >
         <div
           style={{
+            ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
             top: 'max(16px, env(safe-area-inset-top))',
             right: 'max(16px, env(safe-area-inset-right))',
@@ -62,13 +56,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             alignItems: 'center',
             gap: 'clamp(2px, 1vw, 6px)',
             zIndex: 10055,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderRadius: '999px',
             padding: '6px',
-            border: '2px solid rgba(255, 255, 255, 0.25)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
             animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
@@ -76,7 +64,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             <FaDownload />
           </OverlayIconButton>
 
-          <div style={{ width: '1px', height: '22px', background: 'rgba(255, 255, 255, 0.25)', margin: '0 2px', flexShrink: 0 }} />
+          <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
           <OverlayIconButton onClick={onClose} title="Fechar vídeo (ESC)" variant="danger">
             <FaTimes />
@@ -85,18 +73,14 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
 
         <div
           style={{
+            ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
             top: 'max(16px, env(safe-area-inset-top))',
             left: 'max(16px, env(safe-area-inset-left))',
             maxWidth: 'calc(100vw - 140px)',
             zIndex: 10055,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderRadius: '999px',
+            boxShadow: 'none',
             padding: '8px 16px',
-            border: '2px solid rgba(255, 255, 255, 0.25)',
-            color: 'white',
             fontSize: '13px',
             fontWeight: 700,
             overflow: 'hidden',
@@ -127,8 +111,8 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
               maxWidth: '96vw',
               display: 'block',
               borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
-              background: '#000',
+              boxShadow: MEDIA_VIEWER_CONTENT_SHADOW,
+              background: MEDIA_VIEWER_VIDEO_BACKGROUND,
             }}
           />
         </div>

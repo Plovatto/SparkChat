@@ -1,10 +1,9 @@
-import { useEffect, useState, type CSSProperties, type FocusEvent, type FormEvent } from 'react';
+import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import type { IconType } from 'react-icons';
 import { FaArrowRight, FaExclamationTriangle, FaUser, FaUsers } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
-import { useTheme } from '@features/theme';
-import type { ThemePalette } from '@features/theme';
+import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useSocket } from '@lib/socket';
 
@@ -19,15 +18,17 @@ type GroupMode = 'join' | 'create';
 const ROOM_CODE_MIN_LENGTH = 6;
 const GROUP_NAME_MIN_LENGTH = 3;
 
-function OrDivider({ theme }: { theme: ThemePalette }) {
+function OrDivider() {
+  const { theme } = useTheme();
+
   return (
     <div style={{ textAlign: 'center', position: 'relative', margin: '8px 0' }}>
       <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: theme.border }} />
       <span
         style={{
-          background: theme.surface,
+          background: theme.surfaceElevated,
           padding: '0 15px',
-          color: theme.textSecondary,
+          color: theme.textMuted,
           fontSize: '0.85rem',
           fontWeight: 600,
           position: 'relative',
@@ -93,7 +94,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       return;
     }
     if (!targetNickname.trim()) {
-      setError('Digite o username do seu amigo');
+      setError('Digite o username');
       return;
     }
     setIsSubmitting(true);
@@ -129,24 +130,11 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     setError('');
   };
 
-  const inputStyle: CSSProperties = {
-    width: '100%',
-    padding: '12px 16px',
-    border: `1.5px solid ${theme.border}`,
-    borderRadius: '10px',
-    fontSize: '1rem',
-    background: theme.background,
-    color: theme.text,
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-  };
-
   const labelStyle: CSSProperties = {
     fontWeight: 600,
     display: 'block',
     marginBottom: '10px',
-    color: theme.text,
+    color: theme.textPrimary,
     fontSize: '0.95rem',
   };
 
@@ -156,54 +144,13 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     display: 'block',
   };
 
-  const primaryButtonStyle: CSSProperties = {
-    width: '100%',
-    padding: '12px 20px',
-    borderRadius: '10px',
-    border: 'none',
-    background: theme.primary,
-    color: 'white',
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-  };
+  const fullWidthButton: CSSProperties = { width: '100%', padding: '12px 20px' };
 
-  const outlineButtonStyle: CSSProperties = {
-    width: '100%',
-    padding: '12px 20px',
-    borderRadius: '10px',
-    border: `2px solid ${theme.primary}`,
-    background: 'transparent',
-    color: theme.primary,
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px',
-  };
-
-  const submittingButtonStyle: CSSProperties = {
-    opacity: isSubmitting ? 0.7 : 1,
-    cursor: isSubmitting ? 'not-allowed' : 'pointer',
-  };
-
-  const focusInput = (event: FocusEvent<HTMLInputElement>) => {
-    event.currentTarget.style.borderColor = theme.primary;
-    event.currentTarget.style.boxShadow = `0 0 0 3px ${theme.primary}1A`;
-  };
-
-  const blurInput = (event: FocusEvent<HTMLInputElement>) => {
-    event.currentTarget.style.borderColor = theme.border;
-    event.currentTarget.style.boxShadow = 'none';
-  };
-
-  const submitIcon = isSubmitting ? <Spinner size={14} trackColor="rgba(255,255,255,0.35)" accentColor="#ffffff" /> : <FaArrowRight size={14} />;
+  const submitIcon = isSubmitting ? (
+    <Spinner size={14} trackColor={withAlpha(theme.textOnAccent, 0.35)} accentColor={theme.textOnAccent} />
+  ) : (
+    <FaArrowRight size={14} />
+  );
 
   const renderTab = (type: ChatType, Icon: IconType, label: string) => {
     const isActive = chatType === type;
@@ -214,30 +161,17 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
           setChatType(type);
           setError('');
         }}
+        data-active={isActive}
+        className="sc-tab"
         style={{
           flex: 1,
           padding: '12px 16px',
-          border: 'none',
-          background: 'transparent',
-          color: isActive ? theme.primary : theme.textSecondary,
           fontSize: '0.95rem',
-          fontWeight: isActive ? 700 : 600,
-          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '8px',
-          borderBottom: isActive ? `3px solid ${theme.primary}` : `2px solid ${theme.border}`,
-        }}
-        onMouseEnter={(event) => {
-          if (!isActive) {
-            event.currentTarget.style.color = theme.primary;
-          }
-        }}
-        onMouseLeave={(event) => {
-          if (!isActive) {
-            event.currentTarget.style.color = theme.textSecondary;
-          }
+          borderRadius: '8px 8px 0 0',
         }}
       >
         <Icon size={16} />
@@ -247,7 +181,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Novo Chat" onClose={onClose} theme={theme}>
+    <Modal isOpen={isOpen} title="Novo Chat" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', marginBottom: '16px', borderBottom: `2px solid ${theme.border}` }}>
           {renderTab('private', FaUser, 'Privado')}
@@ -255,20 +189,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
         </div>
 
         {error && (
-          <div
-            className="animate__animated animate__shakeX"
-            style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '10px',
-              padding: '12px 16px',
-              fontSize: '0.9rem',
-              color: '#dc2626',
-              display: 'flex',
-              gap: '8px',
-              alignItems: 'flex-start',
-            }}
-          >
+          <div className="sc-notice sc-notice--danger animate__animated animate__shakeX" style={{ fontSize: '0.9rem', fontWeight: 500 }}>
             <FaExclamationTriangle size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
             <span>{error}</span>
           </div>
@@ -294,25 +215,11 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 placeholder="Ex: Ada"
                 maxLength={20}
                 autoFocus
-                style={inputStyle}
-                onFocus={focusInput}
-                onBlur={blurInput}
+                className="sc-input"
               />
-              <small style={helperStyle}>Digite o username do seu amigo para iniciar uma conversa</small>
+              <small style={helperStyle}>Digite o username para iniciar uma conversa</small>
             </div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, ...submittingButtonStyle }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.transform = 'translateY(-2px)';
-                event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}40`;
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.transform = 'translateY(0)';
-                event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
-              }}
-            >
+            <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
               {submitIcon}
               {isSubmitting ? 'Iniciando...' : 'Iniciar Chat'}
             </button>
@@ -338,31 +245,17 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     placeholder="Código da sala"
                     maxLength={8}
                     autoFocus={groupMode === 'join'}
-                    style={inputStyle}
-                    onFocus={focusInput}
-                    onBlur={blurInput}
+                    className="sc-input"
                   />
                   <small style={helperStyle}>Digite o código da sala para entrar</small>
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{ ...primaryButtonStyle, boxShadow: `0 4px 12px ${theme.primary}30`, ...submittingButtonStyle }}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.transform = 'translateY(-2px)';
-                    event.currentTarget.style.boxShadow = `0 8px 20px ${theme.primary}30`;
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.transform = 'translateY(0)';
-                    event.currentTarget.style.boxShadow = `0 4px 12px ${theme.primary}30`;
-                  }}
-                >
+                <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
                   {submitIcon}
                   {isSubmitting ? 'Entrando...' : 'Entrar na Sala'}
                 </button>
               </form>
 
-              <OrDivider theme={theme} />
+              <OrDivider />
 
               <button
                 onClick={() => {
@@ -370,15 +263,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                   setRoomCode('');
                   setError('');
                 }}
-                style={outlineButtonStyle}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.background = `${theme.primary}30`;
-                  event.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.background = 'transparent';
-                  event.currentTarget.style.transform = 'translateY(0)';
-                }}
+                className="sc-btn sc-btn--outline sc-btn--lift"
+                style={fullWidthButton}
               >
                 Criar Nova Sala
               </button>
@@ -401,29 +287,17 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                     placeholder="Nome da sala"
                     maxLength={30}
                     autoFocus={groupMode === 'create'}
-                    style={inputStyle}
-                    onFocus={focusInput}
-                    onBlur={blurInput}
+                    className="sc-input"
                   />
                   <small style={helperStyle}>Digite um nome para sua nova sala</small>
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  style={{ ...primaryButtonStyle, ...submittingButtonStyle }}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.transform = 'translateY(0)';
-                  }}
-                >
+                <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
                   {submitIcon}
                   {isSubmitting ? 'Criando...' : 'Criar Sala'}
                 </button>
               </form>
 
-              <OrDivider theme={theme} />
+              <OrDivider />
 
               <button
                 onClick={() => {
@@ -431,13 +305,8 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                   setGroupName('');
                   setError('');
                 }}
-                style={outlineButtonStyle}
-                onMouseEnter={(event) => {
-                  event.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={(event) => {
-                  event.currentTarget.style.transform = 'translateY(0)';
-                }}
+                className="sc-btn sc-btn--outline sc-btn--lift"
+                style={fullWidthButton}
               >
                 Entrar em Sala Existente
               </button>

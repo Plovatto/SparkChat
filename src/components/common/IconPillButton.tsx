@@ -1,77 +1,64 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
+import { useTheme, type ThemeTokens } from '@features/theme';
+
+export type IconPillTone = 'accent' | 'danger' | 'warning' | 'success';
 
 interface IconPillButtonProps {
   icon: ReactNode;
-  iconBackground: string;
-  iconColor: string;
+  tone?: IconPillTone;
   label: string;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  background: string;
-  textColor: string;
   fontSize?: string;
   gap?: string;
   paddingRight?: string;
   withShadow?: boolean;
+  title?: string;
+}
+
+function resolveTone(theme: ThemeTokens, tone: IconPillTone): { background: string; color: string } {
+  switch (tone) {
+    case 'danger':
+      return { background: theme.dangerSoft, color: theme.dangerText };
+    case 'warning':
+      return { background: theme.warningSoft, color: theme.warningText };
+    case 'success':
+      return { background: theme.successSoft, color: theme.successText };
+    default:
+      return { background: theme.accentSoft, color: theme.accentText };
+  }
 }
 
 export function IconPillButton({
   icon,
-  iconBackground,
-  iconColor,
+  tone = 'accent',
   label,
   onClick,
-  background,
-  textColor,
   fontSize = '0.8rem',
   gap = '8px',
   paddingRight = '14px',
   withShadow = true,
+  title,
 }: IconPillButtonProps) {
-  const baseShadow = withShadow ? '0 3px 10px rgba(0, 0, 0, 0.18)' : 'none';
-  const hoverShadow = withShadow ? '0 5px 14px rgba(0, 0, 0, 0.22)' : 'none';
+  const { theme } = useTheme();
+  const toneColors = resolveTone(theme, tone);
 
   return (
     <button
       onClick={onClick}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap,
-        background,
-        border: 'none',
-        color: textColor,
-        borderRadius: '999px',
-        padding: `5px ${paddingRight} 5px 5px`,
-        fontSize,
-        fontWeight: 600,
-        cursor: 'pointer',
-        boxShadow: baseShadow,
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
-      }}
-      onMouseEnter={(event) => {
-        event.currentTarget.style.transform = 'translateY(-2px)';
-        event.currentTarget.style.boxShadow = hoverShadow;
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.transform = 'translateY(0)';
-        event.currentTarget.style.boxShadow = baseShadow;
-      }}
+      title={title}
+      className="sc-pill"
+      data-shadow={withShadow}
+      style={
+        {
+          gap,
+          padding: `5px ${paddingRight} 5px 5px`,
+          fontSize,
+          '--pill-icon-bg': toneColors.background,
+          '--pill-icon-color': toneColors.color,
+        } as CSSProperties
+      }
     >
-      <span
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '24px',
-          height: '24px',
-          borderRadius: '50%',
-          background: iconBackground,
-          color: iconColor,
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
+      <span className="sc-pill__icon">{icon}</span>
       {label}
     </button>
   );

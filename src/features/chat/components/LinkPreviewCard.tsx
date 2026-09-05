@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
+import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
 import { fetchLinkPreviewImageObjectUrl } from '@lib/api/link-preview';
 import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
-import type { ThemePalette } from '@features/theme';
-import { resolveBubbleInnerPalette } from '../utils/bubble-palette';
 
 interface LinkPreviewCardProps {
   preview: MessageLinkPreview;
-  theme: ThemePalette;
   auth: SessionAuth;
   variant: 'composer' | 'bubble';
-  isOwn?: boolean;
-  baseTheme?: string;
+  bubble?: ResolvedBubbleStyle;
   onDismiss?: () => void;
 }
 
@@ -51,16 +48,16 @@ function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string
   return objectUrl;
 }
 
-export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, baseTheme = 'dark', onDismiss }: LinkPreviewCardProps) {
+export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: LinkPreviewCardProps) {
+  const { theme } = useTheme();
   const imageObjectUrl = useLinkPreviewImage(preview.imageUrl, auth);
   const isComposer = variant === 'composer';
-  const innerPalette = resolveBubbleInnerPalette(isOwn, baseTheme);
 
-  const cardBackground = isComposer ? theme.background : innerPalette.background;
-  const titleColor = isComposer ? theme.text : isOwn ? 'white' : theme.text;
-  const siteNameColor = isComposer ? theme.textSecondary : isOwn ? 'rgba(255, 255, 255, 0.75)' : theme.textSecondary;
-  const iconBackground = isComposer ? theme.surface : innerPalette.iconBackground;
-  const iconColor = isComposer ? theme.primary : isOwn ? 'white' : theme.primary;
+  const cardBackground = isComposer || !bubble ? theme.surfaceSunken : bubble.innerBackground;
+  const titleColor = isComposer || !bubble ? theme.textPrimary : bubble.textColor;
+  const siteNameColor = isComposer || !bubble ? theme.textSecondary : bubble.mutedTextColor;
+  const iconBackground = isComposer || !bubble ? theme.accentSoft : bubble.innerStrongBackground;
+  const iconColor = isComposer || !bubble ? theme.accentText : bubble.accentColor;
   const openPreview = isComposer ? undefined : () => window.open(preview.url, '_blank', 'noopener,noreferrer');
 
   const textBlock = (
@@ -102,20 +99,7 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, 
   );
 
   const dismissButton = isComposer && onDismiss && (
-    <button
-      onClick={onDismiss}
-      title="Remover preview"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        color: theme.textSecondary,
-        cursor: 'pointer',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '4px',
-      }}
-    >
+    <button type="button" onClick={onDismiss} title="Remover preview" className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '28px', height: '28px' }}>
       <FaTimes size={14} />
     </button>
   );
@@ -124,12 +108,12 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, 
     return (
       <div
         onClick={openPreview}
+        className="sc-bubble-card"
         style={{
           background: cardBackground,
           border: 'none',
           borderRadius: '10px',
           overflow: 'hidden',
-          cursor: 'pointer',
           maxWidth: '100%',
           position: 'relative',
         }}
@@ -150,6 +134,7 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, 
   return (
     <div
       onClick={openPreview}
+      className={isComposer ? undefined : 'sc-bubble-card'}
       style={{
         display: 'flex',
         gap: '10px',
@@ -170,7 +155,7 @@ export function LinkPreviewCard({ preview, theme, auth, variant, isOwn = false, 
           borderRadius: 8,
           overflow: 'hidden',
           flexShrink: 0,
-          background: imageObjectUrl ? theme.surface : iconBackground,
+          background: imageObjectUrl ? theme.skeleton : iconBackground,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

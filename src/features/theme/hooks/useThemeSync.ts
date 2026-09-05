@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { User } from '@features/auth';
 import { useSocket } from '@lib/socket';
 import { useTheme } from '../theme-context';
+import { hasStoredThemePreference } from '../theme-guards';
 
 export function useThemeSync(user: User | null): void {
   const { socket } = useSocket();
@@ -16,11 +17,27 @@ export function useThemeSync(user: User | null): void {
 
     hasResolvedServerTheme.current = true;
 
-    if (user.theme) {
-      const themeId = `${user.theme.baseTheme}-${user.theme.colorTheme}`;
-      lastSyncedThemeId.current = themeId;
-      changeTheme(themeId);
+    if (!user.theme) {
+      return;
     }
+
+    const serverThemeId = `${user.theme.baseTheme}-${user.theme.colorTheme}`;
+    const localThemeId = `${baseTheme}-${colorTheme}`;
+
+    if (localThemeId === serverThemeId) {
+      lastSyncedThemeId.current = serverThemeId;
+      return;
+    }
+
+    if (hasStoredThemePreference()) {
+      lastSyncedThemeId.current = localThemeId;
+      socket?.emit('user:update-theme', { baseTheme, colorTheme });
+      return;
+    }
+
+    lastSyncedThemeId.current = serverThemeId;
+    changeTheme(serverThemeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, user?.theme?.baseTheme, user?.theme?.colorTheme, changeTheme]);
 
   useEffect(() => {

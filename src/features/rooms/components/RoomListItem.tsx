@@ -19,9 +19,9 @@ import {
 } from 'react-icons/fa';
 import { MEDIUM_SCREEN_MIN_WIDTH_PX, minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import type { User } from '@features/auth';
-import { AVATARS } from '@features/auth/constants/avatars';
+import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
-import type { ThemePalette } from '@features/theme';
+import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatAudioTime, getDisplayName, processSystemMessage, resolveActiveUserNames, splitSystemMessageActor } from '@lib/format';
 import { getMessageStatus } from '@lib/message-status';
@@ -33,7 +33,6 @@ interface RoomListItemProps {
   user: User;
   isSelected: boolean;
   onSelect: () => void;
-  theme: ThemePalette;
   isSelectionMode: boolean;
   isChecked: boolean;
   onToggleSelect: () => void;
@@ -47,7 +46,6 @@ const PREVIEW_LENGTH_SMALL_SCREEN = 70;
 const PREVIEW_LENGTH_MEDIUM_SCREEN = 190;
 const PREVIEW_LENGTH_LARGE_SCREEN = 100;
 const SYSTEM_PREVIEW_LENGTH = 28;
-const FILE_NAME_PREVIEW_LENGTH = 35;
 
 function useMessagePreviewLength(): number {
   const isSplitLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
@@ -66,23 +64,23 @@ function truncate(text: string, maxLength: number): string {
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
-function getRoomAvatar(room: RoomSummary, userId: string | undefined, theme: ThemePalette) {
+function getRoomAvatar(room: RoomSummary, userId: string | undefined, theme: ThemeTokens) {
   if (room.type === 'group') {
-    return { icon: <FaComments size={22} color={theme.headerTextColor} />, gradient: theme.headerGradient };
+    return { icon: <FaComments size={22} color={theme.onGradient} />, gradient: theme.gradient };
   }
 
   const otherUser = getOtherParticipant(room, userId);
   if (!otherUser) {
-    return { icon: <FaUser size={20} color={theme.textSecondary} />, gradient: theme.headerGradient };
+    return { icon: <FaUser size={20} color={theme.onGradient} />, gradient: theme.gradient };
   }
 
   const avatar = AVATARS[otherUser.avatar] ?? AVATARS[0];
   if (!avatar) {
-    return { icon: <FaUser size={20} color={theme.textSecondary} />, gradient: theme.headerGradient };
+    return { icon: <FaUser size={20} color={theme.onGradient} />, gradient: theme.gradient };
   }
 
   const Icon = avatar.icon;
-  return { icon: <Icon size={22} color={theme.headerTextColor} />, gradient: avatar.bgGradient };
+  return { icon: <Icon size={22} color={AVATAR_ICON_COLOR} />, gradient: avatar.bgGradient };
 }
 
 function isRoomParticipantOnline(room: RoomSummary, userId: string | undefined): boolean {
@@ -107,14 +105,13 @@ function ActivityPreview({
   user,
   typingUserIds,
   recordingUserIds,
-  theme,
 }: {
   room: RoomSummary;
   user: User;
   typingUserIds: string[];
   recordingUserIds: string[];
-  theme: ThemePalette;
 }) {
+  const { theme } = useTheme();
   const isRecording = recordingUserIds.length > 0;
   const actorLabel = room.type === 'group' ? resolveActorLabel(isRecording ? recordingUserIds : typingUserIds, room, user.id) : null;
 
@@ -123,7 +120,7 @@ function ActivityPreview({
       style={{
         fontSize: '0.82rem',
         lineHeight: 1.5,
-        color: theme.primary,
+        color: theme.accentText,
         margin: 0,
         whiteSpace: 'nowrap',
         overflow: 'hidden',
@@ -156,7 +153,8 @@ function ActivityPreview({
   );
 }
 
-function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: User; theme: ThemePalette }) {
+function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
+  const { theme } = useTheme();
   const message = room.lastMessage;
   const previewLength = useMessagePreviewLength();
 
@@ -182,7 +180,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
   if (message.deletedForEveryone) {
     return (
       <p style={previewStyle}>
-        <span style={{ fontStyle: 'italic', opacity: 0.6, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1 }}>
+        <span style={{ fontStyle: 'italic', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1 }}>
           <FaBan size={14} style={{ display: 'block', flexShrink: 0 }} />
           Mensagem deletada
         </span>
@@ -210,7 +208,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
       const truncated = truncate(processSystemMessage(message.content, user.nickname), SYSTEM_PREVIEW_LENGTH);
       const split = splitSystemMessageActor(truncated);
       return (
-        <span style={{ fontStyle: 'italic', opacity: 0.7, color: theme.textSecondary, lineHeight: 1.5 }}>
+        <span style={{ fontStyle: 'italic', color: theme.textMuted, lineHeight: 1.5 }}>
           {split ? (
             <>
               <span style={{ fontWeight: 700 }}>{split.actor}</span>
@@ -237,7 +235,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
       return (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
-          <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? '#2196F3' : '#35dd3b' }} />
+          <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? theme.audioPlayed : theme.audioFresh }} />
           <span style={{ flexShrink: 0, lineHeight: 1.5 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
         </span>
       );
@@ -253,7 +251,7 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
             <FaPaperclip size={12} style={{ flexShrink: 0, display: 'block' }} />
           )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}>
-            {truncate(message.fileMeta?.name ?? 'Arquivo', FILE_NAME_PREVIEW_LENGTH)}
+            {truncate(message.fileMeta?.name ?? 'Arquivo', previewLength)}
           </span>
         </span>
       );
@@ -267,17 +265,19 @@ function LastMessagePreview({ room, user, theme }: { room: RoomSummary; user: Us
     );
   };
 
+  const checkColor = statusInfo?.read ? theme.receiptRead : theme.textMuted;
+
   return (
     <p style={previewStyle}>
       {statusInfo && (
         <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, lineHeight: 1, width: statusInfo.icon === 'double' ? '19px' : '12px' }}>
           {statusInfo.icon === 'double' ? (
             <>
-              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ display: 'block', flexShrink: 0 }} />
-              <FaCheck size={12} color={statusInfo.read ? '#4FC3F7' : '#999'} style={{ display: 'block', marginLeft: '-5px' }} />
+              <FaCheck size={12} color={checkColor} style={{ display: 'block', flexShrink: 0 }} />
+              <FaCheck size={12} color={checkColor} style={{ display: 'block', marginLeft: '-5px' }} />
             </>
           ) : (
-            <FaCheck size={12} color="#999" style={{ display: 'block' }} />
+            <FaCheck size={12} color={theme.textMuted} style={{ display: 'block' }} />
           )}
         </span>
       )}
@@ -291,7 +291,6 @@ export function RoomListItem({
   user,
   isSelected,
   onSelect,
-  theme,
   isSelectionMode,
   isChecked,
   onToggleSelect,
@@ -300,49 +299,36 @@ export function RoomListItem({
   isFavorite,
   isMuted,
 }: RoomListItemProps) {
+  const { theme } = useTheme();
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
+  const hasUnread = room.unreadCount > 0 && !isSelected;
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={isSelectionMode ? onToggleSelect : onSelect}
-      className="animate__animated animate__fadeInLeft animate__faster"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          (isSelectionMode ? onToggleSelect : onSelect)();
+        }
+      }}
+      data-selected={!isSelectionMode && isSelected}
+      data-checked={isSelectionMode && isChecked}
+      className="sc-list-item animate__animated animate__fadeInLeft animate__faster"
       style={{
-        background: isSelectionMode
-          ? isChecked
-            ? `${theme.primary}33`
-            : theme.surface
-          : isSelected
-            ? theme.surfaceLight
-            : theme.surface,
         borderRadius: '12px',
         padding: '12px',
-        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
-        border: '1.5px solid transparent',
-      }}
-      onMouseEnter={(event) => {
-        if (isSelectionMode) {
-          return;
-        }
-        if (!isSelected) {
-          event.currentTarget.style.background = theme.surfaceLight;
-        }
-      }}
-      onMouseLeave={(event) => {
-        if (isSelectionMode) {
-          return;
-        }
-        if (!isSelected) {
-          event.currentTarget.style.background = theme.surface;
-        }
       }}
     >
       {isSelectionMode && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', flexShrink: 0 }}>
-          {isChecked ? <FaCheckSquare size={18} color={theme.primary} /> : <FaSquare size={18} color={theme.border} />}
+          {isChecked ? <FaCheckSquare size={18} color={theme.accentText} /> : <FaSquare size={18} color={theme.borderStrong} />}
         </div>
       )}
       <div
@@ -356,22 +342,22 @@ export function RoomListItem({
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          boxShadow: theme.shadowSm,
         }}
       >
         {avatar.icon}
         {online && (
           <FaCircle
             size={20}
-            color="#4caf50"
+            color={theme.online}
             style={{
               position: 'absolute',
               bottom: '-2px',
               right: '-2px',
-              background: theme.surface,
+              background: theme.sidebar,
               borderRadius: '50%',
               padding: '3px',
-              border: `3px solid ${theme.surface}`,
+              border: `3px solid ${theme.sidebar}`,
             }}
           />
         )}
@@ -386,16 +372,16 @@ export function RoomListItem({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                fontWeight: 600,
-                color: theme.text,
+                fontWeight: hasUnread ? 700 : 600,
+                color: theme.textPrimary,
                 flex: 1,
               }}
             >
               {getRoomDisplayName(room, user.id)}
             </h6>
-            {isFavorite && <FaStar size={12} color="#fbbf24" style={{ flexShrink: 0 }} />}
-            {isMuted && <FaBellSlash size={12} color={theme.textSecondary} style={{ flexShrink: 0 }} title="Conversa silenciada" />}
-            {room.userBlocked && <FaBan size={12} color="#ff4444" style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
+            {isFavorite && <FaStar size={12} color={theme.warning} style={{ flexShrink: 0 }} />}
+            {isMuted && <FaBellSlash size={12} color={theme.textMuted} style={{ flexShrink: 0 }} title="Conversa silenciada" />}
+            {room.userBlocked && <FaBan size={12} color={theme.dangerText} style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
             {room.mentionCount > 0 && (
@@ -409,8 +395,8 @@ export function RoomListItem({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: 'white',
-                  background: '#f59e0b',
+                  color: theme.onWarning,
+                  background: theme.warning,
                   flexShrink: 0,
                 }}
               >
@@ -434,8 +420,9 @@ export function RoomListItem({
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontWeight: 700,
-                      color: 'white',
-                      background: theme.primary,
+                      color: theme.textOnAccent,
+                      background: theme.accent,
+                      boxShadow: theme.shadowAccent,
                       border: 'none',
                       marginRight: '5px',
                       flexShrink: 0,
@@ -445,18 +432,18 @@ export function RoomListItem({
                   </span>
                 );
               })()}
-            {isAssistantRoom(room) && <FaThumbtack size={11} color="#ffffff" style={{ flexShrink: 0 }} title="Conversa fixada" />}
+            {isAssistantRoom(room) && <FaThumbtack size={11} color={theme.accentText} style={{ flexShrink: 0 }} title="Conversa fixada" />}
             {room.lastMessage && (
-              <small style={{ fontSize: '0.7rem', color: theme.textSecondary, flexShrink: 0, fontWeight: 500 }}>
+              <small style={{ fontSize: '0.7rem', color: hasUnread ? theme.accentText : theme.textMuted, flexShrink: 0, fontWeight: hasUnread ? 700 : 500 }}>
                 {new Date(room.lastMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </small>
             )}
           </div>
         </div>
         {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (
-          <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} theme={theme} />
+          <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} />
         ) : (
-          <LastMessagePreview room={room} user={user} theme={theme} />
+          <LastMessagePreview room={room} user={user} />
         )}
       </div>
     </div>

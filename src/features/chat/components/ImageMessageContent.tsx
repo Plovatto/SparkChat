@@ -1,15 +1,15 @@
 import { useState, type CSSProperties } from 'react';
-import type { ThemePalette } from '@features/theme';
+import { useTheme } from '@features/theme';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { ImageModal } from './ImageModal';
 
 interface ImageMessageContentProps {
   message: ChatMessage;
-  theme: ThemePalette;
 }
 
-export function ImageMessageContent({ message, theme }: ImageMessageContentProps) {
+export function ImageMessageContent({ message }: ImageMessageContentProps) {
+  const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [displayHeight, setDisplayHeight] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,7 +35,7 @@ export function ImageMessageContent({ message, theme }: ImageMessageContentProps
                 position: 'absolute',
                 inset: '0 10px',
                 borderRadius: '16px',
-                '--shimmer-a': theme.surfaceLight,
+                '--shimmer-a': theme.skeleton,
               } as CSSProperties
             }
           />
@@ -52,6 +52,7 @@ export function ImageMessageContent({ message, theme }: ImageMessageContentProps
             event.stopPropagation();
             setIsModalOpen(true);
           }}
+          className="sc-media-thumb"
           style={{
             display: 'block',
             width: isLoaded ? '100%' : undefined,
@@ -60,9 +61,7 @@ export function ImageMessageContent({ message, theme }: ImageMessageContentProps
             maxWidth: isLoaded ? undefined : `min(100%, ${CHAT_ATTACHMENT_MAX_WIDTH}px)`,
             maxHeight: isLoaded ? undefined : '320px',
             borderRadius: '16px',
-            cursor: 'pointer',
             opacity: isLoaded ? 1 : 0,
-            transition: 'opacity 0.25s ease',
           }}
         />
       </div>

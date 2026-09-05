@@ -49,13 +49,11 @@ function getLastSeen(participant: RoomParticipant): string {
 interface ActionIconButtonProps {
   onClick: () => void;
   title: string;
-  color: string;
-  background: string;
-  border: string;
+  tone: 'accent' | 'danger';
   children: ReactNode;
 }
 
-function ActionIconButton({ onClick, title, color, background, border, children }: ActionIconButtonProps) {
+function ActionIconButton({ onClick, title, tone, children }: ActionIconButtonProps) {
   return (
     <button
       onClick={(event) => {
@@ -63,32 +61,18 @@ function ActionIconButton({ onClick, title, color, background, border, children 
         onClick();
       }}
       title={title}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '32px',
-        height: '32px',
-        borderRadius: '9px',
-        border: `1.5px solid ${border}`,
-        background,
-        color,
-        cursor: 'pointer',
-        flexShrink: 0,
-        transition: 'transform 0.15s ease, filter 0.15s ease',
-      }}
-      onMouseEnter={(event) => {
-        event.currentTarget.style.transform = 'translateY(-1px)';
-        event.currentTarget.style.filter = 'brightness(1.12)';
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.transform = 'translateY(0)';
-        event.currentTarget.style.filter = 'brightness(1)';
-      }}
+      className={`sc-icon-btn ${tone === 'danger' ? 'sc-icon-btn--outline-danger' : 'sc-icon-btn--outline-accent'}`}
+      style={{ width: '32px', height: '32px' }}
     >
       {children}
     </button>
   );
+}
+
+function SectionDivider() {
+  const { theme } = useTheme();
+
+  return <div style={{ height: '1px', background: theme.borderSubtle, margin: '4px 0' }} />;
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
@@ -160,29 +144,27 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     socket?.emit('group:remove-member', { roomId: room.id, userId });
   };
 
+  const avatarHaloStyle = {
+    borderRadius: '50%',
+    background: theme.accentSoft,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 15px',
+    boxShadow: theme.shadowAccent,
+    position: 'relative' as const,
+    border: `3px solid ${theme.accent}`,
+  };
+
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={room.type === 'group' ? room.name : otherUser?.nickname} theme={theme}>
+      <Modal isOpen={isOpen} onClose={onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {room.type === 'private' && otherUser && (
             <>
               <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <div
-                  style={{
-                    width: '100px',
-                    height: '100px',
-                    borderRadius: '50%',
-                    background: `${theme.primary}20`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 15px',
-                    boxShadow: `0 5px 20px ${theme.primary}20`,
-                    position: 'relative',
-                    border: `3px solid ${theme.primary}`,
-                  }}
-                >
-                  {avatar && <avatar.icon size={50} color={theme.primary} />}
+                <div style={{ ...avatarHaloStyle, width: '100px', height: '100px' }}>
+                  {avatar && <avatar.icon size={50} color={theme.accentText} />}
                   {otherUser.status === 'online' && (
                     <span
                       style={{
@@ -192,49 +174,28 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                         width: '24px',
                         height: '24px',
                         borderRadius: '50%',
-                        background: '#4caf50',
-                        border: '4px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        background: theme.online,
+                        border: `4px solid ${theme.surfaceElevated}`,
+                        boxShadow: theme.shadowSm,
                       }}
                     />
                   )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '0 0 15px 0' }}>
-                  <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{otherUser.nickname}</h3>
+                  <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{otherUser.nickname}</h3>
                   <button
                     onClick={() => clipboard.copy(otherUser.nickname, COPY_KEY_NICKNAME)}
                     title="Copiar username"
-                    style={{
-                      width: '26px',
-                      height: '26px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      background: `${theme.primary}20`,
-                      color: theme.primary,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      alignSelf: 'center',
-                      position: 'relative',
-                      top: '2px',
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      padding: 0,
-                    }}
-                    onMouseEnter={(event) => {
-                      event.currentTarget.style.background = `${theme.primary}30`;
-                    }}
-                    onMouseLeave={(event) => {
-                      event.currentTarget.style.background = `${theme.primary}20`;
-                    }}
+                    className="sc-icon-btn sc-icon-btn--soft"
+                    style={{ width: '26px', height: '26px', borderRadius: '6px', alignSelf: 'center', position: 'relative', top: '2px' }}
                   >
                     {clipboard.isCopied(COPY_KEY_NICKNAME) ? <FaCheck size={13} /> : <FaCopy size={13} />}
                   </button>
                 </div>
               </div>
 
-              <div style={{ padding: '15px', background: theme.background, borderRadius: '12px', border: `1px solid ${theme.border}` }}>
+              <div className="sc-card" style={{ padding: '15px' }}>
                 <div
                   style={{
                     fontSize: '0.85rem',
@@ -250,7 +211,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 <div
                   style={{
                     fontSize: '1rem',
-                    color: otherUser.status === 'online' ? '#4caf50' : theme.text,
+                    color: otherUser.status === 'online' ? theme.successText : theme.textPrimary,
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
@@ -265,63 +226,19 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
               <WallpaperPicker roomId={room.id} />
 
+              <SectionDivider />
+
               <AppearanceEditor roomId={room.id} />
 
               {!isAssistantRoom(room) && (
                 <div style={{ display: 'flex', gap: '10px', paddingTop: '20px', borderTop: `1px solid ${theme.border}` }}>
                   {room.userBlocked ? (
-                    <button
-                      onClick={handleUnblock}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: '#ff9800',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.background = '#e68900';
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.background = '#ff9800';
-                      }}
-                    >
+                    <button onClick={handleUnblock} className="sc-btn sc-btn--warning" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
                       <FaBan size={16} />
                       Desbloquear Usuário
                     </button>
                   ) : (
-                    <button
-                      onClick={handleBlock}
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        background: '#ff4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                      }}
-                      onMouseEnter={(event) => {
-                        event.currentTarget.style.background = '#cc0000';
-                      }}
-                      onMouseLeave={(event) => {
-                        event.currentTarget.style.background = '#ff4444';
-                      }}
-                    >
+                    <button onClick={handleBlock} className="sc-btn sc-btn--danger" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
                       <FaBan size={16} />
                       Bloquear Usuário
                     </button>
@@ -334,54 +251,31 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
           {room.type === 'group' && (
             <>
               <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <div
-                  style={{
-                    width: '90px',
-                    height: '90px',
-                    borderRadius: '50%',
-                    background: `${theme.primary}30`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: '0 auto 15px',
-                    boxShadow: `0 5px 20px ${theme.primary}33`,
-                    border: `3px solid ${theme.primary}`,
-                  }}
-                >
-                  <FaUsers size={45} color={theme.primary} />
+                <div style={{ ...avatarHaloStyle, width: '90px', height: '90px' }}>
+                  <FaUsers size={45} color={theme.accentText} />
                 </div>
 
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.text }}>{room.name}</h3>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{room.name}</h3>
 
                 <div style={{ fontSize: '0.9rem', color: theme.textSecondary, fontWeight: 500 }}>
                   {room.participants.length} {room.participants.length === 1 ? 'membro' : 'membros'}
                 </div>
               </div>
 
-              <div
-                style={{
-                  padding: '15px',
-                  background: theme.background,
-                  borderRadius: '12px',
-                  border: `1px solid ${theme.border}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                }}
-              >
+              <div className="sc-card" style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div
                   style={{
                     width: '42px',
                     height: '42px',
                     borderRadius: '50%',
-                    background: `${theme.primary}20`,
+                    background: theme.accentSoft,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
-                  <FaCrown size={18} color={theme.primary} />
+                  <FaCrown size={18} color={theme.accentText} />
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <div
@@ -398,7 +292,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   <div
                     style={{
                       fontSize: '1rem',
-                      color: theme.text,
+                      color: theme.textPrimary,
                       fontWeight: 600,
                       marginTop: '2px',
                       overflow: 'hidden',
@@ -424,23 +318,13 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                     return (
                       <div
                         key={participant.id}
+                        className="sc-card sc-card--hover"
                         style={{
                           padding: '10px 12px',
-                          background: theme.background,
-                          borderRadius: '12px',
-                          border: `1px solid ${theme.border}`,
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
                           transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-                        }}
-                        onMouseEnter={(event) => {
-                          event.currentTarget.style.borderColor = theme.primary;
-                          event.currentTarget.style.boxShadow = `0 2px 10px ${theme.primary}1A`;
-                        }}
-                        onMouseLeave={(event) => {
-                          event.currentTarget.style.borderColor = theme.border;
-                          event.currentTarget.style.boxShadow = 'none';
                         }}
                       >
                         <div
@@ -449,14 +333,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                             width: '42px',
                             height: '42px',
                             borderRadius: '50%',
-                            background: `${theme.primary}20`,
+                            background: theme.accentSoft,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexShrink: 0,
                           }}
                         >
-                          {participantAvatar && <participantAvatar.icon size={20} color={theme.primary} />}
+                          {participantAvatar && <participantAvatar.icon size={20} color={theme.accentText} />}
                           {participant.status === 'online' && (
                             <span
                               style={{
@@ -466,58 +350,38 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                                 width: '11px',
                                 height: '11px',
                                 borderRadius: '50%',
-                                background: '#4caf50',
-                                border: `2px solid ${theme.background}`,
+                                background: theme.online,
+                                border: `2px solid ${theme.surfaceSunken}`,
                               }}
                             />
                           )}
                         </div>
 
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: theme.text, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ fontWeight: 600, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {getDisplayName(participant.id, participant.nickname, currentUserId)}
                             </span>
-                            {participant.isAdmin && (
-                              <FaCrown size={12} color={theme.primary} title="Administrador" style={{ flexShrink: 0 }} />
-                            )}
+                            {participant.isAdmin && <FaCrown size={12} color={theme.warning} title="Administrador" style={{ flexShrink: 0 }} />}
                           </div>
-                          <div style={{ fontSize: '0.78rem', color: theme.textSecondary, marginTop: '2px' }}>
+                          <div style={{ fontSize: '0.78rem', color: participant.status === 'online' ? theme.successText : theme.textSecondary, marginTop: '2px' }}>
                             {getLastSeen(participant)}
                           </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                          <ActionIconButton
-                            onClick={() => clipboard.copy(participant.nickname, participant.id)}
-                            title="Copiar username"
-                            color={theme.primary}
-                            background={`${theme.primary}15`}
-                            border={theme.primary}
-                          >
+                          <ActionIconButton onClick={() => clipboard.copy(participant.nickname, participant.id)} title="Copiar username" tone="accent">
                             {clipboard.isCopied(participant.id) ? <FaCheck size={13} /> : <FaCopy size={13} />}
                           </ActionIconButton>
 
                           {canManage && !participant.isAdmin && (
-                            <ActionIconButton
-                              onClick={() => handlePromoteAdmin(participant.id)}
-                              title="Promover a administrador"
-                              color={theme.primary}
-                              background={`${theme.primary}15`}
-                              border={theme.primary}
-                            >
+                            <ActionIconButton onClick={() => handlePromoteAdmin(participant.id)} title="Promover a administrador" tone="accent">
                               <FaCrown size={13} />
                             </ActionIconButton>
                           )}
 
                           {canManage && (
-                            <ActionIconButton
-                              onClick={() => handleRemoveMember(participant.id)}
-                              title="Remover do grupo"
-                              color="#f44336"
-                              background="rgba(244, 67, 54, 0.1)"
-                              border="#f44336"
-                            >
+                            <ActionIconButton onClick={() => handleRemoveMember(participant.id)} title="Remover do grupo" tone="danger">
                               <FaUserMinus size={13} />
                             </ActionIconButton>
                           )}
@@ -532,46 +396,20 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
               <WallpaperPicker roomId={room.id} />
 
+              <SectionDivider />
+
               <AppearanceEditor roomId={room.id} />
 
               <div
                 style={{
                   padding: '15px',
-                  background: 'rgba(255, 152, 0, 0.1)',
+                  background: theme.warningSoft,
                   borderRadius: '12px',
-                  border: '1px solid rgba(255, 152, 0, 0.3)',
+                  border: `1px solid ${theme.warning}`,
                   marginTop: '15px',
                 }}
               >
-                <button
-                  onClick={handleLeaveGroup}
-                  style={{
-                    width: '100%',
-                    padding: '12px 15px',
-                    background: '#ff9800',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '0.95rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    boxShadow: '0 2px 8px rgba(255, 152, 0, 0.3)',
-                  }}
-                  onMouseEnter={(event) => {
-                    event.currentTarget.style.background = '#f57c00';
-                    event.currentTarget.style.transform = 'translateY(-2px)';
-                    event.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 152, 0, 0.5)';
-                  }}
-                  onMouseLeave={(event) => {
-                    event.currentTarget.style.background = '#ff9800';
-                    event.currentTarget.style.transform = 'translateY(0)';
-                    event.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 152, 0, 0.3)';
-                  }}
-                >
+                <button onClick={handleLeaveGroup} className="sc-btn sc-btn--warning sc-btn--lift" style={{ width: '100%', padding: '12px 15px', borderRadius: '8px' }}>
                   <FaSignOutAlt size={16} />
                   Sair do Grupo
                 </button>

@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { FaDownload } from 'react-icons/fa';
-import type { ThemePalette } from '@features/theme';
+import { withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { downloadFromUrl } from '@lib/download-file';
 import { formatFileSize } from '@lib/format';
 import type { ChatMessage } from '../types';
-import { resolveBubbleInnerPalette } from '../utils/bubble-palette';
 import type { FileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail, type PdfThumbnail } from '../utils/render-pdf-thumbnail';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -14,17 +13,14 @@ const CHAT_FILE_CARD_MAX_WIDTH = 280;
 
 interface FileMessageContentProps {
   message: ChatMessage;
-  isOwn: boolean;
-  baseTheme: string;
-  theme: ThemePalette;
+  bubble: ResolvedBubbleStyle;
   fileTypeIcon: FileTypeIcon;
 }
 
-export function FileMessageContent({ message, isOwn, baseTheme, theme, fileTypeIcon }: FileMessageContentProps) {
+export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessageContentProps) {
   const isPdf = message.fileMeta?.mimeType === 'application/pdf';
   const [pdfThumbnail, setPdfThumbnail] = useState<PdfThumbnail | null>(null);
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
-  const innerPalette = resolveBubbleInnerPalette(isOwn, baseTheme);
   const fileName = message.fileMeta?.name ?? 'arquivo';
 
   useEffect(() => {
@@ -61,15 +57,30 @@ export function FileMessageContent({ message, isOwn, baseTheme, theme, fileTypeI
             download();
           }
         }}
-        style={{
-          borderRadius: '12px',
-          background: innerPalette.background,
-          cursor: 'pointer',
-          width: '100%',
-          minWidth: '230px',
-          maxWidth: `${CHAT_FILE_CARD_MAX_WIDTH}px`,
-          overflow: 'hidden',
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (isPdf) {
+              setIsPdfPreviewOpen(true);
+            } else {
+              download();
+            }
+          }
         }}
+        className="sc-bubble-card"
+        style={
+          {
+            borderRadius: '12px',
+            background: bubble.innerBackground,
+            width: '100%',
+            minWidth: '180px',
+            maxWidth: `${CHAT_FILE_CARD_MAX_WIDTH}px`,
+            overflow: 'hidden',
+            '--sc-bubble-inner-strong': bubble.innerStrongBackground,
+            '--sc-bubble-text': bubble.textColor,
+          } as CSSProperties
+        }
       >
         {isPdf && pdfThumbnail && (
           <img
@@ -81,31 +92,31 @@ export function FileMessageContent({ message, isOwn, baseTheme, theme, fileTypeI
               maxHeight: '70px',
               objectFit: 'cover',
               objectPosition: 'top',
-              borderBottom: `1px solid ${isOwn ? 'rgba(255, 255, 255, 0.2)' : theme.border}`,
+              borderBottom: `1px solid ${withAlpha(bubble.textColor, 0.2)}`,
             }}
           />
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 12px' }}>
           <div
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '8px',
-              background: `${fileTypeIcon.color}22`,
+              width: '40px',
+              height: '40px',
+              borderRadius: '9px',
+              background: withAlpha(fileTypeIcon.color, 0.18),
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
             }}
           >
-            <fileTypeIcon.icon size={15} color={fileTypeIcon.color} />
+            <fileTypeIcon.icon size={18} color={fileTypeIcon.color} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div
               style={{
                 fontSize: '0.8rem',
                 fontWeight: 700,
-                color: isOwn ? 'white' : theme.text,
+                color: bubble.textColor,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -116,7 +127,7 @@ export function FileMessageContent({ message, isOwn, baseTheme, theme, fileTypeI
             <div
               style={{
                 fontSize: '0.65rem',
-                color: isOwn ? 'rgba(255, 255, 255, 0.75)' : theme.textSecondary,
+                color: bubble.mutedTextColor,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -127,21 +138,16 @@ export function FileMessageContent({ message, isOwn, baseTheme, theme, fileTypeI
             </div>
           </div>
           <button
+            type="button"
             onClick={(event) => {
               event.stopPropagation();
               download();
             }}
             title="Baixar arquivo"
-            style={{
-              background: 'none',
-              border: 'none',
-              padding: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              flexShrink: 0,
-            }}
+            className="sc-icon-btn sc-icon-btn--bubble"
+            style={{ width: '28px', height: '28px' }}
           >
-            <FaDownload size={14} color={isOwn ? 'white' : theme.textSecondary} />
+            <FaDownload size={13} />
           </button>
         </div>
       </div>
