@@ -1,6 +1,6 @@
 import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
-import { ensureRoomKeyForDecryption, getCachedRoomKey } from './room-keys';
+import { ensureRoomKeyForDecryption, getCachedRoomKey, refetchRoomKeyAfterDecryptionFailure } from './room-keys';
 import { getSodium } from './sodium';
 
 const E2E_PREFIX = 'e2e:v1:';
@@ -39,6 +39,17 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
 
   try {
     return await decryptText(content, roomKey);
+  } catch {
+    // Held a key but it does not open this room — replace the local copy from the server and retry.
+  }
+
+  const refetched = await refetchRoomKeyAfterDecryptionFailure(socket, roomId);
+  if (!refetched) {
+    return UNAVAILABLE_PLACEHOLDER;
+  }
+
+  try {
+    return await decryptText(content, refetched);
   } catch {
     return UNAVAILABLE_PLACEHOLDER;
   }

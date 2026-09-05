@@ -107,9 +107,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
       }}
     >
       <Container
-        data-aos="fade-up"
-        data-aos-duration="500"
-        className="animate__animated animate__fadeIn auth-container--form"
+        className="sc-anim-hero-in auth-container--form"
         style={{ maxWidth: '540px', margin: 0 }}
       >
         <Card
@@ -148,7 +146,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
           </div>
 
           <Card.Body style={{ padding: 'clamp(50px, 5vw, 45px) clamp(25px, 5vw, 45px)', background: theme.surfaceElevated }}>
-            {error && <AuthErrorAlert message={error} marginBottom="25px" />}
+            {error && <AuthErrorAlert key={error} message={error} marginBottom="25px" />}
 
             {!useKeyfile ? (
               <Form onSubmit={(event) => void handlePasswordSubmit(event)} autoComplete="off">

@@ -39,7 +39,7 @@ export function AccordionSection({ title, icon, defaultOpen = false, children }:
             display: 'flex',
             alignItems: 'center',
             gap: '7px',
-            transition: 'color 0.16s ease',
+            transition: 'color var(--sc-dur-fast) var(--sc-ease-standard)',
           }}
         >
           {icon} {title}
@@ -47,10 +47,17 @@ export function AccordionSection({ title, icon, defaultOpen = false, children }:
         <FaChevronDown
           size={12}
           color={isOpen ? theme.accentText : theme.textSecondary}
-          style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease, color 0.16s ease' }}
+          style={{
+            transform: isOpen ? 'rotate(180deg)' : 'none',
+            transition: 'transform var(--sc-dur-slow) var(--sc-ease-spring), color var(--sc-dur-fast) var(--sc-ease-standard)',
+          }}
         />
       </button>
-      {isOpen && <div style={{ marginTop: '14px' }}>{children}</div>}
+      {isOpen && (
+        <div className="sc-anim-rise-in" style={{ marginTop: '14px' }}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }

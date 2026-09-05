@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type ClipboardEvent,
   type FormEvent,
   type KeyboardEvent,
@@ -87,7 +88,7 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
 
   return (
     <div
-      className="chat-preview-bar"
+      className="chat-preview-bar sc-anim-rise-in"
       style={{
         background: theme.surfaceSelected,
         borderLeft: `4px solid ${theme.accent}`,
@@ -108,11 +109,9 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
         }}
       >
         {files.map((file, index) => (
-          <PendingAttachmentTile
-            key={`${file.name}-${file.lastModified}-${index}`}
-            file={file}
-            onRemove={onRemove ? () => onRemove(index) : undefined}
-          />
+          <div key={`${file.name}-${file.lastModified}-${index}`} className="sc-anim-pop-in" style={{ display: 'flex', flexShrink: 0 }}>
+            <PendingAttachmentTile file={file} onRemove={onRemove ? () => onRemove(index) : undefined} />
+          </div>
         ))}
       </div>
     </div>
@@ -132,7 +131,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
 
   return (
     <div
-      className="chat-input-bar"
+      className="chat-input-bar sc-anim-fade-in"
       style={{
         background: theme.surface,
         boxShadow: theme.shadowSm,
@@ -161,12 +160,12 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
         }}
       >
         <div
+          className="sc-anim-blink"
           style={{
             width: '8px',
             height: '8px',
             borderRadius: '50%',
             background: theme.danger,
-            animation: 'blink 1s infinite',
             flexShrink: 0,
           }}
         />
@@ -190,7 +189,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
                 height: `${Math.max(15, Math.min(100, level))}%`,
                 background: theme.accent,
                 borderRadius: '3px',
-                transition: 'height 0.08s ease-out',
+                transition: 'height 0.08s var(--sc-ease-standard)',
               }}
             />
           ))}
@@ -202,7 +201,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
       </div>
 
       {recordingTime >= 1 && (
-        <button type="button" onClick={onSend} title="Enviar" className="sc-icon-btn sc-icon-btn--primary" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
+        <button type="button" onClick={onSend} title="Enviar" className="sc-icon-btn sc-icon-btn--primary sc-anim-pop-in" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
           <FaPaperPlane />
         </button>
       )}
@@ -395,7 +394,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     <>
       {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
       {pendingAttachments.length === 0 && linkPreview.preview && (
-        <div style={{ padding: '10px 14px 0', background: theme.surface }}>
+        <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
           <LinkPreviewCard preview={linkPreview.preview} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
         </div>
       )}
@@ -426,7 +425,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isBlocked}
               title={blockedTitle ?? 'Enviar anexo'}
-              className="sc-icon-btn sc-icon-btn--muted"
+              className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
             >
               <FaPaperclip size={18} />
@@ -436,7 +435,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               onClick={() => void handleMicClick()}
               disabled={isBlocked}
               title={blockedTitle ?? 'Gravar áudio'}
-              className="sc-icon-btn sc-icon-btn--muted"
+              className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
             >
               <FaMicrophone size={18} />
@@ -446,6 +445,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
           {mentionQuery !== null && filteredMentionCandidates.length > 0 && (
             <div
+              className="sc-anim-rise-in"
               style={{
                 position: 'absolute',
                 bottom: 'calc(100% + 8px)',
@@ -458,6 +458,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 overflow: 'hidden',
                 zIndex: 20,
                 padding: '4px',
+                transformOrigin: 'bottom center',
               }}
             >
               {filteredMentionCandidates.map((candidate, index) => (
@@ -471,13 +472,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                   }}
                   onMouseEnter={() => setMentionActiveIndex(index)}
                   data-active={index === mentionActiveIndex}
-                  className="sc-menu-item"
-                  style={{
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    fontWeight: 600,
-                  }}
+                  className="sc-menu-item sc-anim-rise-in sc-stagger"
+                  style={
+                    {
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      '--sc-stagger-index': index,
+                      '--sc-stagger-step': '30ms',
+                    } as CSSProperties
+                  }
                 >
                   @{candidate.nickname}
                 </div>
@@ -508,7 +513,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <button
             type="submit"
             title="Enviar"
-            className="sc-icon-btn sc-icon-btn--gradient send-button-appear"
+            className="sc-icon-btn sc-icon-btn--gradient sc-anim-send-in"
             style={{ width: '44px', height: '44px', fontSize: '1rem' }}
           >
             <FaPaperPlane />

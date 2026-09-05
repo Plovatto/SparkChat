@@ -4,6 +4,7 @@ import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-ico
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
+import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { resolveActiveUserNames } from '@lib/format';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
@@ -47,11 +48,12 @@ const DATE_CHIP_STYLE: CSSProperties = {
   borderRadius: '999px',
   backdropFilter: 'blur(6px)',
   WebkitBackdropFilter: 'blur(6px)',
-  transition: 'opacity 0.3s ease',
+  transition: 'opacity var(--sc-dur-slow) var(--sc-ease-standard)',
 };
 
 const STICKY_DATE_TOP_PX = 8;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
+const ENTRANCE_CASCADE_MAX_INDEX = 7;
 
 const UPLOADING_LABEL: Record<AttachmentMessageType | 'audio', string> = {
   image: 'Enviando imagem...',
@@ -240,7 +242,7 @@ function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%' }: Ch
 
   return (
     <div
-      className="animate__animated animate__fadeInUp animate__faster"
+      className="sc-anim-rise-in"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -276,6 +278,7 @@ function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
 
   return (
     <div
+      className="sc-anim-rise-in"
       style={{
         background,
         color,
@@ -322,7 +325,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     loadOlderMessages,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
+  const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
+  const lastRepliedMessageRef = useRef<MessageView | null>(null);
   const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  const entranceIndexByKey = useMemo(() => {
+    const lastIndex = renderItems.length - 1;
+    return new Map(renderItems.map((item, index) => [renderItemKey(item), Math.min(lastIndex - index, ENTRANCE_CASCADE_MAX_INDEX)]));
+  }, [renderItems]);
   const dayGroups = useMemo(() => buildDayGroups(renderItems), [renderItems]);
   const visibleReceipts = useMemo(
     () => buildVisibleReceipts(renderItems, room?.type === 'group', room?.participants ?? [], user.id),
@@ -351,6 +360,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const replyPresence = usePresence(repliedMessage !== null, MOTION_DURATION_MS.fast);
 
   useLayoutEffect(() => {
     if (!selectedMessageId) {
@@ -573,6 +583,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       return;
     }
     if (container.scrollTop < 150) {
+      suspendEntrance();
       loadOlderMessages();
     }
   };
@@ -740,9 +751,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const recordingText = getRecordingText(recordingUserIds, room.participants);
   const typingText = getTypingText(typingUserIds, room.participants);
 
+  if (repliedMessage) {
+    lastRepliedMessageRef.current = repliedMessage;
+  }
+  const replyPreviewMessage = repliedMessage ?? lastRepliedMessageRef.current;
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.canvas }}>
-      <ChatHeader room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
+      <ChatHeader key={room.id} room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
       <RoomInfoPanel
         isOpen={isInfoOpen}
         onClose={() => setIsInfoOpen(false)}
@@ -762,7 +778,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
         {isDraggingFile && (
           <div
-            className="sc-drop-zone"
+            className="sc-drop-zone sc-anim-fade-in"
             style={{
               position: 'absolute',
               inset: '8px',
@@ -775,6 +791,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
             }}
           >
             <div
+              className="sc-anim-pop-in"
               style={{
                 background: theme.surfaceElevated,
                 color: theme.accentText,
@@ -834,9 +851,16 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                   gap: '12px',
                 }}
               >
-                <FaComments size={40} style={{ color: theme.accentText, opacity: 0.6 }} />
-                <div>Nenhuma mensagem ainda</div>
-                <div style={{ fontSize: '0.9rem', color: theme.textMuted }}>Comece a conversa enviando uma mensagem!</div>
+                <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
+                <div className="sc-anim-rise-in sc-stagger" style={{ '--sc-stagger-index': 1 } as CSSProperties}>
+                  Nenhuma mensagem ainda
+                </div>
+                <div
+                  className="sc-anim-rise-in sc-stagger"
+                  style={{ fontSize: '0.9rem', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
+                >
+                  Comece a conversa enviando uma mensagem!
+                </div>
               </div>
             ) : (
               <>
@@ -875,6 +899,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                         const anchorMessage = renderItemAnchorMessage(item);
                         const isOwn = anchorMessage.sender.id === user.id;
                         const itemKey = renderItemKey(item);
+                        const entrancePhase = getEntrancePhase();
+                        const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
 
                         return (
                           <div key={itemKey} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
@@ -897,6 +923,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onForward={() => setForwardingMessage(item.message)}
                                 onAudioPlayed={handleAudioPlayed}
                                 onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
+                                entrancePhase={entrancePhase}
+                                entranceIndex={entranceIndex}
                               />
                             ) : (
                               <ImageGroupBubble
@@ -913,6 +941,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
                                 onForward={() => setForwardingMessage(anchorMessage)}
                                 onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
+                                entrancePhase={entrancePhase}
+                                entranceIndex={entranceIndex}
                               />
                             )}
                           </div>
@@ -928,12 +958,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               <ChatStatusPill
                 indicator={
                   <div
+                    className="sc-anim-blink"
                     style={{
                       width: '8px',
                       height: '8px',
                       borderRadius: '100%',
                       background: theme.accent,
-                      animation: 'blink 1s infinite',
                       flexShrink: 0,
                     }}
                   />
@@ -950,14 +980,16 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                     {[0, 1, 2].map((index) => (
                       <span
                         key={index}
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          background: theme.accent,
-                          borderRadius: '50%',
-                          animation: 'typing 1.4s infinite',
-                          animationDelay: `${index * 0.2}s`,
-                        }}
+                        className="sc-anim-typing-dot"
+                        style={
+                          {
+                            width: '8px',
+                            height: '8px',
+                            background: theme.accent,
+                            borderRadius: '50%',
+                            '--sc-anim-delay': `${index * 150}ms`,
+                          } as CSSProperties
+                        }
                       />
                     ))}
                   </div>
@@ -992,7 +1024,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               border: `1px solid ${theme.border}`,
               zIndex: 5,
               opacity: isAtBottom ? 0 : 1,
-              transform: isAtBottom ? 'scale(0.85)' : undefined,
+              transform: isAtBottom ? 'translateY(10px) scale(0.7)' : undefined,
               pointerEvents: isAtBottom ? 'none' : 'auto',
             }}
           >
@@ -1009,7 +1041,15 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text="Você foi bloqueado por este usuário" />
       )}
 
-      {repliedMessage && <ReplyPreviewBar message={repliedMessage} currentUserId={user.id} onCancel={() => setRepliedMessage(null)} />}
+      {replyPresence.isPresent && replyPreviewMessage && (
+        <ReplyPreviewBar
+          key={replyPreviewMessage.id}
+          message={replyPreviewMessage}
+          currentUserId={user.id}
+          isExiting={replyPresence.isExiting}
+          onCancel={() => setRepliedMessage(null)}
+        />
+      )}
 
       <MessageInput
         ref={messageInputRef}

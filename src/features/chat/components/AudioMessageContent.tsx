@@ -178,7 +178,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
                   height: `${barHeight}%`,
                   background: isPlayedBar ? stateColor : idleBarColor,
                   borderRadius: '50%',
-                  transition: 'background 0.1s ease',
+                  transition: 'background var(--sc-dur-instant) var(--sc-ease-standard)',
                   position: 'relative',
                 }}
               />
@@ -197,7 +197,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
               background: stateColor,
               boxShadow: `0 0 8px ${withAlpha(stateColor, 0.8)}`,
               pointerEvents: 'none',
-              transition: 'left 0.05s linear',
+              transition: 'left 0.05s linear, background var(--sc-dur-fast) var(--sc-ease-standard)',
             }}
           />
         </div>
