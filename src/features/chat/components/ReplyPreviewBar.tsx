@@ -8,10 +8,11 @@ import { getFileTypeIcon } from '../utils/get-file-type-icon';
 interface ReplyPreviewBarProps {
   message: MessageView;
   currentUserId: string;
+  isExiting?: boolean;
   onCancel: () => void;
 }
 
-export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPreviewBarProps) {
+export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onCancel }: ReplyPreviewBarProps) {
   const { theme } = useTheme();
   const isVideo = message.type === 'file' && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
   const videoThumbnail = useReplyVideoThumbnail(isVideo, message.content);
@@ -68,7 +69,7 @@ export function ReplyPreviewBar({ message, currentUserId, onCancel }: ReplyPrevi
 
   return (
     <div
-      className="chat-preview-bar"
+      className={`chat-preview-bar ${isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
       style={{
         background: theme.surfaceSelected,
         borderLeft: `4px solid ${theme.accent}`,

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type CSSProperties, type WheelEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { downloadFromUrl } from '@lib/download-file';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
@@ -30,7 +31,6 @@ const ZOOM_STEP = 0.2;
 const NAV_BUTTON_STYLE: CSSProperties = {
   position: 'fixed',
   top: '50%',
-  transform: 'translateY(-50%)',
   zIndex: 10055,
   width: 'clamp(38px, 10vw, 48px)',
   height: 'clamp(38px, 10vw, 48px)',
@@ -40,7 +40,13 @@ const NAV_BUTTON_STYLE: CSSProperties = {
 export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose }: ImageModalProps) {
   const [zoom, setZoom] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
+  const lastImagesRef = useRef<string[]>([]);
   const hasMultiple = images.length > 1;
+
+  if (isOpen && images.length > 0) {
+    lastImagesRef.current = images;
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -78,11 +84,16 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, hasMultiple, goToPrevious, goToNext]);
 
-  const currentSrc = images[currentIndex] ?? images[0];
+  const displayImages = isOpen ? images : lastImagesRef.current;
+  const currentSrc = displayImages[currentIndex] ?? displayImages[0];
+  const showsMultiple = displayImages.length > 1;
 
-  if (!isOpen || !currentSrc) {
+  if (!isPresent || !currentSrc) {
     return null;
   }
+
+  const exitClassName = isExiting ? ' is-exiting' : '';
+  const chromeClassName = isExiting ? 'sc-anim-fade-out' : 'sc-anim-media-chrome-in';
 
   const handleZoomIn = () => setZoom((previous) => Math.min(previous + ZOOM_STEP, MAX_ZOOM));
   const handleZoomOut = () => setZoom((previous) => Math.max(previous - ZOOM_STEP, MIN_ZOOM));
@@ -97,7 +108,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
 
   return createPortal(
     <>
-      <div style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
+      <div className={`sc-modal-backdrop${exitClassName}`} style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
 
       <div
         style={{
@@ -115,6 +126,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
         }}
       >
         <div
+          className={chromeClassName}
           style={{
             ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
@@ -125,7 +137,6 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             gap: 'clamp(2px, 1vw, 6px)',
             zIndex: 10055,
             padding: '6px',
-            animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
           <OverlayIconButton onClick={handleZoomOut} title="Diminuir zoom (-)">
@@ -165,8 +176,9 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
           </OverlayIconButton>
         </div>
 
-        {hasMultiple && (
+        {showsMultiple && (
           <div
+            className={chromeClassName}
             style={{
               ...MEDIA_VIEWER_CHROME_STYLE,
               position: 'absolute',
@@ -179,11 +191,11 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
               fontWeight: 700,
             }}
           >
-            {currentIndex + 1} / {images.length}
+            {currentIndex + 1} / {displayImages.length}
           </div>
         )}
 
-        {hasMultiple && (
+        {showsMultiple && (
           <>
             <button
               onClick={(event) => {
@@ -191,7 +203,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToPrevious();
               }}
               title="Imagem anterior"
-              className="sc-icon-btn sc-icon-btn--scrim-solid"
+              className="sc-icon-btn sc-icon-btn--scrim-solid sc-media-nav-btn"
               style={{ ...NAV_BUTTON_STYLE, left: 'max(12px, env(safe-area-inset-left))' }}
             >
               <FaChevronLeft />
@@ -202,7 +214,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToNext();
               }}
               title="Próxima imagem"
-              className="sc-icon-btn sc-icon-btn--scrim-solid"
+              className="sc-icon-btn sc-icon-btn--scrim-solid sc-media-nav-btn"
               style={{ ...NAV_BUTTON_STYLE, right: 'max(12px, env(safe-area-inset-right))' }}
             >
               <FaChevronRight />
@@ -211,6 +223,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
         )}
 
         <div
+          className={isExiting ? 'sc-anim-media-content-out' : 'sc-anim-media-content-in'}
           style={{
             position: 'relative',
             maxHeight: '85vh',
@@ -218,12 +231,13 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            animation: 'mediaOverlayZoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
           }}
           onWheel={handleWheel}
         >
           <img
+            key={currentSrc}
             src={currentSrc}
+            className="sc-anim-fade-in"
             alt="Imagem expandida"
             style={{
               maxHeight: '85vh',
@@ -232,7 +246,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
               borderRadius: '16px',
               boxShadow: MEDIA_VIEWER_CONTENT_SHADOW,
               transform: `scale(${zoom})`,
-              transition: 'transform 0.2s ease',
+              transition: 'transform var(--sc-dur-normal) var(--sc-ease-spring-soft)',
               cursor: 'grab',
             }}
             onMouseDown={(event) => {

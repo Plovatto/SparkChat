@@ -20,7 +20,7 @@ export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry }: Mes
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
       <span style={{ fontSize: '0.7rem', color: bubble.mutedTextColor, fontWeight: 500 }}>{format(new Date(message.timestamp), 'HH:mm')}</span>
       {message.pending ? (
-        <FaRegClock size={11} color={bubble.mutedTextColor} />
+        <FaRegClock size={11} color={bubble.mutedTextColor} className="sc-anim-pulse-soft" />
       ) : message.failed ? (
         <button
           onClick={(event) => {
@@ -28,7 +28,7 @@ export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry }: Mes
             onRetry();
           }}
           title="Falha ao enviar. Toque para reenviar."
-          className="sc-icon-btn"
+          className="sc-icon-btn sc-anim-badge-pop"
           style={{ width: '20px', height: '20px', background: 'transparent', color: isOwn ? bubble.textColor : theme.dangerText }}
         >
           <FaExclamationCircle size={12} />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
@@ -23,6 +24,8 @@ interface ImageGroupBubbleProps {
   onDelete: () => void;
   onForward: () => void;
   onRetry: () => void;
+  entrancePhase?: EntrancePhase;
+  entranceIndex?: number;
 }
 
 const MAX_GROUP_TILES = 4;
@@ -41,9 +44,14 @@ export function ImageGroupBubble({
   onDelete,
   onForward,
   onRetry,
+  entrancePhase = 'none',
+  entranceIndex = 0,
 }: ImageGroupBubbleProps) {
   const { theme, getRoomAppearance } = useTheme();
   const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const [entrance] = useState(entrancePhase);
+  const [staggerIndex] = useState(entranceIndex);
+  const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
   const anchor = images[images.length - 1] ?? images[0];
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
   const statusInfo = anchor ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null;
@@ -66,11 +74,21 @@ export function ImageGroupBubble({
       isSelected={isSelected}
       onSelect={onSelect}
       padding="4px 0 6px"
+      entrancePhase={entrance}
+      entranceIndex={staggerIndex}
       cornerRadius={20}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {isSelected && <MessageActionsRow isOwn={isOwn} onReply={onReply} onDelete={onDelete} onForward={onForward} />}
+          {actionsPresence.isPresent && (
+            <MessageActionsRow
+              isOwn={isOwn}
+              isExiting={actionsPresence.isExiting}
+              onReply={onReply}
+              onDelete={onDelete}
+              onForward={onForward}
+            />
+          )}
           <ImageModal
             isOpen={modalIndex !== null}
             images={images.map((image) => image.content)}
