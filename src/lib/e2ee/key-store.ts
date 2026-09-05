@@ -115,6 +115,21 @@ export async function loadRoomKey(roomId: string): Promise<Uint8Array | null> {
   }
 }
 
+export async function deleteRoomKey(roomId: string): Promise<void> {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(ROOM_KEYS_STORE_NAME, 'readwrite');
+      tx.objectStore(ROOM_KEYS_STORE_NAME).delete(roomId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('Falha ao remover a chave da sala.'));
+    });
+    db.close();
+  } catch {
+    return;
+  }
+}
+
 export async function clearRoomKeyStore(): Promise<void> {
   try {
     const db = await openDb();
