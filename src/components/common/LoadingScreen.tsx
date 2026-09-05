@@ -1,9 +1,14 @@
 import Logo from '@/assets/Logo.svg';
-import { useTheme } from '@features/theme';
+import { buildTheme, withAlpha, type ThemeTokens } from '@features/theme';
 
-export function LoadingScreen() {
-  const { theme } = useTheme();
-  const gradient = `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 50%, ${theme.primary} 100%)`;
+const DEFAULT_LOADING_THEME = buildTheme('dark', 'standard').tokens;
+
+interface LoadingScreenProps {
+  theme?: ThemeTokens;
+}
+
+export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenProps) {
+  const ink = theme.onGradient;
 
   return (
     <div
@@ -13,7 +18,7 @@ export function LoadingScreen() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: gradient,
+        background: theme.gradient,
         overflow: 'hidden',
       }}
     >
@@ -23,7 +28,7 @@ export function LoadingScreen() {
           width: '400px',
           height: '400px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%)',
+          background: `radial-gradient(circle, ${withAlpha(ink, 0.15)} 0%, ${withAlpha(ink, 0.05)} 100%)`,
           top: '-150px',
           left: '-150px',
           animation: 'loadingFloat 8s ease-in-out infinite',
@@ -35,7 +40,7 @@ export function LoadingScreen() {
           width: '300px',
           height: '300px',
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%)',
+          background: `radial-gradient(circle, ${withAlpha(ink, 0.1)} 0%, ${withAlpha(ink, 0.02)} 100%)`,
           bottom: '-100px',
           right: '-100px',
           animation: 'loadingFloat 10s ease-in-out infinite reverse',
@@ -50,8 +55,8 @@ export function LoadingScreen() {
               position: 'absolute',
               width: '100%',
               height: '100%',
-              border: '4px solid rgba(255, 255, 255, 0.25)',
-              borderTop: '4px solid rgba(255, 255, 255, 0.8)',
+              border: `4px solid ${withAlpha(ink, 0.25)}`,
+              borderTop: `4px solid ${withAlpha(ink, 0.85)}`,
               borderRadius: '50%',
             }}
           />
@@ -62,8 +67,8 @@ export function LoadingScreen() {
               height: '70px',
               top: '15px',
               left: '15px',
-              border: '3px solid rgba(255, 255, 255, 0.15)',
-              borderBottom: '3px solid rgba(255, 255, 255, 0.7)',
+              border: `3px solid ${withAlpha(ink, 0.15)}`,
+              borderBottom: `3px solid ${withAlpha(ink, 0.7)}`,
               borderRadius: '50%',
               animation: 'spin 1.5s linear infinite reverse',
             }}
@@ -73,19 +78,19 @@ export function LoadingScreen() {
               position: 'absolute',
               width: '12px',
               height: '12px',
-              background: 'rgba(255, 255, 255, 0.9)',
+              background: withAlpha(ink, 0.9),
               borderRadius: '50%',
               top: '50%',
               left: '50%',
               transform: 'translate(-50%, -50%)',
-              boxShadow: '0 0 20px rgba(255, 255, 255, 0.4)',
+              boxShadow: `0 0 20px ${withAlpha(ink, 0.4)}`,
             }}
           />
         </div>
 
         <h2
           style={{
-            color: 'white',
+            color: ink,
             fontWeight: 700,
             marginBottom: '15px',
             fontSize: '2rem',
@@ -98,7 +103,7 @@ export function LoadingScreen() {
         </h2>
         <p
           style={{
-            color: 'rgba(255, 255, 255, 0.95)',
+            color: withAlpha(ink, 0.92),
             fontSize: '1.1rem',
             animation: 'loadingPulse 2s ease-in-out infinite',
             letterSpacing: '0.5px',
