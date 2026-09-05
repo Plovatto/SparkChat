@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { downloadFromUrl } from '@lib/download-file';
+import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
 function deriveImageFileName(url: string): string {
   try {
@@ -31,26 +32,9 @@ const NAV_BUTTON_STYLE: CSSProperties = {
   top: '50%',
   transform: 'translateY(-50%)',
   zIndex: 10055,
-  background: 'rgba(0, 0, 0, 0.6)',
-  border: '2px solid rgba(255, 255, 255, 0.25)',
-  color: 'white',
   width: 'clamp(38px, 10vw, 48px)',
   height: 'clamp(38px, 10vw, 48px)',
-  borderRadius: '50%',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  transition: 'background 0.2s ease',
   fontSize: '18px',
-};
-
-const CONTROL_DIVIDER_STYLE: CSSProperties = {
-  width: '1px',
-  height: '22px',
-  background: 'rgba(255, 255, 255, 0.25)',
-  margin: '0 2px',
-  flexShrink: 0,
 };
 
 export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose }: ImageModalProps) {
@@ -113,21 +97,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
 
   return createPortal(
     <>
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          zIndex: 10040,
-          animation: 'mediaOverlayFadeIn 0.3s ease-out',
-        }}
-        onClick={onClose}
-      />
+      <div style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
 
       <div
         style={{
@@ -146,6 +116,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
       >
         <div
           style={{
+            ...MEDIA_VIEWER_CHROME_STYLE,
             position: 'absolute',
             top: 'max(16px, env(safe-area-inset-top))',
             right: 'max(16px, env(safe-area-inset-right))',
@@ -153,13 +124,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             alignItems: 'center',
             gap: 'clamp(2px, 1vw, 6px)',
             zIndex: 10055,
-            background: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderRadius: '999px',
             padding: '6px',
-            border: '2px solid rgba(255, 255, 255, 0.25)',
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
             animation: 'mediaOverlaySlideDown 0.4s ease-out',
           }}
         >
@@ -169,7 +134,6 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
 
           <div
             style={{
-              color: 'white',
               fontSize: '13px',
               fontWeight: 700,
               minWidth: '44px',
@@ -185,7 +149,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             <FaPlus />
           </OverlayIconButton>
 
-          <div style={CONTROL_DIVIDER_STYLE} />
+          <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
           <OverlayIconButton
             onClick={() => void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentSrc))}
@@ -194,7 +158,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
             <FaDownload />
           </OverlayIconButton>
 
-          <div style={CONTROL_DIVIDER_STYLE} />
+          <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
           <OverlayIconButton onClick={onClose} title="Fechar imagem (ESC)" variant="danger">
             <FaTimes />
@@ -204,17 +168,13 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
         {hasMultiple && (
           <div
             style={{
+              ...MEDIA_VIEWER_CHROME_STYLE,
               position: 'absolute',
               top: 'max(16px, env(safe-area-inset-top))',
               left: 'max(16px, env(safe-area-inset-left))',
               zIndex: 10055,
-              background: 'rgba(0, 0, 0, 0.75)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              borderRadius: '999px',
+              boxShadow: 'none',
               padding: '8px 16px',
-              border: '2px solid rgba(255, 255, 255, 0.25)',
-              color: 'white',
               fontSize: '13px',
               fontWeight: 700,
             }}
@@ -231,13 +191,8 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToPrevious();
               }}
               title="Imagem anterior"
+              className="sc-icon-btn sc-icon-btn--scrim-solid"
               style={{ ...NAV_BUTTON_STYLE, left: 'max(12px, env(safe-area-inset-left))' }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
-              }}
             >
               <FaChevronLeft />
             </button>
@@ -247,13 +202,8 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
                 goToNext();
               }}
               title="Próxima imagem"
+              className="sc-icon-btn sc-icon-btn--scrim-solid"
               style={{ ...NAV_BUTTON_STYLE, right: 'max(12px, env(safe-area-inset-right))' }}
-              onMouseEnter={(event) => {
-                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.8)';
-              }}
-              onMouseLeave={(event) => {
-                event.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
-              }}
             >
               <FaChevronRight />
             </button>
@@ -280,7 +230,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
               maxWidth: '95vw',
               objectFit: 'contain',
               borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.4)',
+              boxShadow: MEDIA_VIEWER_CONTENT_SHADOW,
               transform: `scale(${zoom})`,
               transition: 'transform 0.2s ease',
               cursor: 'grab',

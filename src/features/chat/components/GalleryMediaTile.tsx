@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { FaPlay } from 'react-icons/fa';
-import type { ThemePalette } from '@features/theme';
+import { useTheme, withAlpha } from '@features/theme';
 import type { MessageView } from '@lib/socket';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail } from '../utils/render-pdf-thumbnail';
@@ -10,10 +10,10 @@ const GALLERY_TILE_RENDER_WIDTH = 240;
 
 interface GalleryMediaTileProps {
   message: MessageView;
-  theme: ThemePalette;
 }
 
-export function GalleryMediaTile({ message, theme }: GalleryMediaTileProps) {
+export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
+  const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
   const isImage = message.type === 'image';
@@ -70,7 +70,7 @@ export function GalleryMediaTile({ message, theme }: GalleryMediaTileProps) {
               {
                 position: 'absolute',
                 inset: 0,
-                '--shimmer-a': theme.surfaceLight,
+                '--shimmer-a': theme.skeleton,
               } as CSSProperties
             }
           />
@@ -104,13 +104,13 @@ export function GalleryMediaTile({ message, theme }: GalleryMediaTileProps) {
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                background: 'rgba(0, 0, 0, 0.55)',
+                background: theme.scrim,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <FaPlay size={11} color="white" style={{ marginLeft: 2 }} />
+              <FaPlay size={11} color={theme.onScrim} style={{ marginLeft: 2 }} />
             </div>
           </div>
         )}
@@ -131,7 +131,7 @@ export function GalleryMediaTile({ message, theme }: GalleryMediaTileProps) {
         alignItems: 'center',
         justifyContent: 'center',
         gap: '6px',
-        background: `${fileIcon.color}18`,
+        background: withAlpha(fileIcon.color, 0.12),
         padding: '8px',
         boxSizing: 'border-box',
       }}

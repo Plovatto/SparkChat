@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createAudioContext } from '@lib/audio/shared-audio-context';
 
-const WAVEFORM_BAR_COUNT = 40;
+const WAVEFORM_BAR_COUNT = 32;
 const waveformCache = new Map<string, number[]>();
 
 function silentWaveform(): number[] {

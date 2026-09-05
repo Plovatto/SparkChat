@@ -63,15 +63,14 @@ export function ImageGroupBubble({
       senderId={anchor.sender.id}
       senderNickname={anchor.sender.nickname}
       currentUserId={currentUserId}
+      isSelected={isSelected}
       onSelect={onSelect}
       padding="4px 0 6px"
       cornerRadius={20}
       afterBubble={
         <>
-          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} theme={theme} />}
-          {isSelected && (
-            <MessageActionsRow isOwn={isOwn} theme={theme} onReply={onReply} onDelete={onDelete} onForward={onForward} />
-          )}
+          {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
+          {isSelected && <MessageActionsRow isOwn={isOwn} onReply={onReply} onDelete={onDelete} onForward={onForward} />}
           <ImageModal
             isOpen={modalIndex !== null}
             images={images.map((image) => image.content)}
@@ -98,12 +97,13 @@ export function ImageGroupBubble({
                 event.stopPropagation();
                 setModalIndex(index);
               }}
+              className="sc-media-thumb"
               style={{
                 position: 'relative',
                 aspectRatio: '1',
                 borderRadius: '14px',
                 overflow: 'hidden',
-                cursor: 'pointer',
+                background: theme.skeleton,
               }}
             >
               <img
@@ -116,11 +116,11 @@ export function ImageGroupBubble({
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'rgba(0, 0, 0, 0.5)',
+                    background: theme.scrim,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'white',
+                    color: theme.onScrim,
                     fontSize: '1.3rem',
                     fontWeight: 700,
                   }}
@@ -133,7 +133,7 @@ export function ImageGroupBubble({
         })}
       </div>
 
-      <MessageMeta message={anchor} isOwn={isOwn} textColor={bubbleStyle.textColor} statusInfo={statusInfo} onRetry={onRetry} />
+      <MessageMeta message={anchor} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={onRetry} />
     </MessageBubbleShell>
   );
 }

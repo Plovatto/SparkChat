@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FaPlay, FaTimes } from 'react-icons/fa';
-import type { ThemePalette } from '@features/theme';
+import { useTheme } from '@features/theme';
 import { formatFileSize } from '@lib/format';
 import { getAttachmentKind } from '../utils/get-attachment-kind';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
@@ -12,13 +12,13 @@ import { VideoPreviewModal } from './VideoPreviewModal';
 
 interface PendingAttachmentTileProps {
   file: File;
-  theme: ThemePalette;
   onRemove?: () => void;
 }
 
 const PENDING_ATTACHMENT_TILE_SIZE = 76;
 
-export function PendingAttachmentTile({ file, theme, onRemove }: PendingAttachmentTileProps) {
+export function PendingAttachmentTile({ file, onRemove }: PendingAttachmentTileProps) {
+  const { theme } = useTheme();
   const kind = getAttachmentKind(file.type);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -63,13 +63,14 @@ export function PendingAttachmentTile({ file, theme, onRemove }: PendingAttachme
           onClick={() => canPreview && setIsPreviewOpen(true)}
           role={canPreview ? 'button' : undefined}
           tabIndex={canPreview ? 0 : undefined}
+          className={canPreview ? 'sc-tile' : undefined}
           style={{
             position: 'relative',
             width: PENDING_ATTACHMENT_TILE_SIZE,
             height: PENDING_ATTACHMENT_TILE_SIZE,
             borderRadius: 10,
             overflow: 'hidden',
-            background: theme.surface,
+            background: theme.surfaceElevated,
             border: `1px solid ${theme.border}`,
             display: 'flex',
             alignItems: 'center',
@@ -98,39 +99,33 @@ export function PendingAttachmentTile({ file, theme, onRemove }: PendingAttachme
                   width: 26,
                   height: 26,
                   borderRadius: '50%',
-                  background: 'rgba(0, 0, 0, 0.55)',
+                  background: theme.scrim,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <FaPlay size={10} color="white" style={{ marginLeft: 2 }} />
+                <FaPlay size={10} color={theme.onScrim} style={{ marginLeft: 2 }} />
               </div>
             </div>
           )}
         </div>
         {onRemove && (
           <button
+            type="button"
             onClick={(event) => {
               event.stopPropagation();
               onRemove();
             }}
             title="Remover"
+            className="sc-icon-btn sc-icon-btn--danger"
             style={{
               position: 'absolute',
               top: -6,
               right: -6,
               width: 20,
               height: 20,
-              borderRadius: '50%',
-              background: '#ef4444',
-              color: 'white',
-              border: `2px solid ${theme.surfaceLight}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              padding: 0,
+              border: `2px solid ${theme.surfaceElevated}`,
             }}
           >
             <FaTimes size={9} />
