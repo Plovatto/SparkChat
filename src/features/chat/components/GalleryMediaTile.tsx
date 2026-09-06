@@ -58,7 +58,7 @@ export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
     };
   }, [isPdf, message.content]);
 
-  const thumbnailSrc = isImage ? message.content : generatedThumbnail;
+  const thumbnailSrc = isImage ? (message.fileMeta?.thumbnailUrl ?? message.content) : generatedThumbnail;
 
   if (thumbnailSrc) {
     return (

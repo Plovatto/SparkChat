@@ -169,10 +169,20 @@ interface ChatShellProps {
   onLogout: () => void;
 }
 
+function lastRoomStorageKey(userId: string): string {
+  return `sparkchat:last-room:${userId}`;
+}
+
 function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { socket, connected } = useSocket();
   const { theme } = useTheme();
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(lastRoomStorageKey(user.id));
+    } catch {
+      return null;
+    }
+  });
   const isWideLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
@@ -198,6 +208,18 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   useEnsureAssistantChat(rooms, isLoaded);
 
   const handleSelectRoom = useCallback((room: RoomSummary) => setSelectedRoomId(room.id), []);
+
+  useEffect(() => {
+    try {
+      if (selectedRoomId) {
+        localStorage.setItem(lastRoomStorageKey(user.id), selectedRoomId);
+      } else {
+        localStorage.removeItem(lastRoomStorageKey(user.id));
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }, [selectedRoomId, user.id]);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {

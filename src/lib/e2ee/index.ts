@@ -19,6 +19,7 @@ export {
   trackRoomParticipants,
 } from './room-keys';
 export {
+  decryptMediaContentIfNeeded,
   decryptMessageView,
   decryptMessageViews,
   decryptRoomSummaries,
