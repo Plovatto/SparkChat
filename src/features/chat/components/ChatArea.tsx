@@ -399,15 +399,33 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       return;
     }
 
-    const containerRect = container.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
     const EDGE_PADDING_PX = 12;
+    const SETTLE_DURATION_MS = 360;
 
-    if (targetRect.bottom > containerRect.bottom) {
-      container.scrollTop += targetRect.bottom - containerRect.bottom + EDGE_PADDING_PX;
-    } else if (targetRect.top < containerRect.top) {
-      container.scrollTop -= containerRect.top - targetRect.top + EDGE_PADDING_PX;
-    }
+    const applyVisibilityCorrection = () => {
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+
+      if (targetRect.bottom > containerRect.bottom) {
+        container.scrollTop += targetRect.bottom - containerRect.bottom + EDGE_PADDING_PX;
+      } else if (targetRect.top < containerRect.top) {
+        container.scrollTop -= containerRect.top - targetRect.top + EDGE_PADDING_PX;
+      }
+    };
+
+    applyVisibilityCorrection();
+
+    const startedAt = performance.now();
+    let frameId: number;
+    const trackSettlingLayout = (now: number) => {
+      applyVisibilityCorrection();
+      if (now - startedAt < SETTLE_DURATION_MS) {
+        frameId = requestAnimationFrame(trackSettlingLayout);
+      }
+    };
+    frameId = requestAnimationFrame(trackSettlingLayout);
+
+    return () => cancelAnimationFrame(frameId);
   }, [selectedMessageId]);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
@@ -675,7 +693,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           type,
           replyTo: index === 0 ? replyTo : null,
           caption: index === 0 ? caption : undefined,
-          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size },
+          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size, thumbnailUrl: uploaded.thumbnailUrl },
         });
       }
     } catch (error) {
