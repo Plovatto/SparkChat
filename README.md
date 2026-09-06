@@ -4,12 +4,13 @@ Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para c
 
 ## Funcionalidades
 
-- SPA criada com React e Vite
-- Layout inicial centralizado para validar a base da interface
-- Configuração de ambiente para integração com backend
-- Preparação para comunicação em tempo real com Socket.IO
+- SPA criada com React e Vite, organizada por domínios da aplicação
+- Chat em tempo real com Socket.IO, com reautenticação automática a cada reconexão
+- Criptografia ponta a ponta das mensagens e dos anexos no navegador
+- Envio de imagens, áudios e arquivos, com miniatura gerada no cliente para a prévia da conversa
+- Temas, papéis de parede e aparência dos balões sincronizados entre dispositivos
+- Notificações do navegador, sons e badge de mensagens não lidas
 - Alias de importação configurados no Vite
-- Organização inicial por domínios da aplicação
 
 ## Tecnologias
 
@@ -95,6 +96,19 @@ API: http://localhost:3001
 
 Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no arquivo `.env`.
 
+## Deploy
+
+O deploy é feito no GitHub Pages pelo workflow `.github/workflows/deploy-pages.yml`, disparado a cada push na branch `main`.
+
+Duas configurações são necessárias no repositório:
+
+- Em **Settings → Pages**, a origem deve estar como **GitHub Actions**.
+- Em **Settings → Environments → github-pages**, os valores `VITE_API_URL` e `VITE_SOCKET_URL` devem apontar para a API hospedada. O Vite embute essas variáveis no build, então elas precisam existir no ambiente da Action, não apenas no `.env` local.
+
+O `base` do Vite é definido como `/SparkChat/` apenas no build (o servidor de desenvolvimento continua na raiz), acompanhando o caminho do GitHub Pages.
+
+A URL do frontend também precisa constar em `FRONTEND_URL` na API, que controla o CORS.
+
 ## Scripts
 
 | Comando             | Descrição                                              |
@@ -122,7 +136,7 @@ src/
 │   ├── rooms/        # Lista de conversas, perfil, novo chat e helpers de sala
 │   └── theme/        # Temas, papéis de parede e aparência dos balões
 ├── hooks/            # Hooks reutilizáveis entre features
-├── lib/              # Clientes de API, socket, E2EE, storage, áudio e formatação
+├── lib/              # Clientes de API, socket, E2EE, storage, áudio, mídia e formatação
 ├── styles/           # Estilos globais, animações e responsividade
 ├── types/            # Declarações de tipos globais
 ├── main.tsx
