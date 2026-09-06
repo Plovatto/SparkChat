@@ -99,14 +99,19 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0 }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'clamp(0px, 10px, 20px)',
+        position: 'relative',
+      }}
+    >
       <div
         className="sc-anim-hero-in auth-container--form"
         style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
           width: '90%',
           maxWidth: '600px',
         }}
