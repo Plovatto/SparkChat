@@ -21,3 +21,16 @@ export function saveSession(user: User): void {
 export function getStoredSession(): User | null {
   return getItem<User>(SESSION_KEY);
 }
+
+export function clearStoredSession(): void {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('sparkchat:last-room:')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}

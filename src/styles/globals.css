@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  --app-height: 100dvh;
 }
 
 html,
@@ -9,10 +10,16 @@ body,
   margin: 0;
 }
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--sc-canvas, #1b1d24);
   color: var(--sc-text-primary, #f4f5f8);
-  min-height: 100vh;
+  height: var(--app-height);
+  overflow: hidden;
   padding: 0;
   font-family:
     -apple-system,
@@ -23,7 +30,8 @@ body {
 }
 
 #root {
-  min-height: 100vh;
+  height: var(--app-height);
+  overflow: hidden;
 }
 
 html {

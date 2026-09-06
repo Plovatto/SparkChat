@@ -191,7 +191,11 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       );
     };
 
-    socket.emit('rooms:get');
+    const requestRooms = () => socket.emit('rooms:get');
+
+    requestRooms();
+    socket.on('user:resumed', requestRooms);
+    socket.on('user:registered', requestRooms);
     socket.on('rooms:list', handleRoomsList);
     socket.on('room:created', handleRoomUpserted);
     socket.on('room:joined', handleRoomUpserted);
@@ -215,6 +219,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('recording:update', handleRecordingUpdate);
 
     return () => {
+      socket.off('user:resumed', requestRooms);
+      socket.off('user:registered', requestRooms);
       socket.off('rooms:list', handleRoomsList);
       socket.off('room:created', handleRoomUpserted);
       socket.off('room:joined', handleRoomUpserted);
