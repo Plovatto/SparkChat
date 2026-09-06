@@ -195,20 +195,6 @@
   box-shadow: var(--sc-shadow-sm);
 }
 
-.sc-btn--danger-soft {
-  background: var(--sc-danger-soft);
-  color: var(--sc-danger-text);
-}
-
-.sc-btn--danger-soft:hover:not(:disabled) {
-  background: var(--sc-danger-soft-hover);
-}
-
-.sc-btn--danger-soft:active:not(:disabled) {
-  background: var(--sc-danger);
-  color: #ffffff;
-}
-
 .sc-btn--warning {
   background: var(--sc-warning);
   color: var(--sc-on-warning);
@@ -778,10 +764,6 @@
   box-shadow: none;
 }
 
-.sc-card--accent {
-  border-color: var(--sc-accent);
-}
-
 .sc-tile {
   border: 2px solid var(--sc-border);
   cursor: pointer;
@@ -1146,11 +1128,6 @@
   color: var(--sc-success-text);
 }
 
-.sc-notice--warning {
-  background: var(--sc-warning-soft);
-  color: var(--sc-warning-text);
-}
-
 .sc-toggle-icon {
   background: var(--sc-surface-elevated);
   color: var(--sc-accent-text);
@@ -1166,21 +1143,6 @@
 .sc-toggle-icon:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--sc-focus-ring);
-}
-
-.sc-icon-btn--overlay-pill {
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.sc-icon-btn--overlay-pill:hover:not(:disabled) {
-  background: var(--sc-scrim-control-hover);
-  color: #ffffff;
-}
-
-.sc-icon-btn--overlay-pill:active:not(:disabled) {
-  background: var(--sc-scrim-control-pressed);
-  transform: scale(0.94);
 }
 
 .sc-drop-zone {
@@ -1274,8 +1236,7 @@
     0 0 0 3px var(--sc-accent-soft);
 }
 
-.sc-btn--danger:hover:not(:disabled),
-.sc-btn--danger-soft:hover:not(:disabled) {
+.sc-btn--danger:hover:not(:disabled) {
   box-shadow:
     0 8px 20px color-mix(in srgb, var(--sc-danger) 42%, transparent),
     0 0 0 4px var(--sc-danger-soft);
@@ -1339,8 +1300,7 @@
 
 .sc-icon-btn--scrim:hover:not(:disabled),
 .sc-icon-btn--scrim-danger:hover:not(:disabled),
-.sc-icon-btn--scrim-solid:hover:not(:disabled),
-.sc-icon-btn--overlay-pill:hover:not(:disabled) {
+.sc-icon-btn--scrim-solid:hover:not(:disabled) {
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.16);
 }
 

@@ -1,13 +1,3 @@
-.auth-input-code {
-  letter-spacing: 4px;
-}
-
-@media (min-width: 769px) {
-  .auth-input-code {
-    letter-spacing: 8px !important;
-  }
-}
-
 @media (max-width: 768px) {
   .auth-container {
     margin-top: -65px !important;

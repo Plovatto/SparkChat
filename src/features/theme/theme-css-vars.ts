@@ -6,10 +6,6 @@ function toKebabCase(value: string): string {
   return value.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`);
 }
 
-export function cssVar(token: keyof ThemeTokens): string {
-  return `var(${CSS_VAR_PREFIX}${toKebabCase(token)})`;
-}
-
 function syncThemeColorMeta(color: string): void {
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
