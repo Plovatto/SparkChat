@@ -1,6 +1,40 @@
 # SparkChat Web
 
+[![CI](https://github.com/Plovatto/SparkChat/actions/workflows/ci.yml/badge.svg)](https://github.com/Plovatto/SparkChat/actions/workflows/ci.yml)
+[![Deploy](https://github.com/Plovatto/SparkChat/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Plovatto/SparkChat/actions/workflows/deploy-pages.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para compor a experiência visual de uma aplicação de chat em tempo real.
+
+**Acesse o app:** https://plovatto.github.io/SparkChat/ · **API:** https://p01--sparkchat--pgj2h2jjxzb4.code.run/docs/
+
+<p align="center">
+  <img src="docs/chat-assistente.png" alt="Conversa com o assistente SparkAI, com resposta citada e ações de mensagem" width="900">
+</p>
+
+<p align="center"><em>Conversa com o SparkAI, o assistente integrado</em></p>
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/chat-desktop.png" alt="Conversa com mensagem de áudio e imagem enviada"></td>
+    <td width="50%"><img src="docs/chat-arquivo.png" alt="Conversa com arquivo PDF e resposta citada"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Mensagens de áudio e imagens</em></td>
+    <td align="center"><em>Anexos com pré-visualização e respostas citadas</em></td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/mobile-conversas.png" alt="Lista de conversas no celular" width="300"></td>
+    <td width="50%" align="center"><img src="docs/mobile-chat.png" alt="Conversa no celular com papel de parede" width="300"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Lista de conversas no celular</em></td>
+    <td align="center"><em>Conversa com papel de parede</em></td>
+  </tr>
+</table>
 
 ## Funcionalidades
 
