@@ -14,6 +14,8 @@ interface ChooseModeCardProps {
 }
 
 export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onExistingUser }: ChooseModeCardProps) {
+  const accentMid = `color-mix(in srgb, ${theme.accent} 50%, ${theme.accentText} 50%)`;
+
   return (
     <div
       style={{
@@ -38,7 +40,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
             position: 'relative',
           }}
         >
-          <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="10px" right="10px" />
+          <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="10px" right="10px" noBorder iconColor={accentMid} />
 
           <div
             style={{
@@ -127,6 +129,8 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                   fontWeight: 700,
                   borderRadius: '16px',
                   gap: 'clamp(8px, 2vw, 10px)',
+                  borderColor: accentMid,
+                  color: accentMid,
                 } as CSSProperties}
               >
                 <FaKey size={20} />
