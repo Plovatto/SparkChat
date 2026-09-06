@@ -67,7 +67,8 @@ function pruneUnusedBootstrapCss(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? '/SparkChat/' : '/',
   plugins: [pruneUnusedBootstrapCss(), react()],
   resolve: {
     alias: {
@@ -84,4 +85,4 @@ export default defineConfig({
   server: {
     port: 5173,
   },
-});
+}));

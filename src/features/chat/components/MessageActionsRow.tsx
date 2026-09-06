@@ -13,7 +13,7 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
   return (
     <div
       className={isExiting ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
-      style={{ display: 'flex', gap: '8px', margin: '3px 0', transformOrigin: isOwn ? 'top right' : 'top left' }}
+      style={{ display: 'flex', gap: '8px', margin: '8px 0 3px', transformOrigin: isOwn ? 'top right' : 'top left' }}
     >
       <IconPillButton
         onClick={(event) => {

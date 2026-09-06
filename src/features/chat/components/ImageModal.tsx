@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Whee
 import { createPortal } from 'react-dom';
 import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
-import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { Spinner } from '@components/common/Spinner';
+import { decryptMediaContentIfNeeded } from '@lib/e2ee';
 import { downloadFromUrl } from '@lib/download-file';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { useSocket, type MessageFileMeta } from '@lib/socket';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
 function deriveImageFileName(url: string): string {
@@ -20,6 +23,8 @@ interface ImageModalProps {
   isOpen: boolean;
   images: string[];
   fileNames?: string[];
+  roomId?: string;
+  fileMetas?: (MessageFileMeta | null)[];
   startIndex?: number;
   onClose: () => void;
 }
@@ -37,9 +42,11 @@ const NAV_BUTTON_STYLE: CSSProperties = {
   fontSize: '18px',
 };
 
-export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose }: ImageModalProps) {
+export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, startIndex = 0, onClose }: ImageModalProps) {
+  const { socket } = useSocket();
   const [zoom, setZoom] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const [resolvedSrc, setResolvedSrc] = useState<Record<string, string>>({});
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
   const lastImagesRef = useRef<string[]>([]);
   const hasMultiple = images.length > 1;
@@ -85,10 +92,28 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
   }, [isOpen, onClose, hasMultiple, goToPrevious, goToNext]);
 
   const displayImages = isOpen ? images : lastImagesRef.current;
-  const currentSrc = displayImages[currentIndex] ?? displayImages[0];
+  const currentRaw = displayImages[currentIndex] ?? displayImages[0];
   const showsMultiple = displayImages.length > 1;
 
-  if (!isPresent || !currentSrc) {
+  useEffect(() => {
+    if (!isOpen || !roomId || !socket || !currentRaw || resolvedSrc[currentRaw] !== undefined) {
+      return;
+    }
+    let cancelled = false;
+    const fileMeta = fileMetas?.[currentIndex] ?? null;
+    void decryptMediaContentIfNeeded(socket, currentRaw, roomId, fileMeta).then((resolved) => {
+      if (!cancelled) {
+        setResolvedSrc((previous) => ({ ...previous, [currentRaw]: resolved }));
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, roomId, socket, currentRaw, currentIndex, fileMetas, resolvedSrc]);
+
+  const currentSrc = currentRaw ? (roomId ? resolvedSrc[currentRaw] : currentRaw) : undefined;
+
+  if (!isPresent || !currentRaw) {
     return null;
   }
 
@@ -163,7 +188,7 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
           <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
           <OverlayIconButton
-            onClick={() => void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentSrc))}
+            onClick={() => currentSrc && void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentRaw))}
             title="Baixar imagem"
           >
             <FaDownload />
@@ -234,28 +259,32 @@ export function ImageModal({ isOpen, images, fileNames, startIndex = 0, onClose 
           }}
           onWheel={handleWheel}
         >
-          <img
-            key={currentSrc}
-            src={currentSrc}
-            className="sc-anim-fade-in"
-            alt="Imagem expandida"
-            style={{
-              maxHeight: '85vh',
-              maxWidth: '95vw',
-              objectFit: 'contain',
-              borderRadius: '16px',
-              boxShadow: MEDIA_VIEWER_CONTENT_SHADOW,
-              transform: `scale(${zoom})`,
-              transition: 'transform var(--sc-dur-normal) var(--sc-ease-spring-soft)',
-              cursor: 'grab',
-            }}
-            onMouseDown={(event) => {
-              event.currentTarget.style.cursor = 'grabbing';
-            }}
-            onMouseUp={(event) => {
-              event.currentTarget.style.cursor = 'grab';
-            }}
-          />
+          {currentSrc ? (
+            <img
+              key={currentSrc}
+              src={currentSrc}
+              className="sc-anim-fade-in"
+              alt="Imagem expandida"
+              style={{
+                maxHeight: '85vh',
+                maxWidth: '95vw',
+                objectFit: 'contain',
+                borderRadius: '16px',
+                boxShadow: MEDIA_VIEWER_CONTENT_SHADOW,
+                transform: `scale(${zoom})`,
+                transition: 'transform var(--sc-dur-normal) var(--sc-ease-spring-soft)',
+                cursor: 'grab',
+              }}
+              onMouseDown={(event) => {
+                event.currentTarget.style.cursor = 'grabbing';
+              }}
+              onMouseUp={(event) => {
+                event.currentTarget.style.cursor = 'grab';
+              }}
+            />
+          ) : (
+            <Spinner size={36} />
+          )}
         </div>
       </div>
     </>,

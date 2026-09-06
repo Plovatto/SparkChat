@@ -21,9 +21,9 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
   const isWide = useMediaQuery(minWidthQuery(WIDE_GALLERY_MIN_WIDTH_PX));
   const columns = isWide ? WIDE_COLUMNS : NARROW_COLUMNS;
 
-  const mediaMessages = messages.filter(
-    (message) => (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone,
-  );
+  const mediaMessages = messages
+    .filter((message) => (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   if (!messagesLoaded) {
     return (
