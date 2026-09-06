@@ -1,3 +1,5 @@
+import { BoundedMap } from '@lib/cache/bounded-map';
+
 let workerConfigured = false;
 
 async function loadPdfjs() {
@@ -15,7 +17,11 @@ export interface PdfThumbnail {
   pageCount: number;
 }
 
-export async function renderPdfThumbnail(url: string, maxWidth: number): Promise<PdfThumbnail> {
+const MAX_CACHED_THUMBNAILS = 120;
+const thumbnailCache = new BoundedMap<string, PdfThumbnail>(MAX_CACHED_THUMBNAILS);
+const pendingThumbnails = new Map<string, Promise<PdfThumbnail>>();
+
+async function capturePdfThumbnail(url: string, maxWidth: number): Promise<PdfThumbnail> {
   const pdfjsLib = await loadPdfjs();
   const pdf = await pdfjsLib.getDocument({ url }).promise;
   const page = await pdf.getPage(1);
@@ -35,4 +41,29 @@ export async function renderPdfThumbnail(url: string, maxWidth: number): Promise
   await page.render({ canvasContext: context, viewport, canvas }).promise;
 
   return { dataUrl: canvas.toDataURL('image/png'), pageCount: pdf.numPages };
+}
+
+export function renderPdfThumbnail(url: string, maxWidth: number): Promise<PdfThumbnail> {
+  const cacheKey = `${maxWidth}|${url}`;
+  const cached = thumbnailCache.get(cacheKey);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const pending = pendingThumbnails.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const task = capturePdfThumbnail(url, maxWidth)
+    .then((thumbnail) => {
+      thumbnailCache.set(cacheKey, thumbnail);
+      return thumbnail;
+    })
+    .finally(() => {
+      pendingThumbnails.delete(cacheKey);
+    });
+
+  pendingThumbnails.set(cacheKey, task);
+  return task;
 }

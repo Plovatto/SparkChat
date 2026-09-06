@@ -8,7 +8,7 @@ export { THEME_BASES } from './constants/theme-bases';
 export type { ThemeBaseId } from './constants/theme-bases';
 export type { ThemePalette, ThemeTokens } from './types';
 export { buildTheme } from './build-theme';
-export { cssVar, themeTokensToCssVars } from './theme-css-vars';
+export { themeTokensToCssVars } from './theme-css-vars';
 export { DEFAULT_CHAT_APPEARANCE } from './constants/chat-appearance';
 export { toSixDigitHex, hexToRgba } from './utils/hex-to-rgba';
 export { withAlpha, mix, contrastRatio } from './utils/color';

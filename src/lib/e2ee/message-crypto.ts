@@ -1,5 +1,6 @@
 import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
+import { resolveDecryptedMediaUrl } from './media-cache';
 import { ensureRoomKeyForDecryption, getCachedRoomKey, refetchRoomKeyAfterDecryptionFailure } from './room-keys';
 import { getSodium } from './sodium';
 
@@ -78,20 +79,19 @@ async function decryptMediaContentIfNeeded(
     return content;
   }
 
-  try {
-    const response = await fetch(content);
-    if (!response.ok) {
-      return content;
+  return resolveDecryptedMediaUrl(content, async () => {
+    try {
+      const response = await fetch(content);
+      if (!response.ok) {
+        return null;
+      }
+      const ciphertext = await response.arrayBuffer();
+      const blob = await decryptAttachment(roomId, ciphertext, fileMeta?.mimeType ?? 'application/octet-stream');
+      return blob ? URL.createObjectURL(blob) : null;
+    } catch {
+      return null;
     }
-    const ciphertext = await response.arrayBuffer();
-    const blob = await decryptAttachment(roomId, ciphertext, fileMeta?.mimeType ?? 'application/octet-stream');
-    if (!blob) {
-      return content;
-    }
-    return URL.createObjectURL(blob);
-  } catch {
-    return content;
-  }
+  });
 }
 
 async function resolveContent(

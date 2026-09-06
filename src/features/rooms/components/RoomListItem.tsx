@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { memo, useState, type CSSProperties } from 'react';
 import {
   FaAt,
   FaBan,
@@ -33,10 +33,10 @@ interface RoomListItemProps {
   room: RoomSummary;
   user: User;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (room: RoomSummary) => void;
   isSelectionMode: boolean;
   isChecked: boolean;
-  onToggleSelect: () => void;
+  onToggleSelect: (roomId: string) => void;
   typingUserIds: string[];
   recordingUserIds: string[];
   isFavorite: boolean;
@@ -48,6 +48,8 @@ const PREVIEW_LENGTH_SMALL_SCREEN = 70;
 const PREVIEW_LENGTH_MEDIUM_SCREEN = 190;
 const PREVIEW_LENGTH_LARGE_SCREEN = 100;
 const SYSTEM_PREVIEW_LENGTH = 28;
+
+const TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function useMessagePreviewLength(): number {
   const isSplitLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
@@ -289,7 +291,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   );
 }
 
-export function RoomListItem({
+export const RoomListItem = memo(function RoomListItem({
   room,
   user,
   isSelected,
@@ -309,15 +311,23 @@ export function RoomListItem({
   const online = isRoomParticipantOnline(room, user.id);
   const hasUnread = room.unreadCount > 0 && !isSelected;
 
+  const activate = () => {
+    if (isSelectionMode) {
+      onToggleSelect(room.id);
+    } else {
+      onSelect(room);
+    }
+  };
+
   return (
     <div
       role="button"
       tabIndex={0}
-      onClick={isSelectionMode ? onToggleSelect : onSelect}
+      onClick={activate}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          (isSelectionMode ? onToggleSelect : onSelect)();
+          activate();
         }
       }}
       data-selected={!isSelectionMode && isSelected}
@@ -448,7 +458,7 @@ export function RoomListItem({
             {isAssistantRoom(room) && <FaThumbtack size={11} color={theme.accentText} style={{ flexShrink: 0 }} title="Conversa fixada" />}
             {room.lastMessage && (
               <small style={{ fontSize: '0.7rem', color: hasUnread ? theme.accentText : theme.textMuted, flexShrink: 0, fontWeight: hasUnread ? 700 : 500 }}>
-                {new Date(room.lastMessage.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                {TIME_FORMATTER.format(new Date(room.lastMessage.timestamp))}
               </small>
             )}
           </div>
@@ -461,4 +471,4 @@ export function RoomListItem({
       </div>
     </div>
   );
-}
+});
