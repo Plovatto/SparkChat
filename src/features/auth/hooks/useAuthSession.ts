@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
-import { getStoredSession, saveSession } from '../api/session-storage';
+import { clearStoredSession, getStoredSession, saveSession } from '../api/session-storage';
 import type { PendingE2eCredential, User } from '../types';
 
 const INITIAL_LOAD_DELAY_MS = 800;
@@ -39,7 +39,7 @@ export function useAuthSession(): AuthSession {
   const logout = useCallback(() => {
     setIsRestoring(true);
     setUser(null);
-    localStorage.clear();
+    clearStoredSession();
     void clearIdentity();
     void clearRoomKeys();
     setTimeout(() => setIsRestoring(false), LOGOUT_TRANSITION_DELAY_MS);
