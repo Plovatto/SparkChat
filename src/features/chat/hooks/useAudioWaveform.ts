@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { createAudioContext } from '@lib/audio/shared-audio-context';
+import { BoundedMap } from '@lib/cache/bounded-map';
 
 const WAVEFORM_BAR_COUNT = 32;
-const waveformCache = new Map<string, number[]>();
+const MAX_CACHED_WAVEFORMS = 300;
+const waveformCache = new BoundedMap<string, number[]>(MAX_CACHED_WAVEFORMS);
+const pendingWaveforms = new Map<string, Promise<number[]>>();
 
 function silentWaveform(): number[] {
   return new Array(WAVEFORM_BAR_COUNT).fill(0) as number[];
@@ -25,6 +28,30 @@ function processAudioBuffer(audioBuffer: AudioBuffer): number[] {
   return bars;
 }
 
+function loadWaveform(audioUrl: string): Promise<number[]> {
+  const pending = pendingWaveforms.get(audioUrl);
+  if (pending) {
+    return pending;
+  }
+
+  const audioContext = createAudioContext();
+  const task = fetch(audioUrl)
+    .then((response) => response.arrayBuffer())
+    .then((buffer) => audioContext.decodeAudioData(buffer))
+    .then((audioBuffer) => {
+      const bars = processAudioBuffer(audioBuffer);
+      waveformCache.set(audioUrl, bars);
+      return bars;
+    })
+    .finally(() => {
+      pendingWaveforms.delete(audioUrl);
+      void audioContext.close();
+    });
+
+  pendingWaveforms.set(audioUrl, task);
+  return task;
+}
+
 export function useAudioWaveform(audioUrl: string | null): number[] {
   const [waveform, setWaveform] = useState<number[]>(() =>
     audioUrl ? (waveformCache.get(audioUrl) ?? silentWaveform()) : silentWaveform(),
@@ -43,27 +70,18 @@ export function useAudioWaveform(audioUrl: string | null): number[] {
     }
 
     let cancelled = false;
-    const audioContext = createAudioContext();
 
-    fetch(audioUrl)
-      .then((response) => response.arrayBuffer())
-      .then((buffer) => audioContext.decodeAudioData(buffer))
-      .then((audioBuffer) => {
-        if (cancelled) {
-          return;
+    loadWaveform(audioUrl)
+      .then((bars) => {
+        if (!cancelled) {
+          setWaveform(bars);
         }
-        const bars = processAudioBuffer(audioBuffer);
-        waveformCache.set(audioUrl, bars);
-        setWaveform(bars);
       })
       .catch((error: unknown) => {
         console.error('Erro ao carregar waveform:', error);
         if (!cancelled) {
           setWaveform(silentWaveform());
         }
-      })
-      .finally(() => {
-        void audioContext.close();
       });
 
     return () => {
