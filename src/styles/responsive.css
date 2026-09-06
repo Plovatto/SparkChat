@@ -70,6 +70,10 @@
     box-shadow: none;
   }
 
+  .chat-connection-banner {
+    margin: calc(10px + env(safe-area-inset-top)) 12px 0;
+  }
+
   .chat-header-bar {
     padding: 12px 14px;
     padding-top: calc(12px + env(safe-area-inset-top));
