@@ -94,6 +94,8 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
           <ImageModal
             isOpen={modalIndex !== null}
             images={images.map((image) => image.content)}
+            roomId={roomId}
+            fileMetas={images.map((image) => image.fileMeta)}
             startIndex={modalIndex ?? 0}
             onClose={() => setModalIndex(null)}
           />
@@ -127,7 +129,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
               }}
             >
               <img
-                src={image.content}
+                src={image.fileMeta?.thumbnailUrl ?? image.content}
                 alt="Imagem enviada"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />

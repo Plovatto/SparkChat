@@ -421,6 +421,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
       <ImageModal
         isOpen={selectedMedia?.type === 'image'}
         images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
+        roomId={room.id}
+        fileMetas={selectedMedia?.type === 'image' ? [selectedMedia.fileMeta] : []}
         onClose={() => setSelectedMedia(null)}
       />
       <VideoPreviewModal

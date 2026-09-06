@@ -41,7 +41,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
           />
         )}
         <img
-          src={message.content}
+          src={message.fileMeta?.thumbnailUrl ?? message.content}
           alt="Imagem enviada"
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
@@ -65,7 +65,13 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
           }}
         />
       </div>
-      <ImageModal isOpen={isModalOpen} images={[message.content]} onClose={() => setIsModalOpen(false)} />
+      <ImageModal
+        isOpen={isModalOpen}
+        images={[message.content]}
+        roomId={message.roomId}
+        fileMetas={[message.fileMeta]}
+        onClose={() => setIsModalOpen(false)}
+      />
     </>
   );
 }
