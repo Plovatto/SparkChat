@@ -6,11 +6,13 @@ interface ThemeToggleButtonProps {
   onToggle: () => void;
   top?: string;
   right?: string;
+  noBorder?: boolean;
+  iconColor?: string;
 }
 
 const SPIN_DURATION_MS = 600;
 
-export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '10px' }: ThemeToggleButtonProps) {
+export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '10px', noBorder, iconColor }: ThemeToggleButtonProps) {
   const [spinCount, setSpinCount] = useState(0);
 
   const handleClick = () => {
@@ -35,6 +37,8 @@ export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '1
           transform: `rotateY(${spinCount * 360}deg)`,
           transition: `transform ${SPIN_DURATION_MS}ms var(--sc-ease-spring-soft)`,
           willChange: spinCount > 0 ? 'transform' : undefined,
+          ...(noBorder ? { border: 'none' } : {}),
+          ...(iconColor ? { color: iconColor } : {}),
         }}
         title={darkMode ? 'Modo Claro' : 'Modo Escuro'}
         aria-label={darkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
