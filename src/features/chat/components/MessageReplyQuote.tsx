@@ -32,7 +32,11 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
   const isReplyToVideo = replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
   const hasThumbnail = isReplyToImage || isReplyToVideo;
   const replyVideoThumbnail = useReplyVideoThumbnail(isReplyToVideo, replyTo.content);
-  const replyThumbnailUrl = isReplyToImage ? replyTo.content : isReplyToVideo ? replyVideoThumbnail : null;
+  const replyThumbnailUrl = isReplyToImage
+    ? (replyTo.fileMeta?.thumbnailUrl ?? replyTo.content)
+    : isReplyToVideo
+      ? replyVideoThumbnail
+      : null;
 
   const quoteAccent = isOwn ? withAlpha(bubble.accentColor, 0.65) : bubble.accentColor;
 
