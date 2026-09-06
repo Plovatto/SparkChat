@@ -76,7 +76,7 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
         style={{
           minWidth: 0,
           flex: 1,
-          padding: hasThumbnail ? '0 0 0 10px' : '6px 0 6px 10px',
+          padding: hasThumbnail ? '0 0 0 10px' : '7px 12px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',

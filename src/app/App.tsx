@@ -23,12 +23,15 @@ import {
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
+import { useViewportHeight } from '@hooks/useViewportHeight';
 import { SocketProvider, useSocket, type RoomSummary } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
 export function App() {
   const { user, isRestoring, login, logout, updateUser, consumePendingE2eCredential } = useAuthSession();
   const [pendingRegistration, setPendingRegistration] = useState<PendingRegistration | null>(null);
+
+  useViewportHeight();
 
   return (
     <SocketProvider enabled={user !== null || pendingRegistration !== null}>
@@ -265,7 +268,12 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       return;
     }
 
-    const openRoom = ({ room }: { room: { id: string } }) => setSelectedRoomId(room.id);
+    const openRoom = ({ room }: { room: RoomSummary }) => {
+      if (isAssistantRoom(room)) {
+        return;
+      }
+      setSelectedRoomId(room.id);
+    };
 
     socket.on('room:joined', openRoom);
     socket.on('room:created', openRoom);

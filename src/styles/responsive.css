@@ -1,5 +1,5 @@
 .app-background {
-  height: 100vh;
+  height: var(--app-height);
   padding: 20px;
 }
 
@@ -7,6 +7,10 @@
   max-width: 1400px;
   height: 90vh;
   max-height: 900px;
+}
+
+.chat-messages-scroll {
+  overscroll-behavior: contain;
 }
 
 .chat-shell-card {
@@ -51,14 +55,13 @@
 
 @media (max-width: 899.98px) {
   .app-background {
-    height: 100dvh;
+    height: var(--app-height);
     padding: 0;
   }
 
   .chat-shell-container {
     max-width: 100%;
-    height: 100vh;
-    height: 100dvh;
+    height: var(--app-height);
     max-height: none;
   }
 
