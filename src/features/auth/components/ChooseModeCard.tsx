@@ -19,7 +19,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
   return (
     <div
       style={{
-        minHeight: '100vh',
+        minHeight: 'var(--app-height)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

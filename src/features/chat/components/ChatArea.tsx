@@ -437,6 +437,22 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     container.scrollTo({ top: container.scrollHeight, behavior });
   }, []);
 
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    const keepPinnedToBottom = () => {
+      if (isAtBottomRef.current) {
+        scrollToBottom();
+      }
+    };
+
+    viewport.addEventListener('resize', keepPinnedToBottom);
+    return () => viewport.removeEventListener('resize', keepPinnedToBottom);
+  }, [scrollToBottom]);
+
   useLayoutEffect(() => {
     const lastMessage = messages[messages.length - 1];
     const lastId = lastMessage?.id ?? null;
