@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { buildTheme } from './build-theme';
-import { DEFAULT_CHAT_APPEARANCE, type ChatAppearance } from './constants/chat-appearance';
+import { DEFAULT_CHAT_APPEARANCE, type ChatAppearance, type ChatSettings } from './constants/chat-appearance';
 import { CHAT_BACKGROUNDS, type ChatBackground } from './constants/chat-backgrounds';
 import type { ColorThemeId } from './constants/color-themes';
 import type { ThemeBaseId } from './constants/theme-bases';
@@ -176,6 +176,33 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const hasRoomAppearanceOverride = useCallback((roomId: string) => roomId in roomAppearance, [roomAppearance]);
 
+  const chatSettings: ChatSettings = useMemo(
+    () => ({ roomWallpapers, globalWallpaper, roomAppearance, globalAppearance }),
+    [roomWallpapers, globalWallpaper, roomAppearance, globalAppearance],
+  );
+
+  const applyChatSettings = useCallback((settings: ChatSettings) => {
+    setRoomWallpapers(settings.roomWallpapers);
+    setGlobalWallpaperState(settings.globalWallpaper);
+    setRoomAppearanceState(settings.roomAppearance);
+    setGlobalAppearanceState(settings.globalAppearance);
+
+    localStorage.setItem(WALLPAPER_STORAGE_KEY, JSON.stringify(settings.roomWallpapers));
+    localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(settings.roomAppearance));
+
+    if (settings.globalWallpaper) {
+      localStorage.setItem(GLOBAL_WALLPAPER_STORAGE_KEY, settings.globalWallpaper);
+    } else {
+      localStorage.removeItem(GLOBAL_WALLPAPER_STORAGE_KEY);
+    }
+
+    if (settings.globalAppearance) {
+      localStorage.setItem(GLOBAL_APPEARANCE_STORAGE_KEY, JSON.stringify(settings.globalAppearance));
+    } else {
+      localStorage.removeItem(GLOBAL_APPEARANCE_STORAGE_KEY);
+    }
+  }, []);
+
   const theme = useMemo(() => buildTheme(baseTheme, colorTheme).tokens, [baseTheme, colorTheme]);
 
   useEffect(() => {
@@ -216,6 +243,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       setRoomAppearance,
       resetRoomAppearance,
       hasRoomAppearanceOverride,
+      chatSettings,
+      applyChatSettings,
     }),
     [
       theme,
@@ -232,6 +261,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       setRoomAppearance,
       resetRoomAppearance,
       hasRoomAppearanceOverride,
+      chatSettings,
+      applyChatSettings,
     ],
   );
 
