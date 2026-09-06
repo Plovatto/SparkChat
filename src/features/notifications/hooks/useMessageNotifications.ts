@@ -17,6 +17,8 @@ export function useMessageNotifications(
   roomsRef.current = rooms;
   const mutedRoomIdsRef = useRef(mutedRoomIds);
   mutedRoomIdsRef.current = mutedRoomIds;
+  const selectedRoomIdRef = useRef(selectedRoomId);
+  selectedRoomIdRef.current = selectedRoomId;
 
   useEffect(() => {
     if (!socket || (!isNotificationEnabled && !isSoundEnabled)) {
@@ -29,7 +31,7 @@ export function useMessageNotifications(
       }
 
       const isActivelyViewingRoom =
-        document.hasFocus() && document.visibilityState === 'visible' && selectedRoomId === message.roomId;
+        document.hasFocus() && document.visibilityState === 'visible' && selectedRoomIdRef.current === message.roomId;
       if (isActivelyViewingRoom || mutedRoomIdsRef.current.has(message.roomId)) {
         return;
       }
@@ -69,5 +71,5 @@ export function useMessageNotifications(
     return () => {
       socket.off('message:new', handleMessageNew);
     };
-  }, [socket, isNotificationEnabled, isSoundEnabled, currentUserId, selectedRoomId, onNotificationClick]);
+  }, [socket, isNotificationEnabled, isSoundEnabled, currentUserId, onNotificationClick]);
 }

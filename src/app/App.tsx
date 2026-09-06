@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
@@ -23,7 +23,7 @@ import {
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
-import { SocketProvider, useSocket } from '@lib/socket';
+import { SocketProvider, useSocket, type RoomSummary } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
 export function App() {
@@ -197,6 +197,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   useChatTriggerEffects(selectedRoomId, user.id, soundPreference.isEnabled);
   useEnsureAssistantChat(rooms, isLoaded);
 
+  const handleSelectRoom = useCallback((room: RoomSummary) => setSelectedRoomId(room.id), []);
+
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {
       notificationPreference.disable();
@@ -319,7 +321,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onUserUpdate={onUserUpdate}
                 rooms={rooms}
                 selectedRoomId={selectedRoomId}
-                onSelectRoom={(room) => setSelectedRoomId(room.id)}
+                onSelectRoom={handleSelectRoom}
                 onNewChat={() => setIsNewChatOpen(true)}
                 onLogout={onLogout}
                 onDeleteRooms={handleDeleteRooms}

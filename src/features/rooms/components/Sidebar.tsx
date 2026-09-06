@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import {
   FaBell,
   FaBellSlash,
@@ -31,6 +31,7 @@ import { RoomListItem } from './RoomListItem';
 import { ThemeMenu } from './ThemeMenu';
 
 const ROOM_CASCADE_MAX_INDEX = 8;
+const EMPTY_USER_IDS: string[] = [];
 
 function getRoomLastActivityTimestamp(room: RoomSummary): number {
   return room.lastMessage ? new Date(room.lastMessage.timestamp).getTime() : 0;
@@ -116,20 +117,25 @@ export function Sidebar({
     setSelectedIds(new Set());
   };
 
-  const toggleRoomSelected = (roomId: string) => {
-    if (roomId === assistantRoomId) {
-      return;
-    }
-    setSelectedIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(roomId)) {
-        next.delete(roomId);
-      } else {
-        next.add(roomId);
+  const assistantRoomId = useMemo(() => rooms.find(isAssistantRoom)?.id, [rooms]);
+
+  const toggleRoomSelected = useCallback(
+    (roomId: string) => {
+      if (roomId === assistantRoomId) {
+        return;
       }
-      return next;
-    });
-  };
+      setSelectedIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(roomId)) {
+          next.delete(roomId);
+        } else {
+          next.add(roomId);
+        }
+        return next;
+      });
+    },
+    [assistantRoomId],
+  );
 
   const selectableRooms = rooms.filter((room) => !isAssistantRoom(room));
 
@@ -147,7 +153,6 @@ export function Sidebar({
     exitSelectionMode();
   };
 
-  const assistantRoomId = rooms.find(isAssistantRoom)?.id;
   const favoritableSelectedIds = Array.from(selectedIds).filter((roomId) => roomId !== assistantRoomId);
 
   const handleFavoriteSelected = () => {
@@ -164,17 +169,21 @@ export function Sidebar({
     favoritableSelectedIds.length > 0 && favoritableSelectedIds.every((roomId) => favoriteRoomIds.has(roomId));
   const allSelectedAreMuted = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => mutedRoomIds.has(roomId));
 
-  const sortedRooms = [...rooms].sort((a, b) => {
-    const assistantDiff = Number(!isAssistantRoom(a)) - Number(!isAssistantRoom(b));
-    if (assistantDiff !== 0) {
-      return assistantDiff;
-    }
-    const favoriteDiff = Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id));
-    if (favoriteDiff !== 0) {
-      return favoriteDiff;
-    }
-    return getRoomLastActivityTimestamp(b) - getRoomLastActivityTimestamp(a);
-  });
+  const sortedRooms = useMemo(
+    () =>
+      [...rooms].sort((a, b) => {
+        const assistantDiff = Number(!isAssistantRoom(a)) - Number(!isAssistantRoom(b));
+        if (assistantDiff !== 0) {
+          return assistantDiff;
+        }
+        const favoriteDiff = Number(!favoriteRoomIds.has(a.id)) - Number(!favoriteRoomIds.has(b.id));
+        if (favoriteDiff !== 0) {
+          return favoriteDiff;
+        }
+        return getRoomLastActivityTimestamp(b) - getRoomLastActivityTimestamp(a);
+      }),
+    [rooms, favoriteRoomIds],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -478,12 +487,12 @@ export function Sidebar({
                 room={room}
                 user={user}
                 isSelected={room.id === selectedRoomId}
-                onSelect={() => onSelectRoom(room)}
+                onSelect={onSelectRoom}
                 isSelectionMode={isSelectionMode && !isAssistantRoom(room)}
                 isChecked={selectedIds.has(room.id)}
-                onToggleSelect={() => toggleRoomSelected(room.id)}
-                typingUserIds={typingUserIds[room.id] ?? []}
-                recordingUserIds={recordingUserIds[room.id] ?? []}
+                onToggleSelect={toggleRoomSelected}
+                typingUserIds={typingUserIds[room.id] ?? EMPTY_USER_IDS}
+                recordingUserIds={recordingUserIds[room.id] ?? EMPTY_USER_IDS}
                 isFavorite={!isAssistantRoom(room) && favoriteRoomIds.has(room.id)}
                 isMuted={mutedRoomIds.has(room.id)}
               />
