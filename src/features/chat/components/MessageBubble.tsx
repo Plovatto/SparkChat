@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import { memo, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { SessionAuth } from '@lib/api/session-auth';
@@ -19,7 +19,15 @@ import { MessageReplyQuote } from './MessageReplyQuote';
 import { DeletedMessageBubble, ErrorMessageBubble, SystemMessageBubble } from './SpecialMessageBubbles';
 import { VideoMessageContent } from './VideoMessageContent';
 
-interface MessageBubbleProps {
+export interface MessageBubbleActions {
+  onSelect: (messageId: string) => void;
+  onReply: (message: ChatMessage) => void;
+  onDelete: (messageId: string) => void;
+  onForward: (message: ChatMessage) => void;
+  onRetry: (clientTempId: string) => void;
+}
+
+interface MessageBubbleProps extends MessageBubbleActions {
   message: ChatMessage;
   isOwn: boolean;
   isGroupChat: boolean;
@@ -31,12 +39,7 @@ interface MessageBubbleProps {
   isSelected: boolean;
   currentAudioRef: RefObject<CurrentAudioRef | null>;
   receipt: MessageReceiptInfo | null;
-  onSelect: () => void;
-  onReply: () => void;
-  onDelete: () => void;
-  onForward: () => void;
   onAudioPlayed: (messageId: string) => void;
-  onRetry: () => void;
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
 }
@@ -87,7 +90,7 @@ function resolveBubblePadding(message: ChatMessage, isVideoFile: boolean): strin
   return '6px 0';
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
   isGroupChat,
@@ -137,6 +140,12 @@ export function MessageBubble({
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(message.content) : '';
   const textAccentColor = bubbleStyle.accentColor;
+
+  const handleRetry = () => {
+    if (message.clientTempId) {
+      onRetry(message.clientTempId);
+    }
+  };
 
   const renderBody = () => {
     if (isImageMessage) {
@@ -207,7 +216,7 @@ export function MessageBubble({
       senderNickname={message.sender.nickname}
       currentUserId={currentUserId}
       isSelected={isSelected}
-      onSelect={onSelect}
+      onSelect={() => onSelect(message.id)}
       padding={resolveBubblePadding(message, isVideoFile)}
       cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
       entrancePhase={entrance}
@@ -221,9 +230,9 @@ export function MessageBubble({
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
-              onReply={onReply}
-              onDelete={onDelete}
-              onForward={onForward}
+              onReply={() => onReply(message)}
+              onDelete={() => onDelete(message.id)}
+              onForward={() => onForward(message)}
             />
           )}
         </>
@@ -253,7 +262,7 @@ export function MessageBubble({
         </div>
       )}
 
-      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={onRetry} />
+      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} />
     </MessageBubbleShell>
   );
-}
+});

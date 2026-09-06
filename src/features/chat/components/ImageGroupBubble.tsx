@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
@@ -6,11 +6,12 @@ import type { RoomParticipant } from '@lib/socket';
 import type { ChatMessage } from '../types';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
+import type { MessageBubbleActions } from './MessageBubble';
 import { MessageBubbleShell } from './MessageBubbleShell';
 import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 
-interface ImageGroupBubbleProps {
+interface ImageGroupBubbleProps extends MessageBubbleActions {
   images: ChatMessage[];
   isOwn: boolean;
   isGroupChat: boolean;
@@ -19,18 +20,13 @@ interface ImageGroupBubbleProps {
   currentUserId: string | undefined;
   isSelected: boolean;
   receipt: MessageReceiptInfo | null;
-  onSelect: () => void;
-  onReply: () => void;
-  onDelete: () => void;
-  onForward: () => void;
-  onRetry: () => void;
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
 }
 
 const MAX_GROUP_TILES = 4;
 
-export function ImageGroupBubble({
+export const ImageGroupBubble = memo(function ImageGroupBubble({
   images,
   isOwn,
   isGroupChat,
@@ -62,6 +58,12 @@ export function ImageGroupBubble({
     return null;
   }
 
+  const handleRetry = () => {
+    if (anchor.clientTempId) {
+      onRetry(anchor.clientTempId);
+    }
+  };
+
   return (
     <MessageBubbleShell
       isOwn={isOwn}
@@ -72,7 +74,7 @@ export function ImageGroupBubble({
       senderNickname={anchor.sender.nickname}
       currentUserId={currentUserId}
       isSelected={isSelected}
-      onSelect={onSelect}
+      onSelect={() => onSelect(anchor.id)}
       padding="4px 0 6px"
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
@@ -84,9 +86,9 @@ export function ImageGroupBubble({
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
-              onReply={onReply}
-              onDelete={onDelete}
-              onForward={onForward}
+              onReply={() => onReply(anchor)}
+              onDelete={() => onDelete(anchor.id)}
+              onForward={() => onForward(anchor)}
             />
           )}
           <ImageModal
@@ -151,7 +153,7 @@ export function ImageGroupBubble({
         })}
       </div>
 
-      <MessageMeta message={anchor} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={onRetry} />
+      <MessageMeta message={anchor} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} />
     </MessageBubbleShell>
   );
-}
+});

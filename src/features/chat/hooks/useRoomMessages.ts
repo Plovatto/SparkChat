@@ -58,6 +58,18 @@ function normalizeInitialMessagesPage(messages: MessageView[]): MessageView[] {
   return sortMessagesByTimestamp(page);
 }
 
+function mapChanged(messages: ChatMessage[], mapper: (message: ChatMessage) => ChatMessage): ChatMessage[] {
+  let changed = false;
+  const next = messages.map((message) => {
+    const mapped = mapper(message);
+    if (mapped !== message) {
+      changed = true;
+    }
+    return mapped;
+  });
+  return changed ? next : messages;
+}
+
 function buildReplySnapshot(message: MessageView | null | undefined): MessageReplySnapshot | null {
   if (!message) {
     return null;
@@ -114,10 +126,8 @@ export function useRoomMessages(
       const timeoutId = setTimeout(() => {
         pendingTimeoutsRef.current.delete(clientTempId);
         setMessages((previous) =>
-          previous.map((message) =>
-            message.clientTempId === clientTempId && message.pending
-              ? { ...message, pending: false, failed: true }
-              : message,
+          mapChanged(previous, (message) =>
+            message.clientTempId === clientTempId && message.pending ? { ...message, pending: false, failed: true } : message,
           ),
         );
       }, PENDING_TIMEOUT_MS);
@@ -178,7 +188,7 @@ export function useRoomMessages(
             ? sortedPage.filter((message) => new Date(message.timestamp).getTime() < new Date(oldest.timestamp).getTime())
             : sortedPage;
           const olderMessages = olderPage.slice(-MESSAGES_PAGE_SIZE).filter((message) => !existingIds.has(message.id));
-          return [...olderMessages, ...previous];
+          return olderMessages.length > 0 ? [...olderMessages, ...previous] : previous;
         });
         socket.emit('message:mark-read', { roomId, messageIds: sortedPage.map((message) => message.id) });
       } else {
@@ -236,7 +246,7 @@ export function useRoomMessages(
       }
       clearPendingTimeout(clientTempId);
       setMessages((previous) =>
-        previous.map((message) =>
+        mapChanged(previous, (message) =>
           message.clientTempId === clientTempId ? { ...message, pending: false, failed: true } : message,
         ),
       );
@@ -247,7 +257,7 @@ export function useRoomMessages(
         return;
       }
       setMessages((previous) =>
-        previous.map((message) =>
+        mapChanged(previous, (message) =>
           message.sender.id === currentUser.id && !message.readBy.includes(userId)
             ? { ...message, readBy: [...message.readBy, userId], status: 'read' }
             : message,
@@ -274,7 +284,7 @@ export function useRoomMessages(
         return;
       }
       setMessages((previous) =>
-        previous.map((message) =>
+        mapChanged(previous, (message) =>
           message.id === messageId ? { ...message, deletedForEveryone: true, content: '' } : message,
         ),
       );
@@ -284,7 +294,7 @@ export function useRoomMessages(
       if (updated.roomId !== roomId) {
         return;
       }
-      setMessages((previous) => previous.map((message) => (message.id === updated.id ? updated : message)));
+      setMessages((previous) => mapChanged(previous, (message) => (message.id === updated.id ? updated : message)));
     };
 
     socket.on('messages:list', handleMessagesList);
@@ -364,7 +374,7 @@ export function useRoomMessages(
       }
 
       setMessages((previous) =>
-        previous.map((message) =>
+        mapChanged(previous, (message) =>
           message.clientTempId === clientTempId ? { ...message, pending: true, failed: false } : message,
         ),
       );

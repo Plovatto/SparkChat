@@ -1,5 +1,4 @@
 import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import type { IconType } from 'react-icons';
 
 const ICON_SIZE = 128;
@@ -52,6 +51,7 @@ export async function buildNotificationIcon(
   }
 
   try {
+    const { renderToStaticMarkup } = await import('react-dom/server');
     const glyphSize = ICON_SIZE * 0.55;
     const svgMarkup = renderToStaticMarkup(createElement(AvatarIcon, { color: '#ffffff', size: glyphSize }));
     const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
