@@ -6,6 +6,4 @@ export const MOTION_DURATION_MS = {
   slower: 460,
 } as const;
 
-export type MotionDurationName = keyof typeof MOTION_DURATION_MS;
-
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
