@@ -21,7 +21,7 @@ import {
   useUnreadBadge,
 } from '@features/notifications';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
-import { useTheme, useThemeSync, withAlpha } from '@features/theme';
+import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { SocketProvider, useSocket, type RoomSummary } from '@lib/socket';
@@ -96,6 +96,7 @@ function AuthGate({
         status: registered.status,
         statusText: registered.statusText,
         theme: registered.theme,
+        chatSettings: registered.chatSettings,
       });
       setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
       setIsSocketReady(true);
@@ -112,6 +113,7 @@ function AuthGate({
         status: resumed.status,
         statusText: resumed.statusText,
         theme: resumed.theme,
+        chatSettings: resumed.chatSettings,
       });
 
       if (!socket) {
@@ -140,6 +142,12 @@ function AuthGate({
     },
   });
   useThemeSync(user);
+  useChatSettingsSync();
+
+  const handleUserLogout = useCallback(() => {
+    socket?.emit('user:logout');
+    onLogout();
+  }, [socket, onLogout]);
 
   if (isRestoring) {
     return <LoadingScreen theme={theme} />;
@@ -152,7 +160,7 @@ function AuthGate({
       ) : !isSocketReady ? (
         <LoadingScreen theme={theme} />
       ) : (
-        <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={onLogout} />
+        <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={handleUserLogout} />
       )}
       <RecoveryFileDownloadDialog
         isOpen={recoveryFilePrompt !== null}
@@ -312,7 +320,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {!connected && (
           <div
-            className="sc-anim-drop-in"
+            className="chat-connection-banner sc-anim-drop-in"
             style={{
               display: 'flex',
               alignItems: 'center',

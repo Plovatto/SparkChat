@@ -1,5 +1,5 @@
 import { createContext, use } from 'react';
-import type { ChatAppearance } from './constants/chat-appearance';
+import type { ChatAppearance, ChatSettings } from './constants/chat-appearance';
 import type { ChatBackground } from './constants/chat-backgrounds';
 import type { ColorThemeId } from './constants/color-themes';
 import type { ThemeBaseId } from './constants/theme-bases';
@@ -20,6 +20,8 @@ export interface ThemeContextValue {
   setRoomAppearance: (roomId: string, patch: Partial<ChatAppearance>, applyToAll: boolean) => void;
   resetRoomAppearance: (roomId: string, applyToAll: boolean) => void;
   hasRoomAppearanceOverride: (roomId: string) => boolean;
+  chatSettings: ChatSettings;
+  applyChatSettings: (settings: ChatSettings) => void;
 }
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);

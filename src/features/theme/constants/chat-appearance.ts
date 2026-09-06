@@ -10,6 +10,13 @@ export interface ChatAppearance {
   bubbleBlur: number;
 }
 
+export interface ChatSettings {
+  roomWallpapers: Record<string, string>;
+  globalWallpaper: string | null;
+  roomAppearance: Record<string, ChatAppearance>;
+  globalAppearance: ChatAppearance | null;
+}
+
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   overlayOpacity: 32,
   overlayBlur: 0,
