@@ -1,3 +1,4 @@
+import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
@@ -64,7 +65,7 @@ function isEncryptedMediaUrl(content: string): boolean {
   }
 }
 
-async function decryptMediaContentIfNeeded(
+export async function decryptMediaContentIfNeeded(
   socket: AppSocket,
   content: string,
   roomId: string,
@@ -129,7 +130,11 @@ async function decryptFileMetaIfNeeded(
     decryptTextContentIfNeeded(socket, fileMeta.name, roomId),
     decryptTextContentIfNeeded(socket, fileMeta.mimeType, roomId),
   ]);
-  return { ...fileMeta, name, mimeType };
+  const decrypted = { ...fileMeta, name, mimeType };
+  const thumbnailUrl = fileMeta.thumbnailUrl
+    ? await decryptMediaContentIfNeeded(socket, fileMeta.thumbnailUrl, roomId, { ...decrypted, mimeType: THUMBNAIL_MIME_TYPE })
+    : undefined;
+  return { ...decrypted, ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}) };
 }
 
 async function decryptNullableTextIfNeeded(socket: AppSocket, value: string | null, roomId: string): Promise<string | null> {
@@ -177,8 +182,9 @@ async function decryptReplySnapshot(
 
 export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId);
+  const deferOriginal = message.type === 'image' && Boolean(fileMeta?.thumbnailUrl);
   const [content, replyTo, caption, linkPreview] = await Promise.all([
-    resolveContent(socket, message.content, message.roomId, message.type, fileMeta),
+    deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
     decryptCaptionIfNeeded(socket, message.caption, message.roomId),
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId),
