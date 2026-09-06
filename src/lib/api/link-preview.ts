@@ -16,7 +16,7 @@ export async function fetchLinkPreview(url: string, auth: SessionAuth): Promise<
   return (await response.json()) as MessageLinkPreview;
 }
 
-export async function fetchLinkPreviewImageObjectUrl(imageUrl: string, auth: SessionAuth): Promise<string | null> {
+export async function fetchLinkPreviewImageBlob(imageUrl: string, auth: SessionAuth): Promise<Blob | null> {
   const response = await fetch(`${env.apiUrl}/api/link-preview/image?url=${encodeURIComponent(imageUrl)}`, {
     headers: buildAuthHeader(auth),
   });
@@ -25,6 +25,5 @@ export async function fetchLinkPreviewImageObjectUrl(imageUrl: string, auth: Ses
     return null;
   }
 
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
+  return response.blob();
 }

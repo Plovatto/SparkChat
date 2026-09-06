@@ -2,6 +2,7 @@ import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
 import { getCurrentIdentity } from './current-identity';
 import { clearRoomKeyStore, deleteRoomKey, loadRoomKey, saveRoomKey } from './key-store';
+import { clearDecryptedMediaCache } from './media-cache';
 import { safeAsync } from './safe-async';
 import { getSodium } from './sodium';
 
@@ -326,6 +327,7 @@ async function clearRoomKeysImpl(): Promise<void> {
   knownParticipantsByRoom.clear();
   refetchedRoomIds.clear();
   pendingRefetches.clear();
+  clearDecryptedMediaCache();
   await clearRoomKeyStore();
 }
 

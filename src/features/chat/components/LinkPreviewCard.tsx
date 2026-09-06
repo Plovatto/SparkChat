@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
-import { fetchLinkPreviewImageObjectUrl } from '@lib/api/link-preview';
+import { fetchLinkPreviewImageBlob } from '@lib/api/link-preview';
 import type { SessionAuth } from '@lib/api/session-auth';
+import { BoundedMap } from '@lib/cache/bounded-map';
 import type { MessageLinkPreview } from '@lib/socket';
 
 interface LinkPreviewCardProps {
@@ -11,6 +12,37 @@ interface LinkPreviewCardProps {
   variant: 'composer' | 'bubble';
   bubble?: ResolvedBubbleStyle;
   onDismiss?: () => void;
+}
+
+const MAX_CACHED_PREVIEW_IMAGES = 60;
+const previewImageCache = new BoundedMap<string, Blob>(MAX_CACHED_PREVIEW_IMAGES);
+const pendingPreviewImages = new Map<string, Promise<Blob | null>>();
+
+function loadPreviewImage(imageUrl: string, auth: SessionAuth): Promise<Blob | null> {
+  const cached = previewImageCache.get(imageUrl);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  const pending = pendingPreviewImages.get(imageUrl);
+  if (pending) {
+    return pending;
+  }
+
+  const task = fetchLinkPreviewImageBlob(imageUrl, auth)
+    .then((blob) => {
+      if (blob) {
+        previewImageCache.set(imageUrl, blob);
+      }
+      return blob;
+    })
+    .catch(() => null)
+    .finally(() => {
+      pendingPreviewImages.delete(imageUrl);
+    });
+
+  pendingPreviewImages.set(imageUrl, task);
+  return task;
 }
 
 function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string | null {
@@ -26,15 +58,12 @@ function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string
     let cancelled = false;
     let createdUrl: string | null = null;
 
-    void fetchLinkPreviewImageObjectUrl(imageUrl, { userId, sessionToken }).then((url) => {
-      if (cancelled) {
-        if (url) {
-          URL.revokeObjectURL(url);
-        }
+    void loadPreviewImage(imageUrl, { userId, sessionToken }).then((blob) => {
+      if (cancelled || !blob) {
         return;
       }
-      createdUrl = url;
-      setObjectUrl(url);
+      createdUrl = URL.createObjectURL(blob);
+      setObjectUrl(createdUrl);
     });
 
     return () => {
