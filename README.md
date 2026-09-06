@@ -25,16 +25,6 @@ Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para c
   </tr>
 </table>
 
-<table>
-  <tr>
-    <td width="50%" align="center"><img src="docs/mobile-conversas.png" alt="Lista de conversas no celular" width="300"></td>
-    <td width="50%" align="center"><img src="docs/mobile-chat.png" alt="Conversa no celular com papel de parede" width="300"></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Lista de conversas no celular</em></td>
-    <td align="center"><em>Conversa com papel de parede</em></td>
-  </tr>
-</table>
 
 ## Funcionalidades
 
