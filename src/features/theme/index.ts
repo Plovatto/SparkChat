@@ -1,6 +1,7 @@
 export { ThemeProvider } from './ThemeProvider';
 export { useTheme } from './theme-context';
 export { useThemeSync } from './hooks/useThemeSync';
+export { useChatSettingsSync } from './hooks/useChatSettingsSync';
 export { CHAT_BACKGROUNDS } from './constants/chat-backgrounds';
 export { COLOR_THEMES } from './constants/color-themes';
 export type { ColorThemeId } from './constants/color-themes';

@@ -5,6 +5,25 @@ export interface SocketUserTheme {
 
 export type SocketUserStatus = 'online' | 'offline';
 
+export interface SocketChatAppearance {
+  overlayOpacity: number;
+  overlayBlur: number;
+  ownBubbleColor: string | null;
+  ownBubbleOpacity: number;
+  ownTextIntensity: number | null;
+  otherBubbleColor: string | null;
+  otherBubbleOpacity: number;
+  otherTextIntensity: number | null;
+  bubbleBlur: number;
+}
+
+export interface SocketChatSettings {
+  roomWallpapers: Record<string, string>;
+  globalWallpaper: string | null;
+  roomAppearance: Record<string, SocketChatAppearance>;
+  globalAppearance: SocketChatAppearance | null;
+}
+
 export interface SocketUser {
   id: string;
   nickname: string;
@@ -12,6 +31,7 @@ export interface SocketUser {
   status: SocketUserStatus;
   statusText: string | null;
   theme: SocketUserTheme;
+  chatSettings: SocketChatSettings | null;
 }
 
 type JoinPayload =
@@ -147,6 +167,7 @@ export interface ServerToClientEvents {
   'user:recovery-file-regenerated': (payload: { recoveryFile: string; recoveryToken: string }) => void;
   'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
   'user:session-revoked': () => void;
+  'user:chat-settings-updated': (payload: { chatSettings: SocketChatSettings }) => void;
   'e2e:public-keys': (payload: { keys: E2ePublicKeyEntry[] }) => void;
   'e2e:my-keys': (payload: {
     publicKey: string | null;
@@ -183,6 +204,8 @@ export interface ClientToServerEvents {
   'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
   'user:update-status-text': (payload: { statusText: string }) => void;
   'user:update-theme': (payload: SocketUserTheme) => void;
+  'user:update-chat-settings': (payload: SocketChatSettings) => void;
+  'user:logout': () => void;
   'user:visibility': (payload: { visible: boolean }, ack?: () => void) => void;
   'user:change-password': (payload: { currentPassword?: string; newPassword: string }) => void;
   'user:regenerate-recovery-file': () => void;

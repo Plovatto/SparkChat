@@ -1,5 +1,5 @@
 import type { IconType } from 'react-icons';
-import type { AuthMethod, SocketUserStatus, SocketUserTheme } from '@lib/socket';
+import type { AuthMethod, SocketChatSettings, SocketUserStatus, SocketUserTheme } from '@lib/socket';
 
 export type LoginMode = 'choose' | 'new' | 'existing';
 
@@ -12,6 +12,7 @@ export interface User {
   status?: SocketUserStatus;
   statusText?: string | null;
   theme?: SocketUserTheme;
+  chatSettings?: SocketChatSettings | null;
 }
 
 export interface PendingRegistration {
