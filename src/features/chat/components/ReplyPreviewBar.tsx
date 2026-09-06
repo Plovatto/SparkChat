@@ -19,12 +19,15 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
 
   const renderPreview = () => {
     if (message.type === 'image') {
-      return (
+      const imageSrc = message.fileMeta?.thumbnailUrl ?? message.content;
+      return imageSrc ? (
         <img
-          src={message.content}
-          alt="thumb"
+          src={imageSrc}
+          alt="Imagem"
           style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
         />
+      ) : (
+        <div style={{ width: 56, height: 40, borderRadius: 6, flexShrink: 0, background: theme.skeleton }} />
       );
     }
 
@@ -39,12 +42,27 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
 
     if (message.type === 'file') {
       if (isVideo) {
-        return (
+        return videoThumbnail ? (
           <img
-            src={videoThumbnail ?? undefined}
-            alt="thumb"
+            src={videoThumbnail}
+            alt="Vídeo"
             style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: theme.skeleton }}
           />
+        ) : (
+          <div
+            style={{
+              width: 56,
+              height: 40,
+              borderRadius: 6,
+              flexShrink: 0,
+              background: theme.skeleton,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FaPlay size={12} />
+          </div>
         );
       }
 

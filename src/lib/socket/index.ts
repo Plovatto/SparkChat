@@ -18,5 +18,7 @@ export type {
   SessionSummary,
   SocketUser,
   SocketUserStatus,
+  SocketChatAppearance,
+  SocketChatSettings,
   SocketUserTheme,
 } from './socket-events';
