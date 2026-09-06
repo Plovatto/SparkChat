@@ -11,6 +11,9 @@ export function createSocket(url: string): AppSocket {
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
+    transports: ['websocket', 'polling'],
+    rememberUpgrade: true,
+    timeout: 20000,
   });
 
   return wrapSocketWithE2e(socket);
