@@ -95,7 +95,11 @@ function isImageGroup(messages: ChatMessage[]): messages is ImageGroup {
   return messages.length >= 2;
 }
 
-function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
+function isSameMessageList(left: ChatMessage[], right: ChatMessage[]): boolean {
+  return left.length === right.length && left.every((message, index) => message === right[index]);
+}
+
+function buildRenderItems(messages: ChatMessage[], previousGroups: Map<string, ImageGroup>): RenderItem[] {
   const items: RenderItem[] = [];
   let buffer: ChatMessage[] = [];
 
@@ -105,7 +109,8 @@ function buildRenderItems(messages: ChatMessage[]): RenderItem[] {
       return;
     }
     if (isImageGroup(buffer)) {
-      items.push({ kind: 'image-group', messages: buffer });
+      const previous = previousGroups.get(first.id);
+      items.push({ kind: 'image-group', messages: previous && isSameMessageList(previous, buffer) ? previous : buffer });
     } else {
       items.push({ kind: 'single', message: first });
     }
@@ -176,11 +181,16 @@ function receiptKey(receipt: MessageReceiptInfo): string {
   return `${receipt.type}:${receipt.users.map((user) => user.id).sort().join(',')}`;
 }
 
+function isSameReceipt(left: MessageReceiptInfo, right: MessageReceiptInfo): boolean {
+  return left.type === right.type && left.users.length === right.users.length && left.users.every((user, index) => user === right.users[index]);
+}
+
 function buildVisibleReceipts(
   items: RenderItem[],
   isGroupChat: boolean,
   participants: RoomParticipant[],
   currentUserId: string | undefined,
+  previous: Map<string, MessageReceiptInfo>,
 ): Map<string, MessageReceiptInfo> {
   const candidates = items.reduce<{ key: string; receipt: MessageReceiptInfo }[]>((acc, item) => {
     const anchor = renderItemAnchorMessage(item);
@@ -195,7 +205,8 @@ function buildVisibleReceipts(
   candidates.forEach((candidate, index) => {
     const next = candidates[index + 1];
     if (!next || receiptKey(next.receipt) !== receiptKey(candidate.receipt)) {
-      visible.set(candidate.key, candidate.receipt);
+      const prior = previous.get(candidate.key);
+      visible.set(candidate.key, prior && isSameReceipt(prior, candidate.receipt) ? prior : candidate.receipt);
     }
   });
 
@@ -304,6 +315,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const prependAnchorRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
   const scrollIdleTimeoutRef = useRef<number | null>(null);
   const stuckDayKeysRef = useRef<Set<string>>(new Set());
+  const imageGroupsRef = useRef<Map<string, ImageGroup>>(new Map());
+  const visibleReceiptsRef = useRef<Map<string, MessageReceiptInfo>>(new Map());
   const auth = useMemo(() => ({ userId: user.id, sessionToken: user.sessionToken }), [user.id, user.sessionToken]);
 
   const captureScrollAnchor = useCallback(() => {
@@ -327,22 +340,36 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
   const lastRepliedMessageRef = useRef<MessageView | null>(null);
-  const renderItems = useMemo(() => buildRenderItems(messages), [messages]);
+  const renderItems = useMemo(() => {
+    const items = buildRenderItems(messages, imageGroupsRef.current);
+    const groups = new Map<string, ImageGroup>();
+    for (const item of items) {
+      if (item.kind === 'image-group') {
+        groups.set(item.messages[0].id, item.messages);
+      }
+    }
+    imageGroupsRef.current = groups;
+    return items;
+  }, [messages]);
   const entranceIndexByKey = useMemo(() => {
     const lastIndex = renderItems.length - 1;
     return new Map(renderItems.map((item, index) => [renderItemKey(item), Math.min(lastIndex - index, ENTRANCE_CASCADE_MAX_INDEX)]));
   }, [renderItems]);
   const dayGroups = useMemo(() => buildDayGroups(renderItems), [renderItems]);
-  const visibleReceipts = useMemo(
-    () => buildVisibleReceipts(renderItems, room?.type === 'group', room?.participants ?? [], user.id),
-    [renderItems, room?.type, room?.participants, user.id],
-  );
+  const dayKeysSignature = useMemo(() => dayGroups.map((group) => renderItemKey(group.items[0])).join('|'), [dayGroups]);
+  const isGroupChat = room?.type === 'group';
+  const participants = room?.participants;
+  const visibleReceipts = useMemo(() => {
+    const next = buildVisibleReceipts(renderItems, isGroupChat, participants ?? [], user.id, visibleReceiptsRef.current);
+    visibleReceiptsRef.current = next;
+    return next;
+  }, [renderItems, isGroupChat, participants, user.id]);
   const mentionCandidates = useMemo(
     () =>
-      room?.type === 'group'
-        ? room.participants.filter((participant) => participant.id !== user.id).map((participant) => ({ id: participant.id, nickname: participant.nickname }))
+      isGroupChat && participants
+        ? participants.filter((participant) => participant.id !== user.id).map((participant) => ({ id: participant.id, nickname: participant.nickname }))
         : undefined,
-    [room?.type, room?.participants, user.id],
+    [isGroupChat, participants, user.id],
   );
   const lastMessageIdRef = useRef<string | null>(null);
   const isReadyForLoadMoreRef = useRef(false);
@@ -551,7 +578,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     container.querySelectorAll<HTMLElement>('[data-day-sentinel]').forEach((sentinel) => observer.observe(sentinel));
 
     return () => observer.disconnect();
-  }, [dayGroups]);
+  }, [dayKeysSignature]);
 
   const markUserScrolled = () => {
     hasUserScrolledRef.current = true;
@@ -601,6 +628,31 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
+
+  const toggleSelectedMessage = useCallback((messageId: string) => {
+    setSelectedMessageId((current) => (current === messageId ? null : messageId));
+  }, []);
+
+  const handleReply = useCallback((message: MessageView) => {
+    setRepliedMessage(message);
+    setSelectedMessageId(message.id);
+    setTimeout(() => messageInputRef.current?.focus(), 100);
+  }, []);
+
+  const handleDeleteRequest = useCallback((messageId: string) => {
+    setMessageIdPendingDelete(messageId);
+  }, []);
+
+  const handleForward = useCallback((message: ChatMessage) => {
+    setForwardingMessage(message);
+  }, []);
+
+  const handleAudioPlayed = useCallback(
+    (messageId: string) => {
+      socket?.emit('audio:played', { messageId });
+    },
+    [socket],
+  );
 
   if (!room) {
     return <EmptyChatState />;
@@ -662,10 +714,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     socket?.emit('recording:stop', { roomId: room.id });
   };
 
-  const handleAudioPlayed = (messageId: string) => {
-    socket?.emit('audio:played', { messageId });
-  };
-
   const handleSend = ({ text, imageFiles, documentFiles, linkPreview }: MessageInputSubmitPayload) => {
     const trimmed = text.trim();
     const hasAttachments = imageFiles.length > 0 || documentFiles.length > 0;
@@ -696,19 +744,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     notifyStoppedTyping();
   };
 
-  const handleReply = (message: MessageView) => {
-    setRepliedMessage(message);
-    setSelectedMessageId(message.id);
-    setTimeout(() => messageInputRef.current?.focus(), 100);
-  };
-
   const handleLeftGroup = () => {
     setIsInfoOpen(false);
     onBack();
-  };
-
-  const toggleSelectedMessage = (messageId: string) => {
-    setSelectedMessageId((current) => (current === messageId ? null : messageId));
   };
 
   const wallpaper = getRoomWallpaper(room.id);
@@ -908,7 +946,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                               <MessageBubble
                                 message={item.message}
                                 isOwn={isOwn}
-                                isGroupChat={room.type === 'group'}
+                                isGroupChat={isGroupChat}
                                 roomId={room.id}
                                 participants={room.participants}
                                 currentUserId={user.id}
@@ -917,12 +955,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 isSelected={selectedMessageId === item.message.id}
                                 currentAudioRef={currentAudioRef}
                                 receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={() => toggleSelectedMessage(item.message.id)}
-                                onReply={() => handleReply(item.message)}
-                                onDelete={() => setMessageIdPendingDelete(item.message.id)}
-                                onForward={() => setForwardingMessage(item.message)}
+                                onSelect={toggleSelectedMessage}
+                                onReply={handleReply}
+                                onDelete={handleDeleteRequest}
+                                onForward={handleForward}
                                 onAudioPlayed={handleAudioPlayed}
-                                onRetry={() => item.message.clientTempId && retryMessage(item.message.clientTempId)}
+                                onRetry={retryMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
                               />
@@ -930,17 +968,17 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                               <ImageGroupBubble
                                 images={item.messages}
                                 isOwn={isOwn}
-                                isGroupChat={room.type === 'group'}
+                                isGroupChat={isGroupChat}
                                 roomId={room.id}
                                 participants={room.participants}
                                 currentUserId={user.id}
                                 isSelected={selectedMessageId === anchorMessage.id}
                                 receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={() => toggleSelectedMessage(anchorMessage.id)}
-                                onReply={() => handleReply(anchorMessage)}
-                                onDelete={() => setMessageIdPendingDelete(anchorMessage.id)}
-                                onForward={() => setForwardingMessage(anchorMessage)}
-                                onRetry={() => anchorMessage.clientTempId && retryMessage(anchorMessage.clientTempId)}
+                                onSelect={toggleSelectedMessage}
+                                onReply={handleReply}
+                                onDelete={handleDeleteRequest}
+                                onForward={handleForward}
+                                onRetry={retryMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
                               />
