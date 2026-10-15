@@ -63,13 +63,13 @@ Para testar a integração completa, mantenha também a SparkChat API em execuç
 Clone o repositório:
 
 ```bash
-git clone https://github.com/Plovatto/SPA-SparkChat.git
+git clone https://github.com/Plovatto/SparkChat.git
 ```
 
 Acesse a pasta do projeto:
 
 ```bash
-cd SPA-SparkChat
+cd SparkChat
 ```
 
 Instale as dependências:
