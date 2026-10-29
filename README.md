@@ -48,6 +48,7 @@ Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para c
 - [Socket.IO Client](https://socket.io/docs/v4/client-api/)
 - [React Icons](https://react-icons.github.io/react-icons/)
 - ESLint - análise e padronização do código
+- [Vitest](https://vitest.dev/) e [fast-check](https://fast-check.dev/) - testes unitários e baseados em propriedades
 
 ## Como Executar
 
@@ -137,14 +138,16 @@ A URL do frontend também precisa constar em `FRONTEND_URL` na API, que controla
 
 ## Scripts
 
-| Comando             | Descrição                                              |
-| ------------------- | ------------------------------------------------------ |
-| `npm run dev`       | Inicia o servidor de desenvolvimento                   |
-| `npm run build`     | Executa a checagem de tipos e gera o build de produção |
-| `npm run preview`   | Executa localmente o build de produção                 |
-| `npm run typecheck` | Executa a checagem de tipos sem gerar arquivos         |
-| `npm run lint`      | Executa a análise do código com ESLint                 |
-| `npm run lint:fix`  | Corrige problemas de lint automaticamente              |
+| Comando              | Descrição                                              |
+| -------------------- | ------------------------------------------------------ |
+| `npm run dev`        | Inicia o servidor de desenvolvimento                   |
+| `npm run build`      | Executa a checagem de tipos e gera o build de produção |
+| `npm run preview`    | Executa localmente o build de produção                 |
+| `npm run typecheck`  | Executa a checagem de tipos sem gerar arquivos         |
+| `npm run lint`       | Executa a análise do código com ESLint                 |
+| `npm run lint:fix`   | Corrige problemas de lint automaticamente              |
+| `npm test`           | Executa os testes                                      |
+| `npm run test:watch` | Executa os testes em modo de observação                |
 
 ## Estrutura do Projeto
 
