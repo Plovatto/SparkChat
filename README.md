@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/Plovatto/SparkChat/actions/workflows/ci.yml/badge.svg)](https://github.com/Plovatto/SparkChat/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Plovatto/SparkChat/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/Plovatto/SparkChat/security/code-scanning)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Plovatto/SparkChat/badge)](https://scorecard.dev/viewer/?uri=github.com/Plovatto/SparkChat)
 [![Deploy](https://github.com/Plovatto/SparkChat/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/Plovatto/SparkChat/actions/workflows/deploy-pages.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
