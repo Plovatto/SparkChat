@@ -1,16 +1,8 @@
-import { getCachedRoomKey } from './room-keys';
+import { getCachedRoomKey, requireCachedRoomKey } from './room-keys';
 import { getSodium } from './sodium';
 
-export interface EncryptedAttachment {
-  blob: Blob;
-  encrypted: boolean;
-}
-
-export async function encryptAttachmentIfPossible(roomId: string, file: Blob): Promise<EncryptedAttachment> {
-  const roomKey = getCachedRoomKey(roomId);
-  if (!roomKey) {
-    return { blob: file, encrypted: false };
-  }
+export async function encryptAttachment(roomId: string, file: Blob): Promise<Blob> {
+  const roomKey = requireCachedRoomKey(roomId);
 
   const sodium = await getSodium();
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -20,7 +12,7 @@ export async function encryptAttachmentIfPossible(roomId: string, file: Blob): P
   combined.set(nonce, 0);
   combined.set(ciphertext, nonce.length);
 
-  return { blob: new Blob([combined], { type: 'application/octet-stream' }), encrypted: true };
+  return new Blob([combined], { type: 'application/octet-stream' });
 }
 
 export async function decryptAttachment(roomId: string, ciphertext: ArrayBuffer, mimeType: string): Promise<Blob | null> {
