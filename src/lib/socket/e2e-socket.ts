@@ -3,26 +3,40 @@ import {
   decryptMessageViews,
   decryptRoomSummaries,
   decryptRoomSummary,
-  encryptOutgoingContent,
-  encryptTextIfPossible,
+  encryptOutgoingMessage,
+  ensureRoomKeyForDecryption,
   establishGroupRoomKeyOnCreate,
   establishPrivateRoomKey,
   getCurrentIdentity,
   handleGroupUserJoined,
   handleIncomingRoomKeyPush,
   handleKeyRequest,
+  MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
   trackRoomParticipants,
 } from '@lib/e2ee';
 import type { AppSocket } from './socket-client';
-import type { MessageView, RoomParticipant, RoomSummary } from './socket-events';
+import type { ClientToServerEvents, MessageView, RoomParticipant, RoomSummary } from './socket-events';
 
 type AnyHandler = (...args: never[]) => void;
 type GenericOn = (event: string, handler: AnyHandler) => AppSocket;
 type GenericOff = (event?: string, handler?: AnyHandler) => AppSocket;
 type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
-const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
+type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
+
+const SEND_FAILURE_MESSAGE = 'Não foi possível criptografar a mensagem.';
+
+// The server never sees a message that failed to encrypt, so the failure is reported locally
+// through the same 'error' event the server uses, letting the chat mark it as failed right away.
+function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, error: unknown): void {
+  const message = error instanceof MissingRoomKeyError ? error.message : SEND_FAILURE_MESSAGE;
+  for (const listener of socket.listeners('error')) {
+    listener({ message, clientTempId });
+  }
+}
+
+const DECRYPT_EVENTS =new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
 
 function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string): void {
   trackRoomParticipants(room);
@@ -139,67 +153,16 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   genericSocket.emit = (event: string, ...args: unknown[]) => {
     if (event === 'message:send') {
-      const payload = args[0] as {
-        roomId: string;
-        type?: string;
-        content: string;
-        caption?: string;
-        fileMeta?: { name: string; mimeType: string; size: number };
-        linkPreview?: { url: string; title: string; description: string | null; imageUrl: string | null; siteName: string | null };
-      };
-      const contentPromise = encryptOutgoingContent(payload.roomId, payload.type ?? 'text', payload.content).catch(
-        (error: unknown) => {
-          console.error('[e2e] failed to encrypt outgoing message, sending it as-is', error);
-          return payload.content;
-        },
-      );
-      const captionPromise = payload.caption
-        ? encryptTextIfPossible(payload.roomId, payload.caption).catch((error: unknown) => {
-            console.error('[e2e] failed to encrypt outgoing caption, sending it as-is', error);
-            return payload.caption as string;
-          })
-        : Promise.resolve(undefined);
-      const fileMetaPromise = payload.fileMeta
-        ? Promise.all([
-            encryptTextIfPossible(payload.roomId, payload.fileMeta.name),
-            encryptTextIfPossible(payload.roomId, payload.fileMeta.mimeType),
-          ])
-            .then(([name, mimeType]) => ({ ...payload.fileMeta, name, mimeType }))
-            .catch((error: unknown) => {
-              console.error('[e2e] failed to encrypt outgoing fileMeta, sending it as-is', error);
-              return payload.fileMeta;
-            })
-        : Promise.resolve(undefined);
-
-      const encryptNullable = (value: string | null): Promise<string | null> =>
-        value ? encryptTextIfPossible(payload.roomId, value) : Promise.resolve(null);
-
-      const linkPreviewPromise = payload.linkPreview
-        ? Promise.all([
-            encryptTextIfPossible(payload.roomId, payload.linkPreview.url),
-            encryptTextIfPossible(payload.roomId, payload.linkPreview.title),
-            encryptNullable(payload.linkPreview.description),
-            encryptNullable(payload.linkPreview.imageUrl),
-            encryptNullable(payload.linkPreview.siteName),
-          ])
-            .then(([url, title, description, imageUrl, siteName]) => ({ url, title, description, imageUrl, siteName }))
-            .catch((error: unknown) => {
-              console.error('[e2e] failed to encrypt outgoing linkPreview, sending it as-is', error);
-              return payload.linkPreview;
-            })
-        : Promise.resolve(undefined);
-
-      void Promise.all([contentPromise, captionPromise, fileMetaPromise, linkPreviewPromise]).then(
-        ([content, caption, fileMeta, linkPreview]) => {
-          originalEmit(event, {
-            ...payload,
-            content,
-            ...(caption !== undefined ? { caption } : {}),
-            ...(fileMeta !== undefined ? { fileMeta } : {}),
-            ...(linkPreview !== undefined ? { linkPreview } : {}),
-          });
-        },
-      );
+      const payload = args[0] as OutgoingMessage;
+      void ensureRoomKeyForDecryption(socket, payload.roomId)
+        .then(() => encryptOutgoingMessage(payload))
+        .then((encrypted) => {
+          originalEmit(event, encrypted);
+        })
+        .catch((error: unknown) => {
+          console.error('[e2e] failed to encrypt outgoing message, not sending it', error);
+          notifySendFailure(socket, payload.clientTempId, error);
+        });
       return socket;
     }
     return originalEmit(event, ...args);

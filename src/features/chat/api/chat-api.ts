@@ -1,6 +1,6 @@
 import { env } from '@config/env';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
-import { encryptAttachmentIfPossible } from '@lib/e2ee';
+import { encryptAttachment } from '@lib/e2ee';
 import { buildImageVariants } from '@lib/media/image-compression';
 
 export interface UploadedMedia {
@@ -30,14 +30,12 @@ async function uploadAttachment(
   roomId: string,
   errorFallback: string,
 ): Promise<UploadResponse & { url: string }> {
-  const { blob, encrypted } = await encryptAttachmentIfPossible(roomId, content);
+  const blob = await encryptAttachment(roomId, content);
   const uploadFile = new File([blob], filename, { type: mimeType });
 
   const formData = new FormData();
   formData.append(fieldName, uploadFile);
-  if (encrypted) {
-    formData.append('encrypted', '1');
-  }
+  formData.append('encrypted', '1');
 
   const response = await fetch(`${env.apiUrl}${endpoint}`, {
     method: 'POST',
