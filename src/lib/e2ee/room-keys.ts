@@ -106,6 +106,21 @@ export function getCachedRoomKey(roomId: string): Uint8Array | null {
   return memoryCache.get(roomId) ?? null;
 }
 
+export class MissingRoomKeyError extends Error {
+  constructor() {
+    super('A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes.');
+    this.name = 'MissingRoomKeyError';
+  }
+}
+
+export function requireCachedRoomKey(roomId: string): Uint8Array {
+  const roomKey = memoryCache.get(roomId);
+  if (!roomKey) {
+    throw new MissingRoomKeyError();
+  }
+  return roomKey;
+}
+
 export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
   const cached = memoryCache.get(roomId);
   if (cached) {
