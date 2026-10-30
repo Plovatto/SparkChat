@@ -10,11 +10,13 @@ export {
 } from './setup-identity';
 export {
   clearRoomKeys,
+  ensureRoomKeyForDecryption,
   establishGroupRoomKeyOnCreate,
   establishPrivateRoomKey,
   handleGroupUserJoined,
   handleIncomingRoomKeyPush,
   handleKeyRequest,
+  MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
   trackRoomParticipants,
 } from './room-keys';
@@ -24,7 +26,6 @@ export {
   decryptMessageViews,
   decryptRoomSummaries,
   decryptRoomSummary,
-  encryptOutgoingContent,
-  encryptTextIfPossible,
+  encryptOutgoingMessage,
 } from './message-crypto';
-export { encryptAttachmentIfPossible } from './attachment-crypto';
+export { encryptAttachment } from './attachment-crypto';

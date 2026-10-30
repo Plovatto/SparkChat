@@ -2,7 +2,7 @@ import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
-import { ensureRoomKeyForDecryption, getCachedRoomKey, refetchRoomKeyAfterDecryptionFailure } from './room-keys';
+import { ensureRoomKeyForDecryption, refetchRoomKeyAfterDecryptionFailure, requireCachedRoomKey } from './room-keys';
 import { getSodium } from './sodium';
 
 const E2E_PREFIX = 'e2e:v1:';
@@ -207,24 +207,54 @@ export function decryptRoomSummaries(socket: AppSocket, rooms: RoomSummary[]): P
   return Promise.all(rooms.map((room) => decryptRoomSummary(socket, room)));
 }
 
-export async function encryptOutgoingContent(roomId: string, type: string, content: string): Promise<string> {
-  if (type !== 'text') {
-    return content;
-  }
-
-  const roomKey = getCachedRoomKey(roomId);
-  if (!roomKey) {
-    return content;
-  }
-
-  return encryptText(content, roomKey);
+export interface OutgoingMessageFields {
+  roomId: string;
+  type?: string;
+  content: string;
+  caption?: string;
+  fileMeta?: MessageFileMeta;
+  linkPreview?: MessageLinkPreview;
 }
 
-export async function encryptTextIfPossible(roomId: string, text: string): Promise<string> {
-  const roomKey = getCachedRoomKey(roomId);
-  if (!roomKey) {
-    return text;
-  }
+// Without the room key there is no way to encrypt, so this throws instead of handing back
+// plaintext: a message that cannot be encrypted is never sent.
+export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T> {
+  const roomKey = requireCachedRoomKey(message.roomId);
+  const encrypt = (value: string) => encryptText(value, roomKey);
+  const encryptNullable = (value: string | null) => (value ? encrypt(value) : Promise.resolve(null));
 
-  return encryptText(text, roomKey);
+  // Media content is the URL of an upload that was already encrypted before it left the device.
+  const contentPromise = (message.type ?? 'text') === 'text' ? encrypt(message.content) : Promise.resolve(message.content);
+  const captionPromise = message.caption ? encrypt(message.caption) : Promise.resolve(undefined);
+  const fileMetaPromise = message.fileMeta
+    ? Promise.all([encrypt(message.fileMeta.name), encrypt(message.fileMeta.mimeType)]).then(([name, mimeType]) => ({
+        ...message.fileMeta,
+        name,
+        mimeType,
+      }))
+    : Promise.resolve(undefined);
+  const linkPreviewPromise = message.linkPreview
+    ? Promise.all([
+        encrypt(message.linkPreview.url),
+        encrypt(message.linkPreview.title),
+        encryptNullable(message.linkPreview.description),
+        encryptNullable(message.linkPreview.imageUrl),
+        encryptNullable(message.linkPreview.siteName),
+      ]).then(([url, title, description, imageUrl, siteName]) => ({ url, title, description, imageUrl, siteName }))
+    : Promise.resolve(undefined);
+
+  const [content, caption, fileMeta, linkPreview] = await Promise.all([
+    contentPromise,
+    captionPromise,
+    fileMetaPromise,
+    linkPreviewPromise,
+  ]);
+
+  return {
+    ...message,
+    content,
+    ...(caption !== undefined ? { caption } : {}),
+    ...(fileMeta !== undefined ? { fileMeta } : {}),
+    ...(linkPreview !== undefined ? { linkPreview } : {}),
+  };
 }
