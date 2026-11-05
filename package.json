@@ -20,7 +20,7 @@
     "bootstrap": "^5.3.3",
     "date-fns": "^4.1.0",
     "libsodium-wrappers-sumo": "^0.8.4",
-    "pdfjs-dist": "^6.3.289",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.0.0",
     "react-bootstrap": "^2.10.7",
     "react-dom": "^19.0.0",
