@@ -62,7 +62,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 display: 'inline-block',
               }}
             >
-              <img src={Logo} alt="Logo" style={{ width: '8.5rem', marginBottom: '-12px' }} />
+              <img src={Logo} alt="Logo do SparkChat" style={{ width: '8.5rem', marginBottom: '-12px' }} />
             </div>
 
             <h1

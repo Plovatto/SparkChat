@@ -3,21 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#6c5ce7" />
-    <meta name="description" content="SparkChat, onde as conversas ganham energia." />
+    <meta name="description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
     <meta name="color-scheme" content="dark light" />
-    <title>SparkChat</title>
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="author" content="Plovatto" />
+    <meta name="application-name" content="SparkChat" />
+    <meta name="apple-mobile-web-app-title" content="SparkChat" />
+    <title>SparkChat | Chat em tempo real com criptografia ponta a ponta</title>
     <link rel="canonical" href="https://sparkchat.plovatto.dev/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SparkChat" />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:url" content="https://sparkchat.plovatto.dev/" />
-    <meta property="og:title" content="SparkChat" />
-    <meta property="og:description" content="SparkChat, onde as conversas ganham energia." />
+    <meta property="og:title" content="SparkChat | Chat em tempo real com criptografia ponta a ponta" />
+    <meta property="og:description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
     <meta property="og:image" content="https://sparkchat.plovatto.dev/og-image.jpg" />
     <meta property="og:image:secure_url" content="https://sparkchat.plovatto.dev/og-image.jpg" />
     <meta property="og:image:type" content="image/jpeg" />
@@ -25,12 +31,64 @@
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Tela do SparkChat com a lista de conversas e um chat com o assistente SparkAI" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SparkChat" />
-    <meta name="twitter:description" content="SparkChat, onde as conversas ganham energia." />
+    <meta name="twitter:title" content="SparkChat | Chat em tempo real com criptografia ponta a ponta" />
+    <meta name="twitter:description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
     <meta name="twitter:image" content="https://sparkchat.plovatto.dev/og-image.jpg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://sparkchat.plovatto.dev/#website",
+            "url": "https://sparkchat.plovatto.dev/",
+            "name": "SparkChat",
+            "description": "Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.",
+            "inLanguage": "pt-BR"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://sparkchat.plovatto.dev/#app",
+            "name": "SparkChat",
+            "url": "https://sparkchat.plovatto.dev/",
+            "description": "Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.",
+            "applicationCategory": "CommunicationApplication",
+            "operatingSystem": "Web",
+            "browserRequirements": "Requer JavaScript e um navegador moderno.",
+            "inLanguage": "pt-BR",
+            "image": "https://sparkchat.plovatto.dev/og-image.jpg",
+            "screenshot": "https://sparkchat.plovatto.dev/og-image.jpg",
+            "isAccessibleForFree": true,
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "BRL"
+            },
+            "featureList": [
+              "Mensagens em tempo real",
+              "Criptografia ponta a ponta de mensagens e anexos",
+              "Envio de imagens, áudios e arquivos",
+              "Temas e papéis de parede sincronizados entre dispositivos",
+              "Assistente SparkAI integrado"
+            ],
+            "author": {
+              "@type": "Person",
+              "name": "Plovatto",
+              "url": "https://plovatto.dev/"
+            },
+            "sameAs": "https://github.com/Plovatto/SparkChat"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>SparkChat</h1>
+      <p>Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.</p>
+      <p>Ative o JavaScript no navegador para usar o SparkChat.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
