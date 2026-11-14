@@ -9,7 +9,7 @@
 
 Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para compor a experiência visual de uma aplicação de chat em tempo real.
 
-**Acesse o app:** https://plovatto.github.io/SparkChat/ · **API:** https://p01--sparkchat--pgj2h2jjxzb4.code.run/docs/
+**Acesse o app:** https://sparkchat.plovatto.dev/ · **API:** https://sparkchat-api.plovatto.dev/docs/
 
 <p align="center">
   <img src="docs/chat-assistente.png" alt="Conversa com o assistente SparkAI, com resposta citada e ações de mensagem" width="900">
@@ -128,12 +128,17 @@ Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no a
 
 O deploy é feito no GitHub Pages pelo workflow `.github/workflows/deploy-pages.yml`, disparado a cada push na branch `main`.
 
-Duas configurações são necessárias no repositório:
+O app é servido no domínio próprio `sparkchat.plovatto.dev`, e a API em `sparkchat-api.plovatto.dev`.
+
+Três configurações são necessárias no repositório:
 
 - Em **Settings → Pages**, a origem deve estar como **GitHub Actions**.
+- Em **Settings → Pages → Custom domain**, o valor deve ser `sparkchat.plovatto.dev`, com **Enforce HTTPS** ativo.
 - Em **Settings → Environments → github-pages**, os valores `VITE_API_URL` e `VITE_SOCKET_URL` devem apontar para a API hospedada. O Vite embute essas variáveis no build, então elas precisam existir no ambiente da Action, não apenas no `.env` local.
 
-O `base` do Vite é definido como `/SparkChat/` apenas no build (o servidor de desenvolvimento continua na raiz), acompanhando o caminho do GitHub Pages.
+No DNS do domínio, o subdomínio `sparkchat` é um registro `CNAME` apontando para `plovatto.github.io`.
+
+Como o app fica na raiz do subdomínio, o `base` do Vite permanece no padrão (`/`), tanto no build quanto no servidor de desenvolvimento.
 
 A URL do frontend também precisa constar em `FRONTEND_URL` na API, que controla o CORS.
 
