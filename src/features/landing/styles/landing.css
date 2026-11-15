@@ -1359,6 +1359,7 @@ body {
     max-width: 720px;
     margin-inline: 0;
     justify-self: start;
+    order: -1;
   }
 
   .lp-faq {
@@ -1429,6 +1430,10 @@ body {
 
   .lp-phone {
     aspect-ratio: 9 / 15;
+  }
+
+  .lp-window .lp-bubble--typing {
+    display: none;
   }
 }
 
