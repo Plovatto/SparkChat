@@ -3,7 +3,7 @@
   "short_name": "SparkChat",
   "description": "Chat em tempo real com criptografia ponta a ponta, envio de imagens, áudios e arquivos, temas personalizáveis e o assistente SparkAI.",
   "lang": "pt-BR",
-  "start_url": "/",
+  "start_url": "/app/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#14121f",
