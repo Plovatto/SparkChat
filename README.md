@@ -118,8 +118,9 @@ Este projeto foi preparado para trabalhar junto com a [SparkChat API](../API-Spa
 Em ambiente local, a configuração esperada é:
 
 ```text
-SPA: http://localhost:5173
-API: http://localhost:3001
+Apresentação: http://localhost:5173
+App:          http://localhost:5173/app/
+API:          http://localhost:3001
 ```
 
 Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no arquivo `.env`.
@@ -128,7 +129,7 @@ Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no a
 
 O deploy é feito no GitHub Pages pelo workflow `.github/workflows/deploy-pages.yml`, disparado a cada push na branch `main`.
 
-O app é servido no domínio próprio `sparkchat.plovatto.dev`, e a API em `sparkchat-api.plovatto.dev`.
+O site é servido no domínio próprio `sparkchat.plovatto.dev`, e a API em `sparkchat-api.plovatto.dev`. A raiz (`/`) mostra a página de apresentação e o app fica em `/app/`. Quem já tem sessão salva no navegador e abre a raiz vai direto para o app, e links de convite antigos (`/?join=` e `/?startChat=`) são repassados para `/app/`.
 
 Três configurações são necessárias no repositório:
 
@@ -138,7 +139,7 @@ Três configurações são necessárias no repositório:
 
 No DNS do domínio, o subdomínio `sparkchat` é um registro `CNAME` apontando para `plovatto.github.io`.
 
-Como o app fica na raiz do subdomínio, o `base` do Vite permanece no padrão (`/`), tanto no build quanto no servidor de desenvolvimento.
+O build tem duas páginas: `index.html` (apresentação) e `app/index.html` (app). O `base` do Vite permanece no padrão (`/`). Ao final do build, a página de apresentação é renderizada no servidor e gravada em `dist/index.html`, para que o conteúdo já chegue pronto aos buscadores. No servidor de desenvolvimento, o app fica em `http://localhost:5173/app/`.
 
 A URL do frontend também precisa constar em `FRONTEND_URL` na API, que controla o CORS.
 
@@ -167,6 +168,7 @@ src/
 ├── features/
 │   ├── auth/         # Login, cadastro, sessão e sincronização com o socket
 │   ├── chat/         # Área de conversa, mensagens, anexos, efeitos e uploads
+│   ├── landing/      # Página de apresentação da raiz, com prévia dos temas
 │   ├── notifications/# Notificações do navegador, sons e badge de não lidas
 │   ├── rooms/        # Lista de conversas, perfil, novo chat e helpers de sala
 │   └── theme/        # Temas, papéis de parede e aparência dos balões
