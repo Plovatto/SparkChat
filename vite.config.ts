@@ -1,16 +1,24 @@
 import { build, defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import postcss, { type AtRule, type Root } from 'postcss';
+import enLanding from './src/locales/en/landing.json';
+import ptLanding from './src/locales/pt/landing.json';
+import { languageFromPath, LANGUAGES, type Language } from './src/lib/i18n/language';
+import { landingBootScript } from './src/features/landing/lib/boot-script';
+import { LANDING_BOOT_PLACEHOLDER, renderLandingDocument, type LandingHeadCopy } from './src/features/landing/lib/landing-head';
 
 const LANDING_SERVER_ENTRY = 'src/features/landing/entry-server.tsx';
 const LANDING_ROOT_PLACEHOLDER = '<div id="root"></div>';
 const LANDING_THEME_PLACEHOLDER = '<style id="sc-landing-theme"></style>';
 
+const LANDING_COPY: Record<Language, LandingHeadCopy> = { pt: ptLanding, en: enLanding };
+const LANDING_OUTPUT: Record<Language, string> = { pt: 'index.html', en: 'en/index.html' };
+
 interface LandingRenderer {
-  render: () => { html: string; themeCss: string };
+  render: (language: Language) => { html: string; themeCss: string };
 }
 
 const BOOTSTRAP_CSS_PATH = /[\\/]bootstrap[\\/]dist[\\/]css[\\/]bootstrap\.min\.css$/;
@@ -77,6 +85,23 @@ function pruneUnusedBootstrapCss(): Plugin {
   };
 }
 
+function landingDocument(): Plugin {
+  return {
+    name: 'sparkchat:landing-document',
+    transformIndexHtml(html, context) {
+      if (!html.includes(LANDING_BOOT_PLACEHOLDER)) {
+        return html;
+      }
+      const withBoot = html.replace(LANDING_BOOT_PLACEHOLDER, () => `<script>${landingBootScript()}</script>`);
+      if (!context.server) {
+        return withBoot;
+      }
+      const language = languageFromPath(context.originalUrl ?? context.path);
+      return renderLandingDocument(withBoot, language, LANDING_COPY[language]);
+    },
+  };
+}
+
 function prerenderLanding(): Plugin {
   let root = process.cwd();
   let outDir = path.resolve(root, 'dist');
@@ -99,23 +124,27 @@ function prerenderLanding(): Plugin {
 
       const entryUrl = pathToFileURL(path.join(ssrOutDir, 'entry-server.js')).href;
       const { render } = (await import(entryUrl)) as LandingRenderer;
-      const rendered = render();
 
-      const indexPath = path.join(outDir, 'index.html');
-      const template = await readFile(indexPath, 'utf8');
+      const template = await readFile(path.join(outDir, 'index.html'), 'utf8');
       if (!template.includes(LANDING_ROOT_PLACEHOLDER) || !template.includes(LANDING_THEME_PLACEHOLDER)) {
         throw new Error('Landing template placeholders not found in dist/index.html');
       }
 
-      const html = template
-        .replace(LANDING_ROOT_PLACEHOLDER, `<div id="root">${rendered.html}</div>`)
-        .replace(LANDING_THEME_PLACEHOLDER, `<style id="sc-landing-theme">${rendered.themeCss}</style>`);
+      for (const language of LANGUAGES) {
+        const rendered = render(language);
+        const html = renderLandingDocument(template, language, LANDING_COPY[language])
+          .replace(LANDING_ROOT_PLACEHOLDER, () => `<div id="root">${rendered.html}</div>`)
+          .replace(LANDING_THEME_PLACEHOLDER, () => `<style id="sc-landing-theme">${rendered.themeCss}</style>`);
 
-      if (!html.includes('<h1')) {
-        throw new Error('Prerendered landing is missing its main heading');
+        if (!html.includes('<h1')) {
+          throw new Error(`Prerendered ${language} landing is missing its main heading`);
+        }
+
+        const outputPath = path.join(outDir, LANDING_OUTPUT[language]);
+        await mkdir(path.dirname(outputPath), { recursive: true });
+        await writeFile(outputPath, html);
       }
 
-      await writeFile(indexPath, html);
       await rm(ssrOutDir, { recursive: true, force: true });
     },
   };
@@ -132,7 +161,7 @@ export default defineConfig(({ isSsrBuild }) => ({
           },
         },
       },
-  plugins: [pruneUnusedBootstrapCss(), react(), prerenderLanding()],
+  plugins: [pruneUnusedBootstrapCss(), react(), landingDocument(), prerenderLanding()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),

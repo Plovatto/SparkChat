@@ -10,110 +10,15 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#6c5ce7" />
-    <meta name="description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
     <meta name="color-scheme" content="dark light" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <meta name="msvalidate.01" content="04C1477EE8A12DD03333043296A30506" />
     <meta name="author" content="Plovatto" />
     <meta name="application-name" content="SparkChat" />
     <meta name="apple-mobile-web-app-title" content="SparkChat" />
-    <title>SparkChat | Chat em tempo real com criptografia ponta a ponta</title>
-    <script>
-      (function () {
-        try {
-          var params = new URLSearchParams(window.location.search);
-          var forwards = params.has('join') || params.has('startChat');
-          var hasSession = window.localStorage.getItem('sparkchat:session') !== null;
-          if (forwards || (hasSession && !params.has('apresentacao'))) {
-            window.location.replace('/app/' + window.location.search + window.location.hash);
-            return;
-          }
-          if ('scrollRestoration' in window.history) {
-            window.history.scrollRestoration = 'manual';
-          }
-          var navigation = window.performance.getEntriesByType('navigation')[0];
-          if (navigation && navigation.type === 'reload' && window.location.hash) {
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
-          }
-          var saved = JSON.parse(window.localStorage.getItem('sparkchat:landing-theme') || 'null');
-          if (saved && saved.vars) {
-            var root = document.documentElement;
-            Object.keys(saved.vars).forEach(function (name) {
-              root.style.setProperty(name, saved.vars[name]);
-            });
-            root.style.colorScheme = saved.kind;
-            root.dataset.theme = saved.kind;
-          }
-        } catch (error) {
-          return;
-        }
-      })();
-    </script>
+    <script id="sc-landing-boot"></script>
     <style id="sc-landing-theme"></style>
-    <link rel="canonical" href="https://sparkchat.plovatto.dev/" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="SparkChat" />
-    <meta property="og:locale" content="pt_BR" />
-    <meta property="og:url" content="https://sparkchat.plovatto.dev/" />
-    <meta property="og:title" content="SparkChat | Chat em tempo real com criptografia ponta a ponta" />
-    <meta property="og:description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
-    <meta property="og:image" content="https://sparkchat.plovatto.dev/og-image.jpg" />
-    <meta property="og:image:secure_url" content="https://sparkchat.plovatto.dev/og-image.jpg" />
-    <meta property="og:image:type" content="image/jpeg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Tela do SparkChat com a lista de conversas e um chat com o assistente SparkAI" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SparkChat | Chat em tempo real com criptografia ponta a ponta" />
-    <meta name="twitter:description" content="Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador." />
-    <meta name="twitter:image" content="https://sparkchat.plovatto.dev/og-image.jpg" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@graph": [
-          {
-            "@type": "WebSite",
-            "@id": "https://sparkchat.plovatto.dev/#website",
-            "url": "https://sparkchat.plovatto.dev/",
-            "name": "SparkChat",
-            "description": "Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.",
-            "inLanguage": "pt-BR"
-          },
-          {
-            "@type": "WebApplication",
-            "@id": "https://sparkchat.plovatto.dev/#app",
-            "name": "SparkChat",
-            "url": "https://sparkchat.plovatto.dev/",
-            "description": "Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.",
-            "applicationCategory": "CommunicationApplication",
-            "operatingSystem": "Web",
-            "browserRequirements": "Requer JavaScript e um navegador moderno.",
-            "inLanguage": "pt-BR",
-            "image": "https://sparkchat.plovatto.dev/og-image.jpg",
-            "screenshot": "https://sparkchat.plovatto.dev/og-image.jpg",
-            "isAccessibleForFree": true,
-            "offers": {
-              "@type": "Offer",
-              "price": "0",
-              "priceCurrency": "BRL"
-            },
-            "featureList": [
-              "Mensagens em tempo real",
-              "Criptografia ponta a ponta de mensagens e anexos",
-              "Envio de imagens, áudios e arquivos",
-              "Temas e papéis de parede sincronizados entre dispositivos",
-              "Assistente SparkAI integrado"
-            ],
-            "author": {
-              "@type": "Person",
-              "name": "Plovatto",
-              "url": "https://plovatto.dev/"
-            },
-            "sameAs": "https://github.com/Plovatto/SparkChat"
-          }
-        ]
-      }
-    </script>
+    <meta name="sc-landing-head" />
   </head>
   <body>
     <div id="root"></div>
