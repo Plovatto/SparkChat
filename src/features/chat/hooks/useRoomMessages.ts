@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeRoomKeyAvailable } from '@lib/e2ee';
 import {
   useSocket,
   type MessageFileMeta,
@@ -102,6 +103,10 @@ export function useRoomMessages(
   const pendingTimeoutsRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
+  const isRefreshingLatestRef = useRef(false);
+  const hasUnreadWhileHiddenRef = useRef(false);
   const isLoadingOlderRef = useRef(false);
   const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialPageRef = useRef(false);
@@ -144,6 +149,7 @@ export function useRoomMessages(
     setIsLoadingOlder(false);
     isLoadingOlderRef.current = false;
     hasLoadedInitialPageRef.current = false;
+    isRefreshingLatestRef.current = false;
     clearLoadOlderTimeout();
     setTypingUserIds([]);
     setRecordingUserIds([]);
@@ -165,18 +171,44 @@ export function useRoomMessages(
   }, [socket, roomId, connected]);
 
   useEffect(() => {
+    hasUnreadWhileHiddenRef.current = false;
+    if (!socket || !roomId) {
+      return;
+    }
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && hasUnreadWhileHiddenRef.current) {
+        hasUnreadWhileHiddenRef.current = false;
+        socket.emit('message:mark-read', { roomId });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [socket, roomId]);
+
+  useEffect(() => {
     if (!socket || !roomId) {
       return;
     }
 
     socket.emit('messages:get', { roomId, limit: MESSAGES_PAGE_SIZE });
 
+    const refreshLatestPage = () => {
+      if (!hasLoadedInitialPageRef.current || isLoadingOlderRef.current) {
+        return;
+      }
+      isRefreshingLatestRef.current = true;
+      socket.emit('messages:get', { roomId, limit: MESSAGES_PAGE_SIZE });
+    };
+
     const handleMessagesList = (payload: { roomId: string; messages: MessageView[]; hasMore: boolean }) => {
       if (payload.roomId !== roomId) {
         return;
       }
 
-      if (hasLoadedInitialPageRef.current) {
+      const isRefresh = isRefreshingLatestRef.current;
+      isRefreshingLatestRef.current = false;
+
+      if (hasLoadedInitialPageRef.current && !isRefresh) {
         isLoadingOlderRef.current = false;
         setIsLoadingOlder(false);
         clearLoadOlderTimeout();
@@ -211,7 +243,9 @@ export function useRoomMessages(
         }
       }
 
-      setHasMoreOlder(payload.hasMore);
+      if (!isRefresh) {
+        setHasMoreOlder(payload.hasMore);
+      }
     };
 
     const handleMessageNew = (message: ChatMessage) => {
@@ -237,7 +271,11 @@ export function useRoomMessages(
       });
 
       if (confirmed.sender.id !== currentUser.id && !confirmed.readBy.includes(currentUser.id)) {
-        socket.emit('message:mark-read', { roomId, messageIds: [confirmed.id] });
+        if (document.visibilityState === 'visible') {
+          socket.emit('message:mark-read', { roomId, messageIds: [confirmed.id] });
+        } else {
+          hasUnreadWhileHiddenRef.current = true;
+        }
       }
     };
 
@@ -299,6 +337,12 @@ export function useRoomMessages(
     };
 
     socket.on('messages:list', handleMessagesList);
+    socket.on('user:resumed', refreshLatestPage);
+    const unsubscribeRoomKey = subscribeRoomKeyAvailable((availableRoomId) => {
+      if (availableRoomId === roomId) {
+        refreshLatestPage();
+      }
+    });
     socket.on('message:new', handleMessageNew);
     socket.on('error', handleSendError);
     socket.on('message:read-receipt', handleReadReceipt);
@@ -309,6 +353,8 @@ export function useRoomMessages(
 
     return () => {
       socket.off('messages:list', handleMessagesList);
+      socket.off('user:resumed', refreshLatestPage);
+      unsubscribeRoomKey();
       socket.off('message:new', handleMessageNew);
       socket.off('error', handleSendError);
       socket.off('message:read-receipt', handleReadReceipt);
@@ -348,8 +394,10 @@ export function useRoomMessages(
         pending: true,
       };
 
-      setMessages((previous) => [...previous, optimistic]);
-      schedulePendingTimeout(clientTempId);
+      if (roomIdRef.current === roomId) {
+        setMessages((previous) => [...previous, optimistic]);
+        schedulePendingTimeout(clientTempId);
+      }
 
       socket.emit('message:send', {
         roomId,
@@ -370,7 +418,7 @@ export function useRoomMessages(
   const retryMessage = useCallback(
     (clientTempId: string) => {
       const target = messagesRef.current.find((message) => message.clientTempId === clientTempId);
-      if (!target || !socket || !roomId || !isSendableMessageType(target.type)) {
+      if (!target || !socket || !isSendableMessageType(target.type)) {
         return;
       }
 
@@ -382,18 +430,19 @@ export function useRoomMessages(
       schedulePendingTimeout(clientTempId);
 
       socket.emit('message:send', {
-        roomId,
+        roomId: target.roomId,
         content: target.content,
         type: target.type,
         duration: target.duration ?? undefined,
         replyToMessageId: target.replyTo?.id,
         clientTempId,
         fileMeta: target.fileMeta ?? undefined,
+        mentionedUserIds: target.mentionedUserIds.length > 0 ? target.mentionedUserIds : undefined,
         caption: target.caption ?? undefined,
         linkPreview: target.linkPreview ?? undefined,
       });
     },
-    [socket, roomId, schedulePendingTimeout],
+    [socket, schedulePendingTimeout],
   );
 
   const loadOlderMessages = useCallback(() => {

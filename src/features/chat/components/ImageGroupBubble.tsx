@@ -37,6 +37,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   isSelected,
   receipt,
   onSelect,
+  onOpenActions,
   onReply,
   onDelete,
   onForward,
@@ -77,6 +78,8 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(anchor.id)}
+      onOpenActions={() => onOpenActions(anchor.id)}
+      allowCustomContextMenu={!images.some((image) => image.pending || image.failed)}
       padding="4px 0 6px"
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
@@ -84,13 +87,13 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {actionsPresence.isPresent && (
+          {actionsPresence.isPresent && !images.some((image) => image.pending || image.failed) && (
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
               onReply={() => onReply(anchor)}
-              onDelete={() => onDelete(anchor.id)}
-              onForward={() => onForward(anchor)}
+              onDelete={() => onDelete(images.map((image) => image.id))}
+              onForward={() => onForward(images)}
             />
           )}
           <ImageModal
