@@ -1562,3 +1562,17 @@ body {
     animation: none;
   }
 }
+
+@media (max-width: 480px) {
+  .lp-header__actions {
+    gap: 8px;
+  }
+
+  .lp-header__brand span {
+    display: none;
+  }
+
+  .lp-header__cta {
+    padding-inline: 14px;
+  }
+}

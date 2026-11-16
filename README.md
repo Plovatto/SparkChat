@@ -48,6 +48,7 @@ Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para c
 - [React Bootstrap](https://react-bootstrap.github.io/)
 - [Socket.IO Client](https://socket.io/docs/v4/client-api/)
 - [React Icons](https://react-icons.github.io/react-icons/)
+- [i18next](https://www.i18next.com/) e [react-i18next](https://react.i18next.com/) - traduções
 - ESLint - análise e padronização do código
 - [Vitest](https://vitest.dev/) e [fast-check](https://fast-check.dev/) - testes unitários e baseados em propriedades
 
@@ -129,7 +130,7 @@ Caso a API esteja em outra URL, atualize `VITE_API_URL` e `VITE_SOCKET_URL` no a
 
 O deploy é feito no GitHub Pages pelo workflow `.github/workflows/deploy-pages.yml`, disparado a cada push na branch `main`.
 
-O site é servido no domínio próprio `sparkchat.plovatto.dev`, e a API em `sparkchat-api.plovatto.dev`. A raiz (`/`) mostra a página de apresentação e o app fica em `/app/`. Quem já tem sessão salva no navegador e abre a raiz vai direto para o app, e links de convite antigos (`/?join=` e `/?startChat=`) são repassados para `/app/`.
+O site é servido no domínio próprio `sparkchat.plovatto.dev`, e a API em `sparkchat-api.plovatto.dev`. A raiz (`/`) mostra a página de apresentação em português, `/en/` mostra a mesma página em inglês e o app fica em `/app/`. Antes de a página aparecer, um script no `<head>` escolhe o idioma: primeiro a escolha salva, depois o idioma do sistema (português ou inglês) e, se não for nenhum dos dois, inglês. Buscadores não são redirecionados. Quem já tem sessão salva no navegador e abre a raiz vai direto para o app, e links de convite antigos (`/?join=` e `/?startChat=`) são repassados para `/app/`.
 
 Três configurações são necessárias no repositório:
 
@@ -139,7 +140,7 @@ Três configurações são necessárias no repositório:
 
 No DNS do domínio, o subdomínio `sparkchat` é um registro `CNAME` apontando para `plovatto.github.io`.
 
-O build tem duas páginas: `index.html` (apresentação) e `app/index.html` (app). O `base` do Vite permanece no padrão (`/`). Ao final do build, a página de apresentação é renderizada no servidor e gravada em `dist/index.html`, para que o conteúdo já chegue pronto aos buscadores. No servidor de desenvolvimento, o app fica em `http://localhost:5173/app/`.
+O build tem duas páginas: `index.html` (apresentação) e `app/index.html` (app). O `base` do Vite permanece no padrão (`/`). Ao final do build, a página de apresentação é renderizada no servidor uma vez por idioma e gravada em `dist/index.html` e `dist/en/index.html`, cada uma com título, descrição, Open Graph e `hreflang` no próprio idioma, para que o conteúdo já chegue pronto aos buscadores. No servidor de desenvolvimento, o app fica em `http://localhost:5173/app/`.
 
 A URL do frontend também precisa constar em `FRONTEND_URL` na API, que controla o CORS.
 
@@ -173,7 +174,8 @@ src/
 │   ├── rooms/        # Lista de conversas, perfil, novo chat e helpers de sala
 │   └── theme/        # Temas, papéis de parede e aparência dos balões
 ├── hooks/            # Hooks reutilizáveis entre features
-├── lib/              # Clientes de API, socket, E2EE, storage, áudio, mídia e formatação
+├── lib/              # Clientes de API, socket, E2EE, idioma, storage, áudio, mídia e formatação
+├── locales/          # Traduções em português e inglês (landing e nomes de temas)
 ├── styles/           # Estilos globais, animações e responsividade
 ├── types/            # Declarações de tipos globais
 ├── main.tsx
