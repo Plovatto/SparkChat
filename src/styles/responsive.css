@@ -24,6 +24,7 @@
 
 .sidebar-header-bar {
   padding: 20px;
+  container-type: inline-size;
 }
 
 .chat-messages-scroll {
@@ -114,5 +115,28 @@
 @media (max-width: 359.98px) {
   .chat-bubble-wrap {
     max-width: 86%;
+  }
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-header-btn {
+  width: 38px;
+  height: 38px;
+}
+
+@container (max-width: 400px) {
+  .sidebar-header-actions {
+    gap: 4px;
+  }
+
+  .sidebar-header-btn {
+    width: 32px;
+    height: 32px;
   }
 }

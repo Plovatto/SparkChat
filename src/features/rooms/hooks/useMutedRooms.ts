@@ -5,7 +5,7 @@ export interface MutedRoomsControls {
   toggleMuted: (roomIds: string[]) => void;
 }
 
-export function useMutedRooms(): MutedRoomsControls {
-  const { ids, toggle } = usePersistedIdSet('mutedRooms');
+export function useMutedRooms(userId: string): MutedRoomsControls {
+  const { ids, toggle } = usePersistedIdSet(`mutedRooms:${userId}`, 'mutedRooms');
   return { mutedRoomIds: ids, toggleMuted: toggle };
 }

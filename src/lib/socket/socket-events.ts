@@ -6,6 +6,7 @@ export interface SocketErrorPayload {
   code?: string;
   params?: ApiErrorParams;
   clientTempId?: string;
+  event?: string;
 }
 
 export interface SocketUserTheme {
@@ -105,6 +106,7 @@ export interface MessageReplySnapshot {
   fileMeta: MessageFileMeta | null;
   caption: string | null;
   sender: MessageSender;
+  deleted?: boolean;
 }
 
 export interface MessageView {
@@ -256,6 +258,7 @@ export interface ClientToServerEvents {
     linkPreview?: MessageLinkPreview;
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
+  'user:set-locale': (payload: { locale: 'pt' | 'en' }) => void;
   'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;
   'typing:start': (payload: { roomId: string }) => void;
   'typing:stop': (payload: { roomId: string }) => void;

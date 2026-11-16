@@ -6,6 +6,8 @@ export const DEFAULT_LANGUAGE: Language = 'en';
 
 export const HTML_LANG: Record<Language, string> = { pt: 'pt-BR', en: 'en' };
 
+export const LANGUAGE_NATIVE_NAMES: Record<Language, string> = { pt: 'Português', en: 'English' };
+
 export const OG_LOCALE: Record<Language, string> = { pt: 'pt_BR', en: 'en_US' };
 
 export const LANGUAGE_PATHS: Record<Language, '/' | '/en/'> = { pt: '/', en: '/en/' };

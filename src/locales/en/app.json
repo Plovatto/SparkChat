@@ -90,10 +90,17 @@
     },
     "e2ee": {
       "encryptFailed": "Couldn't encrypt the message.",
-      "missingRoomKey": "This conversation's encryption key hasn't arrived yet. Please try again in a moment."
+      "missingRoomKey": "This conversation's encryption key hasn't arrived yet. Please try again in a moment.",
+      "mediaUndecryptable": "Couldn't decrypt this file. Please try again in a moment."
+    },
+    "download": {
+      "failed": "Couldn't download the file."
     },
     "validation": {
       "invalidPayload": "Invalid data."
+    },
+    "e2e": {
+      "lookupTooLarge": "Too many items in one key lookup. Send at most {{maxItems}} at a time."
     }
   },
   "systemEvents": {
@@ -193,8 +200,6 @@
     "scrollToLatest": "Go to the latest message",
     "youBlocked": "You blocked this user",
     "blockedYou": "This user blocked you",
-    "deleteTitle": "Delete message",
-    "deleteConfirm": "Are you sure you want to delete this message for everyone?",
     "deleted": "Message deleted",
     "recording_one": "{{name}} is recording audio...",
     "recording_other": "{{count}} people are recording audio...",
@@ -236,7 +241,8 @@
       "microphoneDenied": "Couldn't access the microphone. Please check your permissions.",
       "removeAttachment": "Remove",
       "discard": "Discard",
-      "removePreview": "Remove preview"
+      "removePreview": "Remove preview",
+      "tooLong": "This message is too long. Please split it into smaller parts."
     },
     "message": {
       "retry": "Failed to send. Tap to resend.",
@@ -263,7 +269,9 @@
       "cancelReply": "Cancel reply",
       "defaultPdfName": "Document.pdf",
       "defaultFileName": "file",
-      "defaultImageName": "image.jpg"
+      "defaultImageName": "image.jpg",
+      "readMore": "Read more",
+      "encryptedUnavailable": "🔒 Encrypted message — no local key yet."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -289,7 +297,9 @@
     "forward": {
       "title": "Forward message",
       "empty": "No conversations available",
-      "submitCount": "Forward ({{count}})"
+      "submitCount": "Forward ({{count}})",
+      "sending": "Forwarding...",
+      "failed": "Couldn't forward the message. Please try again."
     },
     "gallery": {
       "title": "Media ({{count}})",
@@ -316,7 +326,11 @@
       "resetChat": "Reset this chat's appearance",
       "none": "None"
     },
-    "assistantStatus": "100% charged, 0% sleepy 🔋"
+    "assistantStatus": "100% charged, 0% sleepy 🔋",
+    "deleteTitle_one": "Delete message",
+    "deleteTitle_other": "Delete {{count}} messages",
+    "deleteConfirm_one": "Are you sure you want to delete this message for everyone?",
+    "deleteConfirm_other": "Are you sure you want to delete these {{count}} messages for everyone?"
   },
   "roomInfo": {
     "copyUsername": "Copy username",
@@ -374,7 +388,8 @@
     "unmute": "Unmute",
     "deleteTitle": "Delete Conversations",
     "deleteConfirm_one": "Are you sure you want to delete {{count}} conversation?",
-    "deleteConfirm_other": "Are you sure you want to delete {{count}} conversations?"
+    "deleteConfirm_other": "Are you sure you want to delete {{count}} conversations?",
+    "emptyHint": "Click \"New Chat\" to get started"
   },
   "newChat": {
     "title": "New Chat",

@@ -2,6 +2,8 @@ import { SESSION_STORAGE_KEY as SESSION_KEY } from '@constants/storage-keys';
 import { getItem, setItem } from '@lib/storage';
 import type { User } from '../types';
 
+const ACCOUNT_STORAGE_KEYS = ['chatThemePendingSync'];
+
 export function saveSession(user: User): void {
   const stored: User = {
     id: user.id,
@@ -24,6 +26,9 @@ export function getStoredSession(): User | null {
 export function clearStoredSession(): void {
   try {
     localStorage.removeItem(SESSION_KEY);
+    for (const key of ACCOUNT_STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
     for (const key of Object.keys(localStorage)) {
       if (key.startsWith('sparkchat:last-room:')) {
         localStorage.removeItem(key);

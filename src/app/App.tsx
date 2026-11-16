@@ -25,11 +25,21 @@ import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms'
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useViewportHeight } from '@hooks/useViewportHeight';
-import { SocketProvider, useSocket, type RoomSummary } from '@lib/socket';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { useAppLanguage } from '@lib/i18n/app-i18n';
+import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
+
+const DEEP_LINK_ERROR_WINDOW_MS = 10000;
+const PREFERENCES_RESET_DELAY_MS = 350;
 
 export function App() {
   const { user, isRestoring, login, logout, updateUser, consumePendingE2eCredential } = useAuthSession();
+  const { resetUserPreferences } = useTheme();
+  const handleLogout = useCallback(() => {
+    logout();
+    window.setTimeout(resetUserPreferences, PREFERENCES_RESET_DELAY_MS);
+  }, [logout, resetUserPreferences]);
   const [pendingRegistration, setPendingRegistration] = useState<PendingRegistration | null>(null);
 
   useViewportHeight();
@@ -42,7 +52,7 @@ export function App() {
         pendingRegistration={pendingRegistration}
         onRegisterStart={setPendingRegistration}
         onLogin={login}
-        onLogout={logout}
+        onLogout={handleLogout}
         onUserUpdate={updateUser}
         consumePendingE2eCredential={consumePendingE2eCredential}
       />
@@ -101,10 +111,12 @@ function AuthGate({
       });
       setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
       setIsSocketReady(true);
+      setRegisterError('');
 
       if (socket && pendingRegistration) {
         void setupIdentityAfterRegister(socket, registered.id, pendingRegistration.password, recoveryToken);
       }
+      onRegisterStart(null);
     },
     onResumed: ({ user: resumed, authMethod }) => {
       onUserUpdate({
@@ -142,7 +154,30 @@ function AuthGate({
       onRegisterStart(null);
     },
   });
-  useThemeSync(user);
+  const currentUserId = user?.id;
+  useEffect(() => {
+    if (!socket || !currentUserId) {
+      return;
+    }
+    const handleProfileUpdated = (payload: { userId: string; nickname: string; avatar: number; statusText: string | null }) => {
+      if (payload.userId === currentUserId) {
+        onUserUpdate({ nickname: payload.nickname, avatar: payload.avatar, statusText: payload.statusText });
+      }
+    };
+    socket.on('user:profile-updated', handleProfileUpdated);
+    return () => {
+      socket.off('user:profile-updated', handleProfileUpdated);
+    };
+  }, [socket, currentUserId, onUserUpdate]);
+
+  const { language } = useAppLanguage();
+  useEffect(() => {
+    if (socket && currentUserId) {
+      socket.emit('user:set-locale', { locale: language });
+    }
+  }, [socket, currentUserId, language]);
+
+  useThemeSync();
   useChatSettingsSync();
 
   const handleUserLogout = useCallback(() => {
@@ -203,9 +238,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   const notificationPreference = useNotificationPreference();
   const soundPreference = useSoundPreference();
-  const { mutedRoomIds, toggleMuted } = useMutedRooms();
+  const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
-  const totalUnread = rooms.reduce((sum, room) => sum + room.unreadCount, 0);
+  const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
 
   useMessageNotifications(
     rooms,
@@ -260,17 +295,39 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     const startChatWith = params.get('startChat');
     const joinCode = params.get('join');
 
-    if (startChatWith && startChatWith !== user.nickname) {
-      socket.emit('room:create-private', { targetNickname: startChatWith });
+    const wantsChat = Boolean(startChatWith) && startChatWith?.toLowerCase() !== user.nickname.toLowerCase();
+    if (!wantsChat && !joinCode) {
+      if (startChatWith) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      return;
     }
 
+    const handleDeepLinkError = (payload: SocketErrorPayload) => {
+      if (!payload.clientTempId && !payload.event) {
+        window.alert(translateErrorPayload(payload, 'errors.generic'));
+      }
+    };
+    const stopListening = () => socket.off('error', handleDeepLinkError);
+    socket.on('error', handleDeepLinkError);
+    socket.on('room:joined', stopListening);
+    socket.on('room:created', stopListening);
+    const timer = window.setTimeout(stopListening, DEEP_LINK_ERROR_WINDOW_MS);
+
+    if (wantsChat && startChatWith) {
+      socket.emit('room:create-private', { targetNickname: startChatWith });
+    }
     if (joinCode) {
       socket.emit('room:join-by-code', { roomCode: joinCode.toUpperCase() });
     }
+    window.history.replaceState({}, '', window.location.pathname);
 
-    if (startChatWith || joinCode) {
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    return () => {
+      window.clearTimeout(timer);
+      stopListening();
+      socket.off('room:joined', stopListening);
+      socket.off('room:created', stopListening);
+    };
   }, [socket, user.nickname]);
 
   useEffect(() => {
@@ -385,7 +442,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 padding: 0,
                 height: '100%',
                 display: selectedRoom || isWideLayout ? 'block' : 'none',
-                ...(isWideLayout ? {} : { flex: '0 0 100%', maxWidth: '100%' }),
+                ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
               <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
