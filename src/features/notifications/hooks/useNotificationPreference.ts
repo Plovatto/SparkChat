@@ -51,10 +51,11 @@ export function useNotificationPreference(): NotificationPreference {
   }, []);
 
   useEffect(() => {
-    if (isSupported && localStorage.getItem(STORAGE_KEY) === null) {
-      void enable();
+    if (isSupported && localStorage.getItem(STORAGE_KEY) === null && Notification.permission === 'granted') {
+      localStorage.setItem(STORAGE_KEY, 'true');
+      setIsEnabled(true);
     }
-  }, [isSupported, enable]);
+  }, [isSupported]);
 
   return { isSupported, isEnabled, permission, enable, disable };
 }

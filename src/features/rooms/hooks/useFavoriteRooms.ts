@@ -5,7 +5,7 @@ export interface FavoriteRoomsControls {
   toggleFavorites: (roomIds: string[]) => void;
 }
 
-export function useFavoriteRooms(): FavoriteRoomsControls {
-  const { ids, toggle } = usePersistedIdSet('favoriteRooms');
+export function useFavoriteRooms(userId: string): FavoriteRoomsControls {
+  const { ids, toggle } = usePersistedIdSet(`favoriteRooms:${userId}`, 'favoriteRooms');
   return { favoriteRoomIds: ids, toggleFavorites: toggle };
 }

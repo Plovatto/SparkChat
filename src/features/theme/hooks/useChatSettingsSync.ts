@@ -1,12 +1,9 @@
 import { useEffect, useRef } from 'react';
 import type { SocketChatSettings, SocketUser } from '@lib/socket';
-import { useSocket } from '@lib/socket';
+import { isSocketAuthenticated, useSocket } from '@lib/socket';
 import type { ChatSettings } from '../constants/chat-appearance';
 import { useTheme } from '../theme-context';
-
-function serialize(settings: ChatSettings): string {
-  return JSON.stringify(settings, Object.keys(settings).sort());
-}
+import { serializeChatSettings as serialize } from '../utils/serialize-chat-settings';
 
 function isEmpty(settings: ChatSettings): boolean {
   return (
@@ -31,6 +28,7 @@ export function useChatSettingsSync(): void {
   const { chatSettings, applyChatSettings } = useTheme();
   const lastSyncedRef = useRef<string | null>(null);
   const hasResolvedRef = useRef(false);
+  const hasUnsyncedLocalChangeRef = useRef(false);
   const localRef = useRef(chatSettings);
   localRef.current = chatSettings;
 
@@ -38,6 +36,7 @@ export function useChatSettingsSync(): void {
     if (!socket) {
       hasResolvedRef.current = false;
       lastSyncedRef.current = null;
+      hasUnsyncedLocalChangeRef.current = false;
       return;
     }
 
@@ -45,6 +44,13 @@ export function useChatSettingsSync(): void {
       const local = localRef.current;
       const server = user.chatSettings ? normalize(user.chatSettings) : null;
       hasResolvedRef.current = true;
+
+      if (hasUnsyncedLocalChangeRef.current) {
+        hasUnsyncedLocalChangeRef.current = false;
+        lastSyncedRef.current = serialize(local);
+        socket.emit('user:update-chat-settings', local);
+        return;
+      }
 
       if (!server || isEmpty(server)) {
         lastSyncedRef.current = serialize(local);
@@ -76,7 +82,7 @@ export function useChatSettingsSync(): void {
   }, [socket, applyChatSettings]);
 
   useEffect(() => {
-    if (!socket || !hasResolvedRef.current) {
+    if (!socket || !hasResolvedRef.current || !socket.active) {
       return;
     }
 
@@ -86,6 +92,9 @@ export function useChatSettingsSync(): void {
     }
 
     lastSyncedRef.current = serialized;
+    if (!isSocketAuthenticated(socket)) {
+      hasUnsyncedLocalChangeRef.current = true;
+    }
     socket.emit('user:update-chat-settings', chatSettings);
   }, [socket, chatSettings]);
 }
