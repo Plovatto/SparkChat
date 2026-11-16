@@ -37,6 +37,7 @@ Interface do SparkChat, uma SPA desenvolvida com React, TypeScript e Vite para c
 - Envio de imagens, áudios e arquivos, com miniatura gerada no cliente para a prévia da conversa
 - Temas, papéis de parede e aparência dos balões sincronizados entre dispositivos
 - Notificações do navegador, sons e badge de mensagens não lidas
+- Interface em português e inglês, com o idioma inicial vindo do sistema e troca a qualquer momento
 - Alias de importação configurados no Vite
 
 ## Tecnologias
@@ -175,7 +176,7 @@ src/
 │   └── theme/        # Temas, papéis de parede e aparência dos balões
 ├── hooks/            # Hooks reutilizáveis entre features
 ├── lib/              # Clientes de API, socket, E2EE, idioma, storage, áudio, mídia e formatação
-├── locales/          # Traduções em português e inglês (landing e nomes de temas)
+├── locales/          # Traduções em português e inglês (landing, app e nomes de temas)
 ├── styles/           # Estilos globais, animações e responsividade
 ├── types/            # Declarações de tipos globais
 ├── main.tsx
