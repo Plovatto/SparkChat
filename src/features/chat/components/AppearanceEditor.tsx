@@ -1,4 +1,5 @@
 import { FaComments, FaGlobe, FaImage, FaPalette, FaUndo } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { AccordionSection } from '@components/common/AccordionSection';
 import { Slider } from '@components/common/Slider';
 import { DEFAULT_CHAT_APPEARANCE, toSixDigitHex, useTheme } from '@features/theme';
@@ -8,6 +9,7 @@ interface AppearanceEditorProps {
 }
 
 export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
+  const { t } = useTranslation();
   const {
     theme,
     getRoomAppearance,
@@ -82,13 +84,13 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
               letterSpacing: '0.5px',
             }}
           >
-            Aparência
+            {t('chat.appearance.title')}
           </span>
         </div>
         {hasPendingChanges && (
           <button onClick={applyToAllChats} className="sc-btn sc-btn--soft" style={{ gap: '6px', borderRadius: '8px', padding: '7px 12px', fontSize: '0.78rem', fontWeight: 700 }}>
             <FaGlobe size={12} />
-            Aplicar em todos os chats
+            {t('chat.appearance.applyAll')}
           </button>
         )}
       </div>
@@ -96,7 +98,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
       <div className="sc-card" style={{ padding: '18px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <AccordionSection
-            title="Papel de parede"
+            title={t('chat.appearance.wallpaper')}
             icon={
               <span style={sectionIconBadgeStyle}>
                 <FaImage size={11} />
@@ -105,7 +107,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <Slider
-                label="Escurecimento"
+                label={t('chat.appearance.dim')}
                 valueLabel={`${appearance.overlayOpacity}%`}
                 value={appearance.overlayOpacity}
                 min={0}
@@ -114,8 +116,8 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
               />
 
               <Slider
-                label="Desfoque"
-                valueLabel={appearance.overlayBlur === 0 ? 'Nenhum' : `${appearance.overlayBlur}px`}
+                label={t('chat.appearance.blur')}
+                valueLabel={appearance.overlayBlur === 0 ? t('chat.appearance.none') : `${appearance.overlayBlur}px`}
                 value={appearance.overlayBlur}
                 min={0}
                 max={20}
@@ -127,7 +129,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
           <div style={{ borderTop: `1px solid ${theme.border}` }} />
 
           <AccordionSection
-            title="Balões de mensagem"
+            title={t('chat.appearance.bubbles')}
             icon={
               <span style={sectionIconBadgeStyle}>
                 <FaComments size={11} />
@@ -143,18 +145,18 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                       value={appearance.ownBubbleColor ?? ownDefaultHex}
                       onChange={(event) => update({ ownBubbleColor: event.target.value })}
                       className="sc-color-input"
-                      title="Cor das mensagens enviadas"
+                      title={t('chat.appearance.ownColor')}
                     />
-                    <span style={bubbleLabelStyle}>Mensagens enviadas</span>
+                    <span style={bubbleLabelStyle}>{t('chat.appearance.own')}</span>
                   </div>
                   {appearance.ownBubbleColor && (
                     <button onClick={() => update({ ownBubbleColor: null, ownBubbleOpacity: DEFAULT_CHAT_APPEARANCE.ownBubbleOpacity })} className="sc-btn sc-btn--text">
-                      Restaurar padrão
+                      {t('chat.appearance.resetDefault')}
                     </button>
                   )}
                 </div>
                 <Slider
-                  label="Transparência"
+                  label={t('chat.appearance.transparency')}
                   valueLabel={`${appearance.ownBubbleOpacity}%`}
                   value={appearance.ownBubbleOpacity}
                   min={10}
@@ -163,8 +165,8 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <Slider
-                    label="Escurecimento do texto"
-                    valueLabel={appearance.ownTextIntensity === null ? 'Automático' : `${appearance.ownTextIntensity}%`}
+                    label={t('chat.appearance.textDim')}
+                    valueLabel={appearance.ownTextIntensity === null ? t('chat.appearance.auto') : `${appearance.ownTextIntensity}%`}
                     value={appearance.ownTextIntensity ?? 50}
                     min={0}
                     max={100}
@@ -172,7 +174,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                   />
                   {appearance.ownTextIntensity !== null && (
                     <button onClick={() => update({ ownTextIntensity: null })} className="sc-btn sc-btn--text" style={{ alignSelf: 'flex-start' }}>
-                      Restaurar padrão
+                      {t('chat.appearance.resetDefault')}
                     </button>
                   )}
                 </div>
@@ -186,18 +188,18 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                       value={appearance.otherBubbleColor ?? otherDefaultHex}
                       onChange={(event) => update({ otherBubbleColor: event.target.value })}
                       className="sc-color-input"
-                      title="Cor das mensagens recebidas"
+                      title={t('chat.appearance.otherColor')}
                     />
-                    <span style={bubbleLabelStyle}>Mensagens recebidas</span>
+                    <span style={bubbleLabelStyle}>{t('chat.appearance.other')}</span>
                   </div>
                   {appearance.otherBubbleColor && (
                     <button onClick={() => update({ otherBubbleColor: null, otherBubbleOpacity: DEFAULT_CHAT_APPEARANCE.otherBubbleOpacity })} className="sc-btn sc-btn--text">
-                      Restaurar padrão
+                      {t('chat.appearance.resetDefault')}
                     </button>
                   )}
                 </div>
                 <Slider
-                  label="Transparência"
+                  label={t('chat.appearance.transparency')}
                   valueLabel={`${appearance.otherBubbleOpacity}%`}
                   value={appearance.otherBubbleOpacity}
                   min={10}
@@ -206,8 +208,8 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <Slider
-                    label="Escurecimento do texto"
-                    valueLabel={appearance.otherTextIntensity === null ? 'Automático' : `${appearance.otherTextIntensity}%`}
+                    label={t('chat.appearance.textDim')}
+                    valueLabel={appearance.otherTextIntensity === null ? t('chat.appearance.auto') : `${appearance.otherTextIntensity}%`}
                     value={appearance.otherTextIntensity ?? 50}
                     min={0}
                     max={100}
@@ -215,15 +217,15 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
                   />
                   {appearance.otherTextIntensity !== null && (
                     <button onClick={() => update({ otherTextIntensity: null })} className="sc-btn sc-btn--text" style={{ alignSelf: 'flex-start' }}>
-                      Restaurar padrão
+                      {t('chat.appearance.resetDefault')}
                     </button>
                   )}
                 </div>
               </div>
 
               <Slider
-                label="Desfoque dos balões (ambos os lados)"
-                valueLabel={appearance.bubbleBlur === 0 ? 'Nenhum' : `${appearance.bubbleBlur}px`}
+                label={t('chat.appearance.bubbleBlur')}
+                valueLabel={appearance.bubbleBlur === 0 ? t('chat.appearance.none') : `${appearance.bubbleBlur}px`}
                 value={appearance.bubbleBlur}
                 min={0}
                 max={20}
@@ -235,7 +237,7 @@ export function AppearanceEditor({ roomId }: AppearanceEditorProps) {
 
         <button onClick={handleReset} className="sc-btn sc-btn--ghost-border" style={{ width: '100%', marginTop: '20px', padding: '10px 16px', fontSize: '0.85rem' }}>
           <FaUndo size={13} />
-          Restaurar aparência padrão deste chat
+          {t('chat.appearance.resetChat')}
         </button>
       </div>
     </div>

@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
 import { FaComments } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 
 export function EmptyChatState() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
 
   return (
@@ -24,13 +26,13 @@ export function EmptyChatState() {
         className="sc-anim-rise-in sc-stagger"
         style={{ fontSize: '2rem', marginBottom: '15px', color: theme.textPrimary, fontWeight: 700, '--sc-stagger-index': 1 } as CSSProperties}
       >
-        Selecione uma conversa
+        {t('chat.empty.title')}
       </h2>
       <p
         className="sc-anim-rise-in sc-stagger"
         style={{ fontSize: '1.1rem', color: theme.textSecondary, maxWidth: '400px', '--sc-stagger-index': 2 } as CSSProperties}
       >
-        Escolha um chat existente ou clique em &quot;Novo Chat&quot; para começar
+        {t('chat.empty.text')}
       </p>
     </div>
   );

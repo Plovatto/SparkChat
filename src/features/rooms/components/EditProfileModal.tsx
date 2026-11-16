@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FaCheck,
   FaDesktop,
@@ -29,7 +30,10 @@ import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { rewrapIdentityAfterPasswordChange, rewrapIdentityAfterRecoveryRegenerate } from '@lib/e2ee';
 import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { shareLinkNatively } from '@lib/share-link';
-import { useSocket, type AuthMethod, type SessionSummary, type SocketUser } from '@lib/socket';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { formatDateTime } from '@lib/format';
+import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
+import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -44,23 +48,13 @@ interface EditProfileModalProps {
 type ProfileTab = 'profile' | 'security' | 'system';
 type PendingAction = 'profile' | 'password' | 'regenerate';
 
-const WRONG_PASSWORD_MESSAGE = 'Senha atual incorreta.';
 const LOGOUT_AFTER_PASSWORD_CHANGE_MS = 1600;
 
-const AUTH_METHOD_LABEL: Record<AuthMethod, string> = {
-  password: 'Entrou com senha',
-  keyfile: 'Entrou com arquivo de recuperação',
-};
-
-const TABS: { id: ProfileTab; label: string; icon: typeof FaUser }[] = [
-  { id: 'profile', label: 'Perfil', icon: FaUser },
-  { id: 'security', label: 'Segurança', icon: FaShieldAlt },
-  { id: 'system', label: 'Sistema', icon: FaDesktop },
+const TABS: { id: ProfileTab; icon: typeof FaUser }[] = [
+  { id: 'profile', icon: FaUser },
+  { id: 'security', icon: FaShieldAlt },
+  { id: 'system', icon: FaDesktop },
 ];
-
-function formatSessionDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
 
 function buildRecoveryFileName(nickname: string): string {
   return `sparkchat-${nickname.toLowerCase()}.sparkkey`;
@@ -82,6 +76,7 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
 }
 
 export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound }: EditProfileModalProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
   const { avatarSize, iconSize } = useResponsiveAvatarSize();
@@ -96,12 +91,18 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   useAutoDismiss(passwordError, setPasswordError);
+  const [isWrongPassword, setIsWrongPassword] = useState(false);
 
   const [profileError, setProfileError] = useState('');
   useAutoDismiss(profileError, setProfileError);
 
   const [regenerateError, setRegenerateError] = useState('');
   useAutoDismiss(regenerateError, setRegenerateError);
+  useOnLanguageChange(() => {
+    setPasswordError('');
+    setProfileError('');
+    setRegenerateError('');
+  });
 
   const [autoSaveFeedback, setAutoSaveFeedback] = useState('');
   useAutoDismiss(autoSaveFeedback, setAutoSaveFeedback);
@@ -136,7 +137,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     const trySilentRecoveryFileUpdate = async (recoveryFile: string, nicknameForFile: string): Promise<boolean> => {
       const saved = await tryAutoOverwrite(recoveryFile, buildRecoveryFileName(nicknameForFile), user.id);
       if (saved) {
-        setAutoSaveFeedback('Arquivo de recuperação atualizado automaticamente.');
+        setAutoSaveFeedback(translate('profile.autoSaved'));
       }
       return saved;
     };
@@ -199,12 +200,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       }
     };
 
-    const handleError = ({ message }: { message: string }) => {
+    const handleError = (payload: SocketErrorPayload) => {
+      const message = translateErrorPayload(payload, 'errors.generic');
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
       if (action === 'password') {
         pendingPasswordRef.current = '';
         setPasswordError(message);
+        setIsWrongPassword(payload.code === 'user.currentPasswordIncorrect');
       } else if (action === 'regenerate') {
         setRegenerateError(message);
       } else if (action === 'profile') {
@@ -238,7 +241,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
   const handleShare = () => {
     const link = `${window.location.origin}${window.location.pathname}?startChat=${encodeURIComponent(user.nickname)}`;
-    if (!shareLinkNatively({ text: `Fale comigo no SparkChat! Meu username é ${user.nickname}`, url: link })) {
+    if (!shareLinkNatively({ text: t('profile.shareText', { name: user.nickname }), url: link })) {
       clipboard.copy(link);
     }
   };
@@ -247,12 +250,12 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     setPasswordError('');
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
-      setPasswordError(`A nova senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres.`);
+      setPasswordError(t('profile.newPasswordTooShort', { minLength: PASSWORD_MIN_LENGTH }));
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('As senhas não coincidem.');
+      setPasswordError(t('auth.passwordsMismatch'));
       return;
     }
 
@@ -308,11 +311,11 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       isOpen={isOpen}
       onClose={recoveryFilePrompt === null ? onClose : () => {}}
       showCloseButton={recoveryFilePrompt === null}
-      title="Editar Perfil"
+      title={t('profile.title')}
       maxWidth="600px"
     >
       <div style={{ display: 'flex', borderBottom: `2px solid ${theme.border}`, marginBottom: '20px' }}>
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {TABS.map(({ id, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -330,7 +333,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
             }}
           >
             <Icon size={14} />
-            {label}
+            {t(`profile.tabs.${id}`)}
           </button>
         ))}
       </div>
@@ -346,14 +349,14 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
         <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div>
-              <label style={labelStyle}>Username</label>
+              <label style={labelStyle}>{t('profile.username')}</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
                   maxLength={NICKNAME_MAX_LENGTH}
-                  placeholder="Digite seu username"
+                  placeholder={t('profile.usernamePlaceholder')}
                   className="sc-input"
                   style={{ padding: '15px clamp(14px, 3vw, 22px)', paddingRight: '46px', borderRadius: '14px', fontSize: '0.95rem' }}
                 />
@@ -367,12 +370,12 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
 
             <button onClick={handleShare} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
               {clipboard.isCopied() ? <FaCheck size={14} /> : <FaShareAlt size={14} />}
-              {clipboard.isCopied() ? 'Link copiado!' : 'Compartilhar link de chat'}
+              {clipboard.isCopied() ? t('profile.linkCopied') : t('profile.shareLink')}
             </button>
           </div>
 
           <div>
-            <label style={{ ...labelStyle, marginBottom: '12px' }}>Avatar</label>
+            <label style={{ ...labelStyle, marginBottom: '12px' }}>{t('profile.avatar')}</label>
             <div
               className="sc-card"
               style={{
@@ -395,7 +398,8 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                     key={avatarOption.name}
                     onClick={() => setAvatar(index)}
                     data-selected={isSelected}
-                    title={avatarOption.name}
+                    title={translate(`avatars.${avatarOption.name}`)}
+                    aria-label={translate(`avatars.${avatarOption.name}`)}
                     className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
                     style={
                       {
@@ -427,10 +431,10 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 className="sc-btn sc-btn--secondary"
                 style={{ flex: 1, padding: '12px 20px' }}
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button onClick={handleSaveProfile} className="sc-btn sc-btn--gradient sc-btn--lift" style={{ flex: 1, padding: '12px 20px' }}>
-                Salvar Alterações
+                {t('profile.saveChanges')}
               </button>
             </div>
           )}
@@ -440,15 +444,15 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
       {activeTab === 'security' && (
         <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {needsCurrentPassword ? (
-            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder="Senha atual" dense />
+            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder={t('profile.currentPassword')} dense />
           ) : (
             <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-              Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.
+              {t('profile.keyfileNoCurrent')}
             </InfoNotice>
           )}
 
           <div style={{ marginTop: '9px' }}>
-            <PasswordField value={newPassword} onChange={setNewPassword} placeholder={`Nova senha (mín. ${PASSWORD_MIN_LENGTH} caracteres)`} dense />
+            <PasswordField value={newPassword} onChange={setNewPassword} placeholder={t('profile.newPasswordPlaceholder', { minLength: PASSWORD_MIN_LENGTH })} dense />
             <PasswordFieldHint length={newPassword.length} maxLength={PASSWORD_MIN_LENGTH} />
           </div>
 
@@ -457,7 +461,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
               <PasswordField
                 value={confirmNewPassword}
                 onChange={setConfirmNewPassword}
-                placeholder="Confirmar nova senha"
+                placeholder={t('profile.confirmNewPassword')}
                 matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
                 dense
               />
@@ -470,17 +474,16 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           )}
 
           {passwordError && <small key={passwordError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
-          {passwordError === WRONG_PASSWORD_MESSAGE && (
+          {passwordError && isWrongPassword && (
             <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-              Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da
-              atual.
+              {t('profile.forgotPassword')}
             </InfoNotice>
           )}
 
           {newPassword.length > 0 && (
             <>
               <InfoNotice icon={<FaExclamationTriangle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="danger">
-                Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.
+                {t('profile.changeLogsOut')}
               </InfoNotice>
 
               <button
@@ -490,7 +493,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                 style={{ padding: '11px 16px', fontSize: '0.9rem' }}
               >
                 <FaLock size={14} />
-                Trocar senha
+                {t('profile.changePassword')}
               </button>
             </>
           )}
@@ -500,7 +503,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           {regenerateError && <small key={regenerateError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
           <button onClick={handleRegenerateRecoveryFile} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
             <FaFileDownload size={14} />
-            Baixar arquivo de recuperação
+            {t('profile.downloadRecovery')}
           </button>
         </div>
       )}
@@ -520,22 +523,22 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
-              <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>Sons do app</span>
+              <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>{t('profile.sounds')}</span>
             </div>
             <Switch checked={soundEnabled} onChange={onToggleSound} />
           </div>
 
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
-              <small style={{ color: theme.textSecondary }}>Dispositivos com sessão ativa</small>
+              <small style={{ color: theme.textSecondary }}>{t('profile.activeSessions')}</small>
               {otherSessionsCount > 0 && (
                 <button onClick={handleRevokeOtherSessions} className="sc-btn sc-btn--text-danger" style={{ fontSize: '0.78rem' }}>
-                  Encerrar todas as outras
+                  {t('profile.revokeOthers')}
                 </button>
               )}
             </div>
             {sessions.length === 0 ? (
-              <small style={{ color: theme.textSecondary }}>Nenhuma outra sessão ativa.</small>
+              <small style={{ color: theme.textSecondary }}>{t('profile.noOtherSessions')}</small>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {sessions.map((session) => (
@@ -563,7 +566,7 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                         }}
                       >
                         {session.device}
-                        {session.isCurrent && <span style={{ color: theme.accentText, fontWeight: 600 }}> · Este dispositivo</span>}
+                        {session.isCurrent && <span style={{ color: theme.accentText, fontWeight: 600 }}> · {t('profile.thisDevice')}</span>}
                       </span>
                       <span
                         style={{
@@ -575,12 +578,12 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
                           display: 'block',
                         }}
                       >
-                        {AUTH_METHOD_LABEL[session.authMethod]} · Último uso: {formatSessionDate(session.lastUsedAt)}
+                        {t(`profile.authMethod.${session.authMethod}`)} · {t('profile.lastUsed', { date: formatDateTime(session.lastUsedAt) })}
                       </span>
                     </div>
                     <button
                       onClick={() => handleRevokeSession(session.id)}
-                      title="Encerrar esta sessão"
+                      title={t('profile.revokeSession')}
                       className="sc-icon-btn sc-icon-btn--danger-soft"
                       style={{ width: '34px', height: '34px', borderRadius: '9px' }}
                     >

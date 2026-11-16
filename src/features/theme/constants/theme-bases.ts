@@ -45,7 +45,6 @@ export interface StatusPalette {
 
 export interface ThemeBase {
   id: string;
-  name: string;
   kind: ThemeKind;
   ladder: NeutralLadder;
   surfaceSaturation: number;
@@ -110,7 +109,6 @@ const DARK_STATUS: StatusPalette = {
 export const THEME_BASES = {
   dark: {
     id: 'dark',
-    name: 'Modo Escuro',
     kind: 'dark',
     ladder: {
       sidebar: 15,
@@ -148,7 +146,6 @@ export const THEME_BASES = {
   },
   light: {
     id: 'light',
-    name: 'Modo Claro',
     kind: 'light',
     ladder: {
       sidebar: 96.5,
@@ -186,7 +183,6 @@ export const THEME_BASES = {
   },
   midnight: {
     id: 'midnight',
-    name: 'Meia-Noite',
     kind: 'dark',
     ladder: {
       sidebar: 6.5,

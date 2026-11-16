@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
 import { fetchLinkPreviewImageBlob } from '@lib/api/link-preview';
 import type { SessionAuth } from '@lib/api/session-auth';
@@ -78,6 +79,7 @@ function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string
 }
 
 export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: LinkPreviewCardProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const imageObjectUrl = useLinkPreviewImage(preview.imageUrl, auth);
   const isComposer = variant === 'composer';
@@ -128,7 +130,7 @@ export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: L
   );
 
   const dismissButton = isComposer && onDismiss && (
-    <button type="button" onClick={onDismiss} title="Remover preview" className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '28px', height: '28px' }}>
+    <button type="button" onClick={onDismiss} title={t('chat.input.removePreview')} className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '28px', height: '28px' }}>
       <FaTimes size={14} />
     </button>
   );

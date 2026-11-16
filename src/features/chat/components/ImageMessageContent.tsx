@@ -1,4 +1,5 @@
 import { useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
@@ -9,6 +10,7 @@ interface ImageMessageContentProps {
 }
 
 export function ImageMessageContent({ message }: ImageMessageContentProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [displayHeight, setDisplayHeight] = useState<number | null>(null);
@@ -42,7 +44,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
         )}
         <img
           src={message.fileMeta?.thumbnailUrl ?? message.content}
-          alt="Imagem enviada"
+          alt={t('chat.message.sentImage')}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
             setDisplayHeight(fitAttachmentHeight(naturalWidth, naturalHeight));

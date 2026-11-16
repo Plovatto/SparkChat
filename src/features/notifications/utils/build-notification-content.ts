@@ -1,5 +1,7 @@
 import { AVATARS } from '@features/auth/constants/avatars';
 import { BoundedMap } from '@lib/cache/bounded-map';
+import { systemMessageText } from '@lib/format';
+import { translate } from '@lib/i18n/app-i18n';
 import type { MessageView, RoomSummary } from '@lib/socket';
 import { buildNotificationIcon } from './build-notification-icon';
 
@@ -23,15 +25,19 @@ function truncate(text: string): string {
 
 function getMessagePreview(message: MessageView): string {
   if (message.type === 'image') {
-    return 'Enviou uma imagem';
+    return translate('notifications.sentImage');
   }
 
   if (message.type === 'audio') {
-    return 'Enviou um áudio';
+    return translate('notifications.sentAudio');
   }
 
   if (message.type === 'file') {
-    return `Enviou um arquivo${message.fileMeta ? `: ${message.fileMeta.name}` : ''}`;
+    return message.fileMeta ? translate('notifications.sentNamedFile', { name: message.fileMeta.name }) : translate('notifications.sentFile');
+  }
+
+  if (message.type === 'error') {
+    return truncate(systemMessageText(message));
   }
 
   return truncate(message.content);
@@ -54,20 +60,21 @@ function getSenderIcon(sender: MessageView['sender']): Promise<string> {
 
 export async function buildNotificationContent(message: MessageView, room: RoomSummary): Promise<NotificationContent> {
   const preview = getMessagePreview(message);
+  const senderName = message.sender.unknown ? translate('common.unknownUser') : message.sender.nickname;
   const icon = await getSenderIcon(message.sender);
   const image = message.type === 'image' && !message.deletedForEveryone ? message.content : undefined;
 
   if (room.type === 'group') {
     return {
-      title: room.name ?? 'Grupo',
-      body: `${message.sender.nickname}: ${preview}`,
+      title: room.name ?? translate('common.group'),
+      body: `${senderName}: ${preview}`,
       icon,
       ...(image ? { image } : {}),
     };
   }
 
   return {
-    title: message.sender.nickname,
+    title: senderName,
     body: preview,
     icon,
     ...(image ? { image } : {}),

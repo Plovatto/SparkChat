@@ -1,4 +1,5 @@
 import { env } from '@config/env';
+import { toApiError } from '@lib/api/api-error';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
 import { encryptAttachment } from '@lib/e2ee';
 import { buildImageVariants } from '@lib/media/image-compression';
@@ -28,7 +29,7 @@ async function uploadAttachment(
   mimeType: string,
   auth: SessionAuth,
   roomId: string,
-  errorFallback: string,
+  fallbackKey: string,
 ): Promise<UploadResponse & { url: string }> {
   const blob = await encryptAttachment(roomId, content);
   const uploadFile = new File([blob], filename, { type: mimeType });
@@ -46,7 +47,7 @@ async function uploadAttachment(
   const data = (await response.json().catch(() => null)) as UploadResponse | null;
 
   if (!response.ok || !data?.url) {
-    throw new Error(data?.message ?? errorFallback);
+    throw toApiError(data, fallbackKey);
   }
 
   return { ...data, url: data.url };
@@ -76,7 +77,7 @@ export async function uploadChatImage(file: File, auth: SessionAuth, roomId: str
       originalMimeType,
       auth,
       roomId,
-      'Não foi possível enviar a imagem.',
+      'chat.upload.imageFailed',
     ),
     thumbnail
       ? uploadAttachment(
@@ -87,7 +88,7 @@ export async function uploadChatImage(file: File, auth: SessionAuth, roomId: str
           thumbnail.type,
           auth,
           roomId,
-          'Não foi possível enviar a imagem.',
+          'chat.upload.imageFailed',
         )
       : Promise.resolve(null),
   ]);
@@ -106,7 +107,7 @@ export async function uploadChatAudio(blob: Blob, mimeType: string, auth: Sessio
     mimeType,
     auth,
     roomId,
-    'Não foi possível enviar o áudio.',
+    'chat.upload.audioFailed',
   );
   return { url: data.url, mimeType: data.mimeType ?? mimeType };
 }
@@ -120,7 +121,7 @@ export async function uploadChatFile(file: File, auth: SessionAuth, roomId: stri
     file.type,
     auth,
     roomId,
-    'Não foi possível enviar o arquivo.',
+    'chat.upload.fileFailed',
   );
   return {
     url: data.url,

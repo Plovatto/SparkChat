@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FaBell,
   FaBellSlash,
@@ -24,6 +25,8 @@ import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
+import { useAppLanguage } from '@lib/i18n/app-i18n';
+import { LanguageSwitch } from '@lib/i18n/LanguageSwitch';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import { EditProfileModal } from './EditProfileModal';
@@ -93,6 +96,8 @@ export function Sidebar({
   mutedRoomIds,
   onToggleMuted,
 }: SidebarProps) {
+  const { t } = useTranslation();
+  const { language, changeLanguage } = useAppLanguage();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -271,7 +276,7 @@ export function Sidebar({
               boxShadow: theme.shadowSm,
               flexShrink: 0,
             }}
-            title="Clique para editar perfil"
+            title={t('sidebar.editProfile')}
           >
             {avatar ? <avatar.icon size={28} color={AVATAR_ICON_COLOR} /> : null}
             <FaCircle
@@ -306,7 +311,7 @@ export function Sidebar({
               </h5>
               <button
                 onClick={() => clipboard.copy(user.nickname)}
-                title="Copiar username"
+                title={t('roomInfo.copyUsername')}
                 className="sc-icon-btn sc-icon-btn--header"
                 style={{ width: '17px', height: '17px', borderRadius: '5px', alignSelf: 'center', position: 'relative', top: '2px' }}
               >
@@ -320,7 +325,7 @@ export function Sidebar({
                 autoFocus
                 value={statusDraft}
                 maxLength={STATUS_TEXT_MAX_LENGTH}
-                placeholder="Ex: no trampo, 🎮 jogando"
+                placeholder={t('sidebar.statusPlaceholder')}
                 onChange={(event) => setStatusDraft(event.target.value)}
                 onBlur={commitStatusDraft}
                 onKeyDown={handleStatusInputKeyDown}
@@ -336,7 +341,7 @@ export function Sidebar({
             ) : (
               <div
                 onClick={handleStartEditStatus}
-                title="Clique para editar seu status"
+                title={t('sidebar.editStatus')}
                 className="sc-header-status"
                 style={{
                   marginTop: '3px',
@@ -351,12 +356,12 @@ export function Sidebar({
                   textOverflow: 'ellipsis',
                 }}
               >
-                {user.statusText || 'Adicionar status'}
+                {user.statusText || t('sidebar.addStatus')}
               </div>
             )}
           </div>
 
-          <HeaderIconButton onClick={handleThemeButtonClick} title="Temas">
+          <HeaderIconButton onClick={handleThemeButtonClick} title={t('sidebar.themes')}>
             <FaPalette size={16} />
           </HeaderIconButton>
 
@@ -368,28 +373,31 @@ export function Sidebar({
               disabled={notificationsBlocked}
               title={
                 notificationsBlocked
-                  ? 'Notificações bloqueadas nas configurações do navegador'
+                  ? t('sidebar.notificationsBlocked')
                   : notificationsEnabled
-                    ? 'Desativar notificações'
-                    : 'Ativar notificações'
+                    ? t('sidebar.disableNotifications')
+                    : t('sidebar.enableNotifications')
               }
             >
               {notificationsEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
             </HeaderIconButton>
           )}
 
-          <HeaderIconButton onClick={onLogout} title="Sair">
+          <HeaderIconButton onClick={onLogout} title={t('sidebar.logout')}>
             <FaSignOutAlt size={16} />
           </HeaderIconButton>
         </div>
 
-        <button
-          className="sc-btn sc-btn--header sc-anim-attention"
-          onClick={onNewChat}
-          style={{ width: '100%', padding: '11px', borderRadius: '10px' }}
-        >
-          <FaPlus size={14} /> Novo Chat
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            className="sc-btn sc-btn--header sc-anim-attention"
+            onClick={onNewChat}
+            style={{ flex: 1, minWidth: 0, padding: '11px', borderRadius: '10px' }}
+          >
+            <FaPlus size={14} /> {t('sidebar.newChat')}
+          </button>
+          <LanguageSwitch value={language} onChange={changeLanguage} label={t('language.label')} variant="gradient" />
+        </div>
       </div>
 
       <div
@@ -412,20 +420,20 @@ export function Sidebar({
             <div className="sc-anim-swap-in-left" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 onClick={toggleSelectionMode}
-                title="Fechar modo seleção"
+                title={t('sidebar.closeSelection')}
                 className="sc-icon-btn sc-icon-btn--ghost"
                 style={{ width: '30px', height: '30px', color: theme.textPrimary }}
               >
                 <FaTimes size={13} />
               </button>
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textPrimary }}>
-                {selectedIds.size > 0 ? `${selectedIds.size} selecionada${selectedIds.size > 1 ? 's' : ''}` : 'Selecionar conversas'}
+                {selectedIds.size > 0 ? t('sidebar.selected', { count: selectedIds.size }) : t('sidebar.selectConversations')}
               </span>
             </div>
 
             <button
               onClick={toggleSelectAll}
-              title={selectedIds.size === rooms.length ? 'Desmarcar tudo' : 'Selecionar tudo'}
+              title={selectedIds.size === rooms.length ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
               className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
               style={{ width: '30px', height: '30px', color: selectedIds.size === rooms.length ? theme.accentText : theme.textPrimary }}
             >
@@ -446,18 +454,18 @@ export function Sidebar({
                 margin: 0,
               }}
             >
-              Conversas
+              {t('sidebar.conversations')}
             </h6>
 
             {rooms.length > 0 && (
               <button
                 onClick={toggleSelectionMode}
-                title="Entrar no modo seleção"
+                title={t('sidebar.enterSelection')}
                 className="sc-btn sc-btn--ghost-border sc-anim-swap-in-right"
                 style={{ borderRadius: '999px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 700, gap: '6px' }}
               >
                 <FaCheckCircle size={12} />
-                Selecionar
+                {t('sidebar.select')}
               </button>
             )}
           </>
@@ -469,7 +477,7 @@ export function Sidebar({
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
             <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
             <p className="sc-anim-rise-in sc-stagger" style={{ fontSize: '0.9rem', margin: '5px 0', '--sc-stagger-index': 1 } as CSSProperties}>
-              Nenhuma conversa ainda
+              {t('sidebar.noConversations')}
             </p>
             <p
               className="sc-anim-rise-in sc-stagger"
@@ -523,7 +531,7 @@ export function Sidebar({
               withShadow={false}
               icon={<FaStar size={11} />}
               tone="warning"
-              label={allSelectedAreFavorited ? 'Desfavoritar' : 'Favoritar'}
+              label={allSelectedAreFavorited ? t('sidebar.unfavorite') : t('sidebar.favorite')}
             />
           )}
           <IconPillButton
@@ -534,7 +542,7 @@ export function Sidebar({
             withShadow={false}
             icon={allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
             tone="accent"
-            label={allSelectedAreMuted ? 'Reativar' : 'Silenciar'}
+            label={allSelectedAreMuted ? t('sidebar.unmute') : t('sidebar.mute')}
           />
           <IconPillButton
             onClick={() => setShowConfirmDelete(true)}
@@ -544,16 +552,16 @@ export function Sidebar({
             withShadow={false}
             icon={<FaTrash size={11} />}
             tone="danger"
-            label="Excluir"
+            label={t('common.delete')}
           />
         </div>
       )}
 
       <ConfirmDialog
         isOpen={showConfirmDelete}
-        title="Excluir Conversas"
-        message={`Tem certeza que quer excluir ${selectedIds.size} conversa${selectedIds.size > 1 ? 's' : ''}? Esta ação não pode ser desfeita.`}
-        confirmLabel="Excluir"
+        title={t('sidebar.deleteTitle')}
+        message={t('sidebar.deleteConfirm', { count: selectedIds.size })}
+        confirmLabel={t('common.delete')}
         onConfirm={confirmDelete}
         onCancel={() => setShowConfirmDelete(false)}
       />

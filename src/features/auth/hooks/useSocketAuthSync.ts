@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { translateErrorPayload, type ApiErrorPayload } from '@lib/api/api-error';
 import { useSocket, type AuthMethod, type SocketUser } from '@lib/socket';
 import type { PendingRegistration, User } from '../types';
 
@@ -15,10 +16,9 @@ export interface ResumedPayload {
   authMethod: AuthMethod;
 }
 
-export interface AuthFailedPayload {
+export interface AuthFailedPayload extends ApiErrorPayload {
   mode: 'register' | 'resume';
   reason: 'invalid' | 'temporary';
-  message: string;
 }
 
 export interface SocketAuthSyncOptions {
@@ -177,7 +177,7 @@ export function useSocketAuthSync({
       }, AUTH_RETRY_DELAY_MS);
     };
 
-    const handleAuthFailed = ({ mode, reason, message }: AuthFailedPayload) => {
+    const handleAuthFailed = ({ mode, reason, ...error }: AuthFailedPayload) => {
       if (reason === 'temporary') {
         scheduleRejoin();
         return;
@@ -185,7 +185,7 @@ export function useSocketAuthSync({
 
       if (mode === 'register') {
         clearRetry();
-        onRegisterFailed(message);
+        onRegisterFailed(translateErrorPayload(error, 'errors.generic'));
         return;
       }
 

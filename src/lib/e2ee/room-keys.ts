@@ -1,3 +1,4 @@
+import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
 import { getCurrentIdentity } from './current-identity';
@@ -108,7 +109,7 @@ export function getCachedRoomKey(roomId: string): Uint8Array | null {
 
 export class MissingRoomKeyError extends Error {
   constructor() {
-    super('A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes.');
+    super(translate('errors.e2ee.missingRoomKey'));
     this.name = 'MissingRoomKeyError';
   }
 }

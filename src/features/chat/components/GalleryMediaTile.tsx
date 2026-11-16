@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { FaPlay } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme, withAlpha } from '@features/theme';
 import type { MessageView } from '@lib/socket';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
@@ -13,6 +14,7 @@ interface GalleryMediaTileProps {
 }
 
 export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
@@ -77,7 +79,7 @@ export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
         )}
         <img
           src={thumbnailSrc}
-          alt="Mídia"
+          alt={t('chat.message.media')}
           onLoad={() => setIsLoaded(true)}
           style={{
             width: '100%',

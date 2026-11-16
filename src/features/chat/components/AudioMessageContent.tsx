@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { FaPause, FaPlay } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme, withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { formatAudioTime } from '@lib/format';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
@@ -26,6 +27,7 @@ const PLAYBACK_RATES = [1, 1.5, 2];
 const AUDIO_BUBBLE_WIDTH = CHAT_ATTACHMENT_MAX_WIDTH + 24;
 
 export function AudioMessageContent({ message, isOwn, bubble, currentUserId, currentAudioRef, onAudioPlayed }: AudioMessageContentProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [playbackIcon, setPlaybackIcon] = useState<'play' | 'pause'>('play');
   const [audioDuration, setAudioDuration] = useState(0);
@@ -157,7 +159,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
             event.stopPropagation();
             handleAudioToggle();
           }}
-          title={playbackIcon === 'pause' ? 'Pausar' : 'Reproduzir'}
+          title={playbackIcon === 'pause' ? t('chat.message.pause') : t('chat.message.play')}
           className="sc-icon-btn sc-icon-btn--audio"
           style={{ width: '32px', height: '32px', flexShrink: 0, background: stateColor }}
         >
@@ -221,7 +223,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
             event.stopPropagation();
             handleCyclePlaybackRate();
           }}
-          title="Velocidade de reprodução"
+          title={t('chat.message.playbackSpeed')}
           className="sc-icon-btn sc-icon-btn--bubble"
           style={{ fontSize: '0.65rem', fontWeight: 700, width: '30px', height: '30px', flexShrink: 0 }}
         >

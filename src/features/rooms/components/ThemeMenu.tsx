@@ -1,8 +1,9 @@
 import { useEffect, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { FaCheck, FaMobileAlt, FaPalette } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
-import { buildTheme, COLOR_THEMES, THEME_BASES, useTheme, type ColorThemeId, type ThemeBaseId } from '@features/theme';
+import { buildTheme, COLOR_THEMES, THEME_BASES, useTheme, useThemeNames, type ColorThemeId, type ThemeBaseId } from '@features/theme';
 
 interface ThemeMenuProps {
   isOpen: boolean;
@@ -14,14 +15,15 @@ const MENU_WIDTH_PX = 340;
 const SWATCH_CASCADE_MAX_INDEX = 11;
 
 export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
+  const { t } = useTranslation();
   const { theme, baseTheme, colorTheme, changeBaseTheme, changeColorTheme } = useTheme();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
+  const names = useThemeNames();
 
   const colorPreviews = useMemo(
     () =>
       (Object.keys(COLOR_THEMES) as ColorThemeId[]).map((colorId) => ({
         colorId,
-        name: COLOR_THEMES[colorId].name,
         tokens: buildTheme(baseTheme, colorId).tokens,
       })),
     [baseTheme],
@@ -31,7 +33,6 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
     () =>
       (Object.keys(THEME_BASES) as ThemeBaseId[]).map((baseId) => ({
         baseId,
-        name: THEME_BASES[baseId].name,
         tokens: buildTheme(baseId, colorTheme).tokens,
       })),
     [colorTheme],
@@ -92,11 +93,11 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
         onClick={(event) => event.stopPropagation()}
       >
         <div style={sectionTitleStyle}>
-          <FaMobileAlt size={11} /> Modo Base
+          <FaMobileAlt size={11} /> {t('themeMenu.base')}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginBottom: '6px' }}>
-          {basePreviews.map(({ baseId, name, tokens }, index) => {
+          {basePreviews.map(({ baseId, tokens }, index) => {
             const isSelected = baseTheme === baseId;
 
             return (
@@ -139,7 +140,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
                   </div>
                 </div>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  {name}
+                  {names.base(baseId)}
                   {isSelected && <FaCheck size={10} />}
                 </span>
               </button>
@@ -150,11 +151,11 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
         <div style={{ margin: '8px 4px', borderTop: `1px solid ${theme.border}` }} />
 
         <div style={sectionTitleStyle}>
-          <FaPalette size={11} /> Tema de Cores
+          <FaPalette size={11} /> {t('themeMenu.colors')}
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '4px' }}>
-          {colorPreviews.map(({ colorId, name, tokens }, index) => {
+          {colorPreviews.map(({ colorId, tokens }, index) => {
             const isSelected = colorTheme === colorId;
 
             return (
@@ -192,7 +193,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{names.color(colorId)}</span>
                 {isSelected && <FaCheck size={11} style={{ flexShrink: 0 }} />}
               </button>
             );

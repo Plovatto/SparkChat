@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import { FaImage, FaPlay } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { formatAudioTime, getDisplayName } from '@lib/format';
 import type { MessageReplySnapshot, MessageType } from '@lib/socket';
@@ -28,6 +29,7 @@ function jumpToMessage(messageId: string): void {
 }
 
 export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentUserId }: MessageReplyQuoteProps) {
+  const { t } = useTranslation();
   const isReplyToImage = replyTo.type === 'image';
   const isReplyToVideo = replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
   const hasThumbnail = isReplyToImage || isReplyToVideo;
@@ -96,17 +98,17 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
             whiteSpace: 'nowrap',
           }}
         >
-          {getDisplayName(replyTo.sender.id, replyTo.sender.nickname, currentUserId)}
+          {getDisplayName(replyTo.sender.id, replyTo.sender.nickname, currentUserId, replyTo.sender.unknown)}
         </div>
         {replyTo.type === 'image' ? (
           <div style={secondaryLineStyle}>
             <FaImage size={12} style={{ flexShrink: 0 }} />
-            <span>Imagem</span>
+            <span>{t('chat.message.image')}</span>
           </div>
         ) : replyTo.type === 'audio' ? (
           <div style={secondaryLineStyle}>
             <FaPlay size={12} style={{ flexShrink: 0 }} />
-            <span>Áudio {formatAudioTime(replyTo.duration ?? 0)}</span>
+            <span>{t('chat.message.audio', { duration: formatAudioTime(replyTo.duration ?? 0) })}</span>
           </div>
         ) : replyTo.type === 'file' ? (
           (() => {

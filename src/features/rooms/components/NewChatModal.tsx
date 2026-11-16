@@ -1,11 +1,14 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import type { IconType } from 'react-icons';
 import { FaArrowRight, FaExclamationTriangle, FaUser, FaUsers } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
 import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
-import { useSocket } from '@lib/socket';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { useOnLanguageChange } from '@lib/i18n/app-i18n';
+import { useSocket, type SocketErrorPayload } from '@lib/socket';
 
 interface NewChatModalProps {
   isOpen: boolean;
@@ -19,6 +22,7 @@ const ROOM_CODE_MIN_LENGTH = 6;
 const GROUP_NAME_MIN_LENGTH = 3;
 
 function OrDivider() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
 
   return (
@@ -36,13 +40,14 @@ function OrDivider() {
           letterSpacing: '0.5px',
         }}
       >
-        OU
+        {t('newChat.or')}
       </span>
     </div>
   );
 }
 
 export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [chatType, setChatType] = useState<ChatType>('private');
@@ -50,6 +55,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const [roomCode, setRoomCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [error, setError] = useState('');
+  useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
   const [groupMode, setGroupMode] = useState<GroupMode>('join');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,9 +77,9 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       return;
     }
 
-    const handleError = ({ message }: { message: string }) => {
+    const handleError = (payload: SocketErrorPayload) => {
       setIsSubmitting(false);
-      setError(message);
+      setError(translateErrorPayload(payload, 'errors.generic'));
     };
     const handleRoomOpened = () => onClose();
 
@@ -94,7 +100,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       return;
     }
     if (!targetNickname.trim()) {
-      setError('Digite o username');
+      setError(t('newChat.enterUsername'));
       return;
     }
     setIsSubmitting(true);
@@ -108,7 +114,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       return;
     }
     if (roomCode.trim().length < ROOM_CODE_MIN_LENGTH) {
-      setError('Código de sala inválido');
+      setError(t('newChat.invalidCode'));
       return;
     }
     setIsSubmitting(true);
@@ -122,7 +128,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
       return;
     }
     if (groupName.trim().length < GROUP_NAME_MIN_LENGTH) {
-      setError(`Nome da sala deve ter pelo menos ${GROUP_NAME_MIN_LENGTH} caracteres`);
+      setError(t('newChat.nameTooShort', { minLength: GROUP_NAME_MIN_LENGTH }));
       return;
     }
     setIsSubmitting(true);
@@ -181,11 +187,11 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   };
 
   return (
-    <Modal isOpen={isOpen} title="Novo Chat" onClose={onClose}>
+    <Modal isOpen={isOpen} title={t('newChat.title')} onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', marginBottom: '16px', borderBottom: `2px solid ${theme.border}` }}>
-          {renderTab('private', FaUser, 'Privado')}
-          {renderTab('group', FaUsers, 'Grupo')}
+          {renderTab('private', FaUser, t('newChat.private'))}
+          {renderTab('group', FaUsers, t('common.group'))}
         </div>
 
         {error && (
@@ -202,7 +208,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
           >
             <div>
-              <label style={labelStyle}>Username do Amigo</label>
+              <label style={labelStyle}>{t('newChat.friendUsername')}</label>
               <input
                 type="text"
                 value={targetNickname}
@@ -210,16 +216,16 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                   setTargetNickname(event.target.value);
                   setError('');
                 }}
-                placeholder="Ex: Ada"
+                placeholder={t('newChat.friendPlaceholder')}
                 maxLength={20}
                 autoFocus
                 className="sc-input"
               />
-              <small style={helperStyle}>Digite o username para iniciar uma conversa</small>
+              <small style={helperStyle}>{t('newChat.friendHelp')}</small>
             </div>
             <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
               {submitIcon}
-              {isSubmitting ? 'Iniciando...' : 'Iniciar Chat'}
+              {isSubmitting ? t('newChat.starting') : t('newChat.start')}
             </button>
           </form>
         )}
@@ -232,7 +238,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             >
               <form onSubmit={handleJoinRoom} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={labelStyle}>Entrar em Sala Existente</label>
+                  <label style={labelStyle}>{t('newChat.joinExisting')}</label>
                   <input
                     type="text"
                     value={roomCode}
@@ -240,16 +246,16 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                       setRoomCode(event.target.value.toUpperCase());
                       setError('');
                     }}
-                    placeholder="Código da sala"
+                    placeholder={t('newChat.codePlaceholder')}
                     maxLength={8}
                     autoFocus={groupMode === 'join'}
                     className="sc-input"
                   />
-                  <small style={helperStyle}>Digite o código da sala para entrar</small>
+                  <small style={helperStyle}>{t('newChat.codeHelp')}</small>
                 </div>
                 <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
                   {submitIcon}
-                  {isSubmitting ? 'Entrando...' : 'Entrar na Sala'}
+                  {isSubmitting ? t('newChat.joining') : t('newChat.join')}
                 </button>
               </form>
 
@@ -264,7 +270,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 className="sc-btn sc-btn--outline sc-btn--lift"
                 style={fullWidthButton}
               >
-                Criar Nova Sala
+                {t('newChat.createNew')}
               </button>
             </div>
 
@@ -274,7 +280,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
             >
               <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
-                  <label style={labelStyle}>Criar Nova Sala</label>
+                  <label style={labelStyle}>{t('newChat.createNew')}</label>
                   <input
                     type="text"
                     value={groupName}
@@ -282,16 +288,16 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                       setGroupName(event.target.value);
                       setError('');
                     }}
-                    placeholder="Nome da sala"
+                    placeholder={t('newChat.namePlaceholder')}
                     maxLength={30}
                     autoFocus={groupMode === 'create'}
                     className="sc-input"
                   />
-                  <small style={helperStyle}>Digite um nome para sua nova sala</small>
+                  <small style={helperStyle}>{t('newChat.nameHelp')}</small>
                 </div>
                 <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
                   {submitIcon}
-                  {isSubmitting ? 'Criando...' : 'Criar Sala'}
+                  {isSubmitting ? t('newChat.creating') : t('newChat.create')}
                 </button>
               </form>
 
@@ -306,7 +312,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                 className="sc-btn sc-btn--outline sc-btn--lift"
                 style={fullWidthButton}
               >
-                Entrar em Sala Existente
+                {t('newChat.joinExisting')}
               </button>
             </div>
           </div>
