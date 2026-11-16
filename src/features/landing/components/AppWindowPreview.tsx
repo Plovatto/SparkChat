@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FaArrowLeft,
   FaCheckDouble,
@@ -17,32 +18,42 @@ interface AppWindowPreviewProps {
   wallpaper: string | null;
 }
 
-const CONVERSATIONS = [
+interface DemoConversation {
+  avatar: string;
+  name: string;
+  preview: 'assistant' | 'marina' | 'camila' | 'rafael';
+  time: string;
+  pinned?: boolean;
+  selected?: boolean;
+  unread?: number;
+}
+
+const CONVERSATIONS: DemoConversation[] = [
   {
     avatar: 'Robot',
     name: 'SparkAI',
-    preview: 'Por aqui tá tudo ótimo, pronto pra ajudar!',
+    preview: 'assistant',
     time: '13:47',
     pinned: true,
   },
   {
     avatar: 'Ghost',
     name: 'Marina',
-    preview: 'Ficou ótimo! Só vou trocar a trilha',
+    preview: 'marina',
     time: '19:24',
     selected: true,
   },
   {
     avatar: 'Heart',
     name: 'Camila',
-    preview: 'Combinado, às 19h então 😄',
+    preview: 'camila',
     time: '18:02',
     unread: 2,
   },
   {
     avatar: 'Crown',
     name: 'Rafael',
-    preview: 'Vi sim! Amanhã cedo te mando',
+    preview: 'rafael',
     time: '17:40',
   },
 ];
@@ -54,11 +65,13 @@ function stagger(index: number): CSSProperties {
 }
 
 export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
+  const { t } = useTranslation('landing');
+
   return (
     <div
       className="lp-monitor"
       role="img"
-      aria-label="Prévia do SparkChat num computador: lista de conversas ao lado de um chat com Marina, com mensagens de texto, um PDF e um áudio"
+      aria-label={t('preview.windowLabel')}
     >
       <div className="lp-monitor__frame" aria-hidden="true">
         <span className="lp-monitor__camera" />
@@ -79,15 +92,15 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                 <div className="lp-window__me">
                   <DemoAvatar name="Cat" size={40} online />
                   <div>
-                    <strong>Você</strong>
-                    <span>Disponível</span>
+                    <strong>{t('preview.you')}</strong>
+                    <span>{t('preview.available')}</span>
                   </div>
                 </div>
                 <span className="lp-window__new-chat">
-                  <FaPlus size={11} /> Novo chat
+                  <FaPlus size={11} /> {t('preview.newChat')}
                 </span>
               </div>
-              <span className="lp-window__list-label">Conversas</span>
+              <span className="lp-window__list-label">{t('preview.conversations')}</span>
               <ul className="lp-window__list">
                 {CONVERSATIONS.map((conversation) => (
                   <li key={conversation.name} className="lp-window__item" data-selected={conversation.selected ? 'true' : undefined}>
@@ -100,7 +113,7 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                         </span>
                       </span>
                       <span className="lp-window__item-bottom">
-                        <span>{conversation.preview}</span>
+                        <span>{t(`preview.list.${conversation.preview}`)}</span>
                         {conversation.unread && <span className="lp-window__badge">{conversation.unread}</span>}
                       </span>
                     </div>
@@ -118,7 +131,7 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                 <div className="lp-window__chat-title">
                   <strong>Marina</strong>
                   <span>
-                    <span className="lp-window__online-dot" /> Online
+                    <span className="lp-window__online-dot" /> {t('preview.online')}
                   </span>
                 </div>
                 <span className="lp-window__round lp-window__round--end">
@@ -139,11 +152,11 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                 }
               >
                 <div className="lp-bubble sc-anim-rise-in sc-stagger" data-own="false" style={stagger(1)}>
-                  Oi! Fechou a data da viagem?
+                  {t('preview.chat.question')}
                   <span className="lp-bubble__meta">19:08</span>
                 </div>
                 <div className="lp-bubble sc-anim-rise-in sc-stagger" data-own="true" style={stagger(3)}>
-                  Fechou sim, dia 12 a gente sai cedo
+                  {t('preview.chat.answer')}
                   <span className="lp-bubble__meta">
                     19:12 <FaCheckDouble size={11} className="lp-bubble__read" />
                   </span>
@@ -154,8 +167,8 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                       <FaFilePdf size={16} />
                     </span>
                     <span>
-                      <strong>roteiro-da-viagem.pdf</strong>
-                      <span>1 página</span>
+                      <strong>{t('preview.pdfName')}</strong>
+                      <span>{t('preview.page')}</span>
                     </span>
                   </span>
                   <span className="lp-bubble__meta">19:16</span>
@@ -194,7 +207,7 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                 <span className="lp-window__round lp-window__round--soft">
                   <FaMicrophone size={12} />
                 </span>
-                <span className="lp-window__input">Digite sua mensagem...</span>
+                <span className="lp-window__input">{t('preview.composer')}</span>
               </div>
             </div>
           </div>

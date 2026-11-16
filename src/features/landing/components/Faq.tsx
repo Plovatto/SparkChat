@@ -1,24 +1,27 @@
+import { useTranslation } from 'react-i18next';
 import { FaChevronDown } from 'react-icons/fa';
-import { FAQ } from '../constants/content';
+import { FAQ_IDS } from '../constants/content';
 
 export function Faq() {
+  const { t } = useTranslation('landing');
+
   return (
     <section id="perguntas" className="lp-section" aria-labelledby="perguntas-title">
       <div className="lp-container lp-faq">
         <div className="lp-section__intro lp-section__intro--start">
           <h2 id="perguntas-title" className="lp-section__title">
-            Perguntas frequentes
+            {t('faq.title')}
           </h2>
-          <p className="lp-section__lead">O que costuma surgir antes da primeira mensagem.</p>
+          <p className="lp-section__lead">{t('faq.lead')}</p>
         </div>
         <div className="lp-faq__list">
-          {FAQ.map((item) => (
-            <details key={item.question} className="sc-disclosure">
+          {FAQ_IDS.map((id) => (
+            <details key={id} className="sc-disclosure">
               <summary>
-                <span>{item.question}</span>
+                <span>{t(`faq.items.${id}.question`)}</span>
                 <FaChevronDown size={13} aria-hidden="true" className="sc-disclosure__icon" />
               </summary>
-              <p>{item.answer}</p>
+              <p>{t(`faq.items.${id}.answer`)}</p>
             </details>
           ))}
         </div>
