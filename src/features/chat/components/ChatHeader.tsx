@@ -1,11 +1,13 @@
 import type { CSSProperties } from 'react';
 import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaLink, FaUser } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { shareLinkNatively } from '@lib/share-link';
 import type { RoomSummary } from '@lib/socket';
+import { isAssistantRoom } from '../utils/assistant';
 
 interface ChatHeaderProps {
   room: RoomSummary;
@@ -18,12 +20,14 @@ const COPY_KEY_CODE = 'code';
 const COPY_KEY_LINK = 'link';
 
 export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHeaderProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const clipboard = useClipboardCopy();
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
   const roomName = getRoomDisplayName(room, currentUserId);
+  const statusText = isAssistantRoom(room) ? t('chat.assistantStatus') : otherUser?.statusText;
 
   const copyRoomCode = () => {
     if (room.roomCode) {
@@ -37,7 +41,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
     }
 
     const link = `${window.location.origin}${window.location.pathname}?join=${room.roomCode}`;
-    if (!shareLinkNatively({ text: `Entre no grupo "${roomName}" no SparkChat!`, url: link })) {
+    if (!shareLinkNatively({ text: t('chat.header.inviteText', { name: roomName }), url: link })) {
       clipboard.copy(link, COPY_KEY_LINK);
     }
   };
@@ -57,7 +61,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-        <button onClick={onBack} title="Voltar" className="sc-icon-btn sc-icon-btn--header" style={{ width: '38px', height: '38px' }}>
+        <button onClick={onBack} title={t('common.back')} className="sc-icon-btn sc-icon-btn--header" style={{ width: '38px', height: '38px' }}>
           <FaArrowLeft size={15} />
         </button>
 
@@ -146,7 +150,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 overflow: 'hidden',
               }}
             >
-              {!otherUser?.statusText && (
+              {!statusText && (
                 <span
                   style={{
                     width: '8px',
@@ -159,7 +163,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 />
               )}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                {otherUser?.statusText || (isOnline ? 'Online' : 'Offline')}
+                {statusText || (isOnline ? t('presence.online') : t('presence.offline'))}
               </span>
             </small>
           )}
@@ -170,7 +174,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 onClick={copyRoomCode}
                 className="sc-chip"
                 style={{ height: '18px', padding: '0 8px', fontSize: '0.62rem', fontFamily: 'monospace', fontWeight: 600 }}
-                title="Clique para copiar o código"
+                title={t('chat.header.copyCode')}
               >
                 {clipboard.isCopied(COPY_KEY_CODE) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaCopy size={8} />}
                 <span>{room.roomCode}</span>
@@ -181,7 +185,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 onClick={shareInviteLink}
                 className="sc-chip"
                 style={{ height: '18px', width: '18px', justifyContent: 'center', padding: 0, fontSize: '0.62rem' }}
-                title="Compartilhar link de convite"
+                title={t('chat.header.shareInvite')}
               >
                 {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaLink size={8} />}
               </button>
@@ -192,7 +196,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
 
       <button
         onClick={onOpenInfo}
-        title={room.type === 'private' ? 'Ver perfil' : 'Ver informações do grupo'}
+        title={room.type === 'private' ? t('chat.header.viewProfile') : t('chat.header.viewGroup')}
         className="sc-icon-btn sc-icon-btn--header"
         style={{ width: '38px', height: '38px' }}
       >

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FaMoon, FaSun } from 'react-icons/fa';
 
 interface ThemeToggleButtonProps {
@@ -13,6 +14,7 @@ interface ThemeToggleButtonProps {
 const SPIN_DURATION_MS = 600;
 
 export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '10px', noBorder, iconColor }: ThemeToggleButtonProps) {
+  const { t } = useTranslation();
   const [spinCount, setSpinCount] = useState(0);
 
   const handleClick = () => {
@@ -40,8 +42,8 @@ export function ThemeToggleButton({ darkMode, onToggle, top = '10px', right = '1
           ...(noBorder ? { border: 'none' } : {}),
           ...(iconColor ? { color: iconColor } : {}),
         }}
-        title={darkMode ? 'Modo Claro' : 'Modo Escuro'}
-        aria-label={darkMode ? 'Ativar modo claro' : 'Ativar modo escuro'}
+        title={darkMode ? t('auth.lightTitle') : t('auth.darkTitle')}
+        aria-label={darkMode ? t('auth.toLight') : t('auth.toDark')}
       >
         {darkMode ? <FaSun /> : <FaMoon />}
       </button>

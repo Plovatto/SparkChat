@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { Spinner } from '@components/common/Spinner';
 import { decryptMediaContentIfNeeded } from '@lib/e2ee';
 import { downloadFromUrl } from '@lib/download-file';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageFileMeta } from '@lib/socket';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
@@ -13,9 +15,9 @@ function deriveImageFileName(url: string): string {
   try {
     const pathname = new URL(url, window.location.origin).pathname;
     const segment = pathname.split('/').pop();
-    return segment ? decodeURIComponent(segment) : 'imagem.jpg';
+    return segment ? decodeURIComponent(segment) : translate('chat.message.defaultImageName');
   } catch {
-    return 'imagem.jpg';
+    return translate('chat.message.defaultImageName');
   }
 }
 
@@ -43,6 +45,7 @@ const NAV_BUTTON_STYLE: CSSProperties = {
 };
 
 export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, startIndex = 0, onClose }: ImageModalProps) {
+  const { t } = useTranslation();
   const { socket } = useSocket();
   const [zoom, setZoom] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
@@ -164,7 +167,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
             padding: '6px',
           }}
         >
-          <OverlayIconButton onClick={handleZoomOut} title="Diminuir zoom (-)">
+          <OverlayIconButton onClick={handleZoomOut} title={t('chat.viewer.zoomOut')}>
             <FaMinus />
           </OverlayIconButton>
 
@@ -181,7 +184,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
             {Math.round(zoom * 100)}%
           </div>
 
-          <OverlayIconButton onClick={handleZoomIn} title="Ampliar zoom (+)">
+          <OverlayIconButton onClick={handleZoomIn} title={t('chat.viewer.zoomIn')}>
             <FaPlus />
           </OverlayIconButton>
 
@@ -189,14 +192,14 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
 
           <OverlayIconButton
             onClick={() => currentSrc && void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentRaw))}
-            title="Baixar imagem"
+            title={t('chat.viewer.downloadImage')}
           >
             <FaDownload />
           </OverlayIconButton>
 
           <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
-          <OverlayIconButton onClick={onClose} title="Fechar imagem (ESC)" variant="danger">
+          <OverlayIconButton onClick={onClose} title={t('chat.viewer.closeImage')} variant="danger">
             <FaTimes />
           </OverlayIconButton>
         </div>
@@ -227,7 +230,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
                 event.stopPropagation();
                 goToPrevious();
               }}
-              title="Imagem anterior"
+              title={t('chat.viewer.previous')}
               className="sc-icon-btn sc-icon-btn--scrim-solid sc-media-nav-btn"
               style={{ ...NAV_BUTTON_STYLE, left: 'max(12px, env(safe-area-inset-left))' }}
             >
@@ -238,7 +241,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
                 event.stopPropagation();
                 goToNext();
               }}
-              title="Próxima imagem"
+              title={t('chat.viewer.next')}
               className="sc-icon-btn sc-icon-btn--scrim-solid sc-media-nav-btn"
               style={{ ...NAV_BUTTON_STYLE, right: 'max(12px, env(safe-area-inset-right))' }}
             >
@@ -264,7 +267,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
               key={currentSrc}
               src={currentSrc}
               className="sc-anim-fade-in"
-              alt="Imagem expandida"
+              alt={t('chat.viewer.expanded')}
               style={{
                 maxHeight: '85vh',
                 maxWidth: '95vw',

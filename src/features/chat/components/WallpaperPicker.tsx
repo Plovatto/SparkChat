@@ -1,13 +1,16 @@
 import type { CSSProperties } from 'react';
 import { FaImage } from 'react-icons/fa';
-import { CHAT_BACKGROUNDS, useTheme } from '@features/theme';
+import { useTranslation } from 'react-i18next';
+import { CHAT_BACKGROUNDS, useTheme, useThemeNames } from '@features/theme';
 
 interface WallpaperPickerProps {
   roomId: string;
 }
 
 export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
+  const { t } = useTranslation();
   const { theme, getRoomWallpaper, setRoomWallpaper } = useTheme();
+  const names = useThemeNames();
   const currentId = getRoomWallpaper(roomId)?.id ?? 'default';
 
   return (
@@ -25,7 +28,7 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
           gap: '8px',
         }}
       >
-        <FaImage /> Papel de Parede
+        <FaImage /> {t('chat.appearance.wallpaper')}
       </div>
       <div
         style={{
@@ -45,7 +48,7 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
               type="button"
               key={background.id}
               onClick={() => setRoomWallpaper(roomId, background.id, false)}
-              title={background.name}
+              title={names.wallpaper(background.id)}
               data-selected={isSelected}
               className="sc-tile sc-anim-tile-in sc-stagger"
               style={
@@ -76,7 +79,7 @@ export function WallpaperPicker({ roomId }: WallpaperPickerProps) {
                   textAlign: 'center',
                 }}
               >
-                {background.name}
+                {names.wallpaper(background.id)}
               </div>
             </button>
           );

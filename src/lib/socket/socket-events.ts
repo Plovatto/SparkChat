@@ -1,3 +1,13 @@
+import type { ApiErrorParams } from '@lib/api/api-error';
+import type { SystemEvent } from '@lib/format/system-event';
+
+export interface SocketErrorPayload {
+  message: string;
+  code?: string;
+  params?: ApiErrorParams;
+  clientTempId?: string;
+}
+
 export interface SocketUserTheme {
   baseTheme: string;
   colorTheme: string;
@@ -84,6 +94,7 @@ export interface MessageSender {
   id: string;
   nickname: string;
   avatar: number | null;
+  unknown?: boolean;
 }
 
 export interface MessageReplySnapshot {
@@ -114,6 +125,7 @@ export interface MessageView {
   fileMeta: MessageFileMeta | null;
   caption: string | null;
   linkPreview: MessageLinkPreview | null;
+  systemEvent?: SystemEvent | null;
 }
 
 export interface BlockStatusPayload {
@@ -155,7 +167,7 @@ export interface ServerToClientEvents {
     authMethod: AuthMethod;
   }) => void;
   'user:resumed': (payload: { user: SocketUser; authMethod: AuthMethod }) => void;
-  'user:auth-failed': (payload: { mode: 'register' | 'resume'; reason: 'invalid' | 'temporary'; message: string }) => void;
+  'user:auth-failed': (payload: SocketErrorPayload & { mode: 'register' | 'resume'; reason: 'invalid' | 'temporary' }) => void;
   'user:online': (payload: { userId: string; nickname: string; avatar: number }) => void;
   'user:offline': (payload: {
     userId: string;
@@ -174,7 +186,7 @@ export interface ServerToClientEvents {
     encryptedPrivateKeyByPassword: string | null;
     encryptedPrivateKeyByRecovery: string | null;
   }) => void;
-  error: (payload: { message: string; clientTempId?: string }) => void;
+  error: (payload: SocketErrorPayload) => void;
   'rooms:list': (payload: { rooms: RoomSummary[] }) => void;
   'room:created': (payload: { room: RoomSummary; messages: MessageView[] }) => void;
   'room:joined': (payload: { room: RoomSummary; messages: MessageView[] }) => void;

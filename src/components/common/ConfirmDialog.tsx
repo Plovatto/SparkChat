@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { FaTimes, FaTrash } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import { Modal } from './Modal';
@@ -11,7 +12,8 @@ interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
-export function ConfirmDialog({ isOpen, title, message, confirmLabel = 'Deletar para todos', onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ isOpen, title, message, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
 
   const handleConfirm = () => {
@@ -26,18 +28,18 @@ export function ConfirmDialog({ isOpen, title, message, confirmLabel = 'Deletar 
 
         <div className="sc-notice sc-notice--danger" style={{ alignItems: 'center' }}>
           <FaTrash size={13} style={{ flexShrink: 0, opacity: 0.85 }} />
-          <span>Esta ação não pode ser desfeita.</span>
+          <span>{t('dialogs.irreversible')}</span>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button onClick={onCancel} className="sc-btn sc-btn--secondary sc-btn--lift" style={{ padding: '10px 24px', fontWeight: 500 }}>
             <FaTimes size={14} />
-            Cancelar
+            {t('common.cancel')}
           </button>
 
           <button onClick={handleConfirm} className="sc-btn sc-btn--danger sc-btn--lift" style={{ padding: '10px 24px' }}>
             <FaTrash size={14} />
-            {confirmLabel}
+            {confirmLabel ?? t('dialogs.deleteForEveryone')}
           </button>
         </div>
       </div>
