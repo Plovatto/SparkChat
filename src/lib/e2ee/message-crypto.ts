@@ -1,3 +1,4 @@
+import { translate } from '@lib/i18n/app-i18n';
 import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
@@ -7,7 +8,6 @@ import { getSodium } from './sodium';
 
 const E2E_PREFIX = 'e2e:v1:';
 
-const UNAVAILABLE_PLACEHOLDER = '🔒 Mensagem criptografada — sem chave local ainda.';
 const ENCRYPTED_MEDIA_PARAM = 'e2e';
 
 async function encryptText(plaintext: string, roomKey: Uint8Array): Promise<string> {
@@ -36,7 +36,7 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
 
   const roomKey = await ensureRoomKeyForDecryption(socket, roomId);
   if (!roomKey) {
-    return UNAVAILABLE_PLACEHOLDER;
+    return translate('chat.message.encryptedUnavailable');
   }
 
   try {
@@ -47,17 +47,17 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
 
   const refetched = await refetchRoomKeyAfterDecryptionFailure(socket, roomId);
   if (!refetched) {
-    return UNAVAILABLE_PLACEHOLDER;
+    return translate('chat.message.encryptedUnavailable');
   }
 
   try {
     return await decryptText(content, refetched);
   } catch {
-    return UNAVAILABLE_PLACEHOLDER;
+    return translate('chat.message.encryptedUnavailable');
   }
 }
 
-function isEncryptedMediaUrl(content: string): boolean {
+export function isEncryptedMediaUrl(content: string): boolean {
   try {
     return new URL(content).searchParams.get(ENCRYPTED_MEDIA_PARAM) === '1';
   } catch {
@@ -169,7 +169,7 @@ async function decryptReplySnapshot(
   reply: MessageReplySnapshot | null,
   roomId: string,
 ): Promise<MessageReplySnapshot | null> {
-  if (!reply) {
+  if (!reply || reply.deleted) {
     return reply;
   }
   const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId);

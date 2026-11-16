@@ -13,6 +13,7 @@ import {
   handleKeyRequest,
   MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
+  subscribeCurrentIdentity,
   trackRoomParticipants,
 } from '@lib/e2ee';
 import { translate } from '@lib/i18n/app-i18n';
@@ -37,11 +38,28 @@ function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, 
 
 const DECRYPT_EVENTS =new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
 
-function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string): void {
+interface DeferredRoomEvent {
+  room: RoomSummary;
+  event: string;
+}
+
+type DeferredRoomEvents = Map<string, DeferredRoomEvent>;
+
+function deferRoomEvent(deferred: DeferredRoomEvents, room: RoomSummary, event: string): void {
+  const previous = deferred.get(room.id);
+  const keepsActiveCreation = previous?.event === 'room:joined' && event !== 'room:joined';
+  deferred.set(room.id, { room, event: keepsActiveCreation ? previous.event : event });
+}
+
+function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string, deferred: DeferredRoomEvents): void {
   trackRoomParticipants(room);
 
   const currentUserId = getCurrentIdentity()?.userId;
-  if (!currentUserId || !room.participants.some((participant) => participant.id === currentUserId)) {
+  if (!currentUserId) {
+    deferRoomEvent(deferred, room, event);
+    return;
+  }
+  if (!room.participants.some((participant) => participant.id === currentUserId)) {
     return;
   }
 
@@ -167,22 +185,43 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     return originalEmit(event, ...args);
   };
 
+  const deferredRoomEvents: DeferredRoomEvents = new Map();
+  const unsubscribeIdentity = subscribeCurrentIdentity((identity) => {
+    if (!identity) {
+      deferredRoomEvents.clear();
+      return;
+    }
+    const pending = Array.from(deferredRoomEvents.values());
+    deferredRoomEvents.clear();
+    for (const { room, event } of pending) {
+      maybeEstablishRoomKey(socket, room, event, deferredRoomEvents);
+    }
+  });
+
+  const closable = socket as unknown as { close: () => AppSocket };
+  const originalClose = closable.close.bind(socket);
+  closable.close = () => {
+    unsubscribeIdentity();
+    deferredRoomEvents.clear();
+    return originalClose();
+  };
+
   // Registered once here (not inside transformPayload) so room-key establishment fires exactly
   // once per raw event no matter how many app-level consumers independently call
   // socket.on('room:joined' | ...) — transformPayload runs once per *registered handler*, which
   // would otherwise generate/overwrite the room key multiple times concurrently for one event.
   originalOn('room:created', (payload: { room: RoomSummary; messages: MessageView[] }) => {
-    maybeEstablishRoomKey(socket, payload.room, 'room:created');
+    maybeEstablishRoomKey(socket, payload.room, 'room:created', deferredRoomEvents);
   });
   originalOn('room:joined', (payload: { room: RoomSummary; messages: MessageView[] }) => {
-    maybeEstablishRoomKey(socket, payload.room, 'room:joined');
+    maybeEstablishRoomKey(socket, payload.room, 'room:joined', deferredRoomEvents);
   });
   originalOn('room:new', (payload: { room: RoomSummary; messages: MessageView[] }) => {
-    maybeEstablishRoomKey(socket, payload.room, 'room:new');
+    maybeEstablishRoomKey(socket, payload.room, 'room:new', deferredRoomEvents);
   });
   originalOn('rooms:list', (payload: { rooms: RoomSummary[] }) => {
     for (const room of payload.rooms) {
-      maybeEstablishRoomKey(socket, room, 'rooms:list');
+      maybeEstablishRoomKey(socket, room, 'rooms:list', deferredRoomEvents);
     }
   });
 

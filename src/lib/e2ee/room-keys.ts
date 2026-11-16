@@ -98,8 +98,37 @@ async function sealRoomKeyFor(roomKey: Uint8Array, publicKeyBase64: string): Pro
   return sodium.to_base64(sealed);
 }
 
-function cacheRoomKey(roomId: string, key: Uint8Array): void {
+export type RoomKeyAvailableListener = (roomId: string) => void;
+
+const roomKeyAvailableListeners = new Set<RoomKeyAvailableListener>();
+
+export function subscribeRoomKeyAvailable(listener: RoomKeyAvailableListener): () => void {
+  roomKeyAvailableListeners.add(listener);
+  return () => {
+    roomKeyAvailableListeners.delete(listener);
+  };
+}
+
+function notifyRoomKeyAvailable(roomId: string): void {
+  for (const listener of Array.from(roomKeyAvailableListeners)) {
+    try {
+      listener(roomId);
+    } catch (error) {
+      console.error('[e2e] room key listener failed', error);
+    }
+  }
+}
+
+function setMemoryRoomKey(roomId: string, key: Uint8Array): void {
+  const previous = memoryCache.get(roomId);
   memoryCache.set(roomId, key);
+  if (previous !== key) {
+    notifyRoomKeyAvailable(roomId);
+  }
+}
+
+function cacheRoomKey(roomId: string, key: Uint8Array): void {
+  setMemoryRoomKey(roomId, key);
   void saveRoomKey(roomId, key);
 }
 
@@ -136,7 +165,7 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
   const lookup = (async () => {
     const persisted = await loadRoomKey(roomId);
     if (persisted) {
-      memoryCache.set(roomId, persisted);
+      setMemoryRoomKey(roomId, persisted);
       return persisted;
     }
 

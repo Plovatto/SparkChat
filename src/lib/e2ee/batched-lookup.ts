@@ -3,6 +3,8 @@ import type { AppSocket } from '@lib/socket';
 type BatchFetcher<TEntry> = (socket: AppSocket, ids: string[]) => Promise<TEntry[]>;
 type Waiter<TEntry> = (entry: TEntry | null) => void;
 
+export const MAX_LOOKUP_BATCH_SIZE = 200;
+
 interface PendingBatch<TEntry> {
   socket: AppSocket;
   ids: Set<string>;
@@ -17,24 +19,30 @@ interface PendingBatch<TEntry> {
 export function createBatchedLookup<TEntry>(
   fetchBatch: BatchFetcher<TEntry>,
   getEntryId: (entry: TEntry) => string,
+  maxBatchSize: number = MAX_LOOKUP_BATCH_SIZE,
 ): (socket: AppSocket, id: string) => Promise<TEntry | null> {
   let pending: PendingBatch<TEntry> | null = null;
   let inFlight: Promise<void> = Promise.resolve();
 
   const flush = (batch: PendingBatch<TEntry>): void => {
     const run = async () => {
-      let entries: TEntry[] = [];
-      try {
-        entries = await fetchBatch(batch.socket, Array.from(batch.ids));
-      } catch (error) {
-        console.error('[e2e] key lookup failed', error);
-      }
+      const ids = Array.from(batch.ids);
+      const chunkSize = Math.max(1, Math.floor(maxBatchSize));
+      for (let start = 0; start < ids.length; start += chunkSize) {
+        const chunk = ids.slice(start, start + chunkSize);
+        let entries: TEntry[] = [];
+        try {
+          entries = await fetchBatch(batch.socket, chunk);
+        } catch (error) {
+          console.error('[e2e] key lookup failed', error);
+        }
 
-      const entryById = new Map(entries.map((entry) => [getEntryId(entry), entry]));
-      for (const [id, waiters] of batch.waiters) {
-        const entry = entryById.get(id) ?? null;
-        for (const resolve of waiters) {
-          resolve(entry);
+        const entryById = new Map(entries.map((entry) => [getEntryId(entry), entry]));
+        for (const id of chunk) {
+          const entry = entryById.get(id) ?? null;
+          for (const resolve of batch.waiters.get(id) ?? []) {
+            resolve(entry);
+          }
         }
       }
     };
