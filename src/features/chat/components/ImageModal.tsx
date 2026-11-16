@@ -4,22 +4,10 @@ import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } f
 import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { Spinner } from '@components/common/Spinner';
-import { decryptMediaContentIfNeeded } from '@lib/e2ee';
-import { downloadFromUrl } from '@lib/download-file';
+import { decryptMediaContentIfNeeded, downloadMessageMedia } from '@lib/e2ee';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
-import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageFileMeta } from '@lib/socket';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
-
-function deriveImageFileName(url: string): string {
-  try {
-    const pathname = new URL(url, window.location.origin).pathname;
-    const segment = pathname.split('/').pop();
-    return segment ? decodeURIComponent(segment) : translate('chat.message.defaultImageName');
-  } catch {
-    return translate('chat.message.defaultImageName');
-  }
-}
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -126,6 +114,12 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
   const handleZoomIn = () => setZoom((previous) => Math.min(previous + ZOOM_STEP, MAX_ZOOM));
   const handleZoomOut = () => setZoom((previous) => Math.max(previous - ZOOM_STEP, MIN_ZOOM));
 
+  const handleDownload = () => {
+    const fileMeta = fileMetas?.[currentIndex] ?? null;
+    const fileName = fileNames?.[currentIndex] ?? fileMeta?.name ?? t('chat.message.defaultImageName');
+    void downloadMessageMedia(socket, { content: currentRaw, roomId, fileMeta, fileName });
+  };
+
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     if (event.deltaY < 0) {
       handleZoomIn();
@@ -191,7 +185,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
           <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
           <OverlayIconButton
-            onClick={() => currentSrc && void downloadFromUrl(currentSrc, fileNames?.[currentIndex] ?? deriveImageFileName(currentRaw))}
+            onClick={handleDownload}
             title={t('chat.viewer.downloadImage')}
           >
             <FaDownload />

@@ -5,10 +5,11 @@ import { minWidthQuery, WIDE_GALLERY_MIN_WIDTH_PX } from '@constants/breakpoints
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import type { MessageView } from '@lib/socket';
+import type { ChatMessage } from '../types';
 import { GalleryMediaTile } from './GalleryMediaTile';
 
 interface MediaGalleryProps {
-  messages: MessageView[];
+  messages: ChatMessage[];
   messagesLoaded: boolean;
   onSelectMedia: (message: MessageView) => void;
 }
@@ -24,7 +25,10 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
   const columns = isWide ? WIDE_COLUMNS : NARROW_COLUMNS;
 
   const mediaMessages = messages
-    .filter((message) => (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone)
+    .filter(
+      (message) =>
+        (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone && !message.pending && !message.failed,
+    )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   if (!messagesLoaded) {

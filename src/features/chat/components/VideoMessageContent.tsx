@@ -7,6 +7,7 @@ import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video
 import { VideoPreviewModal } from './VideoPreviewModal';
 
 const VIDEO_THUMBNAIL_WIDTH = 380;
+const VIDEO_FALLBACK_HEIGHT = fitAttachmentHeight(16, 9);
 
 interface VideoMessageContentProps {
   message: ChatMessage;
@@ -38,10 +39,9 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
         onClick={(event) => event.stopPropagation()}
         style={{
           position: 'relative',
-          width: thumbnail ? `${CHAT_ATTACHMENT_MAX_WIDTH}px` : '100%',
+          width: `${CHAT_ATTACHMENT_MAX_WIDTH}px`,
           maxWidth: '100%',
-          height: thumbnail ? fitAttachmentHeight(thumbnail.width, thumbnail.height) : undefined,
-          minHeight: thumbnail ? undefined : '160px',
+          height: thumbnail ? fitAttachmentHeight(thumbnail.width, thumbnail.height) : VIDEO_FALLBACK_HEIGHT,
           borderRadius: '16px',
           background: '#000000',
           overflow: 'hidden',
@@ -71,6 +71,8 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
         onClose={() => setIsPreviewOpen(false)}
         url={message.content}
         fileName={message.fileMeta?.name ?? t('chat.message.defaultVideoName')}
+        roomId={message.roomId}
+        fileMeta={message.fileMeta}
       />
     </div>
   );

@@ -11,7 +11,7 @@ import { login, loginWithKeyfile } from '../api/auth-api';
 import type { PendingE2eCredential, User } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
-import { AuthLanguageSwitch } from './AuthLanguageSwitch';
+import { AUTH_HEADER_CONTROLS_SPACE, AuthLanguageSwitch } from './AuthLanguageSwitch';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -126,12 +126,15 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
             position: 'relative',
           }}
         >
+          <AuthLanguageSwitch top="15px" right="15px" />
           <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="15px" right="15px" />
 
           <div
+            className="auth-form-header"
             style={{
               background: theme.gradient,
               padding: 'clamp(35px, 4vw, 35px) clamp(0px, 5vw, 45px)',
+              paddingRight: AUTH_HEADER_CONTROLS_SPACE,
               color: theme.onGradient,
               display: 'flex',
               alignItems: 'center',
@@ -234,8 +237,6 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
               <FaKey size={15} style={{ flexShrink: 0 }} />
               <span>{useKeyfile ? t('auth.login.switchToPassword') : t('auth.login.switchToKeyfile')}</span>
             </button>
-
-            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </Container>

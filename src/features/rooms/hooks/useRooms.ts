@@ -105,13 +105,14 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) =>
         patchRoom(previous, message.roomId, (room) => {
           const currentUserId = currentUserIdRef.current;
-          const isCurrentRoom = room.id === selectedRoomIdRef.current;
+          const isCurrentRoom = room.id === selectedRoomIdRef.current && document.visibilityState === 'visible';
+          const isOwnMessage = message.sender.id === currentUserId;
           const isMentioned = currentUserId !== undefined && message.mentionedUserIds.includes(currentUserId);
           return {
             ...room,
             lastMessage: message,
-            unreadCount: isCurrentRoom ? 0 : room.unreadCount + 1,
-            mentionCount: isCurrentRoom ? 0 : room.mentionCount + (isMentioned ? 1 : 0),
+            unreadCount: isCurrentRoom ? 0 : room.unreadCount + (isOwnMessage ? 0 : 1),
+            mentionCount: isCurrentRoom ? 0 : room.mentionCount + (isMentioned && !isOwnMessage ? 1 : 0),
           };
         }),
       );

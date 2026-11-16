@@ -1,4 +1,4 @@
-export { getCurrentIdentity } from './current-identity';
+export { getCurrentIdentity, subscribeCurrentIdentity } from './current-identity';
 export {
   clearIdentity,
   ensureIdentityAfterKeyfileLogin,
@@ -18,7 +18,9 @@ export {
   handleKeyRequest,
   MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
+  subscribeRoomKeyAvailable,
   trackRoomParticipants,
+  type RoomKeyAvailableListener,
 } from './room-keys';
 export {
   decryptMediaContentIfNeeded,
@@ -27,5 +29,7 @@ export {
   decryptRoomSummaries,
   decryptRoomSummary,
   encryptOutgoingMessage,
+  isEncryptedMediaUrl,
 } from './message-crypto';
 export { encryptAttachment } from './attachment-crypto';
+export { downloadMessageMedia, resolveDownloadableMediaUrl, UndecryptableMediaError, type MessageMediaDownload } from './media-download';

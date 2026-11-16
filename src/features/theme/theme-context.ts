@@ -22,6 +22,7 @@ export interface ThemeContextValue {
   hasRoomAppearanceOverride: (roomId: string) => boolean;
   chatSettings: ChatSettings;
   applyChatSettings: (settings: ChatSettings) => void;
+  resetUserPreferences: () => void;
 }
 
 export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);

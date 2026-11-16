@@ -18,6 +18,14 @@ const GLOBAL_APPEARANCE_STORAGE_KEY = 'chatGlobalAppearance';
 const DEFAULT_BASE: ThemeBaseId = 'dark';
 const DEFAULT_COLOR: ColorThemeId = 'standard';
 const THEME_TRANSITION_CLASS = 'sc-theme-transition';
+const USER_PREFERENCE_STORAGE_KEYS = [
+  BASE_STORAGE_KEY,
+  COLOR_STORAGE_KEY,
+  WALLPAPER_STORAGE_KEY,
+  GLOBAL_WALLPAPER_STORAGE_KEY,
+  APPEARANCE_STORAGE_KEY,
+  GLOBAL_APPEARANCE_STORAGE_KEY,
+];
 
 function readStoredJson<T>(key: string): T | null {
   try {
@@ -203,6 +211,22 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, []);
 
+  const resetUserPreferences = useCallback(() => {
+    setBaseTheme(DEFAULT_BASE);
+    setColorTheme(DEFAULT_COLOR);
+    setRoomWallpapers({});
+    setGlobalWallpaperState(null);
+    setRoomAppearanceState({});
+    setGlobalAppearanceState(null);
+    try {
+      for (const key of USER_PREFERENCE_STORAGE_KEYS) {
+        localStorage.removeItem(key);
+      }
+    } catch {
+      return;
+    }
+  }, []);
+
   const theme = useMemo(() => buildTheme(baseTheme, colorTheme).tokens, [baseTheme, colorTheme]);
 
   useEffect(() => {
@@ -245,6 +269,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       hasRoomAppearanceOverride,
       chatSettings,
       applyChatSettings,
+      resetUserPreferences,
     }),
     [
       theme,
@@ -263,6 +288,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       hasRoomAppearanceOverride,
       chatSettings,
       applyChatSettings,
+      resetUserPreferences,
     ],
   );
 

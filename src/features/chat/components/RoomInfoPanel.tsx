@@ -6,7 +6,7 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
-import { downloadFromUrl } from '@lib/download-file';
+import { downloadMessageMedia } from '@lib/e2ee';
 import { formatTimeAgo, getDisplayName } from '@lib/format';
 import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
@@ -112,7 +112,12 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   const handleSelectMedia = (message: MessageView) => {
     if (message.type === 'file' && !message.fileMeta?.mimeType.startsWith('video/') && message.fileMeta?.mimeType !== 'application/pdf') {
-      void downloadFromUrl(message.content, message.fileMeta?.name ?? t('chat.message.defaultFileName'));
+      void downloadMessageMedia(socket, {
+        content: message.content,
+        roomId: room.id,
+        fileMeta: message.fileMeta,
+        fileName: message.fileMeta?.name ?? t('chat.message.defaultFileName'),
+      });
       return;
     }
     setSelectedMedia(message);
@@ -431,6 +436,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         onClose={() => setSelectedMedia(null)}
         url={isSelectedMediaVideo ? (selectedMedia?.content ?? '') : ''}
         fileName={selectedMedia?.fileMeta?.name ?? t('chat.message.defaultVideoName')}
+        roomId={room.id}
+        fileMeta={selectedMedia?.fileMeta}
       />
       <PdfPreviewModal
         isOpen={isSelectedMediaPdf}

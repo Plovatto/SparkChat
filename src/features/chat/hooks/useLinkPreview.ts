@@ -13,31 +13,36 @@ export interface LinkPreviewControls {
 }
 
 export function useLinkPreview(text: string, auth: SessionAuth): LinkPreviewControls {
-  const [preview, setPreview] = useState<MessageLinkPreview | null>(null);
+  const [entry, setEntry] = useState<{ sourceUrl: string; preview: MessageLinkPreview } | null>(null);
   const dismissedUrlRef = useRef<string | null>(null);
+  const preview = entry?.preview ?? null;
+  const sourceUrl = entry?.sourceUrl ?? null;
   const { userId, sessionToken } = auth;
 
   useEffect(() => {
     const url = extractFirstUrl(text);
 
     if (!url || url === dismissedUrlRef.current) {
-      setPreview(null);
+      setEntry(null);
       return;
     }
 
-    setPreview((current) => (current?.url === url ? current : null));
+    if (url === sourceUrl) {
+      return;
+    }
+    setEntry(null);
 
     let cancelled = false;
     const timeoutId = setTimeout(() => {
       fetchLinkPreview(url, { userId, sessionToken })
         .then((result) => {
           if (!cancelled) {
-            setPreview(result);
+            setEntry(result ? { sourceUrl: url, preview: result } : null);
           }
         })
         .catch(() => {
           if (!cancelled) {
-            setPreview(null);
+            setEntry(null);
           }
         });
     }, DEBOUNCE_MS);
@@ -46,16 +51,16 @@ export function useLinkPreview(text: string, auth: SessionAuth): LinkPreviewCont
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [text, userId, sessionToken]);
+  }, [text, userId, sessionToken, sourceUrl]);
 
   const dismiss = useCallback(() => {
-    dismissedUrlRef.current = preview?.url ?? extractFirstUrl(text);
-    setPreview(null);
-  }, [preview, text]);
+    dismissedUrlRef.current = sourceUrl ?? extractFirstUrl(text);
+    setEntry(null);
+  }, [sourceUrl, text]);
 
   const reset = useCallback(() => {
     dismissedUrlRef.current = null;
-    setPreview(null);
+    setEntry(null);
   }, []);
 
   return { preview, dismiss, reset };

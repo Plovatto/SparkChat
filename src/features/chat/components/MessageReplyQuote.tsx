@@ -30,8 +30,9 @@ function jumpToMessage(messageId: string): void {
 
 export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentUserId }: MessageReplyQuoteProps) {
   const { t } = useTranslation();
-  const isReplyToImage = replyTo.type === 'image';
-  const isReplyToVideo = replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
+  const isDeleted = replyTo.deleted === true;
+  const isReplyToImage = !isDeleted && replyTo.type === 'image';
+  const isReplyToVideo = !isDeleted && replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
   const hasThumbnail = isReplyToImage || isReplyToVideo;
   const replyVideoThumbnail = useReplyVideoThumbnail(isReplyToVideo, replyTo.content);
   const replyThumbnailUrl = isReplyToImage
@@ -64,8 +65,7 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
       style={{
         margin: '8px 10px 0',
         marginBottom: parentType === 'text' ? 0 : '6px',
-        minWidth: '90px',
-        maxWidth: 'calc(100% - 20px)',
+        ...(parentType === 'text' ? { minWidth: '90px', maxWidth: 'calc(100% - 20px)' } : { width: 0, minWidth: 'calc(100% - 20px)' }),
         boxSizing: 'border-box',
         background: bubble.innerBackground,
         borderLeft: `3px solid ${quoteAccent}`,
@@ -100,7 +100,11 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
         >
           {getDisplayName(replyTo.sender.id, replyTo.sender.nickname, currentUserId, replyTo.sender.unknown)}
         </div>
-        {replyTo.type === 'image' ? (
+        {isDeleted ? (
+          <div style={{ ...secondaryLineStyle, fontStyle: 'italic' }}>
+            <span>{t('chat.deleted')}</span>
+          </div>
+        ) : replyTo.type === 'image' ? (
           <div style={secondaryLineStyle}>
             <FaImage size={12} style={{ flexShrink: 0 }} />
             <span>{t('chat.message.image')}</span>

@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
-function readStoredIds(storageKey: string): Set<string> {
+function readStoredIds(storageKey: string, legacyKey?: string): Set<string> {
   try {
-    const raw = localStorage.getItem(storageKey);
+    let raw = localStorage.getItem(storageKey);
+    if (!raw && legacyKey) {
+      raw = localStorage.getItem(legacyKey);
+      if (raw) {
+        localStorage.setItem(storageKey, raw);
+        localStorage.removeItem(legacyKey);
+      }
+    }
     if (!raw) {
       return new Set();
     }
@@ -18,12 +25,12 @@ export interface PersistedIdSetControls {
   toggle: (ids: string[]) => void;
 }
 
-export function usePersistedIdSet(storageKey: string): PersistedIdSetControls {
+export function usePersistedIdSet(storageKey: string, legacyKey?: string): PersistedIdSetControls {
   const [ids, setIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
-    setIds(readStoredIds(storageKey));
-  }, [storageKey]);
+    setIds(readStoredIds(storageKey, legacyKey));
+  }, [storageKey, legacyKey]);
 
   const toggle = useCallback(
     (targetIds: string[]) => {
@@ -39,7 +46,11 @@ export function usePersistedIdSet(storageKey: string): PersistedIdSetControls {
           }
         }
 
-        localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+        } catch {
+          return next;
+        }
         return next;
       });
     },

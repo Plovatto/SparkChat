@@ -3,3 +3,10 @@
     margin-top: -65px !important;
   }
 }
+
+@media (max-width: 359.98px) {
+  .auth-form-header {
+    padding-top: 72px !important;
+    padding-right: 16px !important;
+  }
+}

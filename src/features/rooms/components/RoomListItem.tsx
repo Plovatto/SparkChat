@@ -1,4 +1,4 @@
-import { memo, useState, type CSSProperties } from 'react';
+import { memo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FaAt,
@@ -43,6 +43,7 @@ interface RoomListItemProps {
   recordingUserIds: string[];
   isFavorite: boolean;
   isMuted: boolean;
+  onOpenOptions: (roomId: string) => boolean;
   entranceIndex?: number;
 }
 
@@ -304,11 +305,13 @@ export const RoomListItem = memo(function RoomListItem({
   recordingUserIds,
   isFavorite,
   isMuted,
+  onOpenOptions,
   entranceIndex = 0,
 }: RoomListItemProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [staggerIndex] = useState(entranceIndex);
+  const lastPointerTypeRef = useRef<string | null>(null);
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
   const hasUnread = room.unreadCount > 0 && !isSelected;
@@ -326,6 +329,17 @@ export const RoomListItem = memo(function RoomListItem({
       role="button"
       tabIndex={0}
       onClick={activate}
+      onPointerDown={(event) => {
+        lastPointerTypeRef.current = event.pointerType;
+      }}
+      onContextMenu={(event) => {
+        if (lastPointerTypeRef.current === 'touch') {
+          return;
+        }
+        if (onOpenOptions(room.id)) {
+          event.preventDefault();
+        }
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
