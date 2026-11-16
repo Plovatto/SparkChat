@@ -1,0 +1,197 @@
+{
+  "meta": {
+    "title": "SparkChat | Chat em tempo real com criptografia ponta a ponta",
+    "description": "Converse em tempo real com criptografia ponta a ponta. Envie imagens, áudios e arquivos, personalize temas e fale com o assistente SparkAI, direto no navegador.",
+    "imageAlt": "Tela do SparkChat com a lista de conversas e um chat com o assistente SparkAI",
+    "browserRequirements": "Requer JavaScript e um navegador moderno.",
+    "featureList": {
+      "realtime": "Mensagens em tempo real",
+      "encryption": "Criptografia ponta a ponta de mensagens e anexos",
+      "media": "Envio de imagens, áudios e arquivos",
+      "themes": "Temas e papéis de parede sincronizados entre dispositivos",
+      "assistant": "Assistente SparkAI integrado"
+    }
+  },
+  "skipLink": "Pular para o conteúdo",
+  "language": {
+    "label": "Idioma"
+  },
+  "header": {
+    "home": "SparkChat, voltar ao início",
+    "sections": "Seções da página",
+    "nav": {
+      "features": "Recursos",
+      "themes": "Temas",
+      "security": "Segurança",
+      "faq": "Perguntas"
+    },
+    "toLight": "Mudar para o modo claro",
+    "toDark": "Mudar para o modo escuro",
+    "lightTitle": "Modo claro",
+    "darkTitle": "Modo escuro",
+    "signIn": "Entrar"
+  },
+  "hero": {
+    "title": "Chat em tempo real, protegido de ponta a ponta",
+    "lead": "Mande mensagens, fotos, áudios e arquivos cifrados no seu navegador. Deixe o chat com a sua cara entre {{colors}} cores e três modos, e chame o assistente SparkAI quando quiser.",
+    "start": "Começar a conversar",
+    "tryThemes": "Experimentar os temas",
+    "note": "Gratuito e direto no navegador, sem instalar nada."
+  },
+  "features": {
+    "title": "Tudo o que uma boa conversa precisa",
+    "lead": "Do recado rápido ao áudio comprido, sem abrir mão da privacidade.",
+    "items": {
+      "realtime": {
+        "title": "Mensagens na hora",
+        "text": "As mensagens chegam em tempo real, e a conexão se refaz sozinha quando a internet oscila."
+      },
+      "encryption": {
+        "title": "Criptografia ponta a ponta",
+        "text": "Textos e anexos são cifrados no seu navegador antes de sair do aparelho."
+      },
+      "media": {
+        "title": "Fotos, áudios e arquivos",
+        "text": "Envie imagens, grave áudios e compartilhe PDFs com pré-visualização dentro da conversa."
+      },
+      "assistant": {
+        "title": "Assistente SparkAI",
+        "text": "Um assistente fixado na sua lista de conversas para tirar dúvidas ou só trocar ideia."
+      },
+      "themes": {
+        "title": "Do seu jeito",
+        "text": "Cores, papéis de parede e aparência dos balões acompanham você em todos os aparelhos."
+      },
+      "notifications": {
+        "title": "Avisos no momento certo",
+        "text": "Notificações do navegador, sons e o contador de não lidas direto na aba."
+      }
+    }
+  },
+  "studio": {
+    "title": "Escolha as cores do seu chat",
+    "lead": "São 3 modos e {{colors}} cores, com o contraste ajustado em cada combinação. Experimente aqui: a página inteira muda junto.",
+    "mode": "Modo",
+    "color": "Cor",
+    "wallpaper": "Papel de parede",
+    "hint": "Aqui estão {{shown}} dos {{total}} papéis de parede.",
+    "seeAll": "Entre no chat para ver todos",
+    "modes": {
+      "dark": { "label": "Escuro", "phrase": "no modo escuro" },
+      "light": { "label": "Claro", "phrase": "no modo claro" },
+      "midnight": { "label": "Meia-noite", "phrase": "no modo meia-noite" }
+    }
+  },
+  "screenshots": {
+    "title": "Por dentro do SparkChat",
+    "lead": "Telas reais do app, cada uma com uma cor e um papel de parede diferentes.",
+    "items": {
+      "chat-assistente": {
+        "alt": "Conversa com o assistente SparkAI no tema vermelho, com uma resposta citada e as ações Responder e Encaminhar",
+        "caption": "Conversa com o SparkAI, com respostas citadas e ações rápidas"
+      },
+      "chat-desktop": {
+        "alt": "Conversa com Marina no tema roxo, com mensagem de áudio e uma foto de paisagem enviada",
+        "caption": "Áudios e fotos sobre um papel de parede de águas-vivas"
+      },
+      "chat-arquivo": {
+        "alt": "Conversa sobre uma viagem no tema rosa e verde, com um PDF pré-visualizado e uma resposta citando o arquivo",
+        "caption": "PDF com pré-visualização e resposta citando o arquivo"
+      }
+    }
+  },
+  "security": {
+    "title": "Privacidade que não depende de confiança",
+    "lead": "A criptografia acontece no seu navegador. Nem o servidor do SparkChat consegue ler as conversas entre pessoas.",
+    "steps": {
+      "keys": {
+        "title": "Suas chaves nascem no seu aparelho",
+        "text": "Ao criar a conta, o navegador gera o seu par de chaves. A chave privada só sai dali protegida pela sua senha."
+      },
+      "encrypt": {
+        "title": "Cada mensagem é cifrada antes do envio",
+        "text": "Textos, fotos, áudios e arquivos viajam embaralhados, do seu navegador até o destino."
+      },
+      "relay": {
+        "title": "O servidor só entrega",
+        "text": "Ele guarda e repassa o conteúdo cifrado, sem conseguir ler o que foi escrito."
+      },
+      "read": {
+        "title": "Quem participa da conversa lê",
+        "text": "A mensagem só volta a ser legível no aparelho de quem está na conversa."
+      }
+    },
+    "recoveryNote": "Ao criar a conta você recebe um arquivo de recuperação. Guarde-o bem: é com ele que você entra em outro aparelho sem perder o histórico."
+  },
+  "faq": {
+    "title": "Perguntas frequentes",
+    "lead": "O que costuma surgir antes da primeira mensagem.",
+    "items": {
+      "free": {
+        "question": "O SparkChat é gratuito?",
+        "answer": "Sim. Para criar a conta basta escolher um avatar, um nome de usuário e uma senha, sem cartão e sem período de teste."
+      },
+      "install": {
+        "question": "Preciso instalar alguma coisa?",
+        "answer": "Não. O SparkChat funciona no navegador, no computador ou no celular. Se quiser, dá para adicioná-lo à tela inicial."
+      },
+      "encryption": {
+        "question": "Como funciona a criptografia?",
+        "answer": "As mensagens e os anexos são cifrados no seu navegador com chaves que só os participantes da conversa conseguem usar. O servidor entrega o conteúdo, mas não consegue lê-lo."
+      },
+      "recovery": {
+        "question": "O que é o arquivo de recuperação?",
+        "answer": "É um arquivo gerado na criação da conta que permite entrar em outro aparelho sem perder o histórico cifrado. Guarde-o em um lugar seguro: sem ele e sem a senha, não há como recuperar as mensagens."
+      },
+      "assistant": {
+        "question": "As conversas com o SparkAI também são cifradas?",
+        "answer": "Para responder, o assistente precisa ler o que você escreve, então essas mensagens são processadas pelo servidor e pelo modelo de IA. As conversas entre pessoas continuam cifradas de ponta a ponta."
+      },
+      "theme": {
+        "question": "O tema que eu escolho aqui vale no app?",
+        "answer": "O modo claro ou escuro escolhido aqui já vale na tela de entrada. Dentro do app, você escolhe cor, modo e papel de parede no menu de aparência, e a escolha acompanha sua conta em todos os aparelhos."
+      }
+    }
+  },
+  "cta": {
+    "title": "Sua próxima conversa começa aqui",
+    "text": "Crie a conta em menos de um minuto e chame quem você quiser.",
+    "start": "Começar a conversar"
+  },
+  "footer": {
+    "madeBy": "SparkChat, feito por",
+    "openSource": ". Código aberto sob a",
+    "license": "licença MIT",
+    "links": "Links do projeto",
+    "appCode": "Código do app",
+    "apiCode": "Código da API",
+    "apiDocs": "Documentação da API"
+  },
+  "preview": {
+    "windowLabel": "Prévia do SparkChat num computador: lista de conversas ao lado de um chat com Marina, com mensagens de texto, um PDF e um áudio",
+    "you": "Você",
+    "available": "Disponível",
+    "newChat": "Novo chat",
+    "conversations": "Conversas",
+    "online": "Online",
+    "composer": "Digite sua mensagem...",
+    "page": "1 página",
+    "pdfName": "roteiro-da-viagem.pdf",
+    "list": {
+      "assistant": "Por aqui tá tudo ótimo, pronto pra ajudar!",
+      "marina": "Ficou ótimo! Só vou trocar a trilha",
+      "camila": "Combinado, às 19h então 😄",
+      "rafael": "Vi sim! Amanhã cedo te mando"
+    },
+    "chat": {
+      "question": "Oi! Fechou a data da viagem?",
+      "answer": "Fechou sim, dia 12 a gente sai cedo"
+    },
+    "phoneLabel": "Prévia no celular de uma conversa com o SparkAI usando a cor {{color}} {{mode}}",
+    "assistantStatus": "100% pilha, 0% sono",
+    "phoneWelcome": "Oi! Eu sou o SparkAI. Apareci aqui só pra gente trocar ideia, manda o que quiser!",
+    "phoneAsk": "Me ajuda a escolher a cor do meu chat?",
+    "phoneReply": "Que tal a cor {{color}} {{mode}}? Ficou a sua cara 😄",
+    "phoneComposer": "Mensagem"
+  }
+}
