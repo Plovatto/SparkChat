@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { buildTheme } from '@features/theme/build-theme';
 import { Faq } from './components/Faq';
 import { Features } from './components/Features';
@@ -12,6 +13,7 @@ import { useLandingTheme } from './hooks/useLandingTheme';
 import { useScrollReveal } from './hooks/useScrollReveal';
 
 export function Landing() {
+  const { t } = useTranslation('landing');
   const { theme, select } = useLandingTheme();
   useScrollReveal();
   const isDark = buildTheme(theme.base, theme.color).tokens.kind === 'dark';
@@ -20,7 +22,7 @@ export function Landing() {
   return (
     <>
       <a className="lp-skip-link" href="#conteudo">
-        Pular para o conteúdo
+        {t('skipLink')}
       </a>
       <SiteHeader isDark={isDark} onToggleMode={() => select({ base: isDark ? 'light' : 'dark' })} />
       <main id="conteudo">

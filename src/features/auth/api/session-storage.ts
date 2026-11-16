@@ -1,7 +1,6 @@
+import { SESSION_STORAGE_KEY as SESSION_KEY } from '@constants/storage-keys';
 import { getItem, setItem } from '@lib/storage';
 import type { User } from '../types';
-
-const SESSION_KEY = 'sparkchat:session';
 
 export function saveSession(user: User): void {
   const stored: User = {

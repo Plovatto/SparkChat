@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { buildTheme } from '@features/theme/build-theme';
 import { CHAT_BACKGROUNDS } from '@features/theme/constants/chat-backgrounds';
 import { COLOR_THEMES, type ColorThemeId } from '@features/theme/constants/color-themes';
+import { useThemeNames } from '@features/theme/hooks/useThemeNames';
 import { APP_URL } from '../constants/content';
-import { LANDING_MODES, findLandingMode } from '../constants/modes';
+import { LANDING_MODES } from '../constants/modes';
 import { LANDING_WALLPAPERS, findLandingWallpaper } from '../constants/wallpapers';
 import type { LandingThemeChoice } from '../lib/landing-theme-storage';
 import { PhonePreview } from './PhonePreview';
@@ -17,19 +19,16 @@ const COLOR_IDS = Object.keys(COLOR_THEMES) as ColorThemeId[];
 const WALLPAPER_TOTAL = CHAT_BACKGROUNDS.filter((background) => background.background !== null).length;
 
 export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
-  const swatches = useMemo(
-    () =>
-      COLOR_IDS.map((id) => ({
-        id,
-        name: COLOR_THEMES[id].name,
-        gradient: buildTheme(theme.base, id).tokens.gradient,
-      })),
+  const { t } = useTranslation('landing');
+  const names = useThemeNames();
+  const gradients = useMemo(
+    () => COLOR_IDS.map((id) => ({ id, gradient: buildTheme(theme.base, id).tokens.gradient })),
     [theme.base],
   );
 
-  const mode = findLandingMode(theme.base);
-  const colorName = COLOR_THEMES[theme.color].name;
+  const colorName = names.color(theme.color);
   const wallpaper = findLandingWallpaper(theme.wallpaper);
+  const wallpaperName = wallpaper ? names.wallpaper(wallpaper.id) : null;
 
   return (
     <section id="temas" className="lp-section lp-section--sunken" aria-labelledby="temas-title">
@@ -37,17 +36,14 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
         <div className="lp-studio__controls">
           <div className="lp-section__intro lp-section__intro--start">
             <h2 id="temas-title" className="lp-section__title">
-              Escolha as cores do seu chat
+              {t('studio.title')}
             </h2>
-            <p className="lp-section__lead">
-              São 3 modos e {COLOR_IDS.length} cores, com o contraste ajustado em cada combinação. Experimente aqui: a página inteira muda
-              junto.
-            </p>
+            <p className="lp-section__lead">{t('studio.lead', { colors: COLOR_IDS.length })}</p>
           </div>
 
           <div className="lp-studio__group" role="group" aria-labelledby="studio-mode-label">
             <span id="studio-mode-label" className="lp-studio__label">
-              Modo
+              {t('studio.mode')}
             </span>
             <div className="lp-segments">
               {LANDING_MODES.map((item) => {
@@ -61,7 +57,7 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
                     onClick={() => onSelect({ base: item.id })}
                   >
                     <Icon size={13} aria-hidden="true" />
-                    {item.label}
+                    {t(`studio.modes.${item.id}.label`)}
                   </button>
                 );
               })}
@@ -70,10 +66,10 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
 
           <div className="lp-studio__group" role="group" aria-labelledby="studio-color-label">
             <span id="studio-color-label" className="lp-studio__label">
-              Cor <span className="lp-studio__current">{colorName}</span>
+              {t('studio.color')} <span className="lp-studio__current">{colorName}</span>
             </span>
             <div className="lp-swatches">
-              {swatches.map((swatch) => (
+              {gradients.map((swatch) => (
                 <button
                   key={swatch.id}
                   type="button"
@@ -81,8 +77,8 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
                   style={{ background: swatch.gradient }}
                   data-selected={theme.color === swatch.id ? 'true' : undefined}
                   aria-pressed={theme.color === swatch.id}
-                  aria-label={swatch.name}
-                  title={swatch.name}
+                  aria-label={names.color(swatch.id)}
+                  title={names.color(swatch.id)}
                   onClick={() => onSelect({ color: swatch.id })}
                 />
               ))}
@@ -91,7 +87,7 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
 
           <div className="lp-studio__group" role="group" aria-labelledby="studio-wallpaper-label">
             <span id="studio-wallpaper-label" className="lp-studio__label">
-              Papel de parede <span className="lp-studio__current">{wallpaper?.name}</span>
+              {t('studio.wallpaper')} <span className="lp-studio__current">{wallpaperName}</span>
             </span>
             <div className="lp-wallpapers">
               {LANDING_WALLPAPERS.map((item) => (
@@ -102,16 +98,16 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
                   style={item.thumbnail ? { background: item.thumbnail, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
                   data-selected={theme.wallpaper === item.id ? 'true' : undefined}
                   aria-pressed={theme.wallpaper === item.id}
-                  aria-label={item.name}
-                  title={item.name}
+                  aria-label={names.wallpaper(item.id)}
+                  title={names.wallpaper(item.id)}
                   onClick={() => onSelect({ wallpaper: item.id })}
                 />
               ))}
             </div>
             <p className="lp-studio__hint">
-              Aqui estão {LANDING_WALLPAPERS.length} dos {WALLPAPER_TOTAL} papéis de parede.{' '}
+              {t('studio.hint', { shown: LANDING_WALLPAPERS.length, total: WALLPAPER_TOTAL })}{' '}
               <a className="sc-link" href={APP_URL}>
-                Entre no chat para ver todos
+                {t('studio.seeAll')}
               </a>
               .
             </p>
@@ -119,7 +115,7 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
         </div>
 
         <div className="lp-studio__preview">
-          <PhonePreview wallpaper={wallpaper?.background ?? null} colorName={colorName} modePhrase={mode.phrase} />
+          <PhonePreview wallpaper={wallpaper?.background ?? null} colorName={colorName} modePhrase={t(`studio.modes.${theme.base}.phrase`)} />
         </div>
       </div>
     </section>
