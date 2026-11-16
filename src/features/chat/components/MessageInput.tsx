@@ -32,10 +32,20 @@ export interface MessageInputSubmitPayload {
   linkPreview?: MessageLinkPreview;
 }
 
+const TEXT_MAX_LENGTH = 20000;
+const CAPTION_MAX_LENGTH = 2000;
+const TEXT_MAX_BYTES = 22000;
+const CAPTION_MAX_BYTES = 2150;
+
+function exceedsEncryptedLimit(text: string, isCaption: boolean): boolean {
+  return new TextEncoder().encode(text).length > (isCaption ? CAPTION_MAX_BYTES : TEXT_MAX_BYTES);
+}
+
 export interface AudioSendPayload {
   blob: Blob;
   mimeType: string;
   duration: number;
+  pending?: MessageInputSubmitPayload;
 }
 
 interface MentionCandidate {
@@ -56,7 +66,7 @@ interface MessageInputProps {
   auth: SessionAuth;
 }
 
-const MENTION_QUERY_PATTERN = /(?:^|\s)@(\w*)$/;
+const MENTION_QUERY_PATTERN = /(?:^|\s)@([\p{L}\p{N}_]*)$/u;
 const MENTION_SUGGESTION_LIMIT = 5;
 const DOCUMENT_ACCEPT = '.pdf,.mp4,.webm,.mov,.avi,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv';
 const ATTACHMENT_ACCEPT = `image/*,${DOCUMENT_ACCEPT}`;
@@ -220,6 +230,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const { theme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
+  const pendingAttachmentsRef = useRef(pendingAttachments);
+  pendingAttachmentsRef.current = pendingAttachments;
+  const messageRef = useRef(message);
+  messageRef.current = message;
   const linkPreview = useLinkPreview(message, auth);
   const [shouldAutoFocus] = useState(
     () => typeof window === 'undefined' || !window.matchMedia || !window.matchMedia('(pointer: coarse)').matches,
@@ -321,24 +335,22 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       .map((item) => item.getAsFile())
       .filter((file): file is File => file !== null);
 
-    addPendingAttachments(files);
+    if (files.length > 0) {
+      event.preventDefault();
+      addPendingAttachments(files);
+    }
   };
 
   const isBlocked = isBlockedBy || userBlocked;
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = message.trim();
-    if ((!trimmed && pendingAttachments.length === 0) || isBlocked) {
-      return;
-    }
+  const buildSubmitPayload = (): MessageInputSubmitPayload => ({
+    text: message.trim(),
+    imageFiles: pendingAttachments.filter((file) => file.type.startsWith('image/')),
+    documentFiles: pendingAttachments.filter((file) => !file.type.startsWith('image/')),
+    linkPreview: linkPreview.preview ?? undefined,
+  });
 
-    onSend({
-      text: trimmed,
-      imageFiles: pendingAttachments.filter((file) => file.type.startsWith('image/')),
-      documentFiles: pendingAttachments.filter((file) => !file.type.startsWith('image/')),
-      linkPreview: linkPreview.preview ?? undefined,
-    });
+  const clearComposer = () => {
     setMessage('');
     setMentionQuery(null);
     setPendingAttachments([]);
@@ -346,8 +358,38 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if ((!message.trim() && pendingAttachments.length === 0) || isBlocked) {
+      return;
+    }
+    if (exceedsEncryptedLimit(message.trim(), pendingAttachments.length > 0)) {
+      window.alert(t('chat.input.tooLong'));
+      return;
+    }
+
+    onSend(buildSubmitPayload());
+    clearComposer();
+  };
+
   const finishRecording = (result: AudioRecordingResult) => {
-    onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime });
+    const attachments = pendingAttachmentsRef.current;
+    const caption = messageRef.current.trim();
+    const canSendPending = attachments.length > 0 && !exceedsEncryptedLimit(caption, true);
+    const pending = canSendPending
+      ? {
+          text: caption,
+          imageFiles: attachments.filter((file) => file.type.startsWith('image/')),
+          documentFiles: attachments.filter((file) => !file.type.startsWith('image/')),
+        }
+      : undefined;
+    if (attachments.length > 0 && !canSendPending) {
+      window.alert(t('chat.input.tooLong'));
+    }
+    onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime, pending });
+    if (pending) {
+      clearComposer();
+    }
   };
 
   const handleMicClick = async () => {
@@ -504,7 +546,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }}
             onKeyDown={handleInputKeyDown}
             onPaste={handlePaste}
-            maxLength={maxLength}
+            maxLength={pendingAttachments.length > 0 ? Math.min(CAPTION_MAX_LENGTH, maxLength ?? CAPTION_MAX_LENGTH) : (maxLength ?? TEXT_MAX_LENGTH)}
             disabled={isBlocked}
             placeholder={
               isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')

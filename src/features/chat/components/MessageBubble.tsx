@@ -8,6 +8,7 @@ import type { RoomParticipant } from '@lib/socket';
 import type { ChatMessage } from '../types';
 import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { truncateLongText } from '../utils/truncate-long-text';
 import { AudioMessageContent, type CurrentAudioRef } from './AudioMessageContent';
 import { FileMessageContent } from './FileMessageContent';
 import { ImageMessageContent } from './ImageMessageContent';
@@ -22,9 +23,10 @@ import { VideoMessageContent } from './VideoMessageContent';
 
 export interface MessageBubbleActions {
   onSelect: (messageId: string) => void;
+  onOpenActions: (messageId: string) => void;
   onReply: (message: ChatMessage) => void;
-  onDelete: (messageId: string) => void;
-  onForward: (message: ChatMessage) => void;
+  onDelete: (messageIds: string[]) => void;
+  onForward: (messages: ChatMessage[]) => void;
   onRetry: (clientTempId: string) => void;
 }
 
@@ -45,9 +47,10 @@ interface MessageBubbleProps extends MessageBubbleActions {
   entranceIndex?: number;
 }
 
-const MAX_PREVIEW_LENGTH = 200;
 const LINK_PREVIEW_BUBBLE_WIDTH = 300;
 const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
+
+const MEDIA_CAPTION_STYLE: CSSProperties = { padding: '4px 12px 0', width: 0, minWidth: '100%', boxSizing: 'border-box' };
 
 const MESSAGE_TEXT_STYLE: CSSProperties = {
   margin: 0,
@@ -104,6 +107,7 @@ export const MessageBubble = memo(function MessageBubble({
   currentAudioRef,
   receipt,
   onSelect,
+  onOpenActions,
   onReply,
   onDelete,
   onForward,
@@ -137,8 +141,8 @@ export const MessageBubble = memo(function MessageBubble({
   const isAudioMessage = message.type === 'audio';
   const isFileMessage = message.type === 'file';
   const isVideoFile = isFileMessage && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
-  const showExpand = message.type === 'text' && message.content.length > MAX_PREVIEW_LENGTH;
-  const displayContent = showExpand && !isExpanded ? `${message.content.substring(0, MAX_PREVIEW_LENGTH)}...` : message.content;
+  const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(message.content) : null;
+  const displayContent = truncatedContent ?? message.content;
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(message.content) : '';
   const textAccentColor = bubbleStyle.accentColor;
@@ -179,28 +183,20 @@ export const MessageBubble = memo(function MessageBubble({
       <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
         <p style={MESSAGE_TEXT_STYLE}>
           {renderMessageContent(displayContent, participants, textAccentColor)}
-          {showExpand && (
+          {truncatedContent !== null && (
             <>
-              {' '}
-              <span
-                role="button"
-                tabIndex={0}
+              {'… '}
+              <button
+                type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setIsExpanded((previous) => !previous);
+                  setIsExpanded(true);
                 }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.stopPropagation();
-                    event.preventDefault();
-                    setIsExpanded((previous) => !previous);
-                  }
-                }}
-                className="sc-link"
-                style={{ whiteSpace: 'nowrap', fontWeight: 700, textDecoration: 'underline', color: textAccentColor }}
+                className="sc-read-more"
+                style={{ color: textAccentColor }}
               >
-                {isExpanded ? 'ver menos' : 'ver mais'}
-              </span>
+                {t('chat.message.readMore')}
+              </button>
             </>
           )}
         </p>
@@ -219,6 +215,8 @@ export const MessageBubble = memo(function MessageBubble({
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(message.id)}
+      onOpenActions={() => onOpenActions(message.id)}
+      allowCustomContextMenu={!message.pending && !message.failed}
       padding={resolveBubblePadding(message, isVideoFile)}
       cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
       entrancePhase={entrance}
@@ -228,13 +226,13 @@ export const MessageBubble = memo(function MessageBubble({
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {actionsPresence.isPresent && (
+          {actionsPresence.isPresent && !message.pending && !message.failed && (
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
               onReply={() => onReply(message)}
-              onDelete={() => onDelete(message.id)}
-              onForward={() => onForward(message)}
+              onDelete={() => onDelete([message.id])}
+              onForward={() => onForward([message])}
             />
           )}
         </>
@@ -259,8 +257,8 @@ export const MessageBubble = memo(function MessageBubble({
       )}
 
       {message.type !== 'text' && message.caption && (
-        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-          <p style={MESSAGE_TEXT_STYLE}>{message.caption}</p>
+        <div style={MEDIA_CAPTION_STYLE}>
+          <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(message.caption, participants, textAccentColor)}</p>
         </div>
       )}
 

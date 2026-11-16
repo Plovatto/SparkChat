@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
@@ -13,6 +13,8 @@ interface MessageBubbleShellProps {
   currentUserId: string | undefined;
   isSelected?: boolean;
   onSelect: () => void;
+  onOpenActions: () => void;
+  allowCustomContextMenu?: boolean;
   padding: string;
   extraClassName?: string;
   afterBubble?: ReactNode;
@@ -33,6 +35,8 @@ export function MessageBubbleShell({
   currentUserId,
   isSelected = false,
   onSelect,
+  onOpenActions,
+  allowCustomContextMenu = true,
   padding,
   extraClassName = '',
   afterBubble,
@@ -46,6 +50,7 @@ export function MessageBubbleShell({
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
+  const lastPointerTypeRef = useRef<string | null>(null);
 
   return (
     <div
@@ -57,6 +62,21 @@ export function MessageBubbleShell({
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
+      }}
+      onPointerDown={(event) => {
+        lastPointerTypeRef.current = event.pointerType;
+      }}
+      onContextMenu={(event) => {
+        if (!allowCustomContextMenu || lastPointerTypeRef.current === 'touch' || (event.target as HTMLElement).closest('a, video')) {
+          return;
+        }
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && event.currentTarget.contains(selection.anchorNode)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenActions();
       }}
       style={
         {

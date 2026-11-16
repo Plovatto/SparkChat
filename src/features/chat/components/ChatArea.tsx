@@ -56,6 +56,7 @@ const DATE_CHIP_STYLE: CSSProperties = {
 };
 
 const STICKY_DATE_TOP_PX = 8;
+const FILL_VIEWPORT_CHECK_DELAY_MS = 350;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
 const ENTRANCE_CASCADE_MAX_INDEX = 7;
 
@@ -361,6 +362,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   );
   const lastMessageIdRef = useRef<string | null>(null);
   const isReadyForLoadMoreRef = useRef(false);
+  const uploadsInFlightRef = useRef(0);
+  const uploadGenerationRef = useRef(0);
+  const recordingRoomIdRef = useRef<string | null>(null);
   const hasUserScrolledRef = useRef(false);
   const isAtBottomRef = useRef(true);
   const activityRef = useRef({ typing: false, recording: false });
@@ -370,8 +374,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
-  const [messageIdPendingDelete, setMessageIdPendingDelete] = useState<string | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(null);
+  const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
+  const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -602,6 +606,19 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return () => observer.disconnect();
   }, [dayKeysSignature]);
 
+  useEffect(() => {
+    if (!areMessagesLoaded || !hasMoreOlder || isLoadingOlder) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const container = scrollContainerRef.current;
+      if (container && isReadyForLoadMoreRef.current && container.scrollHeight <= container.clientHeight + 1) {
+        loadOlderMessages();
+      }
+    }, FILL_VIEWPORT_CHECK_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [areMessagesLoaded, hasMoreOlder, isLoadingOlder, messages.length, loadOlderMessages]);
+
   const markUserScrolled = () => {
     hasUserScrolledRef.current = true;
   };
@@ -641,9 +658,37 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     setIsInfoOpen(false);
     setSelectedMessageId(null);
     setRepliedMessage(null);
+    setUploadingMediaType(null);
+    uploadsInFlightRef.current = 0;
+    uploadGenerationRef.current += 1;
     isAtBottomRef.current = true;
     setIsAtBottom(true);
   }, [room?.id]);
+
+  useEffect(
+    () => () => {
+      const recordingRoomId = recordingRoomIdRef.current;
+      recordingRoomIdRef.current = null;
+      if (recordingRoomId) {
+        socket?.emit('recording:stop', { roomId: recordingRoomId });
+      }
+    },
+    [room?.id, socket],
+  );
+
+  useEffect(() => {
+    const preventFileNavigation = (event: globalThis.DragEvent) => {
+      if (event.dataTransfer?.types.includes('Files')) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('dragover', preventFileNavigation);
+    window.addEventListener('drop', preventFileNavigation);
+    return () => {
+      window.removeEventListener('dragover', preventFileNavigation);
+      window.removeEventListener('drop', preventFileNavigation);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = () => setSelectedMessageId(null);
@@ -655,18 +700,22 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     setSelectedMessageId((current) => (current === messageId ? null : messageId));
   }, []);
 
+  const openMessageActions = useCallback((messageId: string) => {
+    setSelectedMessageId(messageId);
+  }, []);
+
   const handleReply = useCallback((message: MessageView) => {
     setRepliedMessage(message);
     setSelectedMessageId(message.id);
     setTimeout(() => messageInputRef.current?.focus(), 100);
   }, []);
 
-  const handleDeleteRequest = useCallback((messageId: string) => {
-    setMessageIdPendingDelete(messageId);
+  const handleDeleteRequest = useCallback((messageIds: string[]) => {
+    setMessageIdsPendingDelete(messageIds);
   }, []);
 
-  const handleForward = useCallback((message: ChatMessage) => {
-    setForwardingMessage(message);
+  const handleForward = useCallback((messagesToForward: ChatMessage[]) => {
+    setForwardingMessages(messagesToForward);
   }, []);
 
   const handleAudioPlayed = useCallback(
@@ -680,90 +729,132 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return <EmptyChatState />;
   }
 
-  const sendAttachmentMessages = async (files: File[], type: AttachmentMessageType, replyTo: MessageView | null, caption?: string) => {
+  const beginUpload = (type: AttachmentMessageType | 'audio'): number => {
+    uploadsInFlightRef.current += 1;
     setUploadingMediaType(type);
-    try {
-      for (let index = 0; index < files.length; index++) {
-        const file = files[index];
-        if (!file) {
-          continue;
-        }
-        const uploaded: UploadedFile =
-          type === 'image'
-            ? { ...(await uploadChatImage(file, auth, room.id)), name: file.name, size: file.size }
-            : await uploadChatFile(file, auth, room.id);
-        sendMessage({
-          content: uploaded.url,
-          type,
-          replyTo: index === 0 ? replyTo : null,
-          caption: index === 0 ? caption : undefined,
-          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size, thumbnailUrl: uploaded.thumbnailUrl },
-        });
-      }
-    } catch (error) {
-      console.error(error);
-      window.alert(uploadErrorText(error, ATTACHMENT_UPLOAD_ERROR_KEY[type]));
-    } finally {
+    return uploadGenerationRef.current;
+  };
+
+  const endUpload = (generation: number) => {
+    if (generation !== uploadGenerationRef.current) {
+      return;
+    }
+    uploadsInFlightRef.current = Math.max(0, uploadsInFlightRef.current - 1);
+    if (uploadsInFlightRef.current === 0) {
       setUploadingMediaType(null);
     }
   };
 
-  const handleSendAudio = async ({ blob, mimeType, duration }: AudioSendPayload) => {
-    setUploadingMediaType('audio');
+  const sendAttachmentMessages = async (
+    files: File[],
+    type: AttachmentMessageType,
+    replyTo: MessageView | null,
+    caption?: string,
+    captionMentionedUserIds?: string[],
+  ) => {
+    const targetRoomId = room.id;
+    let isFirstSent = true;
+    let lastError: unknown = null;
+    const uploadGeneration = beginUpload(type);
+    for (const file of files) {
+      try {
+        const uploaded: UploadedFile =
+          type === 'image'
+            ? { ...(await uploadChatImage(file, auth, targetRoomId)), name: file.name, size: file.size }
+            : await uploadChatFile(file, auth, targetRoomId);
+        sendMessage({
+          content: uploaded.url,
+          type,
+          replyTo: isFirstSent ? replyTo : null,
+          caption: isFirstSent ? caption : undefined,
+          mentionedUserIds: isFirstSent ? captionMentionedUserIds : undefined,
+          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size, thumbnailUrl: uploaded.thumbnailUrl },
+        });
+        isFirstSent = false;
+      } catch (error) {
+        console.error(error);
+        lastError = error;
+      }
+    }
+    endUpload(uploadGeneration);
+    if (lastError) {
+      window.alert(uploadErrorText(lastError, ATTACHMENT_UPLOAD_ERROR_KEY[type]));
+    }
+  };
+
+  const handleSendAudio = async ({ blob, mimeType, duration, pending }: AudioSendPayload) => {
+    const audioReplyTo = pending ? null : repliedMessage;
+    if (pending) {
+      await sendPayload(pending);
+    }
+    const audioUploadGeneration = beginUpload('audio');
     try {
       const uploaded = await uploadChatAudio(blob, mimeType, auth, room.id);
       sendMessage({
         content: uploaded.url,
         type: 'audio',
         duration,
-        replyTo: repliedMessage,
+        replyTo: audioReplyTo,
         fileMeta: { name: `audio-${Date.now()}`, mimeType: uploaded.mimeType, size: blob.size },
       });
-      setRepliedMessage(null);
+      setRepliedMessage((current) => (current && audioReplyTo && current.id === audioReplyTo.id ? null : current));
     } catch (error) {
       console.error(error);
       window.alert(uploadErrorText(error, 'chat.upload.audioRetry'));
     } finally {
-      setUploadingMediaType(null);
+      endUpload(audioUploadGeneration);
     }
   };
 
   const handleRecordingStart = () => {
+    recordingRoomIdRef.current = room.id;
     socket?.emit('recording:start', { roomId: room.id });
   };
 
   const handleRecordingStop = () => {
-    socket?.emit('recording:stop', { roomId: room.id });
+    const recordingRoomId = recordingRoomIdRef.current;
+    recordingRoomIdRef.current = null;
+    if (recordingRoomId) {
+      socket?.emit('recording:stop', { roomId: recordingRoomId });
+    }
   };
 
-  const handleSend = ({ text, imageFiles, documentFiles, linkPreview }: MessageInputSubmitPayload) => {
+  const sendPayload = async ({ text, imageFiles, documentFiles, linkPreview }: MessageInputSubmitPayload): Promise<void> => {
     const trimmed = text.trim();
     const hasAttachments = imageFiles.length > 0 || documentFiles.length > 0;
+    const mentionedUserIds =
+      room.type === 'group' && trimmed
+        ? parseMentionedUserIds(
+            trimmed,
+            room.participants.map((participant) => ({ id: participant.id, nickname: participant.nickname })),
+          )
+        : undefined;
 
     if (trimmed && !hasAttachments) {
-      const mentionedUserIds =
-        room.type === 'group'
-          ? parseMentionedUserIds(
-              trimmed,
-              room.participants.map((participant) => ({ id: participant.id, nickname: participant.nickname })),
-            )
-          : undefined;
       sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds, linkPreview });
     }
 
     const caption = hasAttachments && trimmed ? trimmed : undefined;
+    const uploads: Promise<void>[] = [];
 
     if (imageFiles.length > 0) {
-      void sendAttachmentMessages(imageFiles, 'image', repliedMessage, caption);
+      uploads.push(sendAttachmentMessages(imageFiles, 'image', repliedMessage, caption, mentionedUserIds));
     }
 
     if (documentFiles.length > 0) {
       const hasImages = imageFiles.length > 0;
-      void sendAttachmentMessages(documentFiles, 'file', hasImages ? null : repliedMessage, hasImages ? undefined : caption);
+      uploads.push(
+        sendAttachmentMessages(documentFiles, 'file', hasImages ? null : repliedMessage, hasImages ? undefined : caption, hasImages ? undefined : mentionedUserIds),
+      );
     }
 
     setRepliedMessage(null);
     notifyStoppedTyping();
+    await Promise.all(uploads);
+  };
+
+  const handleSend = (payload: MessageInputSubmitPayload) => {
+    void sendPayload(payload);
   };
 
   const handleLeftGroup = () => {
@@ -781,8 +872,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
   const confirmDeleteMessage = () => {
-    if (messageIdPendingDelete) {
-      socket?.emit('message:delete', { messageId: messageIdPendingDelete });
+    for (const messageId of messageIdsPendingDelete ?? []) {
+      socket?.emit('message:delete', { messageId });
     }
     setSelectedMessageId(null);
   };
@@ -883,6 +974,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           onScroll={handleMessagesScroll}
           onWheel={markUserScrolled}
           onTouchMove={markUserScrolled}
+          onPointerDown={markUserScrolled}
+          onKeyDown={markUserScrolled}
           data-chat-messages
           className="chat-messages-scroll"
           style={{
@@ -978,6 +1071,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 currentAudioRef={currentAudioRef}
                                 receipt={visibleReceipts.get(itemKey) ?? null}
                                 onSelect={toggleSelectedMessage}
+                                onOpenActions={openMessageActions}
                                 onReply={handleReply}
                                 onDelete={handleDeleteRequest}
                                 onForward={handleForward}
@@ -997,6 +1091,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 isSelected={selectedMessageId === anchorMessage.id}
                                 receipt={visibleReceipts.get(itemKey) ?? null}
                                 onSelect={toggleSelectedMessage}
+                                onOpenActions={openMessageActions}
                                 onReply={handleReply}
                                 onDelete={handleDeleteRequest}
                                 onForward={handleForward}
@@ -1112,6 +1207,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       )}
 
       <MessageInput
+        key={`input-${room.id}`}
         ref={messageInputRef}
         onSend={handleSend}
         onSendAudio={(payload) => void handleSendAudio(payload)}
@@ -1126,19 +1222,20 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       />
 
       <ConfirmDialog
-        isOpen={messageIdPendingDelete !== null}
-        title={t('chat.deleteTitle')}
-        message={t('chat.deleteConfirm')}
+        isOpen={messageIdsPendingDelete !== null}
+        title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
+        message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
         onConfirm={confirmDeleteMessage}
-        onCancel={() => setMessageIdPendingDelete(null)}
+        onCancel={() => setMessageIdsPendingDelete(null)}
       />
 
       <ForwardMessageModal
-        isOpen={forwardingMessage !== null}
-        onClose={() => setForwardingMessage(null)}
+        isOpen={forwardingMessages !== null}
+        onClose={() => setForwardingMessages(null)}
         rooms={rooms}
         currentUserId={user.id}
-        message={forwardingMessage}
+        messages={forwardingMessages ?? []}
+        auth={auth}
       />
     </div>
   );
