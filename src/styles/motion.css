@@ -880,6 +880,28 @@ html.sc-theme-transition *::after {
   }
 }
 
+@keyframes scLangReveal {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(0.4em);
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.sc-lang-reveal {
+  animation: scLangReveal var(--sc-dur-slower) var(--sc-ease-enter) var(--sc-lang-reveal-delay, 0ms) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sc-anim-fade-in,
   .sc-anim-rise-in,
