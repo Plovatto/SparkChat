@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FaDownload, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
@@ -22,6 +23,7 @@ interface VideoPreviewModalProps {
 }
 
 export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPreviewModalProps) {
+  const { t } = useTranslation();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
   const lastSourceRef = useRef({ url, fileName });
   useBodyScrollLock(isOpen);
@@ -71,13 +73,13 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             padding: '6px',
           }}
         >
-          <OverlayIconButton onClick={() => void downloadFromUrl(source.url, source.fileName)} title="Baixar vídeo">
+          <OverlayIconButton onClick={() => void downloadFromUrl(source.url, source.fileName)} title={t('chat.viewer.downloadVideo')}>
             <FaDownload />
           </OverlayIconButton>
 
           <div style={MEDIA_VIEWER_DIVIDER_STYLE} />
 
-          <OverlayIconButton onClick={onClose} title="Fechar vídeo (ESC)" variant="danger">
+          <OverlayIconButton onClick={onClose} title={t('chat.viewer.closeVideo')} variant="danger">
             <FaTimes />
           </OverlayIconButton>
         </div>

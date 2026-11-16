@@ -1,4 +1,5 @@
 import { env } from '@config/env';
+import { toApiError } from '@lib/api/api-error';
 import type { LoginCredentials, User } from '../types';
 
 export type NicknameAvailabilityStatus = 'available' | 'taken' | 'invalid';
@@ -21,7 +22,7 @@ async function parseLoginResponse<T extends LoginResponse>(response: Response): 
   const data = (await response.json().catch(() => null)) as Partial<T> | null;
 
   if (!response.ok || !data?.user || !data.sessionToken) {
-    throw new Error(data?.message ?? 'Não foi possível entrar. Tente novamente!');
+    throw toApiError(data, 'auth.login.failed');
   }
 
   return data as T;

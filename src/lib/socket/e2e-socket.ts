@@ -15,6 +15,7 @@ import {
   requestGroupRoomKeyIfMissing,
   trackRoomParticipants,
 } from '@lib/e2ee';
+import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from './socket-client';
 import type { ClientToServerEvents, MessageView, RoomParticipant, RoomSummary } from './socket-events';
 
@@ -25,12 +26,10 @@ type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
-const SEND_FAILURE_MESSAGE = 'Não foi possível criptografar a mensagem.';
-
 // The server never sees a message that failed to encrypt, so the failure is reported locally
 // through the same 'error' event the server uses, letting the chat mark it as failed right away.
 function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, error: unknown): void {
-  const message = error instanceof MissingRoomKeyError ? error.message : SEND_FAILURE_MESSAGE;
+  const message = error instanceof MissingRoomKeyError ? error.message : translate('errors.e2ee.encryptFailed');
   for (const listener of socket.listeners('error')) {
     listener({ message, clientTempId });
   }

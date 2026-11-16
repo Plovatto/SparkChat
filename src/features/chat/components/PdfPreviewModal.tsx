@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { toSafeMediaUrl } from '../utils/safe-media-url';
 
@@ -9,6 +10,7 @@ interface PdfPreviewModalProps {
 }
 
 export function PdfPreviewModal({ isOpen, onClose, url, fileName }: PdfPreviewModalProps) {
+  const { t } = useTranslation();
   const safeUrl = toSafeMediaUrl(url);
 
   return (
@@ -20,7 +22,7 @@ export function PdfPreviewModal({ isOpen, onClose, url, fileName }: PdfPreviewMo
           style={{ width: '100%', height: '75vh', border: 'none', borderRadius: '8px', display: 'block' }}
         />
       ) : (
-        <p style={{ margin: 0, textAlign: 'center' }}>Não foi possível abrir este PDF.</p>
+        <p style={{ margin: 0, textAlign: 'center' }}>{t('chat.message.pdfFailed')}</p>
       )}
     </Modal>
   );

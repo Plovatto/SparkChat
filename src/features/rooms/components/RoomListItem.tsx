@@ -1,4 +1,5 @@
 import { memo, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FaAt,
   FaBan,
@@ -24,7 +25,8 @@ import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
-import { formatAudioTime, getDisplayName, processSystemMessage, resolveActiveUserNames, splitSystemMessageActor } from '@lib/format';
+import { formatAudioTime, formatTime, getDisplayName, resolveActiveUserNames, systemMessageSegments } from '@lib/format';
+import { translate } from '@lib/i18n/app-i18n';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomSummary } from '@lib/socket';
 import { getOtherParticipant, getRoomDisplayName } from '../utils/room-display';
@@ -47,9 +49,6 @@ interface RoomListItemProps {
 const PREVIEW_LENGTH_SMALL_SCREEN = 70;
 const PREVIEW_LENGTH_MEDIUM_SCREEN = 190;
 const PREVIEW_LENGTH_LARGE_SCREEN = 100;
-const SYSTEM_PREVIEW_LENGTH = 28;
-
-const TIME_FORMATTER = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function useMessagePreviewLength(): number {
   const isSplitLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
@@ -101,7 +100,7 @@ function resolveActorLabel(userIds: string[], room: RoomSummary, currentUserId: 
     return null;
   }
 
-  return userIds.length > 1 ? `${name} e mais ${userIds.length - 1}` : name;
+  return userIds.length > 1 ? translate('rooms.preview.andMore', { name, count: userIds.length - 1 }) : name;
 }
 
 function ActivityPreview({
@@ -115,6 +114,7 @@ function ActivityPreview({
   typingUserIds: string[];
   recordingUserIds: string[];
 }) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const isRecording = recordingUserIds.length > 0;
   const actorLabel = room.type === 'group' ? resolveActorLabel(isRecording ? recordingUserIds : typingUserIds, room, user.id) : null;
@@ -142,7 +142,7 @@ function ActivityPreview({
           <FaMicrophone size={12} className="sc-anim-pulse-soft" style={{ flexShrink: 0, display: 'block' }} />
           <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
-            gravando áudio
+            {t('rooms.preview.recording')}
           </span>
         </>
       ) : (
@@ -150,7 +150,7 @@ function ActivityPreview({
           <FaEdit size={12} className="sc-anim-pulse-soft" style={{ flexShrink: 0, display: 'block' }} />
           <span style={{ flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {actorLabel && <span style={{ fontWeight: 700 }}>{actorLabel} </span>}
-            digitando...
+            {t('rooms.preview.typing')}
           </span>
         </>
       )}
@@ -159,6 +159,7 @@ function ActivityPreview({
 }
 
 function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const message = room.lastMessage;
   const previewLength = useMessagePreviewLength();
@@ -187,7 +188,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
       <p style={previewStyle}>
         <span style={{ fontStyle: 'italic', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: '4px', lineHeight: 1 }}>
           <FaBan size={14} style={{ display: 'block', flexShrink: 0 }} />
-          Mensagem deletada
+          {t('chat.deleted')}
         </span>
       </p>
     );
@@ -201,26 +202,26 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
     <span style={{ fontWeight: 700, flexShrink: 0, lineHeight: 1.5 }}>
       {getDisplayName(
         message.sender.id,
-        room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? 'Desconhecido',
+        room.participants.find((participant) => participant.id === message.sender.id)?.nickname ?? message.sender.nickname,
         user.id,
+        message.sender.unknown,
       )}
       :
     </span>
   );
 
   const renderContent = () => {
-    if (message.type === 'system') {
-      const truncated = truncate(processSystemMessage(message.content, user.nickname), SYSTEM_PREVIEW_LENGTH);
-      const split = splitSystemMessageActor(truncated);
+    if (message.type === 'system' || message.type === 'error') {
       return (
-        <span style={{ fontStyle: 'italic', color: theme.textMuted, lineHeight: 1.5 }}>
-          {split ? (
-            <>
-              <span style={{ fontWeight: 700 }}>{split.actor}</span>
-              {split.rest}
-            </>
-          ) : (
-            truncated
+        <span style={{ fontStyle: 'italic', color: theme.textMuted, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {systemMessageSegments(message, user.nickname).map((segment, index) =>
+            segment.isName ? (
+              <span key={index} style={{ fontWeight: 700 }}>
+                {segment.text}
+              </span>
+            ) : (
+              <span key={index}>{segment.text}</span>
+            ),
           )}
         </span>
       );
@@ -231,7 +232,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
           <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
-          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>Imagem</span>
+          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>{t('chat.message.image')}</span>
         </span>
       );
     }
@@ -241,7 +242,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
           <FaPlay size={12} style={{ flexShrink: 0, display: 'block', color: audioHasBeenPlayed ? theme.audioPlayed : theme.audioFresh }} />
-          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>Áudio {formatAudioTime(message.duration ?? 0)}</span>
+          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>{t('chat.message.audio', { duration: formatAudioTime(message.duration ?? 0) })}</span>
         </span>
       );
     }
@@ -256,7 +257,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
             <FaPaperclip size={12} style={{ flexShrink: 0, display: 'block' }} />
           )}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}>
-            {truncate(message.fileMeta?.name ?? 'Arquivo', previewLength)}
+            {truncate(message.fileMeta?.name ?? t('common.file'), previewLength)}
           </span>
         </span>
       );
@@ -305,6 +306,7 @@ export const RoomListItem = memo(function RoomListItem({
   isMuted,
   entranceIndex = 0,
 }: RoomListItemProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [staggerIndex] = useState(entranceIndex);
   const avatar = getRoomAvatar(room, user.id, theme);
@@ -400,13 +402,13 @@ export const RoomListItem = memo(function RoomListItem({
               {getRoomDisplayName(room, user.id)}
             </h6>
             {isFavorite && <FaStar size={12} color={theme.warning} style={{ flexShrink: 0 }} />}
-            {isMuted && <FaBellSlash size={12} color={theme.textMuted} style={{ flexShrink: 0 }} title="Conversa silenciada" />}
-            {room.userBlocked && <FaBan size={12} color={theme.dangerText} style={{ flexShrink: 0 }} title="Você bloqueou este usuário" />}
+            {isMuted && <FaBellSlash size={12} color={theme.textMuted} style={{ flexShrink: 0 }} title={t('rooms.muted')} />}
+            {room.userBlocked && <FaBan size={12} color={theme.dangerText} style={{ flexShrink: 0 }} title={t('chat.youBlocked')} />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
             {room.mentionCount > 0 && (
               <span
-                title="Você foi mencionado"
+                title={t('rooms.mentioned')}
                 className="sc-anim-badge-pop"
                 style={{
                   width: '20px',
@@ -455,10 +457,10 @@ export const RoomListItem = memo(function RoomListItem({
                   </span>
                 );
               })()}
-            {isAssistantRoom(room) && <FaThumbtack size={11} color={theme.accentText} style={{ flexShrink: 0 }} title="Conversa fixada" />}
+            {isAssistantRoom(room) && <FaThumbtack size={11} color={theme.accentText} style={{ flexShrink: 0 }} title={t('rooms.pinned')} />}
             {room.lastMessage && (
               <small style={{ fontSize: '0.7rem', color: hasUnread ? theme.accentText : theme.textMuted, flexShrink: 0, fontWeight: hasUnread ? 700 : 500 }}>
-                {TIME_FORMATTER.format(new Date(room.lastMessage.timestamp))}
+                {formatTime(room.lastMessage.timestamp)}
               </small>
             )}
           </div>

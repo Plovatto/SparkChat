@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import Logo from '@/assets/Logo.svg';
 import { buildTheme, withAlpha, type ThemeTokens } from '@features/theme';
 
@@ -8,6 +9,7 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenProps) {
+  const { t } = useTranslation();
   const ink = theme.onGradient;
 
   return (
@@ -98,7 +100,7 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
             textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
           }}
         >
-          <img src={Logo} alt="Logo" style={{ width: '2rem', marginRight: '0.5rem' }} />
+          <img src={Logo} alt="" style={{ width: '2rem', marginRight: '0.5rem' }} />
           SparkChat
         </h2>
         <p
@@ -109,7 +111,7 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenPr
             letterSpacing: '0.5px',
           }}
         >
-          Carregando...
+          {t('common.loading')}
         </p>
       </div>
     </div>

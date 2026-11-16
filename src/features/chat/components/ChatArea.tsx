@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
-import { format, isSameDay, isToday, isYesterday } from 'date-fns';
+import { isSameDay } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
 import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
-import { resolveActiveUserNames } from '@lib/format';
+import { translateError } from '@lib/api/api-error';
+import { MissingRoomKeyError } from '@lib/e2ee';
+import { formatDayLabel, resolveActiveUserNames } from '@lib/format';
+import { translate } from '@lib/i18n/app-i18n';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { uploadChatAudio, uploadChatFile, uploadChatImage, type UploadedFile } from '../api/chat-api';
@@ -55,15 +59,13 @@ const STICKY_DATE_TOP_PX = 8;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
 const ENTRANCE_CASCADE_MAX_INDEX = 7;
 
-const UPLOADING_LABEL: Record<AttachmentMessageType | 'audio', string> = {
-  image: 'Enviando imagem...',
-  audio: 'Enviando áudio...',
-  file: 'Enviando arquivo...',
-};
+function uploadErrorText(error: unknown, fallbackKey: string): string {
+  return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
+}
 
-const ATTACHMENT_UPLOAD_ERROR: Record<AttachmentMessageType, string> = {
-  image: 'Não foi possível enviar uma das imagens. Tente novamente.',
-  file: 'Não foi possível enviar um dos arquivos. Tente novamente.',
+const ATTACHMENT_UPLOAD_ERROR_KEY: Record<AttachmentMessageType, string> = {
+  image: 'chat.upload.someImageFailed',
+  file: 'chat.upload.someFileFailed',
 };
 
 function applyStuckDateHeaderOpacity(container: HTMLDivElement, stuckKeys: Set<string>, visible: boolean): void {
@@ -75,17 +77,6 @@ function applyStuckDateHeaderOpacity(container: HTMLDivElement, stuckKeys: Set<s
       header.style.opacity = visible ? '1' : '0';
     }
   });
-}
-
-function formatDateSeparator(timestamp: string): string {
-  const date = new Date(timestamp);
-  if (isToday(date)) {
-    return 'Hoje';
-  }
-  if (isYesterday(date)) {
-    return 'Ontem';
-  }
-  return format(date, 'dd/MM/yyyy');
 }
 
 type ImageGroup = [ChatMessage, ChatMessage, ...ChatMessage[]];
@@ -153,7 +144,7 @@ function renderItemKey(item: RenderItem): string {
 }
 
 interface DayGroup {
-  dateLabel: string;
+  timestamp: string;
   items: [RenderItem, ...RenderItem[]];
 }
 
@@ -168,7 +159,7 @@ function buildDayGroups(renderItems: RenderItem[]): DayGroup[] {
     if (lastGroup && lastDate && isSameDay(lastDate, itemDate)) {
       lastGroup.items.push(item);
     } else {
-      groups.push({ dateLabel: formatDateSeparator(renderItemFirstMessage(item).timestamp), items: [item] });
+      groups.push({ timestamp: renderItemFirstMessage(item).timestamp, items: [item] });
     }
 
     lastDate = itemDate;
@@ -219,11 +210,7 @@ function getRecordingText(recordingUserIds: string[], participants: RoomParticip
     return null;
   }
 
-  if (names.length === 1) {
-    return `${names[0]} está gravando áudio...`;
-  }
-
-  return `${names.length} pessoas estão gravando áudio...`;
+  return translate('chat.recording', { count: names.length, name: names[0] });
 }
 
 function getTypingText(typingUserIds: string[], participants: RoomParticipant[]): string | null {
@@ -233,12 +220,12 @@ function getTypingText(typingUserIds: string[], participants: RoomParticipant[])
   }
 
   if (names.length === 1) {
-    return `${names[0]} está digitando...`;
+    return translate('chat.typingOne', { name: names[0] });
   }
   if (names.length === 2) {
-    return `${names[0]} e ${names[1]} estão digitando...`;
+    return translate('chat.typingTwo', { first: names[0], second: names[1] });
   }
-  return 'Várias pessoas estão digitando...';
+  return translate('chat.typingMany');
 }
 
 interface ChatStatusPillProps {
@@ -308,6 +295,7 @@ function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
 }
 
 export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
+  const { t } = useTranslation();
   const { theme, getRoomWallpaper, getRoomAppearance } = useTheme();
   const { socket } = useSocket();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -714,7 +702,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       }
     } catch (error) {
       console.error(error);
-      window.alert(type === 'file' && error instanceof Error ? error.message : ATTACHMENT_UPLOAD_ERROR[type]);
+      window.alert(uploadErrorText(error, ATTACHMENT_UPLOAD_ERROR_KEY[type]));
     } finally {
       setUploadingMediaType(null);
     }
@@ -734,7 +722,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       setRepliedMessage(null);
     } catch (error) {
       console.error(error);
-      window.alert('Não foi possível enviar o áudio. Tente novamente.');
+      window.alert(uploadErrorText(error, 'chat.upload.audioRetry'));
     } finally {
       setUploadingMediaType(null);
     }
@@ -875,7 +863,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                 border: `1px solid ${theme.accent}`,
               }}
             >
-              Solte o arquivo aqui
+              {t('chat.dropFile')}
             </div>
           </div>
         )}
@@ -925,13 +913,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               >
                 <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
                 <div className="sc-anim-rise-in sc-stagger" style={{ '--sc-stagger-index': 1 } as CSSProperties}>
-                  Nenhuma mensagem ainda
+                  {t('chat.noMessages')}
                 </div>
                 <div
                   className="sc-anim-rise-in sc-stagger"
                   style={{ fontSize: '0.9rem', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
                 >
-                  Comece a conversa enviando uma mensagem!
+                  {t('chat.startConversation')}
                 </div>
               </div>
             ) : (
@@ -963,7 +951,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                           data-day-key={dayKey}
                           style={{ ...DATE_CHIP_STYLE, background: theme.dateChip, color: theme.dateChipText, boxShadow: theme.shadowSm }}
                         >
-                          {group.dateLabel}
+                          {formatDayLabel(group.timestamp)}
                         </span>
                       </div>
 
@@ -1072,7 +1060,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
 
             {uploadingMediaType && (
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <ChatStatusPill indicator={<Spinner size={16} />} text={UPLOADING_LABEL[uploadingMediaType]} maxWidth="220px" />
+                <ChatStatusPill indicator={<Spinner size={16} />} text={t(`chat.uploading.${uploadingMediaType}`)} maxWidth="220px" />
               </div>
             )}
           </div>
@@ -1082,7 +1070,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
               setIsAtBottom(true);
               scrollToBottom('smooth');
             }}
-            title="Ir para a última mensagem"
+            title={t('chat.scrollToLatest')}
             aria-hidden={isAtBottom}
             tabIndex={isAtBottom ? -1 : 0}
             className="sc-icon-btn sc-icon-btn--surface"
@@ -1106,11 +1094,11 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       </div>
 
       {room.userBlocked && (
-        <BlockedBanner tone="warning" icon={<FaBan size={16} />} text="Você bloqueou este usuário" />
+        <BlockedBanner tone="warning" icon={<FaBan size={16} />} text={t('chat.youBlocked')} />
       )}
 
       {room.isBlockedBy && (
-        <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text="Você foi bloqueado por este usuário" />
+        <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text={t('chat.blockedYou')} />
       )}
 
       {replyPresence.isPresent && replyPreviewMessage && (
@@ -1139,8 +1127,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
 
       <ConfirmDialog
         isOpen={messageIdPendingDelete !== null}
-        title="Deletar mensagem"
-        message="Tem certeza que deseja deletar esta mensagem para todos?"
+        title={t('chat.deleteTitle')}
+        message={t('chat.deleteConfirm')}
         onConfirm={confirmDeleteMessage}
         onCancel={() => setMessageIdPendingDelete(null)}
       />

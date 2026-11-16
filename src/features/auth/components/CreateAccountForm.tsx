@@ -1,9 +1,11 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { Card, Form } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import type { ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
+import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { AVATARS } from '../constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
 import { useNicknameAvailability, type NicknameCheckState } from '../hooks/useNicknameAvailability';
@@ -12,6 +14,7 @@ import { getPasswordMatchStatus } from '../lib/password-match';
 import type { PendingRegistration } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
+import { AuthLanguageSwitch } from './AuthLanguageSwitch';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField, PasswordFieldHint } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -27,23 +30,18 @@ interface CreateAccountFormProps {
 
 type ResolvedNicknameCheckState = Exclude<NicknameCheckState, 'idle'>;
 
-const NICKNAME_STATUS_TEXT: Record<ResolvedNicknameCheckState, string> = {
-  checking: 'Verificando...',
-  available: 'Disponível!',
-  taken: 'Esse username já está em uso.',
-  invalid: 'Precisa ter pelo menos 2 letras.',
-};
-
 function sanitizeNicknameInput(value: string): string {
   return value.replace(/[^\p{L}\p{N}]/gu, '');
 }
 
 export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSubmit, registerError }: CreateAccountFormProps) {
+  const { t } = useTranslation();
   const [nickname, setNickname] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState(0);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
 
   useEffect(() => {
@@ -59,22 +57,22 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
     event.preventDefault();
 
     if (!nickname.trim()) {
-      setError('Por favor, digite um username!');
+      setError(t('auth.register.enterUsername'));
       return;
     }
 
     if (nicknameStatus !== 'available') {
-      setError('Escolha um username válido e disponível!');
+      setError(t('auth.register.chooseValid'));
       return;
     }
 
     if (password.length < PASSWORD_MIN_LENGTH) {
-      setError(`A senha deve ter pelo menos ${PASSWORD_MIN_LENGTH} caracteres!`);
+      setError(t('auth.register.passwordTooShort', { minLength: PASSWORD_MIN_LENGTH }));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('As senhas não coincidem!');
+      setError(t('auth.register.passwordsMismatch'));
       return;
     }
 
@@ -154,10 +152,10 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                   alignItems: 'center',
                 }}
               >
-                Criar Conta
+                {t('auth.register.title')}
               </h2>
               <p style={{ margin: '5px 0 0 10px', color: theme.onGradientMuted, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
-                Escolha seu avatar e username
+                {t('auth.register.subtitle')}
               </p>
             </div>
           </div>
@@ -177,7 +175,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               <Form.Group style={{ marginBottom: '18px' }}>
                 <Form.Label style={{ ...labelStyle, marginBottom: '10px' }}>
                   <FaPalette size={18} />
-                  Escolha seu Avatar
+                  {t('auth.register.avatar')}
                 </Form.Label>
                 <div
                   className="sc-card"
@@ -204,7 +202,8 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                         key={avatar.name}
                         onClick={() => setSelectedAvatar(index)}
                         data-selected={isSelected}
-                        title={avatar.name}
+                        title={translate(`avatars.${avatar.name}`)}
+                        aria-label={translate(`avatars.${avatar.name}`)}
                         className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
                         style={
                           {
@@ -229,12 +228,12 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               <Form.Group style={{ marginBottom: nicknameStatus === 'idle' ? '0px' : '10px' }}>
                 <Form.Label style={labelStyle}>
                   <FaPencilAlt size={18} />
-                  Username
+                  {t('auth.register.username')}
                 </Form.Label>
                 <div style={{ position: 'relative' }}>
                   <input
                     type="text"
-                    placeholder="Digite um username..."
+                    placeholder={t('auth.register.usernamePlaceholder')}
                     value={nickname}
                     onChange={(event) => setNickname(sanitizeNicknameInput(event.target.value))}
                     maxLength={NICKNAME_MAX_LENGTH}
@@ -283,7 +282,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                       fontWeight: 600,
                     }}
                   >
-                    {nicknameStatus === 'idle' ? '' : NICKNAME_STATUS_TEXT[nicknameStatus]}
+                    {nicknameStatus === 'idle' ? '' : t(`auth.register.${nicknameStatus}`)}
                   </Form.Text>
                   <Form.Text style={{ margin: 0, fontSize: '0.78rem', color: theme.textMuted, fontWeight: 600 }}>
                     {nickname.length}/{NICKNAME_MAX_LENGTH}
@@ -294,9 +293,9 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               <Form.Group style={{ marginTop: '-4px', marginBottom: password ? '2px' : '14px' }}>
                 <Form.Label style={labelStyle}>
                   <FaLock size={16} />
-                  Senha
+                  {t('auth.register.password')}
                 </Form.Label>
-                <PasswordField value={password} onChange={setPassword} placeholder="Digite sua senha" />
+                <PasswordField value={password} onChange={setPassword} placeholder={t('auth.register.passwordPlaceholder')} />
                 <PasswordFieldHint length={password.length} maxLength={PASSWORD_MIN_LENGTH} />
               </Form.Group>
 
@@ -304,12 +303,12 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 <Form.Group style={{ marginBottom: '14px' }} className="sc-anim-rise-in">
                   <Form.Label style={labelStyle}>
                     <FaLock size={16} />
-                    Confirmar senha
+                    {t('auth.register.confirmPassword')}
                   </Form.Label>
                   <PasswordField
                     value={confirmPassword}
                     onChange={setConfirmPassword}
-                    placeholder="Digite a senha novamente"
+                    placeholder={t('auth.register.confirmPlaceholder')}
                     matchStatus={getPasswordMatchStatus(confirmPassword, password)}
                   />
                   <PasswordFieldHint
@@ -335,9 +334,11 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 }}
               >
                 <FaCheckCircle size={18} />
-                Começar a Conversar
+                {t('auth.register.submit')}
               </button>
             </Form>
+
+            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </div>

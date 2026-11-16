@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
@@ -185,6 +186,7 @@ function lastRoomStorageKey(userId: string): string {
 }
 
 function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
+  const { t } = useTranslation();
   const { socket, connected } = useSocket();
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => {
@@ -308,7 +310,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
             }}
           />
           <p className="sc-anim-pulse-soft" style={{ color: theme.onGradient, fontSize: '1rem' }}>
-            Carregando conversas...
+            {t('app.loadingConversations')}
           </p>
         </div>
       </Container>
@@ -338,7 +340,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
             }}
           >
             <Spinner size={14} />
-            Conectando ao servidor...
+            {t('app.connecting')}
           </div>
         )}
         <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden', background: theme.canvas, boxShadow: theme.shadowLg }}>

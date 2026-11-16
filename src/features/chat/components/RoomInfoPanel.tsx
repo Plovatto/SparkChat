@@ -1,14 +1,14 @@
 import { useState, type ReactNode } from 'react';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { FaBan, FaCheck, FaCopy, FaCrown, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { downloadFromUrl } from '@lib/download-file';
-import { getDisplayName } from '@lib/format';
+import { formatTimeAgo, getDisplayName } from '@lib/format';
+import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isAssistantRoom } from '../utils/assistant';
 import { AppearanceEditor } from './AppearanceEditor';
@@ -32,18 +32,18 @@ const COPY_KEY_NICKNAME = 'nickname';
 
 function getLastSeen(participant: RoomParticipant): string {
   if (participant.status === 'online') {
-    return 'Online';
+    return translate('presence.online');
   }
 
   if (participant.lastSeen) {
     try {
-      return `Visto ${formatDistanceToNow(new Date(participant.lastSeen), { addSuffix: true, locale: ptBR })}`;
+      return translate('roomInfo.seen', { time: formatTimeAgo(participant.lastSeen) });
     } catch {
-      return 'Offline';
+      return translate('presence.offline');
     }
   }
 
-  return 'Offline';
+  return translate('presence.offline');
 }
 
 interface ActionIconButtonProps {
@@ -98,6 +98,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 }
 
 export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup }: RoomInfoPanelProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
@@ -111,7 +112,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   const handleSelectMedia = (message: MessageView) => {
     if (message.type === 'file' && !message.fileMeta?.mimeType.startsWith('video/') && message.fileMeta?.mimeType !== 'application/pdf') {
-      void downloadFromUrl(message.content, message.fileMeta?.name ?? 'arquivo');
+      void downloadFromUrl(message.content, message.fileMeta?.name ?? t('chat.message.defaultFileName'));
       return;
     }
     setSelectedMedia(message);
@@ -186,7 +187,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{otherUser.nickname}</h3>
                   <button
                     onClick={() => clipboard.copy(otherUser.nickname, COPY_KEY_NICKNAME)}
-                    title="Copiar username"
+                    title={t('roomInfo.copyUsername')}
                     className="sc-icon-btn sc-icon-btn--soft"
                     style={{ width: '26px', height: '26px', borderRadius: '6px', alignSelf: 'center', position: 'relative', top: '2px' }}
                   >
@@ -206,7 +207,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                     letterSpacing: '0.5px',
                   }}
                 >
-                  Status
+                  {t('roomInfo.status')}
                 </div>
                 <div
                   style={{
@@ -235,12 +236,12 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   {room.userBlocked ? (
                     <button onClick={handleUnblock} className="sc-btn sc-btn--warning" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
                       <FaBan size={16} />
-                      Desbloquear Usuário
+                      {t('roomInfo.unblock')}
                     </button>
                   ) : (
                     <button onClick={handleBlock} className="sc-btn sc-btn--danger" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
                       <FaBan size={16} />
-                      Bloquear Usuário
+                      {t('roomInfo.block')}
                     </button>
                   )}
                 </div>
@@ -258,7 +259,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                 <h3 style={{ margin: '0 0 10px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{room.name}</h3>
 
                 <div style={{ fontSize: '0.9rem', color: theme.textSecondary, fontWeight: 500 }}>
-                  {room.participants.length} {room.participants.length === 1 ? 'membro' : 'membros'}
+                  {t('roomInfo.members', { count: room.participants.length })}
                 </div>
               </div>
 
@@ -287,7 +288,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                       letterSpacing: '0.5px',
                     }}
                   >
-                    Criado por
+                    {t('roomInfo.createdBy')}
                   </div>
                   <div
                     style={{
@@ -300,14 +301,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    {room.creatorId === currentUserId ? 'Você' : (room.createdBy ?? 'Desconhecido')}
+                    {room.creatorId === currentUserId ? t('common.you') : (room.createdBy ?? t('common.unknown'))}
                   </div>
                 </div>
               </div>
 
               <div>
                 <SectionTitle>
-                  <FaUsers /> Membros ({room.participants.length})
+                  <FaUsers /> {t('roomInfo.membersTitle', { count: room.participants.length })}
                 </SectionTitle>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto', paddingRight: '6px' }}>
@@ -362,7 +363,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {getDisplayName(participant.id, participant.nickname, currentUserId)}
                             </span>
-                            {participant.isAdmin && <FaCrown size={12} color={theme.warning} title="Administrador" style={{ flexShrink: 0 }} />}
+                            {participant.isAdmin && <FaCrown size={12} color={theme.warning} title={t('roomInfo.admin')} style={{ flexShrink: 0 }} />}
                           </div>
                           <div style={{ fontSize: '0.78rem', color: participant.status === 'online' ? theme.successText : theme.textSecondary, marginTop: '2px' }}>
                             {getLastSeen(participant)}
@@ -370,18 +371,18 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                          <ActionIconButton onClick={() => clipboard.copy(participant.nickname, participant.id)} title="Copiar username" tone="accent">
+                          <ActionIconButton onClick={() => clipboard.copy(participant.nickname, participant.id)} title={t('roomInfo.copyUsername')} tone="accent">
                             {clipboard.isCopied(participant.id) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
                           </ActionIconButton>
 
                           {canManage && !participant.isAdmin && (
-                            <ActionIconButton onClick={() => handlePromoteAdmin(participant.id)} title="Promover a administrador" tone="accent">
+                            <ActionIconButton onClick={() => handlePromoteAdmin(participant.id)} title={t('roomInfo.promote')} tone="accent">
                               <FaCrown size={13} />
                             </ActionIconButton>
                           )}
 
                           {canManage && (
-                            <ActionIconButton onClick={() => handleRemoveMember(participant.id)} title="Remover do grupo" tone="danger">
+                            <ActionIconButton onClick={() => handleRemoveMember(participant.id)} title={t('roomInfo.remove')} tone="danger">
                               <FaUserMinus size={13} />
                             </ActionIconButton>
                           )}
@@ -411,7 +412,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               >
                 <button onClick={handleLeaveGroup} className="sc-btn sc-btn--warning sc-btn--lift" style={{ width: '100%', padding: '12px 15px', borderRadius: '8px' }}>
                   <FaSignOutAlt size={16} />
-                  Sair do Grupo
+                  {t('roomInfo.leave')}
                 </button>
               </div>
             </>
@@ -429,13 +430,13 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         isOpen={isSelectedMediaVideo}
         onClose={() => setSelectedMedia(null)}
         url={isSelectedMediaVideo ? (selectedMedia?.content ?? '') : ''}
-        fileName={selectedMedia?.fileMeta?.name ?? 'Vídeo.mp4'}
+        fileName={selectedMedia?.fileMeta?.name ?? t('chat.message.defaultVideoName')}
       />
       <PdfPreviewModal
         isOpen={isSelectedMediaPdf}
         onClose={() => setSelectedMedia(null)}
         url={isSelectedMediaPdf ? (selectedMedia?.content ?? '') : ''}
-        fileName={selectedMedia?.fileMeta?.name ?? 'Documento.pdf'}
+        fileName={selectedMedia?.fileMeta?.name ?? t('chat.message.defaultPdfName')}
       />
     </>
   );

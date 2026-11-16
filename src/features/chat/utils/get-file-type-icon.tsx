@@ -9,6 +9,7 @@ import {
   FaFileWord,
   FaVideo,
 } from 'react-icons/fa';
+import { translate } from '@lib/i18n/app-i18n';
 
 export interface FileTypeIcon {
   icon: IconType;
@@ -35,25 +36,25 @@ const ARCHIVE_MIME_TYPES = new Set(['application/zip', 'application/x-zip-compre
 
 export function getFileTypeIcon(mimeType: string): FileTypeIcon {
   if (mimeType === 'application/pdf') {
-    return { icon: FaFilePdf, color: '#e53e3e', label: 'PDF' };
+    return { icon: FaFilePdf, color: '#e53e3e', label: translate('chat.fileTypes.pdf') };
   }
   if (mimeType.startsWith('video/')) {
-    return { icon: FaVideo, color: '#805ad5', label: 'Vídeo' };
+    return { icon: FaVideo, color: '#805ad5', label: translate('chat.fileTypes.video') };
   }
   if (WORD_MIME_TYPES.has(mimeType)) {
-    return { icon: FaFileWord, color: '#2b6cb0', label: 'Word' };
+    return { icon: FaFileWord, color: '#2b6cb0', label: translate('chat.fileTypes.word') };
   }
   if (EXCEL_MIME_TYPES.has(mimeType)) {
-    return { icon: FaFileExcel, color: '#38a169', label: 'Excel' };
+    return { icon: FaFileExcel, color: '#38a169', label: translate('chat.fileTypes.excel') };
   }
   if (POWERPOINT_MIME_TYPES.has(mimeType)) {
-    return { icon: FaFilePowerpoint, color: '#dd6b20', label: 'PowerPoint' };
+    return { icon: FaFilePowerpoint, color: '#dd6b20', label: translate('chat.fileTypes.powerpoint') };
   }
   if (ARCHIVE_MIME_TYPES.has(mimeType)) {
-    return { icon: FaFileArchive, color: '#d69e2e', label: 'Arquivo compactado' };
+    return { icon: FaFileArchive, color: '#d69e2e', label: translate('chat.fileTypes.archive') };
   }
   if (mimeType === 'text/csv') {
-    return { icon: FaFileCsv, color: '#38a169', label: 'CSV' };
+    return { icon: FaFileCsv, color: '#38a169', label: translate('chat.fileTypes.csv') };
   }
-  return { icon: FaFileAlt, color: '#718096', label: 'Arquivo' };
+  return { icon: FaFileAlt, color: '#718096', label: translate('chat.fileTypes.file') };
 }

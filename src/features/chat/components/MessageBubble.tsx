@@ -1,4 +1,5 @@
 import { memo, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import type { SessionAuth } from '@lib/api/session-auth';
@@ -111,6 +112,7 @@ export const MessageBubble = memo(function MessageBubble({
   entrancePhase = 'none',
   entranceIndex = 0,
 }: MessageBubbleProps) {
+  const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [entrance] = useState(entrancePhase);
@@ -213,7 +215,7 @@ export const MessageBubble = memo(function MessageBubble({
       roomId={roomId}
       messageId={message.id}
       senderId={message.sender.id}
-      senderNickname={message.sender.nickname}
+      senderNickname={message.sender.unknown ? t('common.unknownUser') : message.sender.nickname}
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(message.id)}

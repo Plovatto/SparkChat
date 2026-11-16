@@ -1,13 +1,17 @@
 import { useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Card, Container, Form } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaFileUpload, FaKey, FaLock, FaUser } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
+import { translateError } from '@lib/api/api-error';
+import { useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { login, loginWithKeyfile } from '../api/auth-api';
 import type { PendingE2eCredential, User } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
+import { AuthLanguageSwitch } from './AuthLanguageSwitch';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -20,13 +24,13 @@ interface LoginFormProps {
   onSubmit: (user: User, e2eCredential?: PendingE2eCredential) => void;
 }
 
-const CONNECTION_ERROR_MESSAGE = 'Erro ao conectar com o servidor. Tente novamente!';
-
 export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: LoginFormProps) {
+  const { t } = useTranslation();
   const [useKeyfile, setUseKeyfile] = useState(false);
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +39,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
     event.preventDefault();
 
     if (!nickname.trim() || !password) {
-      setError('Preencha o username e a senha!');
+      setError(t('auth.login.fillFields'));
       return;
     }
 
@@ -46,7 +50,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
       const user = await login({ nickname: nickname.trim(), password });
       onSubmit(user, { type: 'password', password });
     } catch (err) {
-      setError(err instanceof Error ? err.message : CONNECTION_ERROR_MESSAGE);
+      setError(translateError(err, 'errors.connection'));
       setIsLoading(false);
     }
   };
@@ -56,7 +60,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
 
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      setError('Selecione o seu arquivo de recuperação!');
+      setError(t('auth.login.selectKeyfile'));
       return;
     }
 
@@ -67,7 +71,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
       const { user, recoveryToken } = await loginWithKeyfile(file);
       onSubmit(user, { type: 'keyfile', recoveryToken });
     } catch (err) {
-      setError(err instanceof Error ? err.message : CONNECTION_ERROR_MESSAGE);
+      setError(translateError(err, 'errors.connection'));
       setIsLoading(false);
     }
   };
@@ -137,10 +141,10 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
             <AuthBackButton onClick={onBack} />
             <div style={{ flex: 1 }}>
               <h2 style={{ margin: '0 0 0 8px', fontSize: 'clamp(1.2rem, 4vw, 1.8rem)', fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center' }}>
-                Bem-vindo de volta!
+                {t('auth.login.title')}
               </h2>
               <p style={{ margin: '4px 0 0 8px', color: theme.onGradientMuted, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
-                {useKeyfile ? 'Entre com seu arquivo de recuperação' : 'Entre com username e senha'}
+                {useKeyfile ? t('auth.login.withKeyfile') : t('auth.login.withPassword')}
               </p>
             </div>
           </div>
@@ -154,11 +158,11 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                 <Form.Group style={{ marginBottom: '10px' }}>
                   <Form.Label style={labelStyle}>
                     <FaUser size={16} />
-                    Username
+                    {t('auth.login.username')}
                   </Form.Label>
                   <input
                     type="text"
-                    placeholder="Seu username"
+                    placeholder={t('auth.login.usernamePlaceholder')}
                     value={nickname}
                     onChange={(event) => {
                       setNickname(event.target.value);
@@ -177,7 +181,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                 <Form.Group style={{ marginBottom: '30px' }}>
                   <Form.Label style={labelStyle}>
                     <FaLock size={16} />
-                    Senha
+                    {t('auth.login.password')}
                   </Form.Label>
                   <PasswordField
                     value={password}
@@ -185,7 +189,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                       setPassword(value);
                       setError('');
                     }}
-                    placeholder="Sua senha"
+                    placeholder={t('auth.login.passwordPlaceholder')}
                   />
                 </Form.Group>
 
@@ -196,7 +200,7 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
                 <Form.Group style={{ marginBottom: '30px' }}>
                   <Form.Label style={labelStyle}>
                     <FaFileUpload size={16} />
-                    Arquivo de recuperação
+                    {t('auth.login.keyfile')}
                   </Form.Label>
                   <input
                     ref={fileInputRef}
@@ -228,8 +232,10 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
               }}
             >
               <FaKey size={15} style={{ flexShrink: 0 }} />
-              <span>{useKeyfile ? 'Entrar com username e senha' : 'Entrar com o arquivo de recuperação?'}</span>
+              <span>{useKeyfile ? t('auth.login.switchToPassword') : t('auth.login.switchToKeyfile')}</span>
             </button>
+
+            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </Container>
@@ -238,6 +244,8 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
 }
 
 function SubmitButton({ isLoading, theme }: { isLoading: boolean; theme: ThemeTokens }) {
+  const { t } = useTranslation();
+
   return (
     <button
       type="submit"
@@ -256,12 +264,12 @@ function SubmitButton({ isLoading, theme }: { isLoading: boolean; theme: ThemeTo
       {isLoading ? (
         <>
           <Spinner size={18} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />
-          <span>Entrando...</span>
+          <span>{t('auth.login.submitting')}</span>
         </>
       ) : (
         <>
           <FaCheckCircle size={18} />
-          <span>Entrar</span>
+          <span>{t('auth.login.submit')}</span>
         </>
       )}
     </button>

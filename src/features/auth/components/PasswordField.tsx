@@ -1,12 +1,8 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaEye, FaEyeSlash, FaTimesCircle } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import type { PasswordMatchStatus } from '../lib/password-match';
-
-const MATCH_STATUS_TEXT: Record<'match' | 'mismatch', string> = {
-  match: 'Senhas coincidem!',
-  mismatch: 'Senhas não coincidem.',
-};
 
 interface PasswordFieldHintProps {
   length: number;
@@ -15,6 +11,7 @@ interface PasswordFieldHintProps {
 }
 
 export function PasswordFieldHint({ length, maxLength, matchStatus = null }: PasswordFieldHintProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const matchColor = matchStatus === 'match' ? theme.successText : theme.dangerText;
 
@@ -28,7 +25,7 @@ export function PasswordFieldHint({ length, maxLength, matchStatus = null }: Pas
           fontWeight: 600,
         }}
       >
-        {matchStatus ? MATCH_STATUS_TEXT[matchStatus] : ''}
+        {matchStatus === 'match' ? t('auth.passwordsMatch') : matchStatus === 'mismatch' ? t('auth.passwordsMismatch') : ''}
       </small>
       <small style={{ margin: 0, fontSize: '0.78rem', color: theme.textMuted, fontWeight: 600 }}>
         {length}/{maxLength}
@@ -47,6 +44,7 @@ interface PasswordFieldProps {
 }
 
 export function PasswordField({ value, onChange, placeholder, autoComplete = 'new-password', matchStatus = null, dense = false }: PasswordFieldProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [visible, setVisible] = useState(false);
 
@@ -78,8 +76,8 @@ export function PasswordField({ value, onChange, placeholder, autoComplete = 'ne
       <button
         type="button"
         onClick={() => setVisible((previous) => !previous)}
-        aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
-        title={visible ? 'Ocultar senha' : 'Mostrar senha'}
+        aria-label={visible ? t('auth.hidePassword') : t('auth.showPassword')}
+        title={visible ? t('auth.hidePassword') : t('auth.showPassword')}
         className="sc-icon-btn sc-icon-btn--ghost"
         style={{
           position: 'absolute',

@@ -1,8 +1,10 @@
 import type { CSSProperties } from 'react';
 import { Card, Container } from 'react-bootstrap';
+import { useTranslation } from 'react-i18next';
 import { FaKey, FaPlusCircle } from 'react-icons/fa';
 import Logo from '@/assets/Logo.svg';
 import type { ThemeTokens } from '@features/theme';
+import { AuthLanguageSwitch } from './AuthLanguageSwitch';
 import { ThemeToggleButton } from './ThemeToggleButton';
 
 interface ChooseModeCardProps {
@@ -14,6 +16,7 @@ interface ChooseModeCardProps {
 }
 
 export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onExistingUser }: ChooseModeCardProps) {
+  const { t } = useTranslation();
   const accentMid = `color-mix(in srgb, ${theme.accent} 50%, ${theme.accentText} 50%)`;
 
   return (
@@ -62,7 +65,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 display: 'inline-block',
               }}
             >
-              <img src={Logo} alt="Logo do SparkChat" style={{ width: '8.5rem', marginBottom: '-12px' }} />
+              <img src={Logo} alt={t('auth.logoAlt')} style={{ width: '8.5rem', marginBottom: '-12px' }} />
             </div>
 
             <h1
@@ -93,7 +96,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 color: theme.onGradientMuted,
               } as CSSProperties}
             >
-              Onde as conversas ganham energia
+              {t('auth.tagline')}
             </p>
           </div>
 
@@ -114,7 +117,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 } as CSSProperties}
               >
                 <FaPlusCircle size={20} />
-                <span>Criar Nova Conta</span>
+                <span>{t('auth.createAccount')}</span>
               </button>
 
               <button
@@ -134,7 +137,7 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 } as CSSProperties}
               >
                 <FaKey size={20} />
-                <span>Já tenho conta</span>
+                <span>{t('auth.haveAccount')}</span>
               </button>
             </div>
 
@@ -149,8 +152,10 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
                 fontWeight: 400,
               } as CSSProperties}
             >
-              Escolha como deseja entrar
+              {t('auth.chooseHow')}
             </div>
+
+            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </Container>

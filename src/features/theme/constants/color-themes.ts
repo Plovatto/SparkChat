@@ -31,7 +31,6 @@ export interface ModeRecipe {
 
 export interface ColorTheme {
   id: string;
-  name: string;
   light: ModeRecipe;
   dark: ModeRecipe;
 }
@@ -39,7 +38,6 @@ export interface ColorTheme {
 export const COLOR_THEMES = {
   standard: {
     id: 'standard',
-    name: 'Padrão',
     light: {
       accent: '#436ed2',
       accentHover: '#5d81d5',
@@ -65,7 +63,6 @@ export const COLOR_THEMES = {
   },
   black: {
     id: 'black',
-    name: 'Preto',
     light: {
       accent: '#18181b',
       accentHover: '#2c2c32',
@@ -91,7 +88,6 @@ export const COLOR_THEMES = {
   },
   forest: {
     id: 'forest',
-    name: 'Floresta',
     light: {
       accent: '#2f9e57',
       accentHover: '#26884a',
@@ -115,7 +111,6 @@ export const COLOR_THEMES = {
   },
   sunset: {
     id: 'sunset',
-    name: 'Pôr do Sol',
     light: {
       accent: '#f26a2c',
       accentHover: '#e2581e',
@@ -140,7 +135,6 @@ export const COLOR_THEMES = {
   },
   lavender: {
     id: 'lavender',
-    name: 'Lavanda',
     light: {
       accent: '#7d64e0',
       accentHover: '#6c52d1',
@@ -163,7 +157,6 @@ export const COLOR_THEMES = {
   },
   rose: {
     id: 'rose',
-    name: 'Rosa',
     light: {
       accent: '#e0388f',
       accentHover: '#cc2a7f',
@@ -187,7 +180,6 @@ export const COLOR_THEMES = {
   },
   ocean: {
     id: 'ocean',
-    name: 'Oceano Azul',
     light: {
       accent: '#0a6fd6',
       accentHover: '#085fbb',
@@ -209,7 +201,6 @@ export const COLOR_THEMES = {
   },
   tropical: {
     id: 'tropical',
-    name: 'Tropical',
     light: {
       accent: '#ea6400',
       accentHover: '#d65700',
@@ -236,7 +227,6 @@ export const COLOR_THEMES = {
   },
   emerald: {
     id: 'emerald',
-    name: 'Esmeralda',
     light: {
       accent: '#0e9f6e',
       accentHover: '#0b8a5f',
@@ -261,7 +251,6 @@ export const COLOR_THEMES = {
   },
   magenta: {
     id: 'magenta',
-    name: 'Magenta',
     light: {
       accent: '#c62bd6',
       accentHover: '#b120c2',
@@ -283,7 +272,6 @@ export const COLOR_THEMES = {
   },
   gold: {
     id: 'gold',
-    name: 'Ouro',
     light: {
       accent: '#d99a06',
       accentHover: '#c48a05',
@@ -309,7 +297,6 @@ export const COLOR_THEMES = {
   },
   ruby: {
     id: 'ruby',
-    name: 'Rubi',
     light: {
       accent: '#d42323',
       accentHover: '#bc1d1d',
@@ -331,7 +318,6 @@ export const COLOR_THEMES = {
   },
   neon: {
     id: 'neon',
-    name: 'Neon',
     light: {
       accent: '#0aa94a',
       accentHover: '#078f3d',
@@ -358,7 +344,6 @@ export const COLOR_THEMES = {
   },
   cyberpunk: {
     id: 'cyberpunk',
-    name: 'Cyberpunk',
     light: {
       accent: '#0897b4',
       accentHover: '#0886a0',
@@ -385,7 +370,6 @@ export const COLOR_THEMES = {
   },
   sunset2: {
     id: 'sunset2',
-    name: 'Entardecer',
     light: {
       accent: '#f0603c',
       accentHover: '#dc4f2c',
@@ -410,7 +394,6 @@ export const COLOR_THEMES = {
   },
   blueViolet: {
     id: 'blueViolet',
-    name: 'Azul Violeta',
     light: {
       accent: '#5a5ee8',
       accentHover: '#4a4ed8',
@@ -431,7 +414,6 @@ export const COLOR_THEMES = {
   },
   mint: {
     id: 'mint',
-    name: 'Menta',
     light: {
       accent: '#0891b2',
       accentHover: '#0782a0',
@@ -456,7 +438,6 @@ export const COLOR_THEMES = {
   },
   coral: {
     id: 'coral',
-    name: 'Coral',
     light: {
       accent: '#ea5a5a',
       accentHover: '#d84a4a',
@@ -483,7 +464,6 @@ export const COLOR_THEMES = {
   },
   grape: {
     id: 'grape',
-    name: 'Uva',
     light: {
       accent: '#8a2fe0',
       accentHover: '#7a25cc',
@@ -505,7 +485,6 @@ export const COLOR_THEMES = {
   },
   peach: {
     id: 'peach',
-    name: 'Pêssego',
     light: {
       accent: '#f0506d',
       accentHover: '#dc3f5c',
@@ -532,7 +511,6 @@ export const COLOR_THEMES = {
   },
   midnightBlue: {
     id: 'midnightBlue',
-    name: 'Azul Meia-Noite',
     light: {
       accent: '#1e3a8a',
       accentHover: '#1b3479',
@@ -554,7 +532,6 @@ export const COLOR_THEMES = {
   },
   arctic: {
     id: 'arctic',
-    name: 'Ártico',
     light: {
       accent: '#0a8fd0',
       accentHover: '#0980bb',
@@ -581,7 +558,6 @@ export const COLOR_THEMES = {
   },
   sakura: {
     id: 'sakura',
-    name: 'Sakura',
     light: {
       accent: '#e26ca6',
       accentHover: '#d15a95',
@@ -608,7 +584,6 @@ export const COLOR_THEMES = {
   },
   olive: {
     id: 'olive',
-    name: 'Oliva',
     light: {
       accent: '#6b8f2a',
       accentHover: '#5e7f24',
@@ -635,7 +610,6 @@ export const COLOR_THEMES = {
   },
   terracotta: {
     id: 'terracotta',
-    name: 'Terracota',
     light: {
       accent: '#c2542a',
       accentHover: '#ad4a24',
@@ -662,7 +636,6 @@ export const COLOR_THEMES = {
   },
   slate: {
     id: 'slate',
-    name: 'Ardósia',
     light: {
       accent: '#475569',
       accentHover: '#3f4b5e',
@@ -686,7 +659,6 @@ export const COLOR_THEMES = {
   },
   mocha: {
     id: 'mocha',
-    name: 'Mocha',
     light: {
       accent: '#7c4a2d',
       accentHover: '#6d4127',
@@ -710,7 +682,6 @@ export const COLOR_THEMES = {
   },
   aurora: {
     id: 'aurora',
-    name: 'Aurora',
     light: {
       accent: '#0d9488',
       accentHover: '#0b847a',
@@ -737,7 +708,6 @@ export const COLOR_THEMES = {
   },
   nordic: {
     id: 'nordic',
-    name: 'Nórdico',
     light: {
       accent: '#5e81ac',
       accentHover: '#527399',
@@ -778,7 +748,6 @@ export const COLOR_THEMES = {
   },
   dracula: {
     id: 'dracula',
-    name: 'Drácula',
     light: {
       accent: '#7048e8',
       accentHover: '#6238d6',
@@ -815,7 +784,6 @@ export const COLOR_THEMES = {
   },
   solar: {
     id: 'solar',
-    name: 'Solar',
     light: {
       accent: '#d97706',
       accentHover: '#c46b05',
@@ -842,7 +810,6 @@ export const COLOR_THEMES = {
   },
   lime: {
     id: 'lime',
-    name: 'Limão',
     light: {
       accent: '#4d7c0f',
       accentHover: '#446e0d',
@@ -869,7 +836,6 @@ export const COLOR_THEMES = {
   },
   indigo: {
     id: 'indigo',
-    name: 'Índigo',
     light: {
       accent: '#4338ca',
       accentHover: '#3b30b8',
@@ -893,7 +859,6 @@ export const COLOR_THEMES = {
   },
   cobalt: {
     id: 'cobalt',
-    name: 'Cobalto',
     light: {
       accent: '#0047ab',
       accentHover: '#003d94',
@@ -916,7 +881,6 @@ export const COLOR_THEMES = {
   },
   wine: {
     id: 'wine',
-    name: 'Vinho',
     light: {
       accent: '#7f1d3f',
       accentHover: '#701a38',
@@ -942,7 +906,6 @@ export const COLOR_THEMES = {
   },
   sand: {
     id: 'sand',
-    name: 'Areia',
     light: {
       accent: '#a16207',
       accentHover: '#8f5706',
@@ -969,7 +932,6 @@ export const COLOR_THEMES = {
   },
   retro: {
     id: 'retro',
-    name: 'Retrô',
     light: {
       accent: '#0f766e',
       accentHover: '#0d675f',
@@ -996,7 +958,6 @@ export const COLOR_THEMES = {
   },
   candy: {
     id: 'candy',
-    name: 'Doce',
     light: {
       accent: '#ec4899',
       accentHover: '#db3a8a',
@@ -1022,7 +983,6 @@ export const COLOR_THEMES = {
   },
   abyss: {
     id: 'abyss',
-    name: 'Abismo',
     light: {
       accent: '#0f5c6b',
       accentHover: '#146d7e',
@@ -1057,7 +1017,6 @@ export const COLOR_THEMES = {
   },
   steel: {
     id: 'steel',
-    name: 'Aço',
     light: {
       accent: '#ea580c',
       accentHover: '#d4500a',
@@ -1084,7 +1043,6 @@ export const COLOR_THEMES = {
   },
   paper: {
     id: 'paper',
-    name: 'Papel',
     light: {
       accent: '#1f2937',
       accentHover: '#111827',
@@ -1136,7 +1094,6 @@ export const COLOR_THEMES = {
   },
   violetNight: {
     id: 'violetNight',
-    name: 'Noite Violeta',
     light: {
       accent: '#6d28d9',
       accentHover: '#5f22c2',
@@ -1171,7 +1128,6 @@ export const COLOR_THEMES = {
   },
   jade: {
     id: 'jade',
-    name: 'Jade',
     light: {
       accent: '#0f7a5a',
       accentHover: '#0d6b4f',
@@ -1198,7 +1154,6 @@ export const COLOR_THEMES = {
   },
   flamingo: {
     id: 'flamingo',
-    name: 'Flamingo',
     light: {
       accent: '#f43f5e',
       accentHover: '#e0344f',
@@ -1225,7 +1180,6 @@ export const COLOR_THEMES = {
   },
   cherry: {
     id: 'cherry',
-    name: 'Cereja',
     light: {
       accent: '#b91c1c',
       accentHover: '#a31818',
@@ -1251,7 +1205,6 @@ export const COLOR_THEMES = {
   },
   mist: {
     id: 'mist',
-    name: 'Névoa',
     light: {
       accent: '#6b6a94',
       accentHover: '#5e5d86',
@@ -1278,7 +1231,6 @@ export const COLOR_THEMES = {
   },
   copper: {
     id: 'copper',
-    name: 'Cobre',
     light: {
       accent: '#b45309',
       accentHover: '#a04a08',
@@ -1305,7 +1257,6 @@ export const COLOR_THEMES = {
   },
   galaxy: {
     id: 'galaxy',
-    name: 'Galáxia',
     light: {
       accent: '#5b21b6',
       accentHover: '#4f1d9e',

@@ -6,6 +6,7 @@ import {
   type MessageReplySnapshot,
   type MessageType,
   type MessageView,
+  type SocketErrorPayload,
 } from '@lib/socket';
 import type { ChatMessage } from '../types';
 
@@ -240,7 +241,7 @@ export function useRoomMessages(
       }
     };
 
-    const handleSendError = ({ clientTempId }: { message: string; clientTempId?: string }) => {
+    const handleSendError = ({ clientTempId }: SocketErrorPayload) => {
       if (!clientTempId) {
         return;
       }
