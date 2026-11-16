@@ -78,6 +78,9 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     }
 
     const handleError = (payload: SocketErrorPayload) => {
+      if (payload.clientTempId || payload.event) {
+        return;
+      }
       setIsSubmitting(false);
       setError(translateErrorPayload(payload, 'errors.generic'));
     };
