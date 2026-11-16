@@ -6,7 +6,8 @@ import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
-import { downloadFromUrl } from '@lib/download-file';
+import { downloadMessageMedia } from '@lib/e2ee';
+import { useSocket, type MessageFileMeta } from '@lib/socket';
 import {
   MEDIA_VIEWER_BACKDROP_STYLE,
   MEDIA_VIEWER_CHROME_STYLE,
@@ -20,24 +21,27 @@ interface VideoPreviewModalProps {
   onClose: () => void;
   url: string;
   fileName: string;
+  roomId?: string;
+  fileMeta?: MessageFileMeta | null;
 }
 
-export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPreviewModalProps) {
+export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, fileMeta }: VideoPreviewModalProps) {
   const { t } = useTranslation();
+  const { socket } = useSocket();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
-  const lastSourceRef = useRef({ url, fileName });
+  const lastSourceRef = useRef({ url, fileName, roomId, fileMeta });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
   if (isOpen && url) {
-    lastSourceRef.current = { url, fileName };
+    lastSourceRef.current = { url, fileName, roomId, fileMeta };
   }
 
   if (!isPresent) {
     return null;
   }
 
-  const source = isOpen && url ? { url, fileName } : lastSourceRef.current;
+  const source = isOpen && url ? { url, fileName, roomId, fileMeta } : lastSourceRef.current;
   const chromeClassName = isExiting ? 'sc-anim-fade-out' : 'sc-anim-media-chrome-in';
 
   return createPortal(
@@ -73,7 +77,17 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName }: VideoPrevi
             padding: '6px',
           }}
         >
-          <OverlayIconButton onClick={() => void downloadFromUrl(source.url, source.fileName)} title={t('chat.viewer.downloadVideo')}>
+          <OverlayIconButton
+            onClick={() =>
+              void downloadMessageMedia(socket, {
+                content: source.url,
+                roomId: source.roomId,
+                fileMeta: source.fileMeta,
+                fileName: source.fileName,
+              })
+            }
+            title={t('chat.viewer.downloadVideo')}
+          >
             <FaDownload />
           </OverlayIconButton>
 

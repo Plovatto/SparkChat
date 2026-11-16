@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 
 import { FaPause, FaPlay } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, withAlpha, type ResolvedBubbleStyle } from '@features/theme';
+import { isEncryptedMediaUrl } from '@lib/e2ee';
 import { formatAudioTime } from '@lib/format';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import type { ChatMessage } from '../types';
@@ -37,7 +38,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const audioWaveform = useAudioWaveform(message.content);
+  const audioWaveform = useAudioWaveform(isEncryptedMediaUrl(message.content) ? null : message.content);
 
   useEffect(() => {
     setHasBeenPlayed(isOwn ? message.playedBy.length > 0 : message.playedBy.includes(currentUserId ?? ''));
