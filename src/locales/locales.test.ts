@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { CHAT_BACKGROUNDS } from '@features/theme/constants/chat-backgrounds';
 import { COLOR_THEMES } from '@features/theme/constants/color-themes';
 import { THEME_BASES } from '@features/theme/constants/theme-bases';
+import enApp from './en/app.json';
 import enLanding from './en/landing.json';
 import enThemes from './en/themes.json';
+import ptApp from './pt/app.json';
 import ptLanding from './pt/landing.json';
 import ptThemes from './pt/themes.json';
 
@@ -23,6 +25,7 @@ function placeholders(text: string): string[] {
 }
 
 const NAMESPACES = {
+  app: [ptApp, enApp],
   landing: [ptLanding, enLanding],
   themes: [ptThemes, enThemes],
 } as const;
