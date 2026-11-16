@@ -90,10 +90,17 @@
     },
     "e2ee": {
       "encryptFailed": "Não foi possível criptografar a mensagem.",
-      "missingRoomKey": "A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes."
+      "missingRoomKey": "A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes.",
+      "mediaUndecryptable": "Não foi possível descriptografar este arquivo. Tente de novo em instantes."
+    },
+    "download": {
+      "failed": "Não foi possível baixar o arquivo."
     },
     "validation": {
       "invalidPayload": "Dados inválidos."
+    },
+    "e2e": {
+      "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez."
     }
   },
   "systemEvents": {
@@ -193,8 +200,6 @@
     "scrollToLatest": "Ir para a última mensagem",
     "youBlocked": "Você bloqueou este usuário",
     "blockedYou": "Você foi bloqueado por este usuário",
-    "deleteTitle": "Deletar mensagem",
-    "deleteConfirm": "Tem certeza que deseja deletar esta mensagem para todos?",
     "deleted": "Mensagem deletada",
     "recording_one": "{{name}} está gravando áudio...",
     "recording_other": "{{count}} pessoas estão gravando áudio...",
@@ -236,7 +241,8 @@
       "microphoneDenied": "Não foi possível acessar o microfone. Verifique as permissões.",
       "removeAttachment": "Remover",
       "discard": "Descartar",
-      "removePreview": "Remover preview"
+      "removePreview": "Remover preview",
+      "tooLong": "A mensagem está longa demais. Divida em partes menores."
     },
     "message": {
       "retry": "Falha ao enviar. Toque para reenviar.",
@@ -263,7 +269,9 @@
       "cancelReply": "Cancelar resposta",
       "defaultPdfName": "Documento.pdf",
       "defaultFileName": "arquivo",
-      "defaultImageName": "imagem.jpg"
+      "defaultImageName": "imagem.jpg",
+      "readMore": "Ler mais",
+      "encryptedUnavailable": "🔒 Mensagem criptografada — sem chave local ainda."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -289,7 +297,9 @@
     "forward": {
       "title": "Encaminhar mensagem",
       "empty": "Nenhuma conversa disponível",
-      "submitCount": "Encaminhar ({{count}})"
+      "submitCount": "Encaminhar ({{count}})",
+      "sending": "Encaminhando...",
+      "failed": "Não foi possível encaminhar a mensagem. Tente novamente."
     },
     "gallery": {
       "title": "Mídias ({{count}})",
@@ -316,7 +326,11 @@
       "resetChat": "Restaurar aparência padrão deste chat",
       "none": "Nenhum"
     },
-    "assistantStatus": "100% pilha, 0% sono 🔋"
+    "assistantStatus": "100% pilha, 0% sono 🔋",
+    "deleteTitle_one": "Deletar mensagem",
+    "deleteTitle_other": "Deletar {{count}} mensagens",
+    "deleteConfirm_one": "Tem certeza que deseja deletar esta mensagem para todos?",
+    "deleteConfirm_other": "Tem certeza que deseja deletar estas {{count}} mensagens para todos?"
   },
   "roomInfo": {
     "copyUsername": "Copiar username",
@@ -374,7 +388,8 @@
     "unmute": "Reativar",
     "deleteTitle": "Excluir Conversas",
     "deleteConfirm_one": "Tem certeza que quer excluir {{count}} conversa?",
-    "deleteConfirm_other": "Tem certeza que quer excluir {{count}} conversas?"
+    "deleteConfirm_other": "Tem certeza que quer excluir {{count}} conversas?",
+    "emptyHint": "Clique em \"Novo Chat\" para começar"
   },
   "newChat": {
     "title": "Novo Chat",
