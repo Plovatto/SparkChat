@@ -1,8 +1,9 @@
+import { LANDING_THEME_STORAGE_KEY } from '@constants/storage-keys';
 import { COLOR_THEMES, type ColorThemeId } from '@features/theme/constants/color-themes';
 import { THEME_BASES, type ThemeBaseId } from '@features/theme/constants/theme-bases';
 import type { ThemeKind } from '@features/theme/types';
 
-export const LANDING_THEME_KEY = 'sparkchat:landing-theme';
+export const LANDING_THEME_KEY = LANDING_THEME_STORAGE_KEY;
 export const LOGIN_DARK_MODE_KEY = 'sparkchat:login-dark-mode';
 
 export interface LandingThemeChoice {
