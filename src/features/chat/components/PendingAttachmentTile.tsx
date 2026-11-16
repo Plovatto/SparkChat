@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FaPlay, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 import { formatFileSize } from '@lib/format';
 import { getAttachmentKind } from '../utils/get-attachment-kind';
@@ -18,6 +19,7 @@ interface PendingAttachmentTileProps {
 const PENDING_ATTACHMENT_TILE_SIZE = 76;
 
 export function PendingAttachmentTile({ file, onRemove }: PendingAttachmentTileProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const kind = getAttachmentKind(file.type);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -117,7 +119,7 @@ export function PendingAttachmentTile({ file, onRemove }: PendingAttachmentTileP
               event.stopPropagation();
               onRemove();
             }}
-            title="Remover"
+            title={t('chat.input.removeAttachment')}
             className="sc-icon-btn sc-icon-btn--danger"
             style={{
               position: 'absolute',

@@ -1,4 +1,5 @@
 import { FaReply, FaShare, FaTrash } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { IconPillButton } from '@components/common/IconPillButton';
 
 interface MessageActionsRowProps {
@@ -10,6 +11,7 @@ interface MessageActionsRowProps {
 }
 
 export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward }: MessageActionsRowProps) {
+  const { t } = useTranslation();
   return (
     <div
       className={isExiting ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
@@ -22,7 +24,7 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         }}
         icon={<FaReply size={11} />}
         tone="accent"
-        label="Responder"
+        label={t('chat.message.reply')}
       />
 
       <IconPillButton
@@ -32,7 +34,7 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         }}
         icon={<FaShare size={11} />}
         tone="accent"
-        label="Encaminhar"
+        label={t('chat.message.forward')}
       />
 
       {isOwn && (
@@ -43,7 +45,7 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
           }}
           icon={<FaTrash size={11} />}
           tone="danger"
-          label="Excluir"
+          label={t('chat.message.delete')}
         />
       )}
     </div>

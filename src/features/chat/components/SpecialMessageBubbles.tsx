@@ -1,7 +1,7 @@
-import { format } from 'date-fns';
 import { FaBan, FaExclamationCircle } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
-import { processSystemMessage, splitSystemMessageActor } from '@lib/format';
+import { formatTime, systemMessageSegments, systemMessageText } from '@lib/format';
 import type { EntrancePhase } from '@features/motion';
 import type { MessageView } from '@lib/socket';
 
@@ -12,6 +12,7 @@ interface DeletedMessageBubbleProps {
 }
 
 export function DeletedMessageBubble({ isOwn, roomId, entrancePhase }: DeletedMessageBubbleProps) {
+  const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
 
@@ -44,7 +45,7 @@ export function DeletedMessageBubble({ isOwn, roomId, entrancePhase }: DeletedMe
         }}
       >
         <FaBan size={13} style={{ flexShrink: 0 }} />
-        <span>Mensagem deletada</span>
+        <span>{t('chat.deleted')}</span>
       </div>
     </div>
   );
@@ -56,6 +57,7 @@ interface ErrorMessageBubbleProps {
 }
 
 export function ErrorMessageBubble({ message, entrancePhase }: ErrorMessageBubbleProps) {
+  useTranslation();
   const { theme } = useTheme();
 
   return (
@@ -81,9 +83,9 @@ export function ErrorMessageBubble({ message, entrancePhase }: ErrorMessageBubbl
       >
         <FaExclamationCircle size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div>
-          <p style={{ margin: 0, lineHeight: 1.4 }}>{message.content}</p>
+          <p style={{ margin: 0, lineHeight: 1.4 }}>{systemMessageText(message)}</p>
           <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '2px' }}>
-            {format(new Date(message.timestamp), 'HH:mm')}
+            {formatTime(message.timestamp)}
           </span>
         </div>
       </div>
@@ -98,9 +100,9 @@ interface SystemMessageBubbleProps {
 }
 
 export function SystemMessageBubble({ message, currentNickname, entrancePhase }: SystemMessageBubbleProps) {
+  useTranslation();
   const { theme } = useTheme();
-  const processed = processSystemMessage(message.content, currentNickname);
-  const split = splitSystemMessageActor(processed);
+  const segments = systemMessageSegments(message, currentNickname);
 
   return (
     <div
@@ -123,17 +125,18 @@ export function SystemMessageBubble({ message, currentNickname, entrancePhase }:
         }}
       >
         <p style={{ margin: 0, lineHeight: 1.4 }}>
-          {split ? (
-            <>
-              <span style={{ fontWeight: 700 }}>{split.actor}</span>
-              {split.rest}
-            </>
-          ) : (
-            processed
+          {segments.map((segment, index) =>
+            segment.isName ? (
+              <span key={index} style={{ fontWeight: 700 }}>
+                {segment.text}
+              </span>
+            ) : (
+              <span key={index}>{segment.text}</span>
+            ),
           )}
         </p>
         <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '4px' }}>
-          {format(new Date(message.timestamp), 'HH:mm')}
+          {formatTime(message.timestamp)}
         </span>
       </div>
     </div>

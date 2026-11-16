@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { FaDownload } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { downloadFromUrl } from '@lib/download-file';
 import { formatFileSize } from '@lib/format';
@@ -18,10 +19,11 @@ interface FileMessageContentProps {
 }
 
 export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessageContentProps) {
+  const { t } = useTranslation();
   const isPdf = message.fileMeta?.mimeType === 'application/pdf';
   const [pdfThumbnail, setPdfThumbnail] = useState<PdfThumbnail | null>(null);
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
-  const fileName = message.fileMeta?.name ?? 'arquivo';
+  const fileName = message.fileMeta?.name ?? t('chat.message.defaultFileName');
 
   useEffect(() => {
     if (!isPdf) {
@@ -85,7 +87,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
         {isPdf && pdfThumbnail && (
           <img
             src={pdfThumbnail.dataUrl}
-            alt="Prévia do PDF"
+            alt={t('chat.message.pdfPreview')}
             style={{
               display: 'block',
               width: '100%',
@@ -122,7 +124,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
                 whiteSpace: 'nowrap',
               }}
             >
-              {message.fileMeta?.name ?? 'Arquivo'}
+              {message.fileMeta?.name ?? t('common.file')}
             </div>
             <div
               style={{
@@ -133,7 +135,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
                 whiteSpace: 'nowrap',
               }}
             >
-              {isPdf && pdfThumbnail ? `${pdfThumbnail.pageCount} página${pdfThumbnail.pageCount === 1 ? '' : 's'} · ` : `${fileTypeIcon.label} · `}
+              {isPdf && pdfThumbnail ? `${t('chat.message.pages', { count: pdfThumbnail.pageCount })} · ` : `${fileTypeIcon.label} · `}
               {message.fileMeta ? formatFileSize(message.fileMeta.size) : ''}
             </div>
           </div>
@@ -143,7 +145,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
               event.stopPropagation();
               download();
             }}
-            title="Baixar arquivo"
+            title={t('chat.message.downloadFile')}
             className="sc-icon-btn sc-icon-btn--bubble"
             style={{ width: '28px', height: '28px' }}
           >
@@ -156,7 +158,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
           isOpen={isPdfPreviewOpen}
           onClose={() => setIsPdfPreviewOpen(false)}
           url={message.content}
-          fileName={message.fileMeta?.name ?? 'Documento.pdf'}
+          fileName={message.fileMeta?.name ?? t('chat.message.defaultPdfName')}
         />
       )}
     </div>

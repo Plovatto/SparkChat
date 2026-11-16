@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
@@ -84,6 +85,7 @@ interface PendingAttachmentsPreviewProps {
 }
 
 function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPreviewProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
 
   return (
@@ -96,7 +98,7 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
       }}
     >
       <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '8px' }}>
-        {files.length > 1 ? `${files.length} anexos selecionados` : 'Anexo pendente'}
+        {t('chat.input.attachments', { count: files.length })}
       </div>
       <div
         style={{
@@ -126,6 +128,7 @@ interface RecordingBarProps {
 }
 
 function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: RecordingBarProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const bars = interpolateLevels(audioLevels);
 
@@ -141,7 +144,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
         borderTop: `1px solid ${theme.border}`,
       }}
     >
-      <button type="button" onClick={onCancel} title="Descartar" className="sc-icon-btn sc-icon-btn--danger-soft" style={{ width: '38px', height: '38px' }}>
+      <button type="button" onClick={onCancel} title={t('chat.input.discard')} className="sc-icon-btn sc-icon-btn--danger-soft" style={{ width: '38px', height: '38px' }}>
         <FaTimes size={15} />
       </button>
 
@@ -201,7 +204,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
       </div>
 
       {recordingTime >= 1 && (
-        <button type="button" onClick={onSend} title="Enviar" className="sc-icon-btn sc-icon-btn--primary sc-anim-pop-in" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
+        <button type="button" onClick={onSend} title={t('chat.input.send')} className="sc-icon-btn sc-icon-btn--primary sc-anim-pop-in" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
           <FaPaperPlane />
         </button>
       )}
@@ -213,6 +216,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
   ref,
 ) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [message, setMessage] = useState('');
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
@@ -350,7 +354,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     if (isRecording) {
       if (recordingTime < 1) {
         cancelRecording();
-        window.alert('O áudio deve ter no mínimo 1 segundo');
+        window.alert(t('chat.input.audioTooShort'));
         onRecordingStop();
         return;
       }
@@ -388,7 +392,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     );
   }
 
-  const blockedTitle = isBlockedBy ? 'Você foi bloqueado' : userBlocked ? 'Você bloqueou este usuário' : null;
+  const blockedTitle = isBlockedBy ? t('chat.input.blockedBy') : userBlocked ? t('chat.input.youBlocked') : null;
 
   return (
     <>
@@ -424,7 +428,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               type="button"
               onClick={() => attachmentInputRef.current?.click()}
               disabled={isBlocked}
-              title={blockedTitle ?? 'Enviar anexo'}
+              title={blockedTitle ?? t('chat.input.attach')}
               className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
             >
@@ -434,7 +438,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               type="button"
               onClick={() => void handleMicClick()}
               disabled={isBlocked}
-              title={blockedTitle ?? 'Gravar áudio'}
+              title={blockedTitle ?? t('chat.input.record')}
               className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
             >
@@ -503,7 +507,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             maxLength={maxLength}
             disabled={isBlocked}
             placeholder={
-              isBlockedBy ? 'Você foi bloqueado...' : userBlocked ? 'Você bloqueou este usuário...' : 'Digite sua mensagem...'
+              isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')
             }
             autoFocus={shouldAutoFocus}
             className="sc-input sc-input--composer"
@@ -512,7 +516,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         {(message.trim() || pendingAttachments.length > 0) && (
           <button
             type="submit"
-            title="Enviar"
+            title={t('chat.input.send')}
             className="sc-icon-btn sc-icon-btn--gradient sc-anim-send-in"
             style={{ width: '44px', height: '44px', fontSize: '1rem' }}
           >

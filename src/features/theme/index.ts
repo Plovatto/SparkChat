@@ -16,3 +16,4 @@ export { withAlpha, mix, contrastRatio } from './utils/color';
 export { resolveBubbleStyle } from './utils/resolve-bubble-style';
 export type { ResolvedBubbleStyle } from './utils/resolve-bubble-style';
 export { getContrastTextColor } from './utils/contrast-text-color';
+export { useThemeNames, type ThemeNames } from './hooks/useThemeNames';

@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
@@ -21,6 +22,7 @@ interface ModalContent {
 }
 
 export function Modal({ isOpen, title, onClose, showCloseButton = true, children, maxWidth = '500px' }: ModalProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.normal);
   const lastContentRef = useRef<ModalContent>({ children: null });
@@ -96,8 +98,8 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  title="Fechar"
-                  aria-label="Fechar"
+                  title={t('common.close')}
+                  aria-label={t('common.close')}
                   className="sc-icon-btn sc-icon-btn--header"
                   style={{ width: '34px', height: '34px' }}
                 >

@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react';
 import { FaImage } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { minWidthQuery, WIDE_GALLERY_MIN_WIDTH_PX } from '@constants/breakpoints';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -16,6 +17,7 @@ const WIDE_COLUMNS = 4;
 const NARROW_COLUMNS = 3;
 
 export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaGalleryProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [showAll, setShowAll] = useState(false);
   const isWide = useMediaQuery(minWidthQuery(WIDE_GALLERY_MIN_WIDTH_PX));
@@ -63,7 +65,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
         }}
       >
         <FaImage size={30} style={{ opacity: 0.3 }} />
-        <div style={{ fontSize: '0.9rem' }}>Nenhuma mídia compartilhada</div>
+        <div style={{ fontSize: '0.9rem' }}>{t('chat.gallery.empty')}</div>
       </div>
     );
   }
@@ -85,7 +87,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
           gap: '8px',
         }}
       >
-        <FaImage /> Mídias ({mediaMessages.length})
+        <FaImage /> {t('chat.gallery.title', { count: mediaMessages.length })}
       </div>
       <div
         className="sc-media-gallery-grid"
@@ -133,7 +135,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
           className="sc-btn sc-btn--soft"
           style={{ width: '100%', marginTop: '12px', gap: '6px', padding: '9px 16px', fontSize: '0.82rem', fontWeight: 700 }}
         >
-          {showAll ? 'Ver menos' : `Ver todas (${mediaMessages.length})`}
+          {showAll ? t('chat.gallery.showLess') : t('chat.gallery.showAll', { count: mediaMessages.length })}
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FaCheck, FaComments, FaPaperPlane, FaUsers } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
@@ -18,6 +19,7 @@ interface ForwardMessageModalProps {
 const CLOSE_AFTER_FORWARD_MS = 600;
 
 export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, message }: ForwardMessageModalProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
   const [selectedRoomIds, setSelectedRoomIds] = useState<Set<string>>(new Set());
@@ -65,12 +67,12 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Encaminhar mensagem">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('chat.forward.title')}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto', padding: '2px' }}>
           {rooms.length === 0 && (
             <div style={{ color: theme.textSecondary, textAlign: 'center', padding: '20px 0' }}>
-              Nenhuma conversa disponível
+              {t('chat.forward.empty')}
             </div>
           )}
 
@@ -144,7 +146,7 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
 
         <button onClick={handleForward} disabled={selectedRoomIds.size === 0} className="sc-btn sc-btn--primary sc-btn--lift" style={{ width: '100%', padding: '12px 20px' }}>
           <FaPaperPlane size={14} />
-          {selectedRoomIds.size > 0 ? `Encaminhar (${selectedRoomIds.size})` : 'Encaminhar'}
+          {selectedRoomIds.size > 0 ? t('chat.forward.submitCount', { count: selectedRoomIds.size }) : t('chat.message.forward')}
         </button>
       </div>
     </Modal>

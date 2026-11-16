@@ -1,3 +1,4 @@
+import { translate } from '@lib/i18n/app-i18n';
 import { base64ToBytes, downloadBytes } from './download-file';
 
 const DB_NAME = 'sparkchat-recovery-files';
@@ -132,7 +133,7 @@ export async function saveRecoveryFileWithPicker(base64: string, filename: strin
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: filename,
-      types: [{ description: 'Arquivo de recuperação SparkChat', accept: { 'application/octet-stream': ['.sparkkey'] } }],
+      types: [{ description: translate('recovery.pickerDescription'), accept: { 'application/octet-stream': ['.sparkkey'] } }],
     });
     const writable = await handle.createWritable();
     await writable.write(bytes);

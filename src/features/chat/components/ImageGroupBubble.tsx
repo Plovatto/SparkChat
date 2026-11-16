@@ -1,4 +1,5 @@
 import { memo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
@@ -43,6 +44,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   entrancePhase = 'none',
   entranceIndex = 0,
 }: ImageGroupBubbleProps) {
+  const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
   const [modalIndex, setModalIndex] = useState<number | null>(null);
   const [entrance] = useState(entrancePhase);
@@ -71,7 +73,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       roomId={roomId}
       messageId={anchor.id}
       senderId={anchor.sender.id}
-      senderNickname={anchor.sender.nickname}
+      senderNickname={anchor.sender.unknown ? t('common.unknownUser') : anchor.sender.nickname}
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(anchor.id)}
@@ -130,7 +132,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
             >
               <img
                 src={image.fileMeta?.thumbnailUrl ?? image.content}
-                alt="Imagem enviada"
+                alt={t('chat.message.sentImage')}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
               {isLastTile && extraCount > 0 && (

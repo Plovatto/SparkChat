@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { translate } from '@lib/i18n/app-i18n';
 import { createAudioContext } from '@lib/audio/shared-audio-context';
 
 const WAVEFORM_BAR_COUNT = 60;
@@ -122,7 +123,7 @@ export function useAudioRecorder(): AudioRecorderControls {
       return true;
     } catch (error) {
       console.error('Erro ao acessar microfone:', error);
-      window.alert('Não foi possível acessar o microfone. Verifique as permissões.');
+      window.alert(translate('chat.input.microphoneDenied'));
       return false;
     }
   }, []);

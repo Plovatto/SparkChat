@@ -1,6 +1,7 @@
-import { format } from 'date-fns';
 import { FaCheck, FaExclamationCircle, FaRegClock } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
+import { formatTime } from '@lib/format';
 import type { MessageStatusInfo } from '@lib/message-status';
 import type { ChatMessage } from '../types';
 
@@ -13,12 +14,13 @@ interface MessageMetaProps {
 }
 
 export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry }: MessageMetaProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const statusColor = statusInfo?.read ? theme.receiptRead : bubble.mutedTextColor;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
-      <span style={{ fontSize: '0.7rem', color: bubble.mutedTextColor, fontWeight: 500 }}>{format(new Date(message.timestamp), 'HH:mm')}</span>
+      <span style={{ fontSize: '0.7rem', color: bubble.mutedTextColor, fontWeight: 500 }}>{formatTime(message.timestamp)}</span>
       {message.pending ? (
         <FaRegClock size={11} color={bubble.mutedTextColor} className="sc-anim-pulse-soft" />
       ) : message.failed ? (
@@ -27,7 +29,7 @@ export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry }: Mes
             event.stopPropagation();
             onRetry();
           }}
-          title="Falha ao enviar. Toque para reenviar."
+          title={t('chat.message.retry')}
           className="sc-icon-btn sc-anim-badge-pop"
           style={{ width: '20px', height: '20px', background: 'transparent', color: isOwn ? bubble.textColor : theme.dangerText }}
         >

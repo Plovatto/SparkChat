@@ -1,0 +1,474 @@
+{
+  "common": {
+    "you": "You",
+    "youLower": "you",
+    "someone": "Someone",
+    "unknownUser": "Unknown user",
+    "unknown": "Unknown",
+    "user": "User",
+    "group": "Group",
+    "back": "Back",
+    "close": "Close",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "file": "File",
+    "loading": "Loading..."
+  },
+  "language": {
+    "label": "Language"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "connection": "Couldn't reach the server. Please try again!",
+    "auth": {
+      "required": "Authentication required.",
+      "sessionInvalid": "Invalid or expired session.",
+      "sessionExpired": "Invalid or expired session. Please sign in again.",
+      "unauthenticated": "User not authenticated.",
+      "missingCredentials": "Username and password are required!",
+      "invalidCredentials": "Invalid username or password.",
+      "loginFailed": "Couldn't sign in. Please try again!",
+      "keyfileRequired": "A recovery file is required!",
+      "keyfileInvalid": "Invalid recovery file."
+    },
+    "user": {
+      "notFound": "User not found.",
+      "nicknameRequired": "Username is required!",
+      "nicknameCheckFailed": "Couldn't check the username. Please try again!",
+      "nicknameInvalid": "Usernames must be {{minLength}} to {{maxLength}} characters long, using only letters and numbers, with at least {{minLetters}} letters.",
+      "nicknameTaken": "That username is already taken.",
+      "passwordTooShort": "Your password must be at least {{minLength}} characters long.",
+      "currentPasswordIncorrect": "Current password is incorrect."
+    },
+    "room": {
+      "notFound": "Conversation not found.",
+      "invalidCode": "Invalid code format.",
+      "selfConversation": "You can't start a conversation with yourself.",
+      "promoteRequiresAdmin": "Only admins can promote other members.",
+      "removeRequiresAdmin": "Only admins can remove members.",
+      "cannotRemoveSelf": "Use the leave group option to remove yourself.",
+      "notMember": "This user isn't a member of the group."
+    },
+    "message": {
+      "notFound": "Message not found.",
+      "deleteForbidden": "You don't have permission to delete this message.",
+      "invalidMedia": "Invalid media content.",
+      "blocked": "You can't send messages in this conversation because of a block."
+    },
+    "upload": {
+      "missingFile_image": "No image was sent.",
+      "missingFile_audio": "No audio was sent.",
+      "missingFile_file": "No file was sent.",
+      "missingFile": "No file was sent.",
+      "tooLarge_image": "The image exceeds the maximum allowed size of {{maxSize}}.",
+      "tooLarge_audio": "The audio exceeds the maximum allowed size of {{maxSize}}.",
+      "tooLarge_file": "The file exceeds the maximum allowed size of {{maxSize}}.",
+      "tooLarge": "The file exceeds the maximum allowed size of {{maxSize}}.",
+      "invalidType_image": "Invalid file type. Send a JPEG, PNG, GIF or WEBP image.",
+      "invalidType_audio": "Invalid file type. Send WEBM, OGG, MP4, AAC, MPEG or WAV audio.",
+      "invalidType_file": "Invalid file type. Send a PDF, video (MP4, WEBM, MOV, AVI), Office document, ZIP, TXT or CSV.",
+      "invalidType": "Invalid file type.",
+      "contentMismatch": "The file content doesn't match its declared type.",
+      "quotaExceeded": "The server storage limit was reached. Please try again later."
+    },
+    "linkPreview": {
+      "invalidUrl": "Invalid URL.",
+      "unavailable": "Couldn't generate a preview for this URL.",
+      "imageUnavailable": "Couldn't load this image."
+    },
+    "rateLimit": {
+      "api": "Too many requests in a short time. Please wait and try again.",
+      "linkPreview": "Too many preview requests. Please wait a moment and try again.",
+      "upload": "Too many file uploads. Please wait a moment and try again.",
+      "loginAttempts": "Too many sign-in attempts. Please try again later.",
+      "registrations": "Too many accounts created from this address. Please try again later.",
+      "messages": "You're sending messages too fast. Please wait a moment."
+    },
+    "internal": {
+      "unexpected": "Unexpected error.",
+      "routeNotFound": "Resource not found."
+    },
+    "e2ee": {
+      "encryptFailed": "Couldn't encrypt the message.",
+      "missingRoomKey": "This conversation's encryption key hasn't arrived yet. Please try again in a moment."
+    },
+    "validation": {
+      "invalidPayload": "Invalid data."
+    }
+  },
+  "systemEvents": {
+    "group": {
+      "created": "{{actor}} created the group",
+      "memberJoined": "{{actor}} joined the group",
+      "memberLeft": "{{actor}} left the group",
+      "memberRemoved": "{{target}} was removed from the group by {{actor}}",
+      "memberRemoved_you": "{{target}} were removed from the group by {{actor}}",
+      "adminPromoted": "{{target}} was made an admin by {{actor}}",
+      "adminPromoted_you": "{{target}} were made an admin by {{actor}}"
+    },
+    "ai": {
+      "dailyLimitReached": "You've reached your daily AI message limit. Please try again tomorrow.",
+      "encryptionUnavailable": "Couldn't set up the encrypted conversation. Please try sending your message again shortly.",
+      "replyFailed": "I couldn't reply right now. Please try again shortly."
+    }
+  },
+  "auth": {
+    "tagline": "Where conversations get charged up",
+    "createAccount": "Create New Account",
+    "haveAccount": "I have an account",
+    "chooseHow": "Choose how you want to get in",
+    "toLight": "Switch to light mode",
+    "toDark": "Switch to dark mode",
+    "lightTitle": "Light mode",
+    "darkTitle": "Dark mode",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "passwordsMatch": "Passwords match!",
+    "passwordsMismatch": "Passwords don't match.",
+    "login": {
+      "title": "Welcome back!",
+      "withKeyfile": "Sign in with your recovery file",
+      "withPassword": "Sign in with username and password",
+      "username": "Username",
+      "usernamePlaceholder": "Your username",
+      "password": "Password",
+      "passwordPlaceholder": "Your password",
+      "keyfile": "Recovery file",
+      "switchToPassword": "Sign in with username and password",
+      "switchToKeyfile": "Use your recovery file instead?",
+      "submitting": "Signing in...",
+      "submit": "Sign in",
+      "fillFields": "Enter your username and password!",
+      "selectKeyfile": "Select your recovery file!",
+      "failed": "Couldn't sign in. Please try again!"
+    },
+    "register": {
+      "title": "Create Account",
+      "subtitle": "Pick your avatar and username",
+      "avatar": "Pick your Avatar",
+      "username": "Username",
+      "usernamePlaceholder": "Type a username...",
+      "password": "Password",
+      "passwordPlaceholder": "Type your password",
+      "confirmPassword": "Confirm password",
+      "confirmPlaceholder": "Type your password again",
+      "submit": "Start Chatting",
+      "checking": "Checking...",
+      "available": "Available!",
+      "taken": "That username is already taken.",
+      "invalid": "Must contain at least 2 letters.",
+      "enterUsername": "Please type a username!",
+      "chooseValid": "Pick a valid, available username!",
+      "passwordTooShort": "Your password must be at least {{minLength}} characters long!",
+      "passwordsMismatch": "The passwords don't match!"
+    },
+    "logoAlt": "SparkChat logo"
+  },
+  "dates": {
+    "today": "Today",
+    "yesterday": "Yesterday"
+  },
+  "dialogs": {
+    "irreversible": "This action can't be undone.",
+    "deleteForEveryone": "Delete for everyone"
+  },
+  "recovery": {
+    "title": "Your recovery file",
+    "intro": "This file is your backup key to get into your account if you forget your password. Keep it somewhere safe — if you lose both the file and your password, no one can recover your account.",
+    "noPassword": "The file doesn't contain your password in plain text — only the server can use it to authenticate you.",
+    "replaceOld": "If you had a file saved before, replace it with this one — the previous one no longer works.",
+    "download": "Download file",
+    "downloadAgain": "Download again",
+    "done": "I've downloaded it, continue",
+    "pickerDescription": "SparkChat recovery file"
+  },
+  "chat": {
+    "empty": {
+      "title": "Select a conversation",
+      "text": "Pick an existing chat or click \"New Chat\" to get started"
+    },
+    "noMessages": "No messages yet",
+    "startConversation": "Start the conversation by sending a message!",
+    "dropFile": "Drop the file here",
+    "scrollToLatest": "Go to the latest message",
+    "youBlocked": "You blocked this user",
+    "blockedYou": "This user blocked you",
+    "deleteTitle": "Delete message",
+    "deleteConfirm": "Are you sure you want to delete this message for everyone?",
+    "deleted": "Message deleted",
+    "recording_one": "{{name}} is recording audio...",
+    "recording_other": "{{count}} people are recording audio...",
+    "typingOne": "{{name}} is typing...",
+    "typingTwo": "{{first}} and {{second}} are typing...",
+    "typingMany": "Several people are typing...",
+    "uploading": {
+      "image": "Sending image...",
+      "audio": "Sending audio...",
+      "file": "Sending file..."
+    },
+    "upload": {
+      "imageFailed": "Couldn't send the image.",
+      "audioFailed": "Couldn't send the audio.",
+      "fileFailed": "Couldn't send the file.",
+      "someImageFailed": "Couldn't send one of the images. Please try again.",
+      "someFileFailed": "Couldn't send one of the files. Please try again.",
+      "audioRetry": "Couldn't send the audio. Please try again."
+    },
+    "header": {
+      "inviteText": "Join the group \"{{name}}\" on SparkChat!",
+      "copyCode": "Click to copy the code",
+      "shareInvite": "Share invite link",
+      "viewProfile": "View profile",
+      "viewGroup": "View group info"
+    },
+    "input": {
+      "attachments_one": "1 attachment selected",
+      "attachments_other": "{{count}} attachments selected",
+      "audioTooShort": "Audio must be at least 1 second long",
+      "blockedBy": "You were blocked",
+      "youBlocked": "You blocked this user",
+      "attach": "Send attachment",
+      "record": "Record audio",
+      "placeholder": "Type your message...",
+      "placeholderBlockedBy": "You were blocked...",
+      "placeholderYouBlocked": "You blocked this user...",
+      "send": "Send",
+      "microphoneDenied": "Couldn't access the microphone. Please check your permissions.",
+      "removeAttachment": "Remove",
+      "discard": "Discard",
+      "removePreview": "Remove preview"
+    },
+    "message": {
+      "retry": "Failed to send. Tap to resend.",
+      "reply": "Reply",
+      "forward": "Forward",
+      "delete": "Delete",
+      "image": "Image",
+      "audio": "Audio {{duration}}",
+      "video": "Video",
+      "sentImage": "Sent image",
+      "media": "Media",
+      "replyingTo": "Replying to {{name}}",
+      "replyingToSelf": "Replying to yourself",
+      "pdfPreview": "PDF preview",
+      "pages_one": "{{count}} page",
+      "pages_other": "{{count}} pages",
+      "downloadFile": "Download file",
+      "pause": "Pause",
+      "play": "Play",
+      "playbackSpeed": "Playback speed",
+      "fullscreen": "Open in full screen",
+      "defaultVideoName": "Video.mp4",
+      "pdfFailed": "Couldn't open this PDF.",
+      "cancelReply": "Cancel reply",
+      "defaultPdfName": "Document.pdf",
+      "defaultFileName": "file",
+      "defaultImageName": "image.jpg"
+    },
+    "fileTypes": {
+      "pdf": "PDF",
+      "video": "Video",
+      "word": "Word",
+      "excel": "Excel",
+      "powerpoint": "PowerPoint",
+      "archive": "Compressed file",
+      "csv": "CSV",
+      "file": "File"
+    },
+    "viewer": {
+      "zoomOut": "Zoom out (-)",
+      "zoomIn": "Zoom in (+)",
+      "downloadImage": "Download image",
+      "closeImage": "Close image (ESC)",
+      "previous": "Previous image",
+      "next": "Next image",
+      "expanded": "Expanded image",
+      "downloadVideo": "Download video",
+      "closeVideo": "Close video (ESC)"
+    },
+    "forward": {
+      "title": "Forward message",
+      "empty": "No conversations available",
+      "submitCount": "Forward ({{count}})"
+    },
+    "gallery": {
+      "title": "Media ({{count}})",
+      "showLess": "Show less",
+      "showAll": "Show all ({{count}})",
+      "empty": "No shared media"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "applyAll": "Apply to all chats",
+      "wallpaper": "Wallpaper",
+      "dim": "Dimming",
+      "blur": "Blur",
+      "bubbles": "Message bubbles",
+      "ownColor": "Sent message color",
+      "own": "Sent messages",
+      "otherColor": "Received message color",
+      "other": "Received messages",
+      "resetDefault": "Reset to default",
+      "transparency": "Transparency",
+      "textDim": "Text dimming",
+      "auto": "Automatic",
+      "bubbleBlur": "Bubble blur (both sides)",
+      "resetChat": "Reset this chat's appearance",
+      "none": "None"
+    },
+    "assistantStatus": "100% charged, 0% sleepy 🔋"
+  },
+  "roomInfo": {
+    "copyUsername": "Copy username",
+    "status": "Status",
+    "unblock": "Unblock User",
+    "block": "Block User",
+    "createdBy": "Created by",
+    "admin": "Admin",
+    "promote": "Make admin",
+    "remove": "Remove from group",
+    "leave": "Leave Group",
+    "seen": "Seen {{time}}",
+    "members_one": "{{count}} member",
+    "members_other": "{{count}} members",
+    "membersTitle": "Members ({{count}})"
+  },
+  "presence": {
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "rooms": {
+    "preview": {
+      "recording": "recording audio",
+      "typing": "typing...",
+      "andMore": "{{name}} and {{count}} more"
+    },
+    "muted": "Muted conversation",
+    "mentioned": "You were mentioned",
+    "pinned": "Pinned conversation"
+  },
+  "sidebar": {
+    "editProfile": "Click to edit your profile",
+    "statusPlaceholder": "E.g. at work, 🎮 gaming",
+    "editStatus": "Click to edit your status",
+    "addStatus": "Add status",
+    "themes": "Themes",
+    "notificationsBlocked": "Notifications are blocked in your browser settings",
+    "disableNotifications": "Turn off notifications",
+    "enableNotifications": "Turn on notifications",
+    "logout": "Sign out",
+    "newChat": "New Chat",
+    "closeSelection": "Exit selection mode",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "selectConversations": "Select conversations",
+    "unselectAll": "Unselect all",
+    "selectAll": "Select all",
+    "conversations": "Conversations",
+    "enterSelection": "Enter selection mode",
+    "select": "Select",
+    "noConversations": "No conversations yet",
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deleteTitle": "Delete Conversations",
+    "deleteConfirm_one": "Are you sure you want to delete {{count}} conversation?",
+    "deleteConfirm_other": "Are you sure you want to delete {{count}} conversations?"
+  },
+  "newChat": {
+    "title": "New Chat",
+    "private": "Private",
+    "friendUsername": "Friend's Username",
+    "friendPlaceholder": "E.g. Ada",
+    "friendHelp": "Type the username to start a conversation",
+    "starting": "Starting...",
+    "start": "Start Chat",
+    "joinExisting": "Join an Existing Group",
+    "codePlaceholder": "Group code",
+    "codeHelp": "Type the group code to join",
+    "joining": "Joining...",
+    "join": "Join Group",
+    "createNew": "Create New Group",
+    "namePlaceholder": "Group name",
+    "nameHelp": "Type a name for your new group",
+    "creating": "Creating...",
+    "create": "Create Group",
+    "or": "OR",
+    "invalidCode": "Invalid group code",
+    "nameTooShort": "Group names must be at least {{minLength}} characters long",
+    "enterUsername": "Type the username"
+  },
+  "themeMenu": {
+    "base": "Base Mode",
+    "colors": "Color Theme"
+  },
+  "profile": {
+    "title": "Edit Profile",
+    "tabs": {
+      "profile": "Profile",
+      "security": "Security",
+      "system": "System"
+    },
+    "autoSaved": "Recovery file updated automatically.",
+    "shareText": "Chat with me on SparkChat! My username is {{name}}",
+    "newPasswordTooShort": "Your new password must be at least {{minLength}} characters long.",
+    "username": "Username",
+    "usernamePlaceholder": "Type your username",
+    "linkCopied": "Link copied!",
+    "shareLink": "Share chat link",
+    "avatar": "Avatar",
+    "saveChanges": "Save Changes",
+    "currentPassword": "Current password",
+    "keyfileNoCurrent": "You signed in with your recovery file — you can change your password without entering the current one.",
+    "newPasswordPlaceholder": "New password (min. {{minLength}} characters)",
+    "confirmNewPassword": "Confirm new password",
+    "forgotPassword": "Forgot your password? Sign out and sign back in with your recovery file — then you can change your password without the current one.",
+    "changeLogsOut": "Changing your password signs out every device, including this one — you'll need to sign in again.",
+    "changePassword": "Change password",
+    "downloadRecovery": "Download recovery file",
+    "sounds": "App sounds",
+    "activeSessions": "Devices with an active session",
+    "revokeOthers": "Sign out all other sessions",
+    "noOtherSessions": "No other active sessions.",
+    "thisDevice": "This device",
+    "authMethod": {
+      "password": "Signed in with password",
+      "keyfile": "Signed in with recovery file"
+    },
+    "lastUsed": "Last used: {{date}}",
+    "revokeSession": "Sign out this session"
+  },
+  "notifications": {
+    "sentImage": "Sent an image",
+    "sentAudio": "Sent a voice message",
+    "sentFile": "Sent a file",
+    "sentNamedFile": "Sent a file: {{name}}"
+  },
+  "app": {
+    "loadingConversations": "Loading conversations...",
+    "connecting": "Connecting to the server..."
+  },
+  "avatars": {
+    "User": "Person",
+    "Robot": "Robot",
+    "Cat": "Cat",
+    "Dog": "Dog",
+    "Dragon": "Dragon",
+    "Shuttle": "Space shuttle",
+    "Rocket": "Rocket",
+    "Ghost": "Ghost",
+    "Skull": "Skull",
+    "Heart": "Heart",
+    "Star": "Star",
+    "Moon": "Moon",
+    "Crown": "Crown",
+    "Fire": "Fire",
+    "Snow": "Snow",
+    "Coffee": "Coffee",
+    "Pizza": "Pizza",
+    "Game": "Video game",
+    "Music": "Music",
+    "Art": "Art"
+  }
+}

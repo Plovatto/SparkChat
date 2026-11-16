@@ -16,6 +16,7 @@ export type {
   RoomSummary,
   RoomType,
   SessionSummary,
+  SocketErrorPayload,
   SocketUser,
   SocketUserStatus,
   SocketChatAppearance,

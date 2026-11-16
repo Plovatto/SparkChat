@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FaExpand } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
@@ -12,6 +13,7 @@ interface VideoMessageContentProps {
 }
 
 export function VideoMessageContent({ message }: VideoMessageContentProps) {
+  const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<VideoThumbnail | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -57,7 +59,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
             event.stopPropagation();
             setIsPreviewOpen(true);
           }}
-          title="Abrir em tela cheia"
+          title={t('chat.message.fullscreen')}
           className="sc-icon-btn sc-icon-btn--scrim-solid"
           style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderWidth: '1px', pointerEvents: 'auto' }}
         >
@@ -68,7 +70,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         url={message.content}
-        fileName={message.fileMeta?.name ?? 'Vídeo.mp4'}
+        fileName={message.fileMeta?.name ?? t('chat.message.defaultVideoName')}
       />
     </div>
   );

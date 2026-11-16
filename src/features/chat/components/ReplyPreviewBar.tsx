@@ -1,4 +1,5 @@
 import { FaPlay, FaTimes } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 import { formatAudioTime } from '@lib/format';
 import type { MessageView } from '@lib/socket';
@@ -13,6 +14,7 @@ interface ReplyPreviewBarProps {
 }
 
 export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onCancel }: ReplyPreviewBarProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const isVideo = message.type === 'file' && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
   const videoThumbnail = useReplyVideoThumbnail(isVideo, message.content);
@@ -23,7 +25,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
       return imageSrc ? (
         <img
           src={imageSrc}
-          alt="Imagem"
+          alt={t('chat.message.image')}
           style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
         />
       ) : (
@@ -35,7 +37,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
       return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <FaPlay size={12} />
-          <span>Áudio {formatAudioTime(message.duration ?? 0)}</span>
+          <span>{t('chat.message.audio', { duration: formatAudioTime(message.duration ?? 0) })}</span>
         </div>
       );
     }
@@ -45,7 +47,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
         return videoThumbnail ? (
           <img
             src={videoThumbnail}
-            alt="Vídeo"
+            alt={t('chat.message.video')}
             style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: theme.skeleton }}
           />
         ) : (
@@ -99,7 +101,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
     >
       <div>
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accentText, marginBottom: '4px' }}>
-          Respondendo {message.sender.id === currentUserId ? 'a você mesmo' : `a ${message.sender.nickname}`}
+          {message.sender.id === currentUserId ? t('chat.message.replyingToSelf') : t('chat.message.replyingTo', { name: message.sender.unknown ? t('common.unknownUser') : message.sender.nickname })}
         </div>
         <div
           style={{
@@ -115,7 +117,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
           {renderPreview()}
         </div>
       </div>
-      <button type="button" onClick={onCancel} title="Cancelar resposta" className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '32px', height: '32px' }}>
+      <button type="button" onClick={onCancel} title={t('chat.message.cancelReply')} className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '32px', height: '32px' }}>
         <FaTimes size={14} />
       </button>
     </div>
