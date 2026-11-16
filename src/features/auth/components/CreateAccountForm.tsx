@@ -14,7 +14,7 @@ import { getPasswordMatchStatus } from '../lib/password-match';
 import type { PendingRegistration } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
-import { AuthLanguageSwitch } from './AuthLanguageSwitch';
+import { AUTH_HEADER_CONTROLS_SPACE, AuthLanguageSwitch } from './AuthLanguageSwitch';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField, PasswordFieldHint } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
@@ -128,12 +128,15 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
             maxHeight: '94vh',
           }}
         >
+          <AuthLanguageSwitch top="15px" right="15px" />
           <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="15px" right="15px" />
 
           <div
+            className="auth-form-header"
             style={{
               background: theme.gradient,
               padding: 'clamp(28px, 4vw, 32px) clamp(25px, 5vw, 32px)',
+              paddingRight: AUTH_HEADER_CONTROLS_SPACE,
               color: theme.onGradient,
               display: 'flex',
               alignItems: 'center',
@@ -337,8 +340,6 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 {t('auth.register.submit')}
               </button>
             </Form>
-
-            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </div>

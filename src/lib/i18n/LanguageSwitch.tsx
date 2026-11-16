@@ -1,7 +1,5 @@
 import { useState, type MouseEvent } from 'react';
-import { HTML_LANG, LANGUAGES, type Language } from './language';
-
-const NATIVE_NAMES: Record<Language, string> = { pt: 'Português', en: 'English' };
+import { HTML_LANG, LANGUAGE_NATIVE_NAMES as NATIVE_NAMES, LANGUAGES, type Language } from './language';
 
 interface LanguageSwitchProps {
   value: Language;

@@ -25,8 +25,9 @@ import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
+import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
-import { LanguageSwitch } from '@lib/i18n/LanguageSwitch';
+import { LanguageMenuButton } from '@lib/i18n/LanguageMenuButton';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import { EditProfileModal } from './EditProfileModal';
@@ -49,7 +50,7 @@ interface HeaderIconButtonProps {
 
 function HeaderIconButton({ onClick, title, disabled = false, children }: HeaderIconButtonProps) {
   return (
-    <button onClick={onClick} disabled={disabled} title={title} className="sc-icon-btn sc-icon-btn--header" style={{ width: '38px', height: '38px' }}>
+    <button onClick={onClick} disabled={disabled} title={title} aria-label={title} className="sc-icon-btn sc-icon-btn--header sidebar-header-btn">
       {children}
     </button>
   );
@@ -109,7 +110,7 @@ export function Sidebar({
   const { theme } = useTheme();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
-  const { favoriteRoomIds, toggleFavorites } = useFavoriteRooms();
+  const { favoriteRoomIds, toggleFavorites } = useFavoriteRooms(user.id);
 
   const handleThemeButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -142,7 +143,20 @@ export function Sidebar({
     [assistantRoomId],
   );
 
+  const openRoomOptions = useCallback(
+    (roomId: string): boolean => {
+      if (roomId === assistantRoomId) {
+        return false;
+      }
+      setIsSelectionMode(true);
+      setSelectedIds((previous) => (previous.has(roomId) ? previous : new Set([...previous, roomId])));
+      return true;
+    },
+    [assistantRoomId],
+  );
+
   const selectableRooms = rooms.filter((room) => !isAssistantRoom(room));
+  const allSelectableSelected = selectableRooms.length > 0 && selectedIds.size === selectableRooms.length;
 
   const toggleSelectAll = () => {
     setSelectedIds((previous) => (previous.size === selectableRooms.length ? new Set() : new Set(selectableRooms.map((room) => room.id))));
@@ -152,6 +166,15 @@ export function Sidebar({
     setSelectedIds(new Set());
     setIsSelectionMode(false);
   };
+
+  const exitSelectionModeOnEscape = useCallback(() => {
+    if (document.querySelector('.sc-modal-backdrop')) {
+      return;
+    }
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+  }, []);
+  useEscapeKey(isSelectionMode, exitSelectionModeOnEscape);
 
   const confirmDelete = () => {
     onDeleteRooms(Array.from(selectedIds));
@@ -361,43 +384,49 @@ export function Sidebar({
             )}
           </div>
 
-          <HeaderIconButton onClick={handleThemeButtonClick} title={t('sidebar.themes')}>
-            <FaPalette size={16} />
-          </HeaderIconButton>
+          <div className="sidebar-header-actions">
+            <LanguageMenuButton
+              value={language}
+              onChange={changeLanguage}
+              label={t('language.label')}
+              className="sc-icon-btn sc-icon-btn--header sidebar-header-btn"
+            />
 
-          <ThemeMenu isOpen={showThemeMenu} position={themeMenuPosition} onClose={() => setShowThemeMenu(false)} />
-
-          {notificationsSupported && (
-            <HeaderIconButton
-              onClick={onToggleNotifications}
-              disabled={notificationsBlocked}
-              title={
-                notificationsBlocked
-                  ? t('sidebar.notificationsBlocked')
-                  : notificationsEnabled
-                    ? t('sidebar.disableNotifications')
-                    : t('sidebar.enableNotifications')
-              }
-            >
-              {notificationsEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
+            <HeaderIconButton onClick={handleThemeButtonClick} title={t('sidebar.themes')}>
+              <FaPalette size={16} />
             </HeaderIconButton>
-          )}
 
-          <HeaderIconButton onClick={onLogout} title={t('sidebar.logout')}>
-            <FaSignOutAlt size={16} />
-          </HeaderIconButton>
+            <ThemeMenu isOpen={showThemeMenu} position={themeMenuPosition} onClose={() => setShowThemeMenu(false)} />
+
+            {notificationsSupported && (
+              <HeaderIconButton
+                onClick={onToggleNotifications}
+                disabled={notificationsBlocked}
+                title={
+                  notificationsBlocked
+                    ? t('sidebar.notificationsBlocked')
+                    : notificationsEnabled
+                      ? t('sidebar.disableNotifications')
+                      : t('sidebar.enableNotifications')
+                }
+              >
+                {notificationsEnabled ? <FaBell size={16} /> : <FaBellSlash size={16} />}
+              </HeaderIconButton>
+            )}
+
+            <HeaderIconButton onClick={onLogout} title={t('sidebar.logout')}>
+              <FaSignOutAlt size={16} />
+            </HeaderIconButton>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button
-            className="sc-btn sc-btn--header sc-anim-attention"
-            onClick={onNewChat}
-            style={{ flex: 1, minWidth: 0, padding: '11px', borderRadius: '10px' }}
-          >
-            <FaPlus size={14} /> {t('sidebar.newChat')}
-          </button>
-          <LanguageSwitch value={language} onChange={changeLanguage} label={t('language.label')} variant="gradient" />
-        </div>
+        <button
+          className="sc-btn sc-btn--header sc-anim-attention"
+          onClick={onNewChat}
+          style={{ width: '100%', padding: '11px', borderRadius: '10px' }}
+        >
+          <FaPlus size={14} /> {t('sidebar.newChat')}
+        </button>
       </div>
 
       <div
@@ -433,11 +462,11 @@ export function Sidebar({
 
             <button
               onClick={toggleSelectAll}
-              title={selectedIds.size === rooms.length ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
+              title={allSelectableSelected ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
               className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
-              style={{ width: '30px', height: '30px', color: selectedIds.size === rooms.length ? theme.accentText : theme.textPrimary }}
+              style={{ width: '30px', height: '30px', color: allSelectableSelected ? theme.accentText : theme.textPrimary }}
             >
-              {selectedIds.size === rooms.length ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
+              {allSelectableSelected ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
             </button>
           </>
         ) : (
@@ -483,7 +512,7 @@ export function Sidebar({
               className="sc-anim-rise-in sc-stagger"
               style={{ fontSize: '0.85rem', margin: '5px 0', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
             >
-              Clique em &quot;Novo Chat&quot;
+              {t('sidebar.emptyHint')}
             </p>
           </div>
         ) : (
@@ -503,6 +532,7 @@ export function Sidebar({
                 recordingUserIds={recordingUserIds[room.id] ?? EMPTY_USER_IDS}
                 isFavorite={!isAssistantRoom(room) && favoriteRoomIds.has(room.id)}
                 isMuted={mutedRoomIds.has(room.id)}
+                onOpenOptions={openRoomOptions}
               />
             ))}
           </div>

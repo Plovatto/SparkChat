@@ -43,12 +43,13 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
             position: 'relative',
           }}
         >
+          <AuthLanguageSwitch top="10px" right="10px" noBorder iconColor={accentMid} />
           <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="10px" right="10px" noBorder iconColor={accentMid} />
 
           <div
             style={{
               background: theme.gradient,
-              padding: 'clamp(80px, 8vw, 50px)',
+              padding: '80px clamp(20px, 6vw, 50px)',
               textAlign: 'center',
               color: theme.onGradient,
               position: 'relative',
@@ -154,8 +155,6 @@ export function ChooseModeCard({ darkMode, theme, onToggleTheme, onNewUser, onEx
             >
               {t('auth.chooseHow')}
             </div>
-
-            <AuthLanguageSwitch />
           </Card.Body>
         </Card>
       </Container>

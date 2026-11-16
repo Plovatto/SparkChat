@@ -201,6 +201,9 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
     };
 
     const handleError = (payload: SocketErrorPayload) => {
+      if (payload.clientTempId || payload.event) {
+        return;
+      }
       const message = translateErrorPayload(payload, 'errors.generic');
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
