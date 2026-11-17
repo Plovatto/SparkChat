@@ -1,24 +1,29 @@
-import { BoundedMap } from '@lib/cache/bounded-map';
 import { appI18n } from '@lib/i18n/app-i18n';
 import type { Language } from '@lib/i18n/language';
 import { detectLanguage } from './detection';
+import { nativeEngine } from './engines/native-engine';
 import { invalidateEngineRoutes, resolveEngine } from './router';
 import { hasTranslatableText, translatePreservingSegments } from './segments';
 import {
   captureTranslationEpoch,
   isTranslationEpochCurrent,
   readTranslation,
-  TRANSLATION_CACHE_SIZE,
   translationCacheKey,
   writeTranslation,
   type CachedTranslation,
   type TranslationEpoch,
 } from './translation-cache';
-import { pairKey, type TranslationEngine, type TranslationProgressEvent } from './types';
+import { pairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
 /** A job that takes longer than this (wedged worker, hung engine) resolves to an uncached none and frees the queue. */
 export const TRANSLATION_JOB_TIMEOUT_MS = 20_000;
+/**
+ * How often a native pair that is downloadable or downloading is asked again while messages wait for it: a download
+ * started elsewhere (another tab, the browser itself) sends no progress event here. Each check is bounded by
+ * NATIVE_API_TIMEOUT_MS inside the native engine.
+ */
+export const NATIVE_AVAILABILITY_POLL_MS = 10_000;
 
 const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
 
@@ -56,13 +61,8 @@ let running = false;
 const invalidationListeners = new Set<() => void>();
 const progressSubscriptions = new Map<TranslationEngine, () => void>();
 const preparing = new Map<string, Promise<void>>();
-// Latest cache key per (room, message, field, target) so the first render can read synchronously without the text.
-// Holds ids and a text hash only; the cache itself decides whether the entry still exists.
-const latestKeys = new BoundedMap<string, string>(TRANSLATION_CACHE_SIZE);
-
-function latestKeyOf(roomId: string, messageId: string, field: Field, target: Language): string {
-  return [roomId, messageId, field, target].join('\u0000');
-}
+type NativePoll = { timer: ReturnType<typeof setTimeout> | undefined };
+const nativePolls = new Map<string, NativePoll>();
 
 function isPlaceholder(text: string): boolean {
   return text === appI18n.t(PLACEHOLDER_KEY, { lng: 'pt' }) || text === appI18n.t(PLACEHOLDER_KEY, { lng: 'en' });
@@ -102,17 +102,65 @@ function prepareOnce(engine: TranslationEngine, source: Language, target: Langua
       preparing.delete(key);
       notifyInvalidation();
     },
-    () => {
-      // A failed download is not retried in a loop; the next request after onRetryAvailable tries again.
+    (error: unknown) => {
       preparing.delete(key);
+      // Waiting messages check again and see the new support (failed, or downloadable again under a cooldown).
+      // During a cooldown prepare() rejects at once without downloading: notifying then would loop, so it does not;
+      // onRetryAvailable says when the pair may be tried again.
+      if (!(error instanceof Error && error.message === 'download-cooldown')) {
+        notifyInvalidation();
+      }
     },
   );
   preparing.set(key, download);
 }
 
-function remember(cacheKey: string, request: IncomingRequest, value: CachedTranslation): IncomingResult {
+function isFinalSupport(support: TranslationSupport): boolean {
+  return support === 'available' || support === 'unavailable' || support === 'failed';
+}
+
+/** Asks a not-yet-ready native pair again until it settles, and only while some message waits (listeners exist). */
+function pollNativeAvailability(engine: TranslationEngine, source: Language, target: Language): void {
+  const key = pairKey(source, target);
+  if (nativePolls.has(key) || invalidationListeners.size === 0) {
+    return;
+  }
+  const poll: NativePoll = { timer: undefined };
+  const isCurrent = () => nativePolls.get(key) === poll;
+  const stop = () => {
+    if (isCurrent()) {
+      nativePolls.delete(key);
+    }
+  };
+  const schedule = () => {
+    poll.timer = setTimeout(() => {
+      poll.timer = undefined;
+      if (!isCurrent()) {
+        return;
+      }
+      if (invalidationListeners.size === 0) {
+        stop();
+        return;
+      }
+      void engine.support(source, target).then((support) => {
+        if (!isCurrent()) {
+          return;
+        }
+        if (isFinalSupport(support)) {
+          stop();
+          notifyInvalidation();
+        } else {
+          schedule();
+        }
+      }, stop);
+    }, NATIVE_AVAILABILITY_POLL_MS);
+  };
+  nativePolls.set(key, poll);
+  schedule();
+}
+
+function remember(cacheKey: string, value: CachedTranslation): IncomingResult {
   writeTranslation(cacheKey, value);
-  latestKeys.set(latestKeyOf(request.roomId, request.messageId, request.field, request.target), cacheKey);
   return value;
 }
 
@@ -121,7 +169,7 @@ function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
   if (job.finished || !isTranslationEpochCurrent(job.epoch)) {
     return NONE;
   }
-  return remember(job.cacheKey, job.request, value);
+  return remember(job.cacheKey, value);
 }
 
 async function run(job: Job): Promise<IncomingResult> {
@@ -139,7 +187,9 @@ async function run(job: Job): Promise<IncomingResult> {
   if (support === 'downloadable' || support === 'downloading') {
     watchProgress(engine);
     // Native needs a user gesture to download; armNativeOnFirstInteraction triggers it elsewhere.
-    if (engine.id !== 'native') {
+    if (engine.id === 'native') {
+      pollNativeAvailability(engine, source, request.target);
+    } else {
       prepareOnce(engine, source, request.target);
     }
     return { status: 'preparing', sourceLanguage: source };
@@ -202,7 +252,7 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
     return Promise.resolve(cached);
   }
   if (!hasTranslatableText(request.text)) {
-    return Promise.resolve(remember(cacheKey, request, NONE));
+    return Promise.resolve(remember(cacheKey, NONE));
   }
   if (request.signal.aborted) {
     return Promise.resolve(NONE);
@@ -228,23 +278,18 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   });
 }
 
-/** Synchronous memory read for the first render. Pass `text` to ignore an entry cached for an older version of the message. */
-export function getCachedIncoming(
-  roomId: string,
-  messageId: string,
-  field: Field,
-  target: Language,
-  text?: string,
-): IncomingResult | undefined {
-  const cacheKey =
-    text === undefined
-      ? latestKeys.get(latestKeyOf(roomId, messageId, field, target))
-      : translationCacheKey({ roomId, messageId, field, target, sourceText: text });
-  return cacheKey === undefined ? undefined : readTranslation(cacheKey);
+/** Synchronous memory read for the first render; an entry cached for another version of the text never matches. */
+export function getCachedIncoming(roomId: string, messageId: string, field: Field, target: Language, text: string): IncomingResult | undefined {
+  return readTranslation(translationCacheKey({ roomId, messageId, field, target, sourceText: text }));
 }
 
-/** Called when a model download finishes, so visible `preparing` messages can retry. */
+/**
+ * Called when a model download finishes, fails or may be retried, and when a native pair becomes usable again,
+ * so visible `preparing` messages can retry.
+ */
 export function subscribeIncomingInvalidation(listener: () => void): () => void {
+  // Native download progress and recovery (a late availability answer) are watched as soon as anyone listens.
+  watchProgress(nativeEngine);
   invalidationListeners.add(listener);
   return () => {
     invalidationListeners.delete(listener);
@@ -260,5 +305,8 @@ export function resetIncomingForTests(): void {
   }
   progressSubscriptions.clear();
   preparing.clear();
-  latestKeys.clear();
+  for (const poll of nativePolls.values()) {
+    clearTimeout(poll.timer);
+  }
+  nativePolls.clear();
 }
