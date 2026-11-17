@@ -20,7 +20,7 @@ type BergamotModule = typeof BergamotTranslator;
 type BatchTranslatorInstance = InstanceType<BergamotModule['BatchTranslator']>;
 type WorkerCall = (...args: unknown[]) => Promise<unknown>;
 
-export type BergamotEngine = TranslationEngine & { onRetryAvailable(listener: () => void): () => void };
+export type BergamotEngine = TranslationEngine & { onRetryAvailable(listener: () => void): () => void; dispose(): void };
 
 function modelsBaseUrl(): string {
   // `||`, not `??`: an empty VITE_TRANSLATION_MODELS_URL= in .env means "not set".
@@ -354,11 +354,21 @@ export function createBergamotEngine(): BergamotEngine {
     }
   }
 
+  /** Logout: the worker and its in-memory requests go now, not after the idle timeout. Not a failure. */
+  function dispose(): void {
+    for (const reject of [...pendingRejects]) {
+      reject(new Error('translate-failed'));
+    }
+    pendingRejects.clear();
+    teardown();
+  }
+
   return {
     id: 'bergamot',
     support,
     prepare,
     translate,
+    dispose,
     onProgress(listener) {
       progressListeners.add(listener);
       return () => {
