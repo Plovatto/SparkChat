@@ -190,6 +190,9 @@
     "pickerDescription": "SparkChat recovery file"
   },
   "chat": {
+    "assistant": {
+      "welcome": "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!"
+    },
     "empty": {
       "title": "Select a conversation",
       "text": "Pick an existing chat or click \"New Chat\" to get started"

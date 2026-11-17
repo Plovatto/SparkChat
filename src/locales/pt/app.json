@@ -190,6 +190,9 @@
     "pickerDescription": "Arquivo de recuperação SparkChat"
   },
   "chat": {
+    "assistant": {
+      "welcome": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!"
+    },
     "empty": {
       "title": "Selecione uma conversa",
       "text": "Escolha um chat existente ou clique em \"Novo Chat\" para começar"
