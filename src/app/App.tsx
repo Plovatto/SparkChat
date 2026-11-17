@@ -27,6 +27,7 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
+import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -280,7 +281,10 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const handleDeleteRooms = (roomIds: string[]) => {
     const assistantRoomId = rooms.find(isAssistantRoom)?.id;
     const deletableRoomIds = roomIds.filter((roomId) => roomId !== assistantRoomId);
-    deletableRoomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
+    deletableRoomIds.forEach((roomId) => {
+      socket?.emit('room:delete', { roomId });
+      clearTranslationsForRoom(roomId);
+    });
     if (selectedRoomId && deletableRoomIds.includes(selectedRoomId)) {
       setSelectedRoomId(null);
     }

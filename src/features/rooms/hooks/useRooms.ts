@@ -7,6 +7,7 @@ import {
   type RoomSummary,
   type SocketUserStatus,
 } from '@lib/socket';
+import { clearTranslationsForRoom } from '@lib/translation';
 
 export interface RoomsState {
   rooms: RoomSummary[];
@@ -174,6 +175,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     };
 
     const handleRoomRemoved = ({ roomId }: { roomId: string }) => {
+      clearTranslationsForRoom(roomId);
       setRooms((previous) => (previous.some((room) => room.id === roomId) ? previous.filter((room) => room.id !== roomId) : previous));
     };
 
