@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "predev": "npm run models:fetch",
+    "predev": "npm run models:fetch -- --dev",
     "build": "tsc -b && vite build",
     "prebuild": "npm run models:fetch",
     "models:fetch": "node scripts/fetch-translation-models.mjs",
