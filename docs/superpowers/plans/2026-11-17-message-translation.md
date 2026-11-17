@@ -28,7 +28,7 @@ Task 0 é portão **só do Bergamot** e precisa de aparelhos reais (humano). Ord
 - O bucket da Mozilla **não envia `Access-Control-Allow-Origin`** → o navegador não pode baixar de lá; precisamos re-hospedar.
 - Tamanhos (gzip / descompactado): en→pt = 25.866.313 B / ~36,3 MB; pt→en = 25.596.942 B / ~37,0 MB. Uma direção ≈ **26 MB** de download.
 - `@mkljczk/bergamot-translator@0.4.16` traz `translator.js` + `worker/translator-worker.js` + `worker/bergamot-translator-worker.js` + `.wasm` (5,2 MB). Aceita `registryUrl`, `workerUrl`, `pivotLanguage`, um `TranslatorBacking` customizável (subclasse pode sobrescrever `fetch`) e `BatchTranslator.translate({ from, to, text, html, priority })`. Registro esperado: `{ "enpt": { "model": {name,size,expectedSha256Hash}, "lex": {...}, "vocab": {...} } }`. Não descompacta gzip sozinho.
-- **Não verificado:** se o WASM desse fork roda os modelos `base-memory` atuais → Task 0 (portão).
+- **Task 0 executada (17/11/2026, Playwright 1.56.1, modelos locais):** fork 0.4.16 + modelos `base-memory` traduzem pt↔en corretamente em Chromium 141, Firefox 142 e WebKit 26. 1ª tradução por par (inclui carga do modelo): 2,1–2,3 s Chromium, 5,8–7,4 s Firefox, 5,4–7,2 s WebKit; seguintes: 0,15–1,2 s. Heap JS ~77 MB (Chromium). Nenhum recurso extra (SIMD etc.) precisou de checagem. Celulares reais não testados (sem aparelho); emulação não reproduz CPU/memória — iOS/Android ficam cobertos pelo WebKit/Chromium + fallback `failed` da Task 5. Portão **aprovado** → Tasks 4 e 5 liberadas.
 
 ## Global Constraints
 
