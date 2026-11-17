@@ -150,6 +150,10 @@
       "theme": {
         "question": "O tema que eu escolho aqui vale no app?",
         "answer": "O modo claro ou escuro escolhido aqui já vale na tela de entrada. Dentro do app, você escolhe cor, modo e papel de parede no menu de aparência, e a escolha acompanha sua conta em todos os aparelhos."
+      },
+      "translation": {
+        "question": "As mensagens podem ser traduzidas?",
+        "answer": "Sim. O SparkChat traduz as mensagens entre português e inglês direto no seu navegador. No Chrome para computador ele usa o tradutor do próprio Chrome; nos outros navegadores, baixa uma única vez um tradutor de cerca de 26 MB. O texto nunca é enviado para um serviço de tradução, então a criptografia ponta a ponta continua valendo."
       }
     }
   },

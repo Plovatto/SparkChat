@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeRoomKeyAvailable } from '@lib/e2ee';
+import { forgetTranslation } from '@lib/translation';
 import {
   useSocket,
   type MessageFileMeta,
@@ -319,6 +320,7 @@ export function useRoomMessages(
     };
 
     const handleMessageDeleted = ({ messageId, roomId: deletedRoomId }: { messageId: string; roomId: string }) => {
+      forgetTranslation(deletedRoomId, messageId);
       if (deletedRoomId !== roomId) {
         return;
       }

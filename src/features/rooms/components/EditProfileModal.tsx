@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FaCheck,
@@ -15,6 +15,7 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
+import { MdTranslate } from 'react-icons/md';
 import { Modal } from '@components/common/Modal';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Switch } from '@components/common/Switch';
@@ -24,6 +25,7 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
+import { useTranslationAvailability } from '@features/chat/hooks/useTranslationAvailability';
 import { useTheme } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -43,6 +45,8 @@ interface EditProfileModalProps {
   onLogout: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  autoTranslateEnabled: boolean;
+  onToggleAutoTranslate: () => void;
 }
 
 type ProfileTab = 'profile' | 'security' | 'system';
@@ -75,7 +79,12 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
   );
 }
 
-export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound }: EditProfileModalProps) {
+export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound, autoTranslateEnabled, onToggleAutoTranslate }: EditProfileModalProps) {
+  // Off = nothing resolved, loaded or downloaded, not even to word the caption.
+  const translationAvailable = useTranslationAvailability(autoTranslateEnabled);
+  const soundsLabelId = useId();
+  const autoTranslateLabelId = useId();
+  const autoTranslateCaptionId = useId();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -526,9 +535,40 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
-              <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>{t('profile.sounds')}</span>
+              <span id={soundsLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+                {t('profile.sounds')}
+              </span>
             </div>
-            <Switch checked={soundEnabled} onChange={onToggleSound} />
+            <Switch checked={soundEnabled} onChange={onToggleSound} aria-labelledby={soundsLabelId} />
+          </div>
+
+          <div
+            className="sc-card"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              borderRadius: '10px',
+              padding: '12px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <MdTranslate size={18} color={autoTranslateEnabled ? theme.accentText : theme.textMuted} />
+                <span id={autoTranslateLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+                  {t('profile.autoTranslate')}
+                </span>
+              </div>
+              <Switch
+                checked={autoTranslateEnabled}
+                onChange={onToggleAutoTranslate}
+                aria-labelledby={autoTranslateLabelId}
+                aria-describedby={autoTranslateCaptionId}
+              />
+            </div>
+            <small id={autoTranslateCaptionId} style={{ color: translationAvailable ? theme.textSecondary : theme.textMuted }}>
+              {translationAvailable ? t('profile.autoTranslateHint') : t('profile.autoTranslateUnavailable')}
+            </small>
           </div>
 
           <div>

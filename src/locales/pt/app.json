@@ -190,6 +190,9 @@
     "pickerDescription": "Arquivo de recuperação SparkChat"
   },
   "chat": {
+    "assistant": {
+      "welcome": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!"
+    },
     "empty": {
       "title": "Selecione uma conversa",
       "text": "Escolha um chat existente ou clique em \"Novo Chat\" para começar"
@@ -330,7 +333,24 @@
     "deleteTitle_one": "Deletar mensagem",
     "deleteTitle_other": "Deletar {{count}} mensagens",
     "deleteConfirm_one": "Tem certeza que deseja deletar esta mensagem para todos?",
-    "deleteConfirm_other": "Tem certeza que deseja deletar estas {{count}} mensagens para todos?"
+    "deleteConfirm_other": "Tem certeza que deseja deletar estas {{count}} mensagens para todos?",
+    "translation": {
+      "translatedFrom": "Traduzida do {{language}}",
+      "original": "Mensagem original",
+      "showOriginal": "Ver original",
+      "showTranslation": "Ver tradução",
+      "translating": "Traduzindo…",
+      "outgoingToggleOn": "Traduzir para {{language}} ao enviar",
+      "outgoingToggleOff": "Parar de traduzir ao enviar",
+      "outgoingPreview": "Será enviada em {{language}}:",
+      "outgoingTranslating": "Traduzindo…",
+      "outgoingFailed": "Não foi possível traduzir; será enviada como está.",
+      "outgoingTimedOut": "A tradução está demorando; a mensagem não foi enviada. Tente de novo ou desative a tradução.",
+      "languages": {
+        "pt": "português",
+        "en": "inglês"
+      }
+    }
   },
   "roomInfo": {
     "copyUsername": "Copiar username",
@@ -443,6 +463,9 @@
     "changePassword": "Trocar senha",
     "downloadRecovery": "Baixar arquivo de recuperação",
     "sounds": "Sons do app",
+    "autoTranslate": "Traduzir mensagens automaticamente",
+    "autoTranslateHint": "Mensagens em outro idioma são traduzidas para o idioma do app, direto no seu navegador.",
+    "autoTranslateUnavailable": "A tradução automática não está disponível neste dispositivo.",
     "activeSessions": "Dispositivos com sessão ativa",
     "revokeOthers": "Encerrar todas as outras",
     "noOtherSessions": "Nenhuma outra sessão ativa.",

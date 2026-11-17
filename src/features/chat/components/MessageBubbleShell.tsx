@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import type { EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
@@ -23,6 +23,7 @@ interface MessageBubbleShellProps {
   cornerRadius?: number;
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
+  containerRef?: Ref<HTMLDivElement>;
 }
 
 export function MessageBubbleShell({
@@ -45,6 +46,7 @@ export function MessageBubbleShell({
   cornerRadius = 16,
   entrancePhase = 'none',
   entranceIndex = 0,
+  containerRef,
 }: MessageBubbleShellProps) {
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
@@ -54,6 +56,7 @@ export function MessageBubbleShell({
 
   return (
     <div
+      ref={containerRef}
       data-message-bubble
       data-message-root={messageId}
       data-own={isOwn}

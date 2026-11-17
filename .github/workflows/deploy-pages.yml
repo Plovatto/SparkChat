@@ -23,6 +23,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: public/translation-models
+          key: translation-models-${{ hashFiles('scripts/translation-models.manifest.json') }}
       - run: npm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}

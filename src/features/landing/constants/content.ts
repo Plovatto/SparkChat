@@ -25,7 +25,7 @@ export const SCREENSHOT_NAMES = ['chat-assistente', 'chat-desktop', 'chat-arquiv
 
 export type ScreenshotName = (typeof SCREENSHOT_NAMES)[number];
 
-export const FAQ_IDS = ['free', 'install', 'encryption', 'recovery', 'assistant', 'theme'] as const;
+export const FAQ_IDS = ['free', 'install', 'encryption', 'recovery', 'assistant', 'theme', 'translation'] as const;
 
 export const LINKS = {
   repository: 'https://github.com/Plovatto/SparkChat',
