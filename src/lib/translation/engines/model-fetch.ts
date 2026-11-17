@@ -40,7 +40,18 @@ async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayB
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-async function readCounting(body: ReadableStream<Uint8Array>, onBytes: (n: number) => void): Promise<Uint8Array<ArrayBuffer>> {
+/** Thrown (and mapped to `integrity-failed`) when a body grows past what the pinned manifest allows. */
+class OversizedBodyError extends Error {
+  constructor() {
+    super('integrity-failed');
+  }
+}
+
+async function readCounting(
+  body: ReadableStream<Uint8Array>,
+  onBytes: (n: number) => void,
+  maxBytes: number,
+): Promise<Uint8Array<ArrayBuffer>> {
   const chunks: Uint8Array[] = [];
   let length = 0;
   const reader = body.getReader();
@@ -49,8 +60,13 @@ async function readCounting(body: ReadableStream<Uint8Array>, onBytes: (n: numbe
     if (done) {
       break;
     }
-    chunks.push(value);
     length += value.byteLength;
+    if (length > maxBytes) {
+      // Neither form of a pinned file can be this large: stop reading instead of buffering it all.
+      void reader.cancel().catch(() => undefined);
+      throw new OversizedBodyError();
+    }
+    chunks.push(value);
     onBytes(value.byteLength);
   }
   const bytes = new Uint8Array(new ArrayBuffer(length));
@@ -81,15 +97,19 @@ async function download(file: BergamotModelFile, onBytes: (n: number) => void, s
   let reported = 0;
   let body: Uint8Array<ArrayBuffer>;
   try {
-    body = await readCounting(response.body, (n) => {
-      const step = Math.min(n, file.size - reported);
-      if (step > 0) {
-        reported += step;
-        onBytes(step);
-      }
-    });
-  } catch {
-    throw new Error('download-failed');
+    body = await readCounting(
+      response.body,
+      (n) => {
+        const step = Math.min(n, file.size - reported);
+        if (step > 0) {
+          reported += step;
+          onBytes(step);
+        }
+      },
+      Math.max(file.size, file.rawSize),
+    );
+  } catch (error) {
+    throw new Error(error instanceof OversizedBodyError ? 'integrity-failed' : 'download-failed');
   }
   const compressed = isGzipBytes(body);
   // A short body is a cut connection (network-class, retryable), not tampering.
