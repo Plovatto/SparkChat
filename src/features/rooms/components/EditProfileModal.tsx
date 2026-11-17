@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FaCheck,
@@ -80,7 +80,11 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
 }
 
 export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound, autoTranslateEnabled, onToggleAutoTranslate }: EditProfileModalProps) {
-  const translationAvailable = useTranslationAvailability();
+  // Off = nothing resolved, loaded or downloaded, not even to word the caption.
+  const translationAvailable = useTranslationAvailability(autoTranslateEnabled);
+  const soundsLabelId = useId();
+  const autoTranslateLabelId = useId();
+  const autoTranslateCaptionId = useId();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -531,9 +535,11 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
-              <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>{t('profile.sounds')}</span>
+              <span id={soundsLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+                {t('profile.sounds')}
+              </span>
             </div>
-            <Switch checked={soundEnabled} onChange={onToggleSound} />
+            <Switch checked={soundEnabled} onChange={onToggleSound} aria-labelledby={soundsLabelId} />
           </div>
 
           <div
@@ -549,11 +555,18 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <MdTranslate size={18} color={autoTranslateEnabled ? theme.accentText : theme.textMuted} />
-                <span style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>{t('profile.autoTranslate')}</span>
+                <span id={autoTranslateLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+                  {t('profile.autoTranslate')}
+                </span>
               </div>
-              <Switch checked={autoTranslateEnabled} onChange={onToggleAutoTranslate} />
+              <Switch
+                checked={autoTranslateEnabled}
+                onChange={onToggleAutoTranslate}
+                aria-labelledby={autoTranslateLabelId}
+                aria-describedby={autoTranslateCaptionId}
+              />
             </div>
-            <small style={{ color: translationAvailable ? theme.textSecondary : theme.textMuted }}>
+            <small id={autoTranslateCaptionId} style={{ color: translationAvailable ? theme.textSecondary : theme.textMuted }}>
               {translationAvailable ? t('profile.autoTranslateHint') : t('profile.autoTranslateUnavailable')}
             </small>
           </div>
