@@ -1,4 +1,5 @@
 import type { Language } from '@lib/i18n/language';
+import { loadBergamotEngine } from './engines/bergamot-loader';
 import { nativeEngine } from './engines/native-engine';
 import { pairKey, type PairKey, type TranslationEngine, type TranslationSupport } from './types';
 
@@ -6,7 +7,9 @@ export const ENGINE_ROUTE_MEMO_MS = 30_000;
 
 export type EngineRoute = { engine: TranslationEngine; support: TranslationSupport };
 
-let fallbackLoader: (() => Promise<TranslationEngine>) | null = null;
+// Registered here, not by whoever imports the barrel. The loader module is tiny: it reaches the Bergamot engine
+// only through a dynamic import(), and only when a route picks the fallback (no usable Translator API).
+let fallbackLoader: (() => Promise<TranslationEngine>) | null = loadBergamotEngine;
 let fallbackEngine: Promise<TranslationEngine> | null = null;
 const routes = new Map<PairKey, { expiresAt: number; route: Promise<EngineRoute | null> }>();
 
@@ -75,6 +78,17 @@ export function resolveEngine(source: Language, target: Language): Promise<Engin
 
 function isFinalSupport(support: TranslationSupport): boolean {
   return support === 'available' || support === 'unavailable' || support === 'failed';
+}
+
+/**
+ * Logout: frees the fallback engine's worker and rejects its in-flight work. Never loads the fallback: if it was
+ * not loaded, there is nothing to dispose.
+ */
+export function disposeTranslationEngines(): void {
+  void fallbackEngine?.then(
+    (engine) => engine.dispose?.(),
+    () => undefined,
+  );
 }
 
 /** Forget memoized routes, e.g. after a model download finishes and support changed. */

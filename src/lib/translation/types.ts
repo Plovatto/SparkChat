@@ -21,6 +21,8 @@ export interface TranslationEngine {
   onProgress(listener: (event: TranslationProgressEvent) => void): () => void;
   /** Optional: called when a pair whose download failed may be tried again (e.g. after a cooldown). */
   onRetryAvailable?(listener: () => void): () => void;
+  /** Optional: frees workers and rejects work in flight (logout). The engine stays usable afterwards. */
+  dispose?(): void;
 }
 
 export function pairKey(source: Language, target: Language): PairKey {

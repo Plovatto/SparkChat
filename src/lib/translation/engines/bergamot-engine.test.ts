@@ -464,6 +464,35 @@ describe('bergamotEngine', () => {
     expect(fakes.deleted).toBe(1);
   });
 
+  it('dispose (logout) tears the worker down at once and rejects pending work without text, but stays usable', async () => {
+    await bergamotEngine.translate('hello there', 'en', 'pt');
+    const hung = deferred<FakeResponse>();
+    fakes.translateImpl = () => hung.promise;
+    const pending = bergamotEngine.translate('secret words', 'en', 'pt');
+    await vi.waitFor(() => expect(fakes.requests).toHaveLength(2));
+    bergamotEngine.dispose();
+    const error = await pending.then(
+      () => null,
+      (reason: unknown) => reason as Error,
+    );
+    expect(error?.message).toBe('translate-failed');
+    expect(error?.message).not.toContain('secret');
+    await flush();
+    expect(fakes.deleted).toBe(1);
+    // not a failure: the next login can translate again (a fresh worker)
+    fakes.translateImpl = null;
+    expect(await bergamotEngine.support('en', 'pt')).toBe('available');
+    expect(await bergamotEngine.translate('hello there', 'en', 'pt')).toBe('PT:hello there');
+    expect(fakes.instances).toBe(2);
+  });
+
+  it('dispose without a worker does nothing', async () => {
+    bergamotEngine.dispose();
+    await flush();
+    expect(fakes.deleted).toBe(0);
+    expect(fakes.instances).toBe(0);
+  });
+
   it('only handles the pt/en pairs', async () => {
     expect(await bergamotEngine.support('pt', 'pt')).toBe('unavailable');
     await expect(bergamotEngine.translate('ola', 'pt', 'pt')).rejects.toThrow('translate-failed');

@@ -27,7 +27,7 @@ vi.mock('./engines/native-engine', () => ({
   },
 }));
 
-import { invalidateEngineRoutes, registerFallbackEngine, resetRouterForTests, resolveEngine } from './router';
+import { disposeTranslationEngines, invalidateEngineRoutes, registerFallbackEngine, resetRouterForTests, resolveEngine } from './router';
 
 let bergamot: FakeEngine;
 const bergamotLoader = { load: vi.fn<() => Promise<TranslationEngine>>() };
@@ -122,5 +122,24 @@ describe('resolveEngine', () => {
     await resolveEngine('en', 'pt');
     expect(bergamot.support).toHaveBeenCalledTimes(2);
     expect(bergamotLoader.load).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('disposeTranslationEngines', () => {
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('disposes the fallback engine when it was loaded', async () => {
+    const dispose = vi.fn();
+    bergamotLoader.load.mockResolvedValue({ ...bergamot, dispose });
+    await resolveEngine('en', 'pt');
+    disposeTranslationEngines();
+    await flush();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('never loads the fallback just to dispose it', async () => {
+    disposeTranslationEngines();
+    await flush();
+    expect(bergamotLoader.load).not.toHaveBeenCalled();
   });
 });
