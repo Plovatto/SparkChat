@@ -71,6 +71,27 @@ describe('translation cache', () => {
     expect(getTranslationCacheSizeForTests('indexes')).toBe(TRANSLATION_CACHE_SIZE + 1);
   });
 
+  it.each([
+    ['a:b', 'm:1'],
+    ['50%', '100%25'],
+  ])('handles ids with special characters (%s, %s)', (roomId, messageId) => {
+    const k = key(roomId, messageId);
+    const other = key('other', 'm');
+    const otherMsg = key(roomId, 'm2');
+    writeTranslation(k, value);
+    writeTranslation(other, value);
+    writeTranslation(otherMsg, value);
+    forgetTranslation(roomId, messageId);
+    expect(readTranslation(k)).toBeUndefined();
+    expect(readTranslation(other)).toEqual(value);
+    expect(readTranslation(otherMsg)).toEqual(value);
+    writeTranslation(k, value);
+    clearTranslationsForRoom(roomId);
+    expect(readTranslation(k)).toBeUndefined();
+    expect(readTranslation(otherMsg)).toBeUndefined();
+    expect(readTranslation(other)).toEqual(value);
+  });
+
   it('leaves no index entries after clearing', () => {
     writeTranslation(key('r', 'm'), value);
     clearTranslationsForRoom('r');
