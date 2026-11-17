@@ -345,6 +345,7 @@
       "outgoingPreview": "Will be sent in {{language}}:",
       "outgoingTranslating": "Translating…",
       "outgoingFailed": "Couldn't translate; it will be sent as is.",
+      "outgoingTimedOut": "Translation is taking too long; the message wasn't sent. Try again or turn translation off.",
       "languages": {
         "pt": "Portuguese",
         "en": "English"

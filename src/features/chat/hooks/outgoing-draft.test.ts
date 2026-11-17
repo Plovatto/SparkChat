@@ -29,8 +29,27 @@ describe('describeOutgoingDraft', () => {
   });
 
   it('shows translating while the model downloads', () => {
-    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloadable', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
-    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
+    const translating: OutgoingDraftState = { status: 'translating', source: 'bom dia', translated: null };
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloadable', state: translating, draft: 'bom dia' })).toEqual({ kind: 'translating' });
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: translating, draft: 'bom dia' })).toEqual({ kind: 'translating' });
+    // An older draft's translation is never previewed, whatever the support.
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: ready, draft: 'bom dia gente' })).toEqual({ kind: 'translating' });
+  });
+
+  it('previews a ready translation of the current draft even if the route still says downloading', () => {
+    for (const support of ['downloadable', 'downloading'] as const) {
+      expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support, state: ready, draft: 'bom dia' })).toEqual({
+        kind: 'preview',
+        text: 'good morning',
+      });
+    }
+  });
+
+  it('shows the timed-out notice for the current draft only', () => {
+    const timedOut: OutgoingDraftState = { status: 'timedOut', source: 'bom dia', translated: null };
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: timedOut, draft: 'bom dia' })).toEqual({ kind: 'timedOut' });
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: timedOut, draft: 'bom dia' })).toEqual({ kind: 'timedOut' });
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: timedOut, draft: 'boa noite' })).toEqual({ kind: 'translating' });
   });
 
   it('shows the failure notice', () => {
@@ -160,9 +179,28 @@ describe('createOutgoingDraftTranslator', () => {
     expect(lastState).toEqual({ status: 'ready', source: 'boa noite', translated: 'EN:boa noite' });
   });
 
-  it('falls back to the original on failure', async () => {
-    const d = createOutgoingDraftTranslator(() => Promise.reject(new Error('x')));
+  it('a failed translation is not sent: the notice shows first, the next send goes as is', async () => {
+    const d = track(() => Promise.reject(new Error('translate-failed')));
+    await expect(d.resolveForSend('olá pessoal')).rejects.toThrow(/^outgoing-translate-failed$/);
+    expect(lastState).toEqual({ status: 'failed', source: 'olá pessoal', translated: null });
     expect(await d.resolveForSend('olá pessoal')).toEqual({ text: 'olá pessoal', translated: false });
+    expect(translateCalls).toEqual(['olá pessoal']);
+  });
+
+  it('a draft whose translation already failed on screen is sent as is at once', async () => {
+    const d = track(() => Promise.reject(new Error('translate-failed')));
+    d.update('olá pessoal');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(lastState?.status).toBe('failed');
+    expect(await d.resolveForSend('olá pessoal')).toEqual({ text: 'olá pessoal', translated: false });
+    expect(translateCalls).toEqual(['olá pessoal']);
+  });
+
+  it('a failure notice for another text does not let a new text go untranslated', async () => {
+    const d = track((t) => (t === 'olá pessoal' ? Promise.reject(new Error('translate-failed')) : Promise.resolve(`EN:${t}`)));
+    d.update('olá pessoal');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(await d.resolveForSend('boa noite pessoal')).toEqual({ text: 'EN:boa noite pessoal', translated: true });
   });
 
   it('reports a failed draft translation', async () => {
@@ -233,7 +271,8 @@ describe('createOutgoingDraftTranslator', () => {
     expect(outcome).toBeUndefined();
     await vi.advanceTimersByTimeAsync(1);
     expect(outcome).toBe('outgoing-send-timeout');
-    expect(lastState).toEqual({ status: 'failed', source: 'bom dia', translated: null });
+    // Its own notice: nothing was sent (not the "will be sent as is" one).
+    expect(lastState).toEqual({ status: 'timedOut', source: 'bom dia', translated: null });
     // The translation keeps running; once it lands, the next send uses it without translating again.
     pending.resolve('good morning');
     await vi.advanceTimersByTimeAsync(0);

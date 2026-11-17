@@ -2,7 +2,13 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { oppositeLanguage, type Language } from '@lib/i18n/language';
 import { usePersistedIdSet } from '@lib/storage';
-import { resolveEngine, translatePreservingSegments, type EngineRoute, type TranslationSupport } from '@lib/translation';
+import {
+  resolveEngine,
+  subscribeIncomingInvalidation,
+  translatePreservingSegments,
+  type EngineRoute,
+  type TranslationSupport,
+} from '@lib/translation';
 import {
   createOutgoingDraftTranslator,
   IDLE_OUTGOING_DRAFT,
@@ -66,11 +72,27 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
     };
   }, [autoTranslate, source, target, pair, routeVersion]);
 
+  // A download finished (or a failed one may be retried): resolve again so the strip leaves "translating".
+  useEffect(() => {
+    if (!autoTranslate) {
+      return;
+    }
+    return subscribeIncomingInvalidation(() => setRouteVersion((version) => version + 1));
+  }, [autoTranslate]);
+
   const currentRoute = autoTranslate && route?.pair === pair ? route.route : null;
   const support: TranslationSupport = currentRoute?.support ?? 'unavailable';
   const isOnForRoom = ids.has(roomId);
   const isRequested = autoTranslate && isOnForRoom;
   const isEnabled = isRequested && isUsable(support);
+  const isRoutePending = support === 'downloadable' || support === 'downloading';
+
+  // A draft translated while the route still said "downloading" means the model is there now: resolve again.
+  useEffect(() => {
+    if (isRoutePending && state.status === 'ready') {
+      setRouteVersion((version) => version + 1);
+    }
+  }, [isRoutePending, state.status]);
 
   // One translator per room and language pair: leaving the room (or switching language) drops any pending work.
   useEffect(() => {

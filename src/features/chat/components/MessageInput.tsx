@@ -273,7 +273,11 @@ function OutgoingTranslationStrip({ outgoing, draft }: OutgoingTranslationStripP
         </>
       ) : (
         <div style={{ color: theme.textSecondary }}>
-          {view.kind === 'translating' ? t('chat.translation.outgoingTranslating') : t('chat.translation.outgoingFailed')}
+          {view.kind === 'translating'
+            ? t('chat.translation.outgoingTranslating')
+            : view.kind === 'timedOut'
+              ? t('chat.translation.outgoingTimedOut')
+              : t('chat.translation.outgoingFailed')}
         </div>
       )}
     </div>
@@ -436,8 +440,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   /**
    * The text that actually goes out: the translation when "translate before sending" is on, otherwise the draft.
    * Only that one text reaches onSend (and so the encryption path); the original is not sent alongside it.
-   * Resolves to null when this send was dropped (timeout, translation turned off, room change): nothing is sent and
-   * the draft stays in the composer.
+   * Resolves to null when this send was dropped (timeout, translation failed, translation turned off, room change):
+   * nothing is sent and the draft stays in the composer with the notice above it. After a failure notice, the next
+   * send of the same draft goes out as is.
    */
   const resolveOutgoingText = async (draftText: string): Promise<string | null> => {
     if (!outgoing.isEnabled || !draftText) {
@@ -494,7 +499,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     const draftCaption = messageRef.current.trim();
     const caption = attachments.length > 0 ? await resolveOutgoingText(draftCaption) : draftCaption;
     if (caption === null) {
-      // The caption's translation was dropped (timeout, turned off, room change): the audio still goes; the caption
+      // The caption's translation was dropped (timeout, failure, turned off, room change): the audio still goes; the caption
       // and attachments stay in the composer instead of going out untranslated.
       onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime });
       return;
