@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { TranslationEngine } from './types';
 
 const fallback = vi.hoisted(() => ({
   engine: {
@@ -8,7 +7,7 @@ const fallback = vi.hoisted(() => ({
     prepare: () => Promise.resolve(),
     translate: (text: string) => Promise.resolve(text),
     onProgress: () => () => undefined,
-  } as TranslationEngine,
+  },
   loads: 0,
 }));
 
