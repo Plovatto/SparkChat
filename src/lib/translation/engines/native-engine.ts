@@ -1,5 +1,6 @@
 import type { Language } from '@lib/i18n/language';
 import { NATIVE_API_TIMEOUT_MS, TIMED_OUT, withNativeTimeout } from '../native-timeout';
+import { invalidateEngineRoutes } from '../router';
 import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
 
 export { NATIVE_API_TIMEOUT_MS };
@@ -7,9 +8,13 @@ export { NATIVE_API_TIMEOUT_MS };
 const INTERACTION_EVENTS = ['pointerdown', 'keydown'] as const;
 
 const translators = new Map<PairKey, Promise<TranslatorInstance>>();
-/** Pairs whose availability check never answered: treated as unavailable for the whole session. */
+/**
+ * Pairs whose availability check did not answer in time: treated as unavailable until that late answer arrives.
+ * If it then says the pair is usable, the pair leaves this set and routes are recomputed (native wins again).
+ */
 const hungPairs = new Set<PairKey>();
 const progressListeners = new Set<(event: TranslationProgressEvent) => void>();
+const retryListeners = new Set<() => void>();
 
 function api(): TranslatorStatic | undefined {
   return typeof Translator === 'undefined' ? undefined : Translator;
@@ -57,15 +62,32 @@ async function support(source: Language, target: Language): Promise<TranslationS
     return 'unavailable';
   }
   try {
-    const result = await withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }));
+    const availability = translatorApi.availability({ sourceLanguage: source, targetLanguage: target });
+    const result = await withNativeTimeout(availability);
     if (result === TIMED_OUT) {
       hungPairs.add(key);
+      watchLateAvailability(key, availability);
       return 'unavailable';
     }
     return result;
   } catch {
     return 'unavailable';
   }
+}
+
+/** User rule: Bergamot only when the device cannot use the Translator API, so a slow answer is not final. */
+function watchLateAvailability(key: PairKey, availability: Promise<TranslationSupport>): void {
+  availability.then(
+    (late) => {
+      if (late !== 'unavailable' && hungPairs.delete(key)) {
+        invalidateEngineRoutes();
+        for (const listener of [...retryListeners]) {
+          listener();
+        }
+      }
+    },
+    () => undefined,
+  );
 }
 
 export const nativeEngine: TranslationEngine = {
@@ -92,36 +114,56 @@ export const nativeEngine: TranslationEngine = {
       progressListeners.delete(listener);
     };
   },
+  /** Fires when a pair whose availability check timed out turns out to be usable after all. */
+  onRetryAvailable(listener) {
+    retryListeners.add(listener);
+    return () => {
+      retryListeners.delete(listener);
+    };
+  },
 };
 
 export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
   if (typeof window === 'undefined') {
     return () => undefined;
   }
-  const dispose = () => {
+  let disposed = false;
+  const unlisten = () => {
     for (const type of INTERACTION_EVENTS) {
       window.removeEventListener(type, handler, true);
     }
   };
+  const listen = () => {
+    for (const type of INTERACTION_EVENTS) {
+      window.addEventListener(type, handler, { capture: true, once: true });
+    }
+  };
   const handler = () => {
-    dispose();
+    unlisten();
     for (const pair of pairs) {
       const [source, target] = pair.split('-') as [Language, Language];
       void support(source, target).then((availability) => {
         if (availability === 'downloadable') {
-          return nativeEngine.prepare(source, target).catch(() => undefined);
+          // create() can reject when the gesture's activation was already gone: wait for the next interaction.
+          return nativeEngine.prepare(source, target).catch(() => {
+            if (!disposed) {
+              listen();
+            }
+          });
         }
       });
     }
   };
-  for (const type of INTERACTION_EVENTS) {
-    window.addEventListener(type, handler, { capture: true, once: true });
-  }
-  return dispose;
+  listen();
+  return () => {
+    disposed = true;
+    unlisten();
+  };
 }
 
 export function resetNativeEngineForTests(): void {
   translators.clear();
   hungPairs.clear();
   progressListeners.clear();
+  retryListeners.clear();
 }

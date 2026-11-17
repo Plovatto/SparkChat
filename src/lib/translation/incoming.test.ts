@@ -47,6 +47,7 @@ vi.mock('./detection', () => ({
 
 import {
   getCachedIncoming,
+  NATIVE_AVAILABILITY_POLL_MS,
   resetIncomingForTests,
   subscribeIncomingInvalidation,
   translateIncoming,
@@ -106,7 +107,7 @@ describe('translateIncoming', () => {
     await translateIncoming(req('m1', 'good morning team', 'pt'));
     expect(native.translate).toHaveBeenCalledTimes(1);
     expect(native.translate).toHaveBeenCalledWith('good morning team', 'en', 'pt', { priority: 1 });
-    expect(getCachedIncoming('r1', 'm1', 'content', 'pt')).toEqual({
+    expect(getCachedIncoming('r1', 'm1', 'content', 'pt', 'good morning team')).toEqual({
       status: 'translated',
       text: 'PT:good morning team',
       sourceLanguage: 'en',
@@ -128,13 +129,13 @@ describe('translateIncoming', () => {
       expect(await translateIncoming(req(`m2-${lng}`, placeholder, 'pt'))).toEqual({ status: 'none' });
     }
     expect(detect).not.toHaveBeenCalled();
-    expect(getCachedIncoming('r1', 'm2', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'm2', 'content', 'pt', translate('chat.message.encryptedUnavailable'))).toBeUndefined();
   });
 
   it('returns none for text without enough letters and caches it', async () => {
     expect(await translateIncoming(req('m0', 'kkkk 😂', 'pt'))).toEqual({ status: 'none' });
     expect(detect).not.toHaveBeenCalled();
-    expect(getCachedIncoming('r1', 'm0', 'content', 'pt')).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'm0', 'content', 'pt', 'kkkk 😂')).toEqual({ status: 'none' });
   });
 
   it('returns preparing and starts the download while the model is missing', async () => {
@@ -143,7 +144,7 @@ describe('translateIncoming', () => {
     detect.mockResolvedValue({ language: 'en', confidence: 0.9 });
     expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
     expect(bergamot.prepare).toHaveBeenCalledWith('en', 'pt');
-    expect(getCachedIncoming('r1', 'm3', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'm3', 'content', 'pt', 'see you later')).toBeUndefined();
   });
 
   it('starts a single fallback download per pair', async () => {
@@ -197,13 +198,92 @@ describe('translateIncoming', () => {
     subscribeIncomingInvalidation(listener);
     expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
     await flush();
-    // a failed prepare alone does not notify (it would retry in a loop)
+    // the failed download itself notifies once, so waiting messages re-check
+    expect(listener).toHaveBeenCalledTimes(1);
+    // during the cooldown prepare rejects at once: that does not notify (it would retry in a loop)
+    bergamot.prepare.mockRejectedValue(new Error('download-cooldown'));
+    expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
+    await flush();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(retryListeners.size).toBe(1);
+    for (const retry of retryListeners) retry();
+    expect(listener).toHaveBeenCalledTimes(2);
+    resetIncomingForTests();
+    expect(retryListeners.size).toBe(0);
+  });
+
+  it('a pair that fails its integrity check notifies, so waiting messages stop preparing', async () => {
+    native.support.mockResolvedValue('unavailable');
+    bergamot.support.mockResolvedValue('downloadable');
+    const download = deferred<void>();
+    bergamot.prepare.mockReturnValue(download.promise.then(() => Promise.reject(new Error('model-load-failed'))));
+    const listener = vi.fn();
+    subscribeIncomingInvalidation(listener);
+    expect((await translateIncoming(req('i1', 'see you later', 'pt'))).status).toBe('preparing');
+    bergamot.support.mockResolvedValue('failed');
+    download.resolve();
+    await flush();
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(await translateIncoming(req('i1', 'see you later', 'pt'))).toEqual({ status: 'none' });
+  });
+
+  it('polls a native pair downloading elsewhere while messages wait, and notifies once it is ready', async () => {
+    vi.useFakeTimers();
+    native.support.mockResolvedValue('downloading');
+    const listener = vi.fn();
+    const unsubscribe = subscribeIncomingInvalidation(listener);
+    expect((await translateIncoming(req('p1', 'see you later', 'pt'))).status).toBe('preparing');
+    // a second waiting message does not start a second poll
+    expect((await translateIncoming(req('p2', 'good night everyone', 'pt'))).status).toBe('preparing');
+    native.support.mockClear();
+    await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS);
+    expect(native.support).toHaveBeenCalledTimes(1);
     expect(listener).not.toHaveBeenCalled();
+    native.support.mockResolvedValue('available');
+    await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS);
+    expect(native.support).toHaveBeenCalledTimes(2);
+    expect(listener).toHaveBeenCalledTimes(1);
+    // settled: no more polling
+    await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS * 3);
+    expect(native.support).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it('stops polling native availability when nothing waits any more', async () => {
+    vi.useFakeTimers();
+    native.support.mockResolvedValue('downloadable');
+    const unsubscribe = subscribeIncomingInvalidation(vi.fn());
+    expect((await translateIncoming(req('p3', 'see you later', 'pt'))).status).toBe('preparing');
+    unsubscribe();
+    native.support.mockClear();
+    await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS * 3);
+    expect(native.support).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not poll native availability when nobody listens', async () => {
+    vi.useFakeTimers();
+    native.support.mockResolvedValue('downloading');
+    expect((await translateIncoming(req('p4', 'see you later', 'pt'))).status).toBe('preparing');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('notifies when the native engine says a pair became usable again', () => {
+    const retryListeners = new Set<() => void>();
+    mocks.native = {
+      ...native,
+      onRetryAvailable: (listener: () => void) => {
+        retryListeners.add(listener);
+        return () => {
+          retryListeners.delete(listener);
+        };
+      },
+    } as FakeEngine;
+    const listener = vi.fn();
+    subscribeIncomingInvalidation(listener);
     expect(retryListeners.size).toBe(1);
     for (const retry of retryListeners) retry();
     expect(listener).toHaveBeenCalledTimes(1);
-    resetIncomingForTests();
-    expect(retryListeners.size).toBe(0);
   });
 
   it('stops notifying after unsubscribe', async () => {
@@ -247,14 +327,14 @@ describe('translateIncoming', () => {
   it('returns none without caching when native reports failed', async () => {
     native.support.mockResolvedValue('failed');
     expect(await translateIncoming(req('f1', 'see you later', 'pt'))).toEqual({ status: 'none' });
-    expect(getCachedIncoming('r1', 'f1', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'f1', 'content', 'pt', 'see you later')).toBeUndefined();
     expect(bergamotLoader.load).not.toHaveBeenCalled();
   });
 
   it('returns none without caching when the engine throws', async () => {
     native.translate.mockRejectedValue(new Error('translate-failed'));
     expect(await translateIncoming(req('e1', 'see you later', 'pt'))).toEqual({ status: 'none' });
-    expect(getCachedIncoming('r1', 'e1', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'e1', 'content', 'pt', 'see you later')).toBeUndefined();
   });
 
   it('returns none when no engine is available', async () => {
@@ -272,7 +352,7 @@ describe('translateIncoming', () => {
     expect(native.translate).toHaveBeenCalledTimes(1);
     // dropped requests resolve to an uncached none
     expect(await second).toEqual({ status: 'none' });
-    expect(getCachedIncoming('r1', 'b', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'b', 'content', 'pt', 'second message here')).toBeUndefined();
   });
 
   it('does not detect or translate a request whose signal is already aborted', async () => {
@@ -329,7 +409,7 @@ describe('translateIncoming', () => {
     detect.mockResolvedValue(null);
     expect(await translateIncoming(req('p3', 'good evening team', 'pt'))).toEqual({ status: 'none' });
     expect(native.translate).not.toHaveBeenCalled();
-    expect(getCachedIncoming('r1', 'p2', 'content', 'pt')).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'p2', 'content', 'pt', 'good morning team')).toEqual({ status: 'none' });
   });
 });
 
@@ -349,7 +429,6 @@ describe('clearing while translating (security rule 6)', () => {
     clear();
     gate.resolve('PT:see you later');
     expect(await job).toEqual({ status: 'none' });
-    expect(getCachedIncoming('r1', 'c1', 'content', 'pt')).toBeUndefined();
     expect(getCachedIncoming('r1', 'c1', 'content', 'pt', 'see you later')).toBeUndefined();
   });
 
@@ -393,7 +472,7 @@ describe('clearing while translating (security rule 6)', () => {
   it('still translates requests queued after the clear', async () => {
     forgetTranslation('r1', 'c1');
     expect((await translateIncoming(req('c1', 'see you later', 'pt'))).status).toBe('translated');
-    expect(getCachedIncoming('r1', 'c1', 'content', 'pt')?.status).toBe('translated');
+    expect(getCachedIncoming('r1', 'c1', 'content', 'pt', 'see you later')?.status).toBe('translated');
   });
 });
 
@@ -416,7 +495,6 @@ describe('hung engine', () => {
     expect(await next).toEqual({ status: 'translated', text: 'PT:second message', sourceLanguage: 'en' });
     late.resolve('PT:first message');
     await vi.advanceTimersByTimeAsync(0);
-    expect(getCachedIncoming('r1', 'h1', 'content', 'pt')).toBeUndefined();
     expect(getCachedIncoming('r1', 'h1', 'content', 'pt', 'first message')).toBeUndefined();
   });
 
@@ -445,7 +523,7 @@ describe('abort listener', () => {
 
 describe('getCachedIncoming', () => {
   it('returns undefined before anything is translated', () => {
-    expect(getCachedIncoming('r1', 'nothing', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'nothing', 'content', 'pt', 'anything at all')).toBeUndefined();
   });
 
   it('ignores a cached entry for a different source text when the text is given', async () => {
@@ -457,6 +535,6 @@ describe('getCachedIncoming', () => {
   it('follows the cache cleanup', async () => {
     await translateIncoming(req('m6', 'see you later', 'pt'));
     forgetTranslation('r1', 'm6');
-    expect(getCachedIncoming('r1', 'm6', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'm6', 'content', 'pt', 'see you later')).toBeUndefined();
   });
 });

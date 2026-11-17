@@ -139,6 +139,31 @@ describe('armNativeOnFirstInteraction', () => {
     expect(fake.createCalls).toBe(0);
   });
 
+  it('arms again when create fails, so the next interaction retries', async () => {
+    installFakeTranslator({ availability: 'downloadable', failCreates: 1 });
+    armNativeOnFirstInteraction(['en-pt']);
+    fakeWindow.dispatch('pointerdown');
+    await flush();
+    expect(fake.createCalls).toBe(1);
+    expect(fakeWindow.count('pointerdown')).toBe(1);
+    fakeWindow.dispatch('keydown');
+    await flush();
+    expect(fake.createCalls).toBe(2);
+    // succeeded: no longer armed
+    expect(fakeWindow.count('pointerdown')).toBe(0);
+    expect(fakeWindow.count('keydown')).toBe(0);
+  });
+
+  it('does not arm again after dispose', async () => {
+    installFakeTranslator({ availability: 'downloadable', failCreates: 1 });
+    const dispose = armNativeOnFirstInteraction(['en-pt']);
+    fakeWindow.dispatch('pointerdown');
+    dispose();
+    await flush();
+    expect(fake.createCalls).toBe(1);
+    expect(fakeWindow.count('pointerdown')).toBe(0);
+  });
+
   it('returns a disposer that removes the listeners', () => {
     installFakeTranslator({ availability: 'downloadable' });
     const dispose = armNativeOnFirstInteraction(['en-pt']);
@@ -177,15 +202,36 @@ describe('nativeEngine availability timeout', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('ignores a late availability result after the timeout', async () => {
+  it('a late usable answer brings the pair back to native and says so', async () => {
     let settle: (value: string) => void = () => undefined;
     const availability = vi.fn(() => new Promise<string>((resolve) => (settle = resolve)));
     (globalThis as Record<string, unknown>).Translator = { availability, create: vi.fn() };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
     const pending = nativeEngine.support('en', 'pt');
     await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
     expect(await pending).toBe('unavailable');
-    settle('available');
+    expect(retry).not.toHaveBeenCalled();
+    settle('downloadable');
     await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    availability.mockImplementation(() => Promise.resolve('available'));
+    expect(await nativeEngine.support('en', 'pt')).toBe('available');
+    expect(availability).toHaveBeenCalledTimes(2);
+  });
+
+  it('a late "unavailable" answer keeps the pair on the fallback', async () => {
+    let settle: (value: string) => void = () => undefined;
+    const availability = vi.fn(() => new Promise<string>((resolve) => (settle = resolve)));
+    (globalThis as Record<string, unknown>).Translator = { availability, create: vi.fn() };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    const pending = nativeEngine.support('en', 'pt');
+    await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
+    expect(await pending).toBe('unavailable');
+    settle('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).not.toHaveBeenCalled();
     expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
     expect(availability).toHaveBeenCalledTimes(1);
   });
