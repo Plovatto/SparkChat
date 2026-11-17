@@ -38,3 +38,7 @@ export function languageFromPath(pathname: string): 'pt' | 'en' {
 export function pathForLanguage(language: Language): '/' | '/en/' {
   return LANGUAGE_PATHS[language];
 }
+
+export function oppositeLanguage(language: Language): Language {
+  return language === 'pt' ? 'en' : 'pt';
+}

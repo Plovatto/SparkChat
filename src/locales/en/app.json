@@ -337,6 +337,11 @@
       "showOriginal": "Show original",
       "showTranslation": "Show translation",
       "translating": "Translating…",
+      "outgoingToggleOn": "Translate before sending to {{language}}",
+      "outgoingToggleOff": "Stop translating before sending",
+      "outgoingPreview": "Will be sent in {{language}}:",
+      "outgoingTranslating": "Translating…",
+      "outgoingFailed": "Couldn't translate; it will be sent as is.",
       "languages": {
         "pt": "Portuguese",
         "en": "English"

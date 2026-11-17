@@ -1219,6 +1219,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         mentionCandidates={mentionCandidates}
         maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
         auth={auth}
+        roomId={room.id}
+        userId={user.id}
       />
 
       <ConfirmDialog
