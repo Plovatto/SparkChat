@@ -7,7 +7,8 @@ export const OUTGOING_TRANSLATION_DEBOUNCE_MS = 400;
 export const OUTGOING_SEND_TIMEOUT_MS = 10_000;
 
 export type OutgoingDraftState = {
-  status: 'idle' | 'translating' | 'ready' | 'failed';
+  /** `timedOut`: a send gave up waiting (nothing was sent); the translation may still land and become `ready`. */
+  status: 'idle' | 'translating' | 'ready' | 'failed' | 'timedOut';
   source: string;
   translated: string | null;
 };
@@ -16,6 +17,10 @@ export type OutgoingSendResult = { text: string; translated: boolean };
 
 export interface OutgoingDraftTranslator {
   update(text: string): void;
+  /**
+   * Rejects with `outgoing-translate-failed` (nothing sent, state `failed`) when the translation fails; the next send
+   * of the same text, made after that notice was shown, resolves with the original.
+   */
   resolveForSend(text: string): Promise<OutgoingSendResult>;
   subscribe(listener: (state: OutgoingDraftState) => void): () => void;
   /** Rejects every send still awaiting its translation with `outgoing-send-cancelled`. */
@@ -27,6 +32,7 @@ export interface OutgoingDraftTranslator {
 const DISPOSED_ERROR = 'outgoing-draft-disposed';
 const TIMEOUT_ERROR = 'outgoing-send-timeout';
 const CANCELLED_ERROR = 'outgoing-send-cancelled';
+const FAILED_ERROR = 'outgoing-translate-failed';
 
 export const IDLE_OUTGOING_DRAFT: OutgoingDraftState = { status: 'idle', source: '', translated: null };
 
@@ -100,7 +106,7 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
       };
       const sendTimer = setTimeout(() => {
         if (!disposed && state.source === source && state.status !== 'ready') {
-          setState({ status: 'failed', source, translated: null });
+          setState({ status: 'timedOut', source, translated: null });
         }
         cancel(TIMEOUT_ERROR);
       }, OUTGOING_SEND_TIMEOUT_MS);
@@ -146,6 +152,10 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
       if (state.status === 'ready' && state.source === text && state.translated !== null) {
         return { text: state.translated, translated: true };
       }
+      // The failure notice for this exact text is already on screen: this send goes out as is.
+      if (state.status === 'failed' && state.source === text) {
+        return { text, translated: false };
+      }
       if (state.source !== text) {
         // The draft moved on (or was never reported): this text becomes the latest one.
         setState({ status: 'translating', source: text, translated: null });
@@ -154,7 +164,11 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
       if (disposed) {
         throw new Error(DISPOSED_ERROR);
       }
-      return translated === null ? { text, translated: false } : { text: translated, translated: true };
+      if (translated === null) {
+        // Never sent untranslated without a warning: the failure notice shows first, the next send goes as is.
+        throw new Error(FAILED_ERROR);
+      }
+      return { text: translated, translated: true };
     },
 
     cancelPendingSends() {
@@ -182,7 +196,12 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
   };
 }
 
-export type OutgoingDraftView = { kind: 'preview'; text: string } | { kind: 'translating' } | { kind: 'failed' } | null;
+export type OutgoingDraftView =
+  | { kind: 'preview'; text: string }
+  | { kind: 'translating' }
+  | { kind: 'failed' }
+  | { kind: 'timedOut' }
+  | null;
 
 /** What the strip above the composer shows for the current draft. */
 export function describeOutgoingDraft({
@@ -211,18 +230,16 @@ export function describeOutgoingDraft({
   if (state.source === text && state.status === 'failed') {
     return { kind: 'failed' };
   }
-  if (support === 'downloadable' || support === 'downloading') {
-    return { kind: 'translating' };
+  if (state.source === text && state.status === 'timedOut') {
+    return { kind: 'timedOut' };
   }
-  // A state for an older draft (or before the latest one reached the translator) is never shown as the preview.
-  if (state.source !== text || state.status === 'translating') {
-    return { kind: 'translating' };
-  }
-  if (state.status === 'ready' && state.translated !== null) {
+  // A translation of the current draft wins: the route's support can lag behind a download that already finished.
+  if (state.source === text && state.status === 'ready' && state.translated !== null) {
     return { kind: 'preview', text: state.translated };
   }
-  if (state.status === 'failed') {
-    return { kind: 'failed' };
+  // Downloading, or a state for an older draft (or before the latest one reached the translator): never a preview.
+  if (support === 'downloadable' || support === 'downloading' || state.source !== text || state.status === 'translating') {
+    return { kind: 'translating' };
   }
   return null;
 }
