@@ -74,6 +74,28 @@ describe('fetchModelFile', () => {
     expect(cacheStorage.putUrls).toEqual([]);
   });
 
+  it('stops reading a body larger than the pinned sizes and rejects it with integrity-failed', async () => {
+    const oversized = new Uint8Array(VOCAB_RAW.byteLength * 4).fill(0x61);
+    let pulls = 0;
+    let offset = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        if (offset >= oversized.byteLength) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(oversized.slice(offset, offset + 64));
+        offset += 64;
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(body, { status: 200 }));
+    expect(await failure(fetchModelFile(VOCAB, () => undefined))).toBe('integrity-failed');
+    // aborted well before the end of the body
+    expect(pulls * 64).toBeLessThan(oversized.byteLength);
+    expect(cacheStorage.putUrls).toEqual([]);
+  });
+
   it('rejects gzip bytes that match the compressed hash but not the raw one', async () => {
     expect(await failure(fetchModelFile({ ...VOCAB, rawSha256Hash: 'ab'.repeat(32) }, () => undefined))).toBe('integrity-failed');
     expect(cacheStorage.putUrls).toEqual([]);
