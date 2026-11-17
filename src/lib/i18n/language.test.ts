@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { languageFromPath, pathForLanguage, resolvePreferredLanguage } from './language';
+import { languageFromPath, oppositeLanguage, pathForLanguage, resolvePreferredLanguage } from './language';
 
 describe('resolvePreferredLanguage', () => {
   it('prefers the stored choice over the system languages', () => {
@@ -56,5 +56,12 @@ describe('languageFromPath', () => {
   it('round-trips with pathForLanguage', () => {
     expect(languageFromPath(pathForLanguage('pt'))).toBe('pt');
     expect(languageFromPath(pathForLanguage('en'))).toBe('en');
+  });
+});
+
+describe('oppositeLanguage', () => {
+  it('oppositeLanguage swaps pt and en', () => {
+    expect(oppositeLanguage('pt')).toBe('en');
+    expect(oppositeLanguage('en')).toBe('pt');
   });
 });
