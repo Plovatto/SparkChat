@@ -23,3 +23,12 @@ export {
   writeTranslation,
 } from './translation-cache';
 export type { CachedTranslation } from './translation-cache';
+export { ENGINE_ROUTE_MEMO_MS, invalidateEngineRoutes, registerFallbackEngine, resolveEngine } from './router';
+export type { EngineRoute } from './router';
+export {
+  getCachedIncoming,
+  MIN_DETECTION_CONFIDENCE,
+  subscribeIncomingInvalidation,
+  translateIncoming,
+} from './incoming';
+export type { IncomingRequest, IncomingResult } from './incoming';

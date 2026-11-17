@@ -1,0 +1,213 @@
+import { BoundedMap } from '@lib/cache/bounded-map';
+import { appI18n } from '@lib/i18n/app-i18n';
+import type { Language } from '@lib/i18n/language';
+import { detectLanguage } from './detection';
+import { invalidateEngineRoutes, resolveEngine } from './router';
+import { hasTranslatableText, translatePreservingSegments } from './segments';
+import { readTranslation, TRANSLATION_CACHE_SIZE, translationCacheKey, writeTranslation, type CachedTranslation } from './translation-cache';
+import { pairKey, type TranslationEngine, type TranslationProgressEvent } from './types';
+
+export const MIN_DETECTION_CONFIDENCE = 0.7;
+
+const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
+
+type Field = 'content' | 'caption';
+
+export type IncomingResult =
+  | { status: 'translated'; text: string; sourceLanguage: Language }
+  | { status: 'preparing'; sourceLanguage: Language }
+  | { status: 'none' };
+
+/** Aborting `signal` before the request starts drops it: the promise resolves to an uncached `{ status: 'none' }`. */
+export type IncomingRequest = {
+  roomId: string;
+  messageId: string;
+  field: Field;
+  text: string;
+  target: Language;
+  signal: AbortSignal;
+};
+
+type Job = { request: IncomingRequest; cacheKey: string; resolve: (result: IncomingResult) => void };
+
+const NONE = { status: 'none' } as const satisfies IncomingResult;
+
+const pending: Job[] = [];
+let running = false;
+const invalidationListeners = new Set<() => void>();
+const progressSubscriptions = new Map<TranslationEngine, () => void>();
+const preparing = new Map<string, Promise<void>>();
+// Latest cache key per (room, message, field, target) so the first render can read synchronously without the text.
+// Holds ids and a text hash only; the cache itself decides whether the entry still exists.
+const latestKeys = new BoundedMap<string, string>(TRANSLATION_CACHE_SIZE);
+
+function latestKeyOf(roomId: string, messageId: string, field: Field, target: Language): string {
+  return [roomId, messageId, field, target].join('\u0000');
+}
+
+function isPlaceholder(text: string): boolean {
+  return text === appI18n.t(PLACEHOLDER_KEY, { lng: 'pt' }) || text === appI18n.t(PLACEHOLDER_KEY, { lng: 'en' });
+}
+
+function notifyInvalidation(): void {
+  invalidateEngineRoutes();
+  for (const listener of [...invalidationListeners]) {
+    listener();
+  }
+}
+
+function watchProgress(engine: TranslationEngine): void {
+  if (progressSubscriptions.has(engine)) {
+    return;
+  }
+  const unsubscribe = engine.onProgress((event: TranslationProgressEvent) => {
+    if (event.loaded >= event.total) {
+      notifyInvalidation();
+    }
+  });
+  progressSubscriptions.set(engine, unsubscribe);
+}
+
+function prepareOnce(engine: TranslationEngine, source: Language, target: Language): void {
+  const key = `${engine.id}:${pairKey(source, target)}`;
+  if (preparing.has(key)) {
+    return;
+  }
+  const download = engine.prepare(source, target).then(
+    () => {
+      preparing.delete(key);
+      notifyInvalidation();
+    },
+    () => {
+      // A failed download is not retried in a loop; the next request after the memo expires tries again.
+      preparing.delete(key);
+    },
+  );
+  preparing.set(key, download);
+}
+
+function remember(cacheKey: string, request: IncomingRequest, value: CachedTranslation): IncomingResult {
+  writeTranslation(cacheKey, value);
+  latestKeys.set(latestKeyOf(request.roomId, request.messageId, request.field, request.target), cacheKey);
+  return value;
+}
+
+async function run({ request, cacheKey }: Job): Promise<IncomingResult> {
+  const detected = await detectLanguage(request.text);
+  if (!detected || detected.confidence < MIN_DETECTION_CONFIDENCE || detected.language === request.target) {
+    return remember(cacheKey, request, NONE);
+  }
+  const source = detected.language;
+  const route = await resolveEngine(source, request.target);
+  if (!route) {
+    return NONE;
+  }
+  const { engine, support } = route;
+  if (support === 'downloadable' || support === 'downloading') {
+    watchProgress(engine);
+    // Native needs a user gesture to download; armNativeOnFirstInteraction triggers it elsewhere.
+    if (engine.id !== 'native') {
+      prepareOnce(engine, source, request.target);
+    }
+    return { status: 'preparing', sourceLanguage: source };
+  }
+  if (support !== 'available') {
+    return NONE;
+  }
+  try {
+    const text = await translatePreservingSegments(request.text, (chunk) =>
+      engine.translate(chunk, source, request.target, { priority: 1 }),
+    );
+    return remember(cacheKey, request, { status: 'translated', text, sourceLanguage: source });
+  } catch {
+    return NONE;
+  }
+}
+
+async function pump(): Promise<void> {
+  if (running) {
+    return;
+  }
+  running = true;
+  try {
+    // LIFO: the message most recently scrolled into view is the one the person is looking at.
+    for (let job = pending.pop(); job; job = pending.pop()) {
+      if (job.request.signal.aborted) {
+        job.resolve(NONE);
+        continue;
+      }
+      job.resolve(await run(job).catch(() => NONE));
+    }
+  } finally {
+    running = false;
+  }
+}
+
+/** Cache hits and the undecryptable placeholder answer at once; everything else waits in a sequential LIFO queue. */
+export function translateIncoming(request: IncomingRequest): Promise<IncomingResult> {
+  if (isPlaceholder(request.text)) {
+    return Promise.resolve(NONE);
+  }
+  const cacheKey = translationCacheKey({ ...request, sourceText: request.text });
+  const cached = readTranslation(cacheKey);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+  if (!hasTranslatableText(request.text)) {
+    return Promise.resolve(remember(cacheKey, request, NONE));
+  }
+  if (request.signal.aborted) {
+    return Promise.resolve(NONE);
+  }
+  return new Promise<IncomingResult>((resolve) => {
+    const job: Job = { request, cacheKey, resolve };
+    request.signal.addEventListener(
+      'abort',
+      () => {
+        const index = pending.indexOf(job);
+        if (index !== -1) {
+          pending.splice(index, 1);
+          resolve(NONE);
+        }
+      },
+      { once: true },
+    );
+    pending.push(job);
+    void pump();
+  });
+}
+
+/** Synchronous memory read for the first render. Pass `text` to ignore an entry cached for an older version of the message. */
+export function getCachedIncoming(
+  roomId: string,
+  messageId: string,
+  field: Field,
+  target: Language,
+  text?: string,
+): IncomingResult | undefined {
+  const cacheKey =
+    text === undefined
+      ? latestKeys.get(latestKeyOf(roomId, messageId, field, target))
+      : translationCacheKey({ roomId, messageId, field, target, sourceText: text });
+  return cacheKey === undefined ? undefined : readTranslation(cacheKey);
+}
+
+/** Called when a model download finishes, so visible `preparing` messages can retry. */
+export function subscribeIncomingInvalidation(listener: () => void): () => void {
+  invalidationListeners.add(listener);
+  return () => {
+    invalidationListeners.delete(listener);
+  };
+}
+
+export function resetIncomingForTests(): void {
+  pending.length = 0;
+  running = false;
+  invalidationListeners.clear();
+  for (const unsubscribe of progressSubscriptions.values()) {
+    unsubscribe();
+  }
+  progressSubscriptions.clear();
+  preparing.clear();
+  latestKeys.clear();
+}
