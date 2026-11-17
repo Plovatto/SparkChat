@@ -67,10 +67,13 @@ describe('detectLanguage', () => {
 
 describe('detectLanguage native timeouts', () => {
   beforeEach(() => {
+    resetDetectorForTests();
     vi.useFakeTimers();
   });
   afterEach(() => {
     vi.useRealTimers();
+    delete (globalThis as Record<string, unknown>).LanguageDetector;
+    resetDetectorForTests();
   });
 
   it('falls back to the heuristic when create never settles and stops retrying', async () => {
@@ -84,11 +87,11 @@ describe('detectLanguage native timeouts', () => {
   });
 
   it('falls back to the heuristic when detect never settles', async () => {
-    (globalThis as Record<string, unknown>).LanguageDetector = {
-      create: () => Promise.resolve({ detect: () => new Promise<never>(() => undefined) }),
-    };
+    const detect = vi.fn(() => new Promise<never>(() => undefined));
+    (globalThis as Record<string, unknown>).LanguageDetector = { create: () => Promise.resolve({ detect }) };
     const pending = detectLanguage('good morning everyone');
     await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
     expect((await pending)?.language).toBe('en');
+    expect(detect).toHaveBeenCalledTimes(1);
   });
 });
