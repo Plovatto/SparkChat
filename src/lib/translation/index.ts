@@ -12,3 +12,14 @@ export type { Segment } from './segments';
 export { detectLanguage } from './detection';
 export { detectPtEn } from './heuristic-detector';
 export type { DetectedLanguage } from './heuristic-detector';
+export {
+  clearTranslationCache,
+  clearTranslationsForRoom,
+  forgetTranslation,
+  getTranslationCacheSizeForTests,
+  readTranslation,
+  TRANSLATION_CACHE_SIZE,
+  translationCacheKey,
+  writeTranslation,
+} from './translation-cache';
+export type { CachedTranslation } from './translation-cache';

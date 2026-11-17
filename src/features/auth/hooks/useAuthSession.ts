@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
+import { clearTranslationCache } from '@lib/translation';
 import { clearStoredSession, getStoredSession, saveSession } from '../api/session-storage';
 import type { PendingE2eCredential, User } from '../types';
 
@@ -42,6 +43,7 @@ export function useAuthSession(): AuthSession {
     clearStoredSession();
     void clearIdentity();
     void clearRoomKeys();
+    clearTranslationCache();
     setTimeout(() => setIsRestoring(false), LOGOUT_TRANSITION_DELAY_MS);
   }, []);
 
