@@ -113,6 +113,10 @@ VITE_API_URL=http://localhost:3001
 VITE_SOCKET_URL=http://localhost:3001
 ```
 
+## Tradução de mensagens
+
+O app pode traduzir mensagens entre português e inglês direto no navegador. Os modelos são os de pt↔en do Mozilla (MPL-2.0), baixados e verificados por sha256 durante o build (`npm run models:fetch`, executado automaticamente em `dev` e `build`) e servidos pelo próprio site. Nenhum texto de mensagem sai do aparelho. Opcionalmente, `VITE_TRANSLATION_MODELS_URL` aponta para outra origem dos modelos (por exemplo, um bucket com CORS).
+
 ## Integração com a API
 
 Este projeto foi preparado para trabalhar junto com a [SparkChat API](../API-SparkChat).

@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage', 'eslint.config.js'] },
+  { ignores: ['dist', 'node_modules', 'coverage', 'eslint.config.js', 'scripts', 'public/bergamot'] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
