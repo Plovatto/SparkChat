@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import {
   getCachedIncoming,
@@ -48,7 +48,12 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
   const result = current ?? NONE;
   const showingOriginal = toggledKey === key;
   const needsRequest = shouldRequestTranslation({ enabled, isVisible, text, current });
-  const isPreparing = current?.status === 'preparing';
+  const needsRequestRef = useRef(needsRequest);
+
+  // Declared before the request effect so the listener sees `true` from the moment a request is sent.
+  useEffect(() => {
+    needsRequestRef.current = needsRequest;
+  }, [needsRequest]);
 
   useEffect(() => {
     if (!needsRequest) {
@@ -64,12 +69,18 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
     return () => controller.abort();
   }, [needsRequest, key, roomId, messageId, field, original, language, invalidation]);
 
+  // Subscribed for the whole visible lifetime, not only once 'preparing' is rendered: a download finishing while a
+  // request is in flight would otherwise be missed. Only bubbles still waiting (in flight or preparing) re-request.
   useEffect(() => {
-    if (!isVisible || !isPreparing) {
+    if (!isVisible || !active) {
       return;
     }
-    return subscribeIncomingInvalidation(() => setInvalidation((count) => count + 1));
-  }, [isVisible, isPreparing]);
+    return subscribeIncomingInvalidation(() => {
+      if (needsRequestRef.current) {
+        setInvalidation((count) => count + 1);
+      }
+    });
+  }, [isVisible, active]);
 
   const toggleOriginal = useCallback(() => {
     setToggledKey((previous) => (previous === key ? null : key));

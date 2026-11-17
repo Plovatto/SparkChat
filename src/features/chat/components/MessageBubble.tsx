@@ -173,7 +173,7 @@ export const MessageBubble = memo(function MessageBubble({
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(content) : '';
   const contentBadge = (
-    <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} />
+    <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} bubble={bubbleStyle} />
   );
   const textAccentColor = bubbleStyle.accentColor;
 
@@ -292,7 +292,7 @@ export const MessageBubble = memo(function MessageBubble({
       {message.type !== 'text' && caption && (
         <div style={MEDIA_CAPTION_STYLE}>
           <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(caption, participants, textAccentColor)}</p>
-          <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} />
+          <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
         </div>
       )}
 

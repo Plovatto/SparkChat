@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@features/theme';
+import type { ResolvedBubbleStyle } from '@features/theme';
 import type { IncomingResult } from '@lib/translation/incoming';
 import { resolveBadgeState } from '../utils/message-translation';
 
@@ -8,20 +8,20 @@ interface TranslationBadgeProps {
   result: IncomingResult;
   showingOriginal: boolean;
   onToggle: () => void;
+  bubble: ResolvedBubbleStyle;
 }
 
 const BADGE_STYLE: CSSProperties = { margin: '2px 0 0', fontSize: '0.72rem', lineHeight: 1.4 };
 
-export function TranslationBadge({ result, showingOriginal, onToggle }: TranslationBadgeProps) {
+export function TranslationBadge({ result, showingOriginal, onToggle, bubble }: TranslationBadgeProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   if (result.status === 'none') {
     return null;
   }
 
   const state = resolveBadgeState(result, showingOriginal);
 
-  const style: CSSProperties = { ...BADGE_STYLE, color: theme.textMuted };
+  const style: CSSProperties = { ...BADGE_STYLE, color: bubble.mutedTextColor };
 
   if (state === 'preparing') {
     return <p style={style}>{t('chat.translation.translating')}</p>;
@@ -43,6 +43,7 @@ export function TranslationBadge({ result, showingOriginal, onToggle }: Translat
           onToggle();
         }}
         className="sc-read-more"
+        style={{ color: bubble.accentColor }}
       >
         {state === 'translated' ? t('chat.translation.showOriginal') : t('chat.translation.showTranslation')}
       </button>
