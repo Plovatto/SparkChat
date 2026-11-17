@@ -178,6 +178,34 @@ describe('translateIncoming', () => {
     });
   });
 
+  it('notifies invalidation when a failed download may be retried', async () => {
+    native.support.mockResolvedValue('unavailable');
+    bergamot.support.mockResolvedValue('downloadable');
+    bergamot.prepare.mockRejectedValue(new Error('download-failed'));
+    const retryListeners = new Set<() => void>();
+    const withRetry: TranslationEngine = {
+      ...bergamot,
+      onRetryAvailable: (listener) => {
+        retryListeners.add(listener);
+        return () => {
+          retryListeners.delete(listener);
+        };
+      },
+    };
+    bergamotLoader.load.mockResolvedValue(withRetry);
+    const listener = vi.fn();
+    subscribeIncomingInvalidation(listener);
+    expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
+    await flush();
+    // a failed prepare alone does not notify (it would retry in a loop)
+    expect(listener).not.toHaveBeenCalled();
+    expect(retryListeners.size).toBe(1);
+    for (const retry of retryListeners) retry();
+    expect(listener).toHaveBeenCalledTimes(1);
+    resetIncomingForTests();
+    expect(retryListeners.size).toBe(0);
+  });
+
   it('stops notifying after unsubscribe', async () => {
     native.support.mockResolvedValue('unavailable');
     bergamot.support.mockResolvedValue('downloadable');
