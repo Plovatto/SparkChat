@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  captureTranslationEpoch,
   clearTranslationCache,
   clearTranslationsForRoom,
   forgetTranslation,
   getTranslationCacheSizeForTests,
+  isTranslationEpochCurrent,
   readTranslation,
   TRANSLATION_CACHE_SIZE,
+  TRANSLATION_EPOCH_TRACK_SIZE,
   translationCacheKey,
   writeTranslation,
 } from './translation-cache';
@@ -96,5 +99,52 @@ describe('translation cache', () => {
     writeTranslation(key('r', 'm'), value);
     clearTranslationsForRoom('r');
     expect(getTranslationCacheSizeForTests('indexes')).toBe(0);
+  });
+});
+
+describe('translation epochs', () => {
+  beforeEach(() => clearTranslationCache());
+
+  it('stays current while nothing is cleared', () => {
+    const epoch = captureTranslationEpoch('r', 'm');
+    writeTranslation(key('r', 'other'), value);
+    expect(isTranslationEpochCurrent(epoch)).toBe(true);
+  });
+
+  it('goes stale when the message is forgotten, but not for other messages', () => {
+    const epoch = captureTranslationEpoch('r', 'm');
+    const sibling = captureTranslationEpoch('r', 'n');
+    forgetTranslation('r', 'm');
+    expect(isTranslationEpochCurrent(epoch)).toBe(false);
+    expect(isTranslationEpochCurrent(sibling)).toBe(true);
+    expect(isTranslationEpochCurrent(captureTranslationEpoch('r', 'm'))).toBe(true);
+  });
+
+  it('goes stale when the room is cleared, but not for other rooms', () => {
+    const epoch = captureTranslationEpoch('r', 'm');
+    const otherRoom = captureTranslationEpoch('r2', 'm');
+    clearTranslationsForRoom('r');
+    expect(isTranslationEpochCurrent(epoch)).toBe(false);
+    expect(isTranslationEpochCurrent(otherRoom)).toBe(true);
+  });
+
+  it('goes stale for everyone on logout and drops the per-scope stamps', () => {
+    forgetTranslation('r', 'x');
+    clearTranslationsForRoom('r3');
+    const epoch = captureTranslationEpoch('r2', 'm');
+    clearTranslationCache();
+    expect(isTranslationEpochCurrent(epoch)).toBe(false);
+    expect(getTranslationCacheSizeForTests('epochs')).toBe(0);
+    expect(isTranslationEpochCurrent(captureTranslationEpoch('r', 'x'))).toBe(true);
+  });
+
+  it('keeps the stamp maps bounded and stays on the safe side after eviction', () => {
+    const epoch = captureTranslationEpoch('r', 'm0');
+    for (let i = 0; i <= TRANSLATION_EPOCH_TRACK_SIZE; i += 1) {
+      forgetTranslation('r', `m${i}`);
+    }
+    expect(getTranslationCacheSizeForTests('epochs')).toBe(TRANSLATION_EPOCH_TRACK_SIZE);
+    // m0's stamp was evicted, yet the old epoch still reads as stale
+    expect(isTranslationEpochCurrent(epoch)).toBe(false);
   });
 });

@@ -13,16 +13,18 @@ export { detectLanguage } from './detection';
 export { detectPtEn } from './heuristic-detector';
 export type { DetectedLanguage } from './heuristic-detector';
 export {
+  captureTranslationEpoch,
   clearTranslationCache,
   clearTranslationsForRoom,
   forgetTranslation,
   getTranslationCacheSizeForTests,
+  isTranslationEpochCurrent,
   readTranslation,
   TRANSLATION_CACHE_SIZE,
   translationCacheKey,
   writeTranslation,
 } from './translation-cache';
-export type { CachedTranslation } from './translation-cache';
+export type { CachedTranslation, TranslationEpoch } from './translation-cache';
 export { ENGINE_ROUTE_MEMO_MS, invalidateEngineRoutes, registerFallbackEngine, resolveEngine } from './router';
 export type { EngineRoute } from './router';
 export {
@@ -30,5 +32,6 @@ export {
   MIN_DETECTION_CONFIDENCE,
   subscribeIncomingInvalidation,
   translateIncoming,
+  TRANSLATION_JOB_TIMEOUT_MS,
 } from './incoming';
 export type { IncomingRequest, IncomingResult } from './incoming';
