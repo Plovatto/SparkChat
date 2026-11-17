@@ -33,3 +33,19 @@ interface TranslatorStatic {
 }
 
 declare const Translator: TranslatorStatic | undefined;
+
+interface LanguageDetectionResult {
+  detectedLanguage: string;
+  confidence: number;
+}
+
+interface LanguageDetectorInstance {
+  detect(text: string, options?: { signal?: AbortSignal }): Promise<LanguageDetectionResult[]>;
+  destroy?(): void;
+}
+
+interface LanguageDetectorStatic {
+  create(options?: { expectedInputLanguages?: string[]; signal?: AbortSignal }): Promise<LanguageDetectorInstance>;
+}
+
+declare const LanguageDetector: LanguageDetectorStatic | undefined;
