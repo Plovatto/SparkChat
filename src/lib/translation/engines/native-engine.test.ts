@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NATIVE_API_TIMEOUT_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
 
 type Availability = 'unavailable' | 'downloadable' | 'downloading' | 'available';
 
@@ -146,5 +146,30 @@ describe('armNativeOnFirstInteraction', () => {
     dispose();
     expect(fakeWindow.count('pointerdown')).toBe(0);
     expect(fakeWindow.count('keydown')).toBe(0);
+  });
+});
+
+describe('nativeEngine availability timeout', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resolves unavailable after the timeout when availability never settles, and remembers it', async () => {
+    const availability = vi.fn(() => new Promise<never>(() => undefined));
+    (globalThis as Record<string, unknown>).Translator = { availability, create: vi.fn() };
+    const pending = nativeEngine.support('en', 'pt');
+    await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
+    expect(await pending).toBe('unavailable');
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    expect(availability).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the normal result when availability answers in time', async () => {
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
   });
 });
