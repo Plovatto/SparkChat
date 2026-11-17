@@ -151,10 +151,13 @@ describe('armNativeOnFirstInteraction', () => {
 
 describe('nativeEngine availability timeout', () => {
   beforeEach(() => {
+    resetNativeEngineForTests();
     vi.useFakeTimers();
   });
   afterEach(() => {
     vi.useRealTimers();
+    delete (globalThis as Record<string, unknown>).Translator;
+    resetNativeEngineForTests();
   });
 
   it('resolves unavailable after the timeout when availability never settles, and remembers it', async () => {
@@ -171,5 +174,19 @@ describe('nativeEngine availability timeout', () => {
     installFakeTranslator({ availability: 'downloadable' });
     expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
     expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores a late availability result after the timeout', async () => {
+    let settle: (value: string) => void = () => undefined;
+    const availability = vi.fn(() => new Promise<string>((resolve) => (settle = resolve)));
+    (globalThis as Record<string, unknown>).Translator = { availability, create: vi.fn() };
+    const pending = nativeEngine.support('en', 'pt');
+    await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
+    expect(await pending).toBe('unavailable');
+    settle('available');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    expect(availability).toHaveBeenCalledTimes(1);
   });
 });
