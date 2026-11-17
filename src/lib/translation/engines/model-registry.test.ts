@@ -8,6 +8,8 @@ describe('bundled model registry', () => {
       name: 'enpt/model.enpt.intgemm.alphas.bin.gz',
       size: 23340019,
       expectedSha256Hash: 'afb5ae08a2e40b622cd191584cca1df00721fea43de85cec74191fc180370f08',
+      rawSize: 31561787,
+      rawSha256Hash: '07892fd2544ee79dcb643615d8f2debb9793fae16842e87c328e27a3dd26a770',
     });
     for (const key of ['enpt', 'pten'] as const) {
       for (const part of ['model', 'lex', 'vocab'] as const) {
@@ -17,6 +19,9 @@ describe('bundled model registry', () => {
         expect(entry.size).toBe(pinned.size);
         expect(entry.expectedSha256Hash).toMatch(/^[0-9a-f]{64}$/);
         expect(entry.expectedSha256Hash).toBe(pinned.sha256);
+        expect(entry.rawSize).toBe(pinned.rawSize);
+        expect(entry.rawSha256Hash).toMatch(/^[0-9a-f]{64}$/);
+        expect(entry.rawSha256Hash).toBe(pinned.rawSha256);
       }
     }
     const enptTotal = Object.values(BUNDLED_MODEL_REGISTRY.enpt).reduce((sum, file) => sum + file.size, 0);

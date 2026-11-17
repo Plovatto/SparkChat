@@ -5,7 +5,17 @@ export const TRANSLATION_MODELS_CACHE = 'sparkchat-translation-models-v1';
 
 export type BergamotRegistryKey = 'enpt' | 'pten';
 export type BergamotModelPart = 'model' | 'lex' | 'vocab';
-export type BergamotModelFile = { name: string; size: number; expectedSha256Hash: string };
+/**
+ * `size`/`expectedSha256Hash` describe the `.gz` file as published; `rawSize`/`rawSha256Hash` the decompressed
+ * bytes, which is what arrives when the server sends the file with `Content-Encoding: gzip` and the browser decodes it.
+ */
+export type BergamotModelFile = {
+  name: string;
+  size: number;
+  expectedSha256Hash: string;
+  rawSize: number;
+  rawSha256Hash: string;
+};
 /** Built from the pinned manifest (see model-registry.ts); `modelRegistry` resolves `name` to an absolute URL. */
 export type BergamotRegistry = Record<BergamotRegistryKey, Record<BergamotModelPart, BergamotModelFile>>;
 
@@ -13,20 +23,21 @@ export function registryKeyOf(pair: PairKey): BergamotRegistryKey {
   return pair === 'en-pt' ? 'enpt' : 'pten';
 }
 
-function hexToBase64(hex: string): string {
-  let binary = '';
-  for (let index = 0; index < hex.length; index += 2) {
-    binary += String.fromCharCode(parseInt(hex.slice(index, index + 2), 16));
-  }
-  return btoa(binary);
-}
-
 function bytesToHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function isGzip(url: string): boolean {
-  return new URL(url).pathname.endsWith('.gz');
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  return bytesToHex(await crypto.subtle.digest('SHA-256', bytes));
+}
+
+function isGzipBytes(bytes: Uint8Array): boolean {
+  return bytes.byteLength >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+  const stream = new Response(bytes).body!.pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 async function readCounting(body: ReadableStream<Uint8Array>, onBytes: (n: number) => void): Promise<Uint8Array<ArrayBuffer>> {
@@ -51,80 +62,96 @@ async function readCounting(body: ReadableStream<Uint8Array>, onBytes: (n: numbe
   return bytes;
 }
 
-/** Downloads with SRI and re-checks the sha256 before anything reaches the cache. */
-async function download(url: string, sha256Hex: string, onBytes: (n: number) => void, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
+/**
+ * No `integrity` option: SRI hashes the bytes after any `Content-Encoding` decoding, so it fails on hosts that
+ * serve `.gz` with `Content-Encoding: gzip` (Vite/sirv, some CDNs). Both forms are checked here against hashes
+ * pinned in the bundle instead. Returns the verified decompressed bytes.
+ */
+async function download(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
   let response: Response;
   try {
-    response = await fetch(url, { integrity: `sha256-${hexToBase64(sha256Hex)}`, credentials: 'omit', signal });
+    response = await fetch(file.name, { credentials: 'omit', signal });
   } catch {
     throw new Error('download-failed');
   }
   if (!response.ok || !response.body) {
     throw new Error('download-failed');
   }
-  let bytes: Uint8Array<ArrayBuffer>;
+  // Progress counts against the compressed size; a decoded body is larger, so never report past it.
+  let reported = 0;
+  let body: Uint8Array<ArrayBuffer>;
   try {
-    bytes = await readCounting(response.body, onBytes);
+    body = await readCounting(response.body, (n) => {
+      const step = Math.min(n, file.size - reported);
+      if (step > 0) {
+        reported += step;
+        onBytes(step);
+      }
+    });
   } catch {
-    // An SRI mismatch also surfaces here, as a body error.
     throw new Error('download-failed');
   }
-  if (bytesToHex(await crypto.subtle.digest('SHA-256', bytes)) !== sha256Hex) {
+  const compressed = isGzipBytes(body);
+  // A short body is a cut connection (network-class, retryable), not tampering.
+  if (body.byteLength < (compressed ? file.size : file.rawSize)) {
+    throw new Error('download-failed');
+  }
+  let raw = body;
+  if (compressed) {
+    if ((await sha256Hex(body)) !== file.expectedSha256Hash) {
+      throw new Error('integrity-failed');
+    }
+    try {
+      raw = await gunzip(body);
+    } catch {
+      throw new Error('integrity-failed');
+    }
+  }
+  if (raw.byteLength !== file.rawSize || (await sha256Hex(raw)) !== file.rawSha256Hash) {
     throw new Error('integrity-failed');
   }
-  return bytes;
+  if (reported < file.size) {
+    onBytes(file.size - reported);
+  }
+  return raw;
 }
 
+/**
+ * The cache keeps the verified decompressed bytes: one format whatever the host did, and no gunzip on load.
+ * Entries are trusted on read (only verified bytes are ever put); a leftover compressed entry is dropped.
+ */
 async function cachedOrDownloaded(
-  url: string,
-  sha256Hex: string,
+  file: BergamotModelFile,
   onBytes: (n: number) => void,
   signal: AbortSignal | undefined,
   read: boolean,
-): Promise<{ bytes: ArrayBuffer | null; fromCache: boolean; cache: Cache }> {
+): Promise<ArrayBuffer | null> {
   const cache = await caches.open(TRANSLATION_MODELS_CACHE);
-  const hit = await cache.match(url);
+  const hit = await cache.match(file.name);
   if (hit) {
-    return { bytes: read ? await hit.arrayBuffer() : null, fromCache: true, cache };
+    const bytes = await hit.arrayBuffer();
+    if (bytes.byteLength === file.rawSize && !isGzipBytes(new Uint8Array(bytes, 0, 2))) {
+      return read ? bytes : null;
+    }
+    await cache.delete(file.name).catch(() => false);
   }
-  const bytes = await download(url, sha256Hex, onBytes, signal);
-  await cache.put(url, new Response(bytes, { headers: { 'Content-Type': 'application/octet-stream' } }));
-  return { bytes: bytes.buffer, fromCache: false, cache };
+  const raw = await download(file, onBytes, signal);
+  await cache.put(file.name, new Response(raw, { headers: { 'Content-Type': 'application/octet-stream' } }));
+  return raw.buffer;
 }
 
-/** Makes sure the verified file is in the Cache API without reading it back. */
-export async function ensureModelFileCached(
-  url: string,
-  sha256Hex: string,
-  onBytes: (n: number) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  await cachedOrDownloaded(url, sha256Hex, onBytes, signal, false);
+/** Makes sure the verified file is in the Cache API. */
+export async function ensureModelFileCached(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<void> {
+  await cachedOrDownloaded(file, onBytes, signal, false);
 }
 
-export async function fetchModelFile(
-  url: string,
-  sha256Hex: string,
-  onBytes: (n: number) => void,
-  signal?: AbortSignal,
-): Promise<ArrayBuffer> {
-  const { bytes, fromCache, cache } = await cachedOrDownloaded(url, sha256Hex, onBytes, signal, true);
+/** The verified, decompressed model file, from the Cache API or downloaded into it. */
+export async function fetchModelFile(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<ArrayBuffer> {
+  const bytes = await cachedOrDownloaded(file, onBytes, signal, true);
   if (!bytes) {
     throw new Error('model-load-failed');
   }
-  if (!isGzip(url)) {
-    return bytes;
-  }
-  try {
-    const stream = new Response(bytes).body!.pipeThrough(new DecompressionStream('gzip'));
-    return await new Response(stream).arrayBuffer();
-  } catch {
-    // A corrupt cache entry must not keep failing forever: drop it so the next prepare downloads it again.
-    if (fromCache) {
-      await cache.delete(url).catch(() => false);
-    }
-    throw new Error('model-load-failed');
-  }
+  return bytes;
 }
 
 export async function hasCachedPair(pair: PairKey, registry: BergamotRegistry): Promise<boolean> {

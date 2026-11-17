@@ -58,10 +58,15 @@ function createBacking(module: BergamotModule, hooks: BackingHooks, options: Rec
     }
 
     override fetch(url: string, checksum: string | undefined, extra: { signal?: AbortSignal } | undefined): Promise<ArrayBuffer> {
-      if (!checksum) {
+      // Only files of the bundled registry, matched by URL and pinned hash, are ever loaded.
+      const resolved = new URL(url, this.registryUrl).href;
+      const file = Object.values(hooks.registry())
+        .flatMap((files) => Object.values(files))
+        .find((entry) => entry.name === resolved && entry.expectedSha256Hash === checksum);
+      if (!file) {
         return Promise.reject(new Error('model-load-failed'));
       }
-      return fetchModelFile(new URL(url, this.registryUrl).href, checksum, () => undefined, extra?.signal);
+      return fetchModelFile(file, () => undefined, extra?.signal);
     }
 
     override async loadWorker() {
@@ -220,7 +225,7 @@ export function createBergamotEngine(): BergamotEngine {
         // `loaded >= total` means "ready"; only the final event below may claim it.
         emitProgress(pair, Math.min(loaded, total - 1), total);
       };
-      await Promise.all(missing.map((file) => ensureModelFileCached(file.name, file.expectedSha256Hash, onBytes, controller.signal)));
+      await Promise.all(missing.map((file) => ensureModelFileCached(file, onBytes, controller.signal)));
       readyPairs.add(pair);
       emitProgress(pair, total, total);
     } catch (error) {
