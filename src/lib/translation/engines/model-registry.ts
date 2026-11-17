@@ -17,7 +17,16 @@ export const BUNDLED_MODEL_REGISTRY: BergamotRegistry = Object.fromEntries(
     Object.fromEntries(
       MODEL_PARTS.map((part): [BergamotModelPart, BergamotModelFile] => {
         const file = manifest.pairs[key][part];
-        return [part, { name: `${key}/${basename(file.path)}`, size: file.size, expectedSha256Hash: file.sha256 }];
+        return [
+          part,
+          {
+            name: `${key}/${basename(file.path)}`,
+            size: file.size,
+            expectedSha256Hash: file.sha256,
+            rawSize: file.rawSize,
+            rawSha256Hash: file.rawSha256,
+          },
+        ];
       }),
     ),
   ]),

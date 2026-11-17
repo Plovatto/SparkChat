@@ -1,10 +1,10 @@
 // Fetches the pinned Mozilla pt<->en translation models and copies the Bergamot
 // runtime into public/. Every file is verified by sha256; nothing here is committed.
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile, copyFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sha256, verifyModelFile } from './translation-model-verify.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(
@@ -13,8 +13,6 @@ const manifest = JSON.parse(
 const modelsDir = join(root, 'public', 'translation-models', manifest.version);
 const runtimeDir = join(root, 'public', 'bergamot');
 const runtimeSrc = join(root, 'node_modules', '@mkljczk', 'bergamot-translator', 'worker');
-
-const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
 async function hasHash(file, expected) {
   if (!existsSync(file)) return false;
@@ -47,7 +45,9 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
   for (const [kind, entry] of Object.entries(files)) {
     const name = basename(entry.path);
     const target = join(dir, name);
-    if (!(await hasHash(target, entry.sha256))) {
+    // Existing files are re-verified too (compressed and, after gunzip, raw hashes), so the manifest stays checked.
+    const existing = existsSync(target) ? await readFile(target) : null;
+    if (!existing || verifyModelFile(existing, entry) !== null) {
       const url = `${manifest.sourceBaseUrl}/${entry.path}`;
       console.log(`[translation-models] downloading ${pair}/${name}`);
       let buf;
@@ -58,8 +58,8 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
       } catch (err) {
         fail(`download failed for ${url}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      if (sha256(buf) !== entry.sha256) fail(`sha256 mismatch for ${pair}/${name}`);
-      if (buf.length !== entry.size) fail(`size mismatch for ${pair}/${name}`);
+      const problem = verifyModelFile(buf, entry);
+      if (problem) fail(`${problem} for ${pair}/${name}`);
       await writeAtomic(target, buf);
       downloaded++;
     }
@@ -67,6 +67,8 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
       name: `${pair}/${name}`,
       size: entry.size,
       expectedSha256Hash: entry.sha256,
+      rawSize: entry.rawSize,
+      rawSha256Hash: entry.rawSha256,
     };
   }
 }

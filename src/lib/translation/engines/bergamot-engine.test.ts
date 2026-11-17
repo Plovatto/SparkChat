@@ -89,7 +89,7 @@ vi.mock('@mkljczk/bergamot-translator/translator.js', () => {
   return { BatchTranslator, TranslatorBacking };
 });
 
-type RegistryFiles = Record<string, Record<string, { name: string; size: number; expectedSha256Hash: string }>>;
+type RegistryFiles = Record<string, Record<string, { name: string }>>;
 
 const bundled = vi.hoisted(() => {
   const state: { registry: RegistryFiles; calls: number } = { registry: {}, calls: 0 };
@@ -120,10 +120,12 @@ const ORIGIN = 'https://spark.test';
 const BASE = `${ORIGIN}/translation-models/v1/`;
 const REAL_ENPT_SIZES = { model: 23340019, lex: 2117608, vocab: 408686 };
 
-type Fixture = { registry: Record<string, Record<string, { name: string; size: number; expectedSha256Hash: string }>>; bodies: Map<string, Uint8Array> };
+type FixtureFile = { name: string; size: number; expectedSha256Hash: string; rawSize: number; rawSha256Hash: string };
+type Fixture = { registry: Record<string, Record<string, FixtureFile>>; bodies: Map<string, Uint8Array>; raw: Map<string, Uint8Array> };
 
 function smallFixture(): Fixture {
   const bodies = new Map<string, Uint8Array>();
+  const raw = new Map<string, Uint8Array>();
   const registry: Fixture['registry'] = {};
   for (const key of ['enpt', 'pten']) {
     registry[key] = {};
@@ -132,12 +134,21 @@ function smallFixture(): Fixture {
       ['lex', `${key}/lex.50.50.${key}.s2t.bin.gz`],
       ['vocab', `${key}/vocab.${key}.spm.gz`],
     ] as const) {
-      const bytes = gzip(`contents of ${name}`);
+      const text = `contents of ${name}`;
+      const bytes = gzip(text);
+      const decoded = new TextEncoder().encode(text);
       bodies.set(BASE + name, bytes);
-      registry[key][part] = { name, size: bytes.byteLength, expectedSha256Hash: sha256Hex(bytes) };
+      raw.set(BASE + name, decoded);
+      registry[key][part] = {
+        name,
+        size: bytes.byteLength,
+        expectedSha256Hash: sha256Hex(bytes),
+        rawSize: decoded.byteLength,
+        rawSha256Hash: sha256Hex(decoded),
+      };
     }
   }
-  return { registry, bodies };
+  return { registry, bodies, raw };
 }
 
 let realSizeFixture: Fixture | null = null;
@@ -151,7 +162,9 @@ function realSizeFixture_(): Fixture {
     const entry = fixture.registry.enpt![part]!;
     const bytes = new Uint8Array(REAL_ENPT_SIZES[part]).fill(part.length);
     fixture.bodies.set(BASE + entry.name, bytes);
-    fixture.registry.enpt![part] = { ...entry, size: bytes.byteLength, expectedSha256Hash: sha256Hex(bytes) };
+    // Not gzip: served as if the host had already decoded it, with the registry sizes equal to the real ones.
+    const hash = sha256Hex(bytes);
+    fixture.registry.enpt![part] = { ...entry, size: bytes.byteLength, expectedSha256Hash: hash, rawSize: bytes.byteLength, rawSha256Hash: hash };
   }
   realSizeFixture = fixture;
   return fixture;
@@ -456,6 +469,26 @@ describe('bergamotEngine', () => {
     await expect(bergamotEngine.translate('ola', 'pt', 'pt')).rejects.toThrow('translate-failed');
   });
 
+  it('works when the host decodes Content-Encoding: gzip before the body reaches us', async () => {
+    for (const [url, decoded] of fixture.raw) {
+      fixture.bodies.set(url, decoded);
+    }
+    expect(await bergamotEngine.translate('hello there', 'en', 'pt')).toBe('PT:hello there');
+    expect(await bergamotEngine.support('en', 'pt')).toBe('available');
+    const vocab = fixture.registry.enpt!.vocab!;
+    const buffer = await fakeBacking().fetch(vocab.name, vocab.expectedSha256Hash, undefined);
+    expect(new TextDecoder().decode(buffer)).toBe(`contents of ${vocab.name}`);
+  });
+
+  it('marks a pair failed when a decoded body does not match the pinned raw hash', async () => {
+    const lex = fixture.registry.enpt!.lex!;
+    const decoded = fixture.raw.get(BASE + lex.name)!.slice();
+    decoded[0] = 0x58;
+    fixture.bodies.set(BASE + lex.name, decoded);
+    await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    expect(await bergamotEngine.support('en', 'pt')).toBe('failed');
+  });
+
   it('never requests a registry over the network', async () => {
     await bergamotEngine.support('en', 'pt');
     await bergamotEngine.prepare('en', 'pt');
@@ -504,7 +537,9 @@ describe('bergamotEngine', () => {
 
   it('marks a pair failed for the session when a file fails the sha256 check', async () => {
     const lex = fixture.registry.enpt!.lex!;
-    fixture.bodies.set(BASE + lex.name, gzip('tampered bytes'));
+    const tampered = fixture.bodies.get(BASE + lex.name)!.slice();
+    tampered[tampered.length - 9]! ^= 0xff;
+    fixture.bodies.set(BASE + lex.name, tampered);
     const retry = vi.fn();
     bergamotEngine.onRetryAvailable(retry);
     useFakeTimers();

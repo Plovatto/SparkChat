@@ -6,34 +6,46 @@
       "model": {
         "path": "models/en-pt/retrain_hr_fix_names_Vnb0RUXTTd67hR-oLHM3eg/exported/model.enpt.intgemm.alphas.bin.gz",
         "size": 23340019,
-        "sha256": "afb5ae08a2e40b622cd191584cca1df00721fea43de85cec74191fc180370f08"
+        "sha256": "afb5ae08a2e40b622cd191584cca1df00721fea43de85cec74191fc180370f08",
+        "rawSize": 31561787,
+        "rawSha256": "07892fd2544ee79dcb643615d8f2debb9793fae16842e87c328e27a3dd26a770"
       },
       "lex": {
         "path": "models/en-pt/retrain_hr_fix_names_Vnb0RUXTTd67hR-oLHM3eg/exported/lex.50.50.enpt.s2t.bin.gz",
         "size": 2117608,
-        "sha256": "265cff4ca31d3fc95628181de98cf668868b44903d69680284dc456aa4191545"
+        "sha256": "265cff4ca31d3fc95628181de98cf668868b44903d69680284dc456aa4191545",
+        "rawSize": 3970340,
+        "rawSha256": "ccb4c31c9e1899d77a200e71a86958e6ef6c8649627d0bbf3f873b57d9f236bd"
       },
       "vocab": {
         "path": "models/en-pt/retrain_hr_fix_names_Vnb0RUXTTd67hR-oLHM3eg/exported/vocab.enpt.spm.gz",
         "size": 408686,
-        "sha256": "c2fbaf26f10563c77fa95cca465ad3666f61dd08bfaef5bb170abd582901f389"
+        "sha256": "c2fbaf26f10563c77fa95cca465ad3666f61dd08bfaef5bb170abd582901f389",
+        "rawSize": 816726,
+        "rawSha256": "d9f46182823d5bbc84201252b2dfcac28f63e561f0ec827ed858f241864c9def"
       }
     },
     "pten": {
       "model": {
         "path": "models/pt-en/retrain_hr_drxrs5bGSsOWvfK9lyZISw/exported/model.pten.intgemm.alphas.bin.gz",
         "size": 22700409,
-        "sha256": "f2d2bb46d452cef561d35504bd198fa6c6ffc47187ee987406a2ac05d9c3935f"
+        "sha256": "f2d2bb46d452cef561d35504bd198fa6c6ffc47187ee987406a2ac05d9c3935f",
+        "rawSize": 31561787,
+        "rawSha256": "7b854f1ec5a485dd33efd7c1bc01dd7d5a57f566957c5e47722af333f0ce9157"
       },
       "lex": {
         "path": "models/pt-en/retrain_hr_drxrs5bGSsOWvfK9lyZISw/exported/lex.50.50.pten.s2t.bin.gz",
         "size": 2487847,
-        "sha256": "b31185389533a97177cbf68ea756b78bfbaa24d31a865d72c6ed203fa414b2f6"
+        "sha256": "b31185389533a97177cbf68ea756b78bfbaa24d31a865d72c6ed203fa414b2f6",
+        "rawSize": 4634492,
+        "rawSha256": "2685d8b6530be92a4db4cc61f15a097eb114552be15cb6c1699e9d2d99d24470"
       },
       "vocab": {
         "path": "models/pt-en/retrain_hr_drxrs5bGSsOWvfK9lyZISw/exported/vocab.pten.spm.gz",
         "size": 408686,
-        "sha256": "28c9eb4fb13f8eb661f6bb098560a1bf368d25ff890275028ea9d4f3f97b0416"
+        "sha256": "28c9eb4fb13f8eb661f6bb098560a1bf368d25ff890275028ea9d4f3f97b0416",
+        "rawSize": 816726,
+        "rawSha256": "d9f46182823d5bbc84201252b2dfcac28f63e561f0ec827ed858f241864c9def"
       }
     }
   },
