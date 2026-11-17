@@ -21,6 +21,7 @@
 ## Ordem de execução
 
 Task 0 é portão **só do Bergamot** e precisa de aparelhos reais (humano). Ordem: **1 → 2 → 3 → 6a → 6 → 7 → 8 → 9 → 10** (entrega completa com a engine native e mensagens no original fora do Chrome desktop) → **Task 0 (humano)** → **4 → 5** (liga o fallback Bergamot via `registerFallbackEngine`/loader, sem mexer nas tasks anteriores).
+Task 11 (SparkAI) foi adicionada depois, a pedido do usuário, e roda após a Task 5.
 
 ## Fatos verificados (17/11/2026)
 
@@ -596,3 +597,43 @@ FAQ (pt / en):
 - Mostrar a quem enviou que a mensagem saiu traduzida (original só na sessão, por `clientTempId`).
 - Traduzir prévia da lista de salas e notificações.
 - Mover os modelos para o R2 (egress grátis) se o tráfego passar do limite brando do GitHub Pages (100 GB/mês ≈ 3.800 **aparelhos novos por mês** fora do Chrome desktop baixando uma direção de 26 MB; quem usa Chrome desktop não baixa nada do Pages, e cada aparelho baixa uma vez só por causa do Cache API) — só configurar `VITE_TRANSLATION_MODELS_URL` + CORS no bucket.
+
+---
+
+### Task 11: SparkAI — boas-vindas no idioma atual e sem tradução automática na conversa com o assistente
+
+Pedido do usuário (17/11/2026). O SparkAI já responde no idioma do app (`user:set-locale` → `buildSystemInstruction(locale)` na API) e envia as boas-vindas no idioma da criação do chat (`AI_WELCOME_MESSAGES` em `API-SparkChat/src/modules/ai/ai.model.ts:8`). Faltam duas coisas, só no SPA:
+
+1. **Boas-vindas sempre no idioma atual, texto exato.** Se o conteúdo descriptografado de uma mensagem numa sala do assistente for exatamente um dos dois textos de boas-vindas, a bolha mostra a versão do idioma atual da interface (nada de tradutor; troca só na renderização, depois da descriptografia).
+2. **Sem tradução automática na sala do SparkAI.** O assistente já responde no idioma certo, e se a pessoa escrever em outro idioma de propósito ele responde nesse idioma; traduzir estragaria isso. Na sala do assistente: `useMessageTranslation` desabilitado e o botão "traduzir ao enviar" escondido.
+
+**Files:**
+- Create: `src/features/chat/utils/assistant-welcome.ts` (+ `assistant-welcome.test.ts`)
+- Modify: `src/locales/{pt,en}/app.json` → `chat.assistant.welcome` com o texto **idêntico** ao da API:
+  - pt: `Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!`
+  - en: `Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!`
+- Modify: `src/features/chat/components/MessageBubble.tsx` (recebe `isAssistantRoom` por prop vinda do `ChatArea`, que já usa `isAssistantRoom(room)` em `ChatArea.tsx:1220`), `src/features/chat/components/MessageInput.tsx` + `ChatArea.tsx` (esconder o botão de envio traduzido na sala do assistente).
+
+**Interfaces:**
+- `localizeAssistantWelcome(content: string, language: Language): string | null` — se `content` (após `trim`) for igual a um dos dois textos de boas-vindas (lidos de `appI18n` com `lng: 'pt'` e `lng: 'en'`), retorna o texto do `language`; senão `null`.
+- `MessageBubble`: com `isAssistantRoom && !isOwn`, usa `localizeAssistantWelcome(message.content, language) ?? message.content` como texto original; `useMessageTranslation(..., enabled: autoTranslate && !isAssistantRoom)`.
+- `MessageInput`: nova prop `isAssistantRoom?: boolean`; quando `true`, o botão/faixa de envio traduzido nunca aparece e o envio nunca passa por tradução.
+
+- [ ] **Step 1: Write the failing tests** (`assistant-welcome.test.ts`)
+
+```ts
+it('shows the welcome in the current language', () => {
+  expect(localizeAssistantWelcome(PT_WELCOME, 'en')).toBe(EN_WELCOME);
+  expect(localizeAssistantWelcome(EN_WELCOME, 'pt')).toBe(PT_WELCOME);
+  expect(localizeAssistantWelcome(`  ${PT_WELCOME}\n`, 'pt')).toBe(PT_WELCOME);
+});
+it('leaves any other message alone', () => {
+  expect(localizeAssistantWelcome('Oi! Eu sou o SparkAI', 'en')).toBeNull();
+});
+it('keeps the locale strings identical to the API welcome texts', () => { /* PT_WELCOME/EN_WELCOME literais acima === appI18n.t('chat.assistant.welcome', { lng }) */ });
+```
+
+- [ ] **Step 2: Run** `npx vitest run src/features/chat/utils/assistant-welcome.test.ts` → FAIL
+- [ ] **Step 3: Implement** helper, chaves e integração.
+- [ ] **Step 4: Run** `npx eslint src && npm run typecheck && npx vitest run && npm run build` → verde
+- [ ] **Step 5: Commit** `:sparkles: feat: localize the sparkai welcome and skip translation in the assistant chat`
