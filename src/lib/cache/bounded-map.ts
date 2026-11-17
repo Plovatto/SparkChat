@@ -6,6 +6,10 @@ export class BoundedMap<K, V> {
     private readonly onEvict?: (value: V, key: K) => void,
   ) {}
 
+  get size(): number {
+    return this.entries.size;
+  }
+
   get(key: K): V | undefined {
     const value = this.entries.get(key);
     if (value === undefined) {

@@ -58,7 +58,18 @@ export function translationCacheKey(input: {
   target: Language;
   sourceText: string;
 }): string {
-  return `${input.roomId}:${input.messageId}:${input.field}:${input.target}:${fnv1a32(input.sourceText)}`;
+  // Ids are percent-encoded so ':' inside an id can never shift the segments writeTranslation parses back.
+  const room = encodeURIComponent(input.roomId);
+  const message = encodeURIComponent(input.messageId);
+  return `${room}:${message}:${input.field}:${input.target}:${fnv1a32(input.sourceText)}`;
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 export function readTranslation(key: string): CachedTranslation | undefined {
@@ -67,7 +78,9 @@ export function readTranslation(key: string): CachedTranslation | undefined {
 
 /** The key must come from translationCacheKey so its first two segments are roomId and messageId. */
 export function writeTranslation(key: string, value: CachedTranslation): void {
-  const [roomId = '', messageId = ''] = key.split(':');
+  const [encodedRoom = '', encodedMessage = ''] = key.split(':');
+  const roomId = safeDecode(encodedRoom);
+  const messageId = safeDecode(encodedMessage);
   const messageIndexKey = messageIndexKeyOf(roomId, messageId);
   entries.set(key, { value, roomId, messageIndexKey });
   addToIndex(roomIndex, roomId, key);
@@ -101,9 +114,5 @@ export function getTranslationCacheSizeForTests(what: 'entries' | 'indexes' = 'e
   if (what === 'indexes') {
     return roomIndex.size + messageIndex.size;
   }
-  let count = 0;
-  for (const keys of roomIndex.values()) {
-    count += keys.size;
-  }
-  return count;
+  return entries.size;
 }
