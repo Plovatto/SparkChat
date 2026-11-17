@@ -3,11 +3,10 @@ import {
   clearCachedModels,
   fetchModelFile,
   hasCachedPair,
-  loadRegistry,
   TRANSLATION_MODELS_CACHE,
   type BergamotRegistry,
 } from './model-fetch';
-import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex, urlOf } from './test-fakes';
+import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex } from './test-fakes';
 
 const BASE = 'https://spark.test/translation-models/v1/';
 const VOCAB_TEXT = 'vocab bytes for the test';
@@ -33,13 +32,7 @@ function rawRegistry() {
 beforeEach(() => {
   cacheStorage = new FakeCacheStorage();
   (globalThis as Record<string, unknown>).caches = cacheStorage;
-  fetchSpy = vi.fn<typeof fetch>((input) => {
-    const url = urlOf(input);
-    if (url.endsWith('registry.json')) {
-      return Promise.resolve(new Response(JSON.stringify(rawRegistry()), { status: 200 }));
-    }
-    return Promise.resolve(chunkedResponse(VOCAB_GZ, 8));
-  });
+  fetchSpy = vi.fn<typeof fetch>(() => Promise.resolve(chunkedResponse(VOCAB_GZ, 8)));
   vi.stubGlobal('fetch', fetchSpy);
 });
 
@@ -102,22 +95,15 @@ describe('fetchModelFile', () => {
   });
 });
 
-describe('registry', () => {
-  it('loads the registry and resolves file names against its base URL', async () => {
-    const registry = await loadRegistry(BASE);
-    expect(fetchSpy.mock.calls[0]![0]).toBe(`${BASE}registry.json`);
-    expect(fetchSpy.mock.calls[0]![1]).toMatchObject({ credentials: 'omit' });
-    expect(registry.enpt.vocab.name).toBe(VOCAB_URL);
-    expect(registry.pten.model.size).toBe(VOCAB_GZ.byteLength);
-  });
-
-  it('rejects a malformed registry', async () => {
-    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ enpt: {} }), { status: 200 }));
-    await expect(loadRegistry(BASE)).rejects.toThrow('registry-load-failed');
-  });
-
+describe('cached pairs', () => {
   it('tells whether every file of a pair is cached, and clears them', async () => {
-    const registry: BergamotRegistry = await loadRegistry(BASE);
+    const raw = rawRegistry();
+    const resolve = (files: ReturnType<typeof rawRegistry>['enpt']) => ({
+      model: { ...files.model, name: BASE + files.model.name },
+      lex: { ...files.lex, name: BASE + files.lex.name },
+      vocab: { ...files.vocab, name: BASE + files.vocab.name },
+    });
+    const registry: BergamotRegistry = { enpt: resolve(raw.enpt), pten: resolve(raw.pten) };
     expect(await hasCachedPair('en-pt', registry)).toBe(false);
     for (const file of Object.values(registry.enpt)) {
       await fetchModelFile(file.name, file.expectedSha256Hash, () => undefined);

@@ -89,6 +89,26 @@ vi.mock('@mkljczk/bergamot-translator/translator.js', () => {
   return { BatchTranslator, TranslatorBacking };
 });
 
+type RegistryFiles = Record<string, Record<string, { name: string; size: number; expectedSha256Hash: string }>>;
+
+const bundled = vi.hoisted(() => {
+  const state: { registry: RegistryFiles; calls: number } = { registry: {}, calls: 0 };
+  return state;
+});
+
+// The real registry is bundled from the pinned manifest; tests swap in fixtures whose hashes match their bodies.
+vi.mock('./model-registry', () => ({
+  modelRegistry: (baseUrl: string) => {
+    bundled.calls += 1;
+    return Object.fromEntries(
+      Object.entries(bundled.registry).map(([key, files]) => [
+        key,
+        Object.fromEntries(Object.entries(files).map(([part, file]) => [part, { ...file, name: new URL(file.name, baseUrl).href }])),
+      ]),
+    );
+  },
+}));
+
 import {
   BERGAMOT_DOWNLOAD_RETRY_COOLDOWN_MS,
   BERGAMOT_IDLE_TEARDOWN_MS,
@@ -144,7 +164,7 @@ let failNextFetches = 0;
 let bergamotEngine: BergamotEngine;
 
 function fetchedUrls(): string[] {
-  return fetchSpy.mock.calls.map(([input]) => urlOf(input)).filter((url) => !url.endsWith('registry.json'));
+  return fetchSpy.mock.calls.map(([input]) => urlOf(input));
 }
 
 function fakeBacking(): BackingLike {
@@ -184,12 +204,13 @@ beforeEach(() => {
     hasTranslationModel: () => Promise.resolve(false),
   };
   fixture = smallFixture();
+  bundled.registry = fixture.registry;
   failNextFetches = 0;
   cacheStorage = new FakeCacheStorage();
   fetchSpy = vi.fn<typeof fetch>((input) => {
     const url = urlOf(input);
-    if (url === `${BASE}registry.json`) {
-      return Promise.resolve(new Response(JSON.stringify(fixture.registry), { status: 200 }));
+    if (url.includes('registry')) {
+      return Promise.reject(new Error('the registry must never be fetched'));
     }
     if (failNextFetches > 0) {
       failNextFetches -= 1;
@@ -306,7 +327,7 @@ describe('bergamotEngine', () => {
   it('serves model files from the Cache API on the second load', async () => {
     await bergamotEngine.prepare('en', 'pt');
     fetchSpy.mockClear();
-    // a new session: the models come from the Cache API, only the small registry is fetched
+    // a new session: the models come from the Cache API and the registry from the bundle, so nothing is fetched
     const nextSession = createBergamotEngine();
     expect(await nextSession.support('en', 'pt')).toBe('available');
     expect(await nextSession.translate('hello there', 'en', 'pt')).toBe('PT:hello there');
@@ -316,6 +337,7 @@ describe('bergamotEngine', () => {
 
   it('reports byte progress against registry sizes', async () => {
     fixture = realSizeFixture_();
+    bundled.registry = fixture.registry;
     const events: TranslationProgressEvent[] = [];
     bergamotEngine.onProgress((event) => events.push(event));
     await bergamotEngine.prepare('en', 'pt');
@@ -432,6 +454,70 @@ describe('bergamotEngine', () => {
   it('only handles the pt/en pairs', async () => {
     expect(await bergamotEngine.support('pt', 'pt')).toBe('unavailable');
     await expect(bergamotEngine.translate('ola', 'pt', 'pt')).rejects.toThrow('translate-failed');
+  });
+
+  it('never requests a registry over the network', async () => {
+    await bergamotEngine.support('en', 'pt');
+    await bergamotEngine.prepare('en', 'pt');
+    await bergamotEngine.support('pt', 'en');
+    await bergamotEngine.translate('hello there', 'en', 'pt');
+    expect(fetchedUrls().some((url) => url.includes('registry'))).toBe(false);
+    expect(fetchedUrls()).toHaveLength(3);
+  });
+
+  it('answers support with a network that rejects everything', async () => {
+    fetchSpy.mockImplementation(() => Promise.reject(new TypeError('offline')));
+    for (let index = 0; index < 5; index += 1) {
+      expect(await bergamotEngine.support('en', 'pt')).toBe('downloadable');
+      expect(await bergamotEngine.support('pt', 'en')).toBe('downloadable');
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('is unavailable for the session when the Cache API cannot be opened', async () => {
+    const open = vi.fn(() => Promise.reject(new DOMException('private browsing', 'SecurityError')));
+    vi.stubGlobal('caches', { open, delete: () => Promise.resolve(false) });
+    bergamotEngine = createBergamotEngine();
+    expect(await bergamotEngine.support('en', 'pt')).toBe('unavailable');
+    expect(await bergamotEngine.support('pt', 'en')).toBe('unavailable');
+    await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    await expect(bergamotEngine.translate('hello there', 'en', 'pt')).rejects.toThrow();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // probed once and remembered
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('counts files already cached toward progress so a partial cache reaches the total', async () => {
+    fixture = realSizeFixture_();
+    bundled.registry = fixture.registry;
+    const vocab = fixture.registry.enpt!.vocab!;
+    const cache = await cacheStorage.open('sparkchat-translation-models-v1');
+    await cache.put(BASE + vocab.name, new Response(fixture.bodies.get(BASE + vocab.name)!.slice()));
+    const events: TranslationProgressEvent[] = [];
+    bergamotEngine.onProgress((event) => events.push(event));
+    await bergamotEngine.prepare('en', 'pt');
+    expect(fetchedUrls()).toHaveLength(2);
+    expect(fetchedUrls().some((url) => url.includes('vocab'))).toBe(false);
+    expect(events[0]!.loaded).toBeGreaterThanOrEqual(vocab.size);
+    expect(events.at(-1)).toEqual({ engine: 'bergamot', pair: 'en-pt', loaded: 25866313, total: 25866313 });
+  }, 30_000);
+
+  it('marks a pair failed for the session when a file fails the sha256 check', async () => {
+    const lex = fixture.registry.enpt!.lex!;
+    fixture.bodies.set(BASE + lex.name, gzip('tampered bytes'));
+    const retry = vi.fn();
+    bergamotEngine.onRetryAvailable(retry);
+    useFakeTimers();
+    await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    expect(await bergamotEngine.support('en', 'pt')).toBe('failed');
+    fetchSpy.mockClear();
+    await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    await expect(bergamotEngine.translate('hello there', 'en', 'pt')).rejects.toThrow('model-load-failed');
+    vi.advanceTimersByTime(BERGAMOT_DOWNLOAD_RETRY_COOLDOWN_MS * 2);
+    expect(retry).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // only that pair: the other direction still works
+    expect(await bergamotEngine.support('pt', 'en')).toBe('downloadable');
   });
 
   it('is unavailable without the required runtime features', async () => {

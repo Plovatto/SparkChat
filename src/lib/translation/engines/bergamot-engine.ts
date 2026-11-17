@@ -6,11 +6,11 @@ import {
   ensureModelFileCached,
   fetchModelFile,
   hasCachedPair,
-  loadRegistry,
   registryKeyOf,
   TRANSLATION_MODELS_CACHE,
   type BergamotRegistry,
 } from './model-fetch';
+import { modelRegistry } from './model-registry';
 
 export const BERGAMOT_IDLE_TEARDOWN_MS = 120_000;
 /** Without this, every visible message would start a new 26 MB download after a network failure. */
@@ -39,7 +39,7 @@ function supportedPair(source: Language, target: Language): PairKey | null {
 }
 
 type BackingHooks = {
-  registry: () => Promise<BergamotRegistry>;
+  registry: () => BergamotRegistry;
   onWorkerModelLoadFailed: () => void;
 };
 
@@ -51,8 +51,9 @@ type BackingHooks = {
 function createBacking(module: BergamotModule, hooks: BackingHooks, options: Record<string, unknown>) {
   class SparkBacking extends module.TranslatorBacking {
     override loadModelRegistry() {
-      return hooks.registry().then((registry) =>
-        Object.entries(registry).map(([key, files]) => ({ from: key.slice(0, 2), to: key.slice(2, 4), files })),
+      // Bundled from the pinned manifest: never fetched at runtime.
+      return Promise.resolve(
+        Object.entries(hooks.registry()).map(([key, files]) => ({ from: key.slice(0, 2), to: key.slice(2, 4), files })),
       );
     }
 
@@ -98,7 +99,10 @@ function createBacking(module: BergamotModule, hooks: BackingHooks, options: Rec
 
 export function createBergamotEngine(): BergamotEngine {
   let failed = false;
-  let registry: Promise<BergamotRegistry> | null = null;
+  let registry: BergamotRegistry | null = null;
+  let cacheUsable: Promise<boolean> | null = null;
+  // Pairs whose files failed our own sha256 check: a broken deploy, not a network blip. No retry this session.
+  const failedPairs = new Set<PairKey>();
   let translator: Promise<BatchTranslatorInstance> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
   let activeCalls = 0;
@@ -109,17 +113,22 @@ export function createBergamotEngine(): BergamotEngine {
   const progressListeners = new Set<(event: TranslationProgressEvent) => void>();
   const retryListeners = new Set<() => void>();
 
-  function getRegistry(): Promise<BergamotRegistry> {
-    if (!registry) {
-      const loading = loadRegistry(modelsBaseUrl());
-      registry = loading;
-      loading.catch(() => {
-        if (registry === loading) {
-          registry = null;
-        }
-      });
-    }
+  function getRegistry(): BergamotRegistry {
+    registry ??= modelRegistry(modelsBaseUrl());
     return registry;
+  }
+
+  /** Probed once: the Cache API can exist and still throw (e.g. Firefox private browsing). */
+  function probeCache(): Promise<boolean> {
+    cacheUsable ??= (async () => {
+      try {
+        await caches.open(TRANSLATION_MODELS_CACHE);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    return cacheUsable;
   }
 
   function emitProgress(pair: PairKey, loaded: number, total: number): void {
@@ -172,12 +181,7 @@ export function createBergamotEngine(): BergamotEngine {
     if (readyPairs.has(pair)) {
       return true;
     }
-    // An empty cache answers without touching the network, so nothing is fetched until a download is asked for.
-    const cache = await caches.open(TRANSLATION_MODELS_CACHE);
-    if ((await cache.keys()).length === 0) {
-      return false;
-    }
-    const cached = await hasCachedPair(pair, await getRegistry());
+    const cached = await hasCachedPair(pair, getRegistry());
     if (cached) {
       readyPairs.add(pair);
     }
@@ -195,24 +199,36 @@ export function createBergamotEngine(): BergamotEngine {
   }
 
   async function downloadPair(pair: PairKey): Promise<void> {
+    if (!(await probeCache())) {
+      throw new Error('model-load-failed');
+    }
     const controller = new AbortController();
     try {
-      if (await isPairCached(pair)) {
+      const files = Object.values(getRegistry()[registryKeyOf(pair)]);
+      const cache = await caches.open(TRANSLATION_MODELS_CACHE);
+      const cachedFlags = await Promise.all(files.map(async (file) => (await cache.match(file.name)) !== undefined));
+      const missing = files.filter((_, index) => !cachedFlags[index]);
+      if (missing.length === 0) {
+        readyPairs.add(pair);
         return;
       }
-      const files = Object.values((await getRegistry())[registryKeyOf(pair)]);
       const total = files.reduce((sum, file) => sum + file.size, 0);
-      let loaded = 0;
+      // Files already in the cache count as loaded, so a partly filled cache still reaches the total.
+      let loaded = files.reduce((sum, file, index) => (cachedFlags[index] ? sum + file.size : sum), 0);
       const onBytes = (n: number) => {
         loaded += n;
         // `loaded >= total` means "ready"; only the final event below may claim it.
         emitProgress(pair, Math.min(loaded, total - 1), total);
       };
-      await Promise.all(files.map((file) => ensureModelFileCached(file.name, file.expectedSha256Hash, onBytes, controller.signal)));
+      await Promise.all(missing.map((file) => ensureModelFileCached(file.name, file.expectedSha256Hash, onBytes, controller.signal)));
       readyPairs.add(pair);
       emitProgress(pair, total, total);
-    } catch {
+    } catch (error) {
       controller.abort();
+      if (error instanceof Error && error.message === 'integrity-failed') {
+        failedPairs.add(pair);
+        throw new Error('model-load-failed');
+      }
       startCooldown(pair);
       throw new Error('download-failed');
     }
@@ -220,7 +236,7 @@ export function createBergamotEngine(): BergamotEngine {
 
   function prepare(source: Language, target: Language): Promise<void> {
     const pair = supportedPair(source, target);
-    if (!pair || !isBergamotRuntimeSupported() || failed) {
+    if (!pair || !isBergamotRuntimeSupported() || failed || failedPairs.has(pair)) {
       return Promise.reject(new Error('model-load-failed'));
     }
     const inFlight = downloads.get(pair);
@@ -242,6 +258,7 @@ export function createBergamotEngine(): BergamotEngine {
       const creating = import('@mkljczk/bergamot-translator/translator.js').then((module) => {
         // Posted to the worker on initialize: must stay structured-cloneable (no callbacks here).
         const backingOptions = {
+          // Only a base for resolving names: loadModelRegistry() is overridden, so this URL is never fetched.
           registryUrl: new URL('registry.json', modelsBaseUrl()).href,
           workerUrl: workerUrl(),
           // null disables pivoting through a third language (verified in the Task 0 spike).
@@ -281,7 +298,7 @@ export function createBergamotEngine(): BergamotEngine {
     if (!pair) {
       throw new Error('translate-failed');
     }
-    if (failed) {
+    if (failed || failedPairs.has(pair)) {
       throw new Error('model-load-failed');
     }
     if (!readyPairs.has(pair)) {
@@ -316,7 +333,10 @@ export function createBergamotEngine(): BergamotEngine {
     if (!pair || !isBergamotRuntimeSupported()) {
       return 'unavailable';
     }
-    if (failed) {
+    if (!(await probeCache())) {
+      return 'unavailable';
+    }
+    if (failed || failedPairs.has(pair)) {
       return 'failed';
     }
     if (downloads.has(pair)) {
