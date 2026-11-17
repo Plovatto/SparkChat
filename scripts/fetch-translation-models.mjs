@@ -1,7 +1,12 @@
 // Fetches the pinned Mozilla pt<->en translation models and copies the Bergamot
 // runtime into public/. Every file is verified by sha256; nothing here is committed.
+// The app's model registry is bundled from the manifest (src/lib/translation/engines/model-registry.ts), so no
+// registry file is written here.
+//
+// `--dev` (predev): a failure is a warning and the script exits 0, so the dev server still starts offline (the
+// Bergamot fallback just won't work). Without it (prebuild, CI) any failure exits 1.
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, rm, stat, writeFile, copyFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile, copyFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256, verifyModelFile } from './translation-model-verify.mjs';
@@ -13,6 +18,8 @@ const manifest = JSON.parse(
 const modelsDir = join(root, 'public', 'translation-models', manifest.version);
 const runtimeDir = join(root, 'public', 'bergamot');
 const runtimeSrc = join(root, 'node_modules', '@mkljczk', 'bergamot-translator', 'worker');
+const devMode = process.argv.includes('--dev');
+const DOWNLOAD_TIMEOUT_MS = 60_000;
 
 async function hasHash(file, expected) {
   if (!existsSync(file)) return false;
@@ -31,18 +38,20 @@ async function writeAtomic(file, buf) {
 }
 
 function fail(message) {
+  if (devMode) {
+    console.warn(`[translation-models] warning: ${message}; continuing without the translation fallback models`);
+    process.exit(0);
+  }
   console.error(`[translation-models] ${message}`);
   process.exit(1);
 }
 
 let downloaded = 0;
-const registry = {};
 
 for (const [pair, files] of Object.entries(manifest.pairs)) {
   const dir = join(modelsDir, pair);
   await mkdir(dir, { recursive: true });
-  registry[pair] = {};
-  for (const [kind, entry] of Object.entries(files)) {
+  for (const entry of Object.values(files)) {
     const name = basename(entry.path);
     const target = join(dir, name);
     // Existing files are re-verified too (compressed and, after gunzip, raw hashes), so the manifest stays checked.
@@ -52,7 +61,7 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
       console.log(`[translation-models] downloading ${pair}/${name}`);
       let buf;
       try {
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
         if (!res.ok) fail(`HTTP ${res.status} for ${url}`);
         buf = Buffer.from(await res.arrayBuffer());
       } catch (err) {
@@ -63,17 +72,11 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
       await writeAtomic(target, buf);
       downloaded++;
     }
-    registry[pair][kind] = {
-      name: `${pair}/${name}`,
-      size: entry.size,
-      expectedSha256Hash: entry.sha256,
-      rawSize: entry.rawSize,
-      rawSha256Hash: entry.rawSha256,
-    };
   }
 }
 
-await writeAtomic(join(modelsDir, 'registry.json'), JSON.stringify(registry, null, 2) + '\n');
+// Left over by earlier versions of this script; nothing reads it.
+await rm(join(modelsDir, 'registry.json'), { force: true });
 
 await mkdir(runtimeDir, { recursive: true });
 for (const [file, expected] of Object.entries(manifest.runtime)) {
@@ -93,6 +96,5 @@ for (const [file, expected] of Object.entries(manifest.runtime)) {
 if (downloaded === 0) {
   console.log('[translation-models] up to date');
 } else {
-  const total = (await stat(join(modelsDir, 'registry.json'))).size;
-  console.log(`[translation-models] done (${downloaded} file(s) written, registry ${total} bytes)`);
+  console.log(`[translation-models] done (${downloaded} file(s) written)`);
 }
