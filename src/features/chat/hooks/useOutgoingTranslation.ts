@@ -37,8 +37,9 @@ async function translateOutgoing(text: string, source: Language, target: Languag
 }
 
 /** Per-room "translate before sending" (interface language -> the other one). Gated by the global auto-translate switch. */
-export function useOutgoingTranslation(roomId: string, userId: string, draft: string): OutgoingTranslation {
-  const autoTranslate = useContext(AutoTranslateContext);
+export function useOutgoingTranslation(roomId: string, userId: string, draft: string, available = true): OutgoingTranslation {
+  // `available` false (the SparkAI room) behaves like auto-translate off: no engine resolved, nothing translated.
+  const autoTranslate = useContext(AutoTranslateContext) && available;
   const { language: source } = useAppLanguage();
   const target = oppositeLanguage(source);
   // Only room ids are stored (security rule 1).

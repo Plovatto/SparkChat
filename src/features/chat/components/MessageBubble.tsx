@@ -4,11 +4,13 @@ import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/m
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { useInViewport } from '@hooks/useInViewport';
 import type { SessionAuth } from '@lib/api/session-auth';
+import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
 import { AutoTranslateContext } from '../hooks/useAutoTranslatePreference';
 import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
+import { localizeAssistantWelcome } from '../utils/assistant-welcome';
 import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { truncateLongText } from '../utils/truncate-long-text';
@@ -39,6 +41,8 @@ interface MessageBubbleProps extends MessageBubbleActions {
   isOwn: boolean;
   isGroupChat: boolean;
   roomId: string;
+  /** The SparkAI room: no translation, and its welcome is shown in the current language. */
+  isAssistantRoom?: boolean;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
@@ -103,6 +107,7 @@ export const MessageBubble = memo(function MessageBubble({
   isOwn,
   isGroupChat,
   roomId,
+  isAssistantRoom = false,
   participants,
   currentUserId,
   currentNickname,
@@ -128,14 +133,17 @@ export const MessageBubble = memo(function MessageBubble({
   const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const isVisible = useInViewport(bubbleRef);
-  const autoTranslate = useContext(AutoTranslateContext);
+  const { language } = useAppLanguage();
+  // The assistant already answers in the right language (even a deliberately different one), so it is never translated.
+  const autoTranslate = useContext(AutoTranslateContext) && !isAssistantRoom;
   // Only someone else's delivered message is translated: never own, pending, failed or deleted ones.
   const canTranslate = !isOwn && !message.pending && !message.failed && !message.deletedForEveryone;
+  const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
     messageId: message.id,
     field: 'content',
-    text: canTranslate && message.type === 'text' ? message.content : null,
+    text: canTranslate && message.type === 'text' ? originalContent : null,
     enabled: autoTranslate,
     isVisible,
   });
@@ -166,7 +174,7 @@ export const MessageBubble = memo(function MessageBubble({
   const isAudioMessage = message.type === 'audio';
   const isFileMessage = message.type === 'file';
   const isVideoFile = isFileMessage && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
-  const content = contentTranslation.text || message.content;
+  const content = contentTranslation.text || originalContent;
   const caption = captionTranslation.text || message.caption;
   const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(content) : null;
   const displayContent = truncatedContent ?? content;
