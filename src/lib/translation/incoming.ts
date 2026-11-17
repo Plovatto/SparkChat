@@ -79,12 +79,17 @@ function watchProgress(engine: TranslationEngine): void {
   if (progressSubscriptions.has(engine)) {
     return;
   }
-  const unsubscribe = engine.onProgress((event: TranslationProgressEvent) => {
+  const unsubscribeProgress = engine.onProgress((event: TranslationProgressEvent) => {
     if (event.loaded >= event.total) {
       notifyInvalidation();
     }
   });
-  progressSubscriptions.set(engine, unsubscribe);
+  // A failed download is not retried in a loop; the engine says when the pair may be tried again.
+  const unsubscribeRetry = engine.onRetryAvailable?.(notifyInvalidation);
+  progressSubscriptions.set(engine, () => {
+    unsubscribeProgress();
+    unsubscribeRetry?.();
+  });
 }
 
 function prepareOnce(engine: TranslationEngine, source: Language, target: Language): void {
@@ -98,7 +103,7 @@ function prepareOnce(engine: TranslationEngine, source: Language, target: Langua
       notifyInvalidation();
     },
     () => {
-      // A failed download is not retried in a loop; the next request for the pair tries again.
+      // A failed download is not retried in a loop; the next request after onRetryAvailable tries again.
       preparing.delete(key);
     },
   );

@@ -1,4 +1,8 @@
+import { loadBergamotEngine } from './engines/bergamot-loader';
+import { registerFallbackEngine } from './router';
+
 export { armNativeOnFirstInteraction, nativeEngine } from './engines/native-engine';
+export { isBergamotRuntimeSupported, loadBergamotEngine } from './engines/bergamot-loader';
 export { pairKey } from './types';
 export type { EngineId, PairKey, TranslationEngine, TranslationProgressEvent, TranslationSupport } from './types';
 export {
@@ -35,3 +39,6 @@ export {
   TRANSLATION_JOB_TIMEOUT_MS,
 } from './incoming';
 export type { IncomingRequest, IncomingResult } from './incoming';
+
+// Bergamot is only imported (dynamically) when the router picks the fallback: browsers without the Translator API.
+registerFallbackEngine(loadBergamotEngine);
