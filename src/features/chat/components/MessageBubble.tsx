@@ -1,10 +1,13 @@
-import { memo, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import { memo, useContext, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
+import { useInViewport } from '@hooks/useInViewport';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
+import { AutoTranslateContext } from '../hooks/useAutoTranslatePreference';
+import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
 import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
@@ -19,6 +22,7 @@ import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 import { MessageReplyQuote } from './MessageReplyQuote';
 import { DeletedMessageBubble, ErrorMessageBubble, SystemMessageBubble } from './SpecialMessageBubbles';
+import { TranslationBadge } from './TranslationBadge';
 import { VideoMessageContent } from './VideoMessageContent';
 
 export interface MessageBubbleActions {
@@ -122,6 +126,27 @@ export const MessageBubble = memo(function MessageBubble({
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
   const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
+  const bubbleRef = useRef<HTMLDivElement>(null);
+  const isVisible = useInViewport(bubbleRef);
+  const autoTranslate = useContext(AutoTranslateContext);
+  // Only someone else's delivered message is translated: never own, pending, failed or deleted ones.
+  const canTranslate = !isOwn && !message.pending && !message.failed && !message.deletedForEveryone;
+  const contentTranslation = useMessageTranslation({
+    roomId,
+    messageId: message.id,
+    field: 'content',
+    text: canTranslate && message.type === 'text' ? message.content : null,
+    enabled: autoTranslate,
+    isVisible,
+  });
+  const captionTranslation = useMessageTranslation({
+    roomId,
+    messageId: message.id,
+    field: 'caption',
+    text: canTranslate && message.type !== 'text' ? message.caption : null,
+    enabled: autoTranslate,
+    isVisible,
+  });
 
   if (message.deletedForEveryone) {
     return <DeletedMessageBubble isOwn={isOwn} roomId={roomId} entrancePhase={entrance} />;
@@ -141,10 +166,15 @@ export const MessageBubble = memo(function MessageBubble({
   const isAudioMessage = message.type === 'audio';
   const isFileMessage = message.type === 'file';
   const isVideoFile = isFileMessage && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
-  const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(message.content) : null;
-  const displayContent = truncatedContent ?? message.content;
+  const content = contentTranslation.text || message.content;
+  const caption = captionTranslation.text || message.caption;
+  const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(content) : null;
+  const displayContent = truncatedContent ?? content;
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
-  const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(message.content) : '';
+  const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(content) : '';
+  const contentBadge = (
+    <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} />
+  );
   const textAccentColor = bubbleStyle.accentColor;
 
   const handleRetry = () => {
@@ -200,6 +230,7 @@ export const MessageBubble = memo(function MessageBubble({
             </>
           )}
         </p>
+        {contentBadge}
       </div>
     );
   };
@@ -221,6 +252,7 @@ export const MessageBubble = memo(function MessageBubble({
       cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
+      containerRef={bubbleRef}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '64px') : undefined}
       afterBubble={
@@ -253,12 +285,14 @@ export const MessageBubble = memo(function MessageBubble({
       {hasLinkPreview && linkPreviewCaption && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
           <p style={MESSAGE_TEXT_STYLE}>{linkPreviewCaption}</p>
+          {contentBadge}
         </div>
       )}
 
-      {message.type !== 'text' && message.caption && (
+      {message.type !== 'text' && caption && (
         <div style={MEDIA_CAPTION_STYLE}>
-          <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(message.caption, participants, textAccentColor)}</p>
+          <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(caption, participants, textAccentColor)}</p>
+          <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} />
         </div>
       )}
 

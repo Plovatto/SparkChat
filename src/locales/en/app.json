@@ -330,7 +330,18 @@
     "deleteTitle_one": "Delete message",
     "deleteTitle_other": "Delete {{count}} messages",
     "deleteConfirm_one": "Are you sure you want to delete this message for everyone?",
-    "deleteConfirm_other": "Are you sure you want to delete these {{count}} messages for everyone?"
+    "deleteConfirm_other": "Are you sure you want to delete these {{count}} messages for everyone?",
+    "translation": {
+      "translatedFrom": "Translated from {{language}}",
+      "original": "Original message",
+      "showOriginal": "Show original",
+      "showTranslation": "Show translation",
+      "translating": "Translating…",
+      "languages": {
+        "pt": "Portuguese",
+        "en": "English"
+      }
+    }
   },
   "roomInfo": {
     "copyUsername": "Copy username",
