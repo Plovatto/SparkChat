@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { NATIVE_API_TIMEOUT_MS } from './native-timeout';
 import { detectLanguage, resetDetectorForTests } from './detection';
 
 interface FakeResult {
@@ -61,5 +62,33 @@ describe('detectLanguage', () => {
   it('falls back to the heuristic when detect throws', async () => {
     installFakeDetector([], { failDetect: true });
     expect((await detectLanguage('good morning everyone'))?.language).toBe('en');
+  });
+});
+
+describe('detectLanguage native timeouts', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('falls back to the heuristic when create never settles and stops retrying', async () => {
+    const create = vi.fn(() => new Promise<never>(() => undefined));
+    (globalThis as Record<string, unknown>).LanguageDetector = { create };
+    const pending = detectLanguage('good morning everyone');
+    await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
+    expect((await pending)?.language).toBe('en');
+    expect((await detectLanguage('good morning everyone'))?.language).toBe('en');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the heuristic when detect never settles', async () => {
+    (globalThis as Record<string, unknown>).LanguageDetector = {
+      create: () => Promise.resolve({ detect: () => new Promise<never>(() => undefined) }),
+    };
+    const pending = detectLanguage('good morning everyone');
+    await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
+    expect((await pending)?.language).toBe('en');
   });
 });

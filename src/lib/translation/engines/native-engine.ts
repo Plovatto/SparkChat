@@ -1,9 +1,14 @@
 import type { Language } from '@lib/i18n/language';
+import { NATIVE_API_TIMEOUT_MS, TIMED_OUT, withNativeTimeout } from '../native-timeout';
 import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
+
+export { NATIVE_API_TIMEOUT_MS };
 
 const INTERACTION_EVENTS = ['pointerdown', 'keydown'] as const;
 
 const translators = new Map<PairKey, Promise<TranslatorInstance>>();
+/** Pairs whose availability check never answered: treated as unavailable for the whole session. */
+const hungPairs = new Set<PairKey>();
 const progressListeners = new Set<(event: TranslationProgressEvent) => void>();
 
 function api(): TranslatorStatic | undefined {
@@ -47,8 +52,17 @@ async function support(source: Language, target: Language): Promise<TranslationS
   if (!translatorApi) {
     return 'unavailable';
   }
+  const key = pairKey(source, target);
+  if (hungPairs.has(key)) {
+    return 'unavailable';
+  }
   try {
-    return await translatorApi.availability({ sourceLanguage: source, targetLanguage: target });
+    const result = await withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }));
+    if (result === TIMED_OUT) {
+      hungPairs.add(key);
+      return 'unavailable';
+    }
+    return result;
   } catch {
     return 'unavailable';
   }
@@ -108,5 +122,6 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
 
 export function resetNativeEngineForTests(): void {
   translators.clear();
+  hungPairs.clear();
   progressListeners.clear();
 }
