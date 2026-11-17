@@ -8,7 +8,7 @@ import {
   type BergamotModelFile,
   type BergamotRegistry,
 } from './model-fetch';
-import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex } from './test-fakes';
+import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex } from './test-fakes.test-utils';
 
 const BASE = 'https://spark.test/translation-models/v1/';
 const VOCAB_TEXT = 'vocab bytes for the test '.repeat(40);

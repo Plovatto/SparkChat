@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TranslationProgressEvent } from '../types';
-import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex, urlOf } from './test-fakes';
+import { chunkedResponse, FakeCacheStorage, gzip, sha256Hex, urlOf } from './test-fakes.test-utils';
 
 type FakeRequest = { from: string; to: string; text: string; html: boolean; priority?: number };
 type FakeResponse = { request: FakeRequest; target: { text: string } };
