@@ -62,8 +62,19 @@ export function resolveEngine(source: Language, target: Language): Promise<Engin
     return memo.route;
   }
   const route = computeRoute(source, target).catch(() => null);
-  routes.set(key, { expiresAt: now + ENGINE_ROUTE_MEMO_MS, route });
+  const entry = { expiresAt: now + ENGINE_ROUTE_MEMO_MS, route };
+  routes.set(key, entry);
+  // Only final states are memoized: a model that is downloading must be asked again so it is used once ready.
+  void route.then((resolved) => {
+    if (resolved && !isFinalSupport(resolved.support) && routes.get(key) === entry) {
+      routes.delete(key);
+    }
+  });
   return route;
+}
+
+function isFinalSupport(support: TranslationSupport): boolean {
+  return support === 'available' || support === 'unavailable' || support === 'failed';
 }
 
 /** Forget memoized routes, e.g. after a model download finishes and support changed. */

@@ -4,10 +4,21 @@ import type { Language } from '@lib/i18n/language';
 import { detectLanguage } from './detection';
 import { invalidateEngineRoutes, resolveEngine } from './router';
 import { hasTranslatableText, translatePreservingSegments } from './segments';
-import { readTranslation, TRANSLATION_CACHE_SIZE, translationCacheKey, writeTranslation, type CachedTranslation } from './translation-cache';
+import {
+  captureTranslationEpoch,
+  isTranslationEpochCurrent,
+  readTranslation,
+  TRANSLATION_CACHE_SIZE,
+  translationCacheKey,
+  writeTranslation,
+  type CachedTranslation,
+  type TranslationEpoch,
+} from './translation-cache';
 import { pairKey, type TranslationEngine, type TranslationProgressEvent } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
+/** A job that takes longer than this (wedged worker, hung engine) resolves to an uncached none and frees the queue. */
+export const TRANSLATION_JOB_TIMEOUT_MS = 20_000;
 
 const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
 
@@ -28,7 +39,15 @@ export type IncomingRequest = {
   signal: AbortSignal;
 };
 
-type Job = { request: IncomingRequest; cacheKey: string; resolve: (result: IncomingResult) => void };
+type Job = {
+  request: IncomingRequest;
+  cacheKey: string;
+  epoch: TranslationEpoch;
+  resolve: (result: IncomingResult) => void;
+  onAbort: () => void;
+  // Set once the job timed out or settled; a late result must not be written then.
+  finished: boolean;
+};
 
 const NONE = { status: 'none' } as const satisfies IncomingResult;
 
@@ -79,7 +98,7 @@ function prepareOnce(engine: TranslationEngine, source: Language, target: Langua
       notifyInvalidation();
     },
     () => {
-      // A failed download is not retried in a loop; the next request after the memo expires tries again.
+      // A failed download is not retried in a loop; the next request for the pair tries again.
       preparing.delete(key);
     },
   );
@@ -92,10 +111,19 @@ function remember(cacheKey: string, request: IncomingRequest, value: CachedTrans
   return value;
 }
 
-async function run({ request, cacheKey }: Job): Promise<IncomingResult> {
+/** Writes only while the job is still live and nothing was cleared since it was queued. */
+function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
+  if (job.finished || !isTranslationEpochCurrent(job.epoch)) {
+    return NONE;
+  }
+  return remember(job.cacheKey, job.request, value);
+}
+
+async function run(job: Job): Promise<IncomingResult> {
+  const { request } = job;
   const detected = await detectLanguage(request.text);
   if (!detected || detected.confidence < MIN_DETECTION_CONFIDENCE || detected.language === request.target) {
-    return remember(cacheKey, request, NONE);
+    return rememberFor(job, NONE);
   }
   const source = detected.language;
   const route = await resolveEngine(source, request.target);
@@ -118,10 +146,21 @@ async function run({ request, cacheKey }: Job): Promise<IncomingResult> {
     const text = await translatePreservingSegments(request.text, (chunk) =>
       engine.translate(chunk, source, request.target, { priority: 1 }),
     );
-    return remember(cacheKey, request, { status: 'translated', text, sourceLanguage: source });
+    return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
   } catch {
     return NONE;
   }
+}
+
+function runWithTimeout(job: Job): Promise<IncomingResult> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<IncomingResult>((resolve) => {
+    timer = setTimeout(() => resolve(NONE), TRANSLATION_JOB_TIMEOUT_MS);
+  });
+  return Promise.race([run(job).catch(() => NONE), timeout]).finally(() => {
+    job.finished = true;
+    clearTimeout(timer);
+  });
 }
 
 async function pump(): Promise<void> {
@@ -132,11 +171,15 @@ async function pump(): Promise<void> {
   try {
     // LIFO: the message most recently scrolled into view is the one the person is looking at.
     for (let job = pending.pop(); job; job = pending.pop()) {
-      if (job.request.signal.aborted) {
+      job.request.signal.removeEventListener('abort', job.onAbort);
+      // Aborted (left the screen) or cleared (deleted, room removed, logout) while waiting: drop without translating.
+      if (job.request.signal.aborted || !isTranslationEpochCurrent(job.epoch)) {
         job.resolve(NONE);
         continue;
       }
-      job.resolve(await run(job).catch(() => NONE));
+      const result = await runWithTimeout(job);
+      // A clear during the job hides whatever it produced, cached or not.
+      job.resolve(isTranslationEpochCurrent(job.epoch) ? result : NONE);
     }
   } finally {
     running = false;
@@ -160,18 +203,21 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
     return Promise.resolve(NONE);
   }
   return new Promise<IncomingResult>((resolve) => {
-    const job: Job = { request, cacheKey, resolve };
-    request.signal.addEventListener(
-      'abort',
-      () => {
+    const job: Job = {
+      request,
+      cacheKey,
+      epoch: captureTranslationEpoch(request.roomId, request.messageId),
+      resolve,
+      finished: false,
+      onAbort: () => {
         const index = pending.indexOf(job);
         if (index !== -1) {
           pending.splice(index, 1);
           resolve(NONE);
         }
       },
-      { once: true },
-    );
+    };
+    request.signal.addEventListener('abort', job.onAbort, { once: true });
     pending.push(job);
     void pump();
   });

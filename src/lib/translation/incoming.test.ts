@@ -50,10 +50,11 @@ import {
   resetIncomingForTests,
   subscribeIncomingInvalidation,
   translateIncoming,
+  TRANSLATION_JOB_TIMEOUT_MS,
   type IncomingRequest,
 } from './incoming';
 import { registerFallbackEngine, resetRouterForTests } from './router';
-import { clearTranslationCache, forgetTranslation } from './translation-cache';
+import { clearTranslationCache, clearTranslationsForRoom, forgetTranslation } from './translation-cache';
 
 let native: FakeEngine;
 let bergamot: FakeEngine;
@@ -90,6 +91,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete (globalThis as Record<string, unknown>).Translator;
 });
 
@@ -300,6 +302,116 @@ describe('translateIncoming', () => {
     expect(await translateIncoming(req('p3', 'good evening team', 'pt'))).toEqual({ status: 'none' });
     expect(native.translate).not.toHaveBeenCalled();
     expect(getCachedIncoming('r1', 'p2', 'content', 'pt')).toEqual({ status: 'none' });
+  });
+});
+
+describe('clearing while translating (security rule 6)', () => {
+  const clears: Array<[string, () => void]> = [
+    ['message deleted for everyone', () => forgetTranslation('r1', 'c1')],
+    ['room key removed', () => clearTranslationsForRoom('r1')],
+    ['logout', () => clearTranslationCache()],
+  ];
+
+  it.each(clears)('does not write back an in-flight result after %s', async (_name, clear) => {
+    const gate = deferred<string>();
+    native.translate.mockReturnValue(gate.promise);
+    const job = translateIncoming(req('c1', 'see you later', 'pt'));
+    await flush();
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    clear();
+    gate.resolve('PT:see you later');
+    expect(await job).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'c1', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'c1', 'content', 'pt', 'see you later')).toBeUndefined();
+  });
+
+  it('does not cache a definitive none after a clear during detection', async () => {
+    const detection = deferred<DetectedLanguage | null>();
+    detect.mockReturnValue(detection.promise);
+    const job = translateIncoming(req('c1', 'bom dia equipe', 'pt'));
+    await flush();
+    forgetTranslation('r1', 'c1');
+    detection.resolve({ language: 'pt', confidence: 0.95 });
+    expect(await job).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'c1', 'content', 'pt', 'bom dia equipe')).toBeUndefined();
+  });
+
+  it('drops a pending job for a cleared room without detecting or translating it', async () => {
+    const gate = deferred<string>();
+    native.translate.mockReturnValueOnce(gate.promise);
+    const first = translateIncoming(req('q1', 'first message', 'pt'));
+    await flush();
+    const other = translateIncoming({ ...req('q2', 'second message', 'pt'), roomId: 'r2' });
+    clearTranslationsForRoom('r2');
+    gate.resolve('PT:first message');
+    expect(await first).toEqual({ status: 'translated', text: 'PT:first message', sourceLanguage: 'en' });
+    expect(await other).toEqual({ status: 'none' });
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    expect(detect).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops every pending job on logout', async () => {
+    const gate = deferred<string>();
+    native.translate.mockReturnValueOnce(gate.promise);
+    const first = translateIncoming(req('q1', 'first message', 'pt'));
+    await flush();
+    const pendingJobs = [translateIncoming(req('q2', 'second message', 'pt')), translateIncoming(req('q3', 'third message', 'pt'))];
+    clearTranslationCache();
+    gate.resolve('PT:first message');
+    expect(await Promise.all([first, ...pendingJobs])).toEqual([{ status: 'none' }, { status: 'none' }, { status: 'none' }]);
+    expect(native.translate).toHaveBeenCalledTimes(1);
+  });
+
+  it('still translates requests queued after the clear', async () => {
+    forgetTranslation('r1', 'c1');
+    expect((await translateIncoming(req('c1', 'see you later', 'pt'))).status).toBe('translated');
+    expect(getCachedIncoming('r1', 'c1', 'content', 'pt')?.status).toBe('translated');
+  });
+});
+
+describe('hung engine', () => {
+  it('times out a hung translate, frees the queue and never caches the late result', async () => {
+    vi.useFakeTimers();
+    const late = deferred<string>();
+    native.translate.mockReturnValueOnce(late.promise);
+    let settled = false;
+    const hung = translateIncoming(req('h1', 'first message', 'pt')).finally(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const next = translateIncoming(req('h2', 'second message', 'pt'));
+    await vi.advanceTimersByTimeAsync(TRANSLATION_JOB_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await hung).toEqual({ status: 'none' });
+    expect(await next).toEqual({ status: 'translated', text: 'PT:second message', sourceLanguage: 'en' });
+    late.resolve('PT:first message');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(getCachedIncoming('r1', 'h1', 'content', 'pt')).toBeUndefined();
+    expect(getCachedIncoming('r1', 'h1', 'content', 'pt', 'first message')).toBeUndefined();
+  });
+
+  it('times out a hung detection too', async () => {
+    vi.useFakeTimers();
+    detect.mockReturnValueOnce(new Promise(() => undefined));
+    const hung = translateIncoming(req('h3', 'first message', 'pt'));
+    await vi.advanceTimersByTimeAsync(TRANSLATION_JOB_TIMEOUT_MS);
+    expect(await hung).toEqual({ status: 'none' });
+    expect((await translateIncoming(req('h4', 'second message', 'pt'))).status).toBe('translated');
+  });
+
+  it('uses a 20 second job timeout', () => {
+    expect(TRANSLATION_JOB_TIMEOUT_MS).toBe(20_000);
+  });
+});
+
+describe('abort listener', () => {
+  it('is removed once the job leaves the queue', async () => {
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    await translateIncoming({ ...req('l1', 'see you later', 'pt'), signal: controller.signal });
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
   });
 });
 

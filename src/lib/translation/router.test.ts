@@ -100,11 +100,27 @@ describe('resolveEngine', () => {
   });
 
   it('re-resolves after the memo is invalidated', async () => {
-    installTranslatorApi({ availability: 'downloading' });
-    expect((await resolveEngine('en', 'pt'))?.support).toBe('downloading');
+    installTranslatorApi({ availability: 'failed' });
+    expect((await resolveEngine('en', 'pt'))?.support).toBe('failed');
     native.engine.support.mockResolvedValue('available');
-    expect((await resolveEngine('en', 'pt'))?.support).toBe('downloading');
+    expect((await resolveEngine('en', 'pt'))?.support).toBe('failed');
     invalidateEngineRoutes();
     expect((await resolveEngine('en', 'pt'))?.support).toBe('available');
+  });
+
+  it.each(['downloadable', 'downloading'] as const)('does not memoize the non-final %s state', async (availability) => {
+    installTranslatorApi({ availability });
+    expect((await resolveEngine('en', 'pt'))?.support).toBe(availability);
+    native.engine.support.mockResolvedValue('available');
+    expect((await resolveEngine('en', 'pt'))?.support).toBe('available');
+    expect(native.engine.support).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not memoize the fallback downloadable state either', async () => {
+    bergamot.support.mockResolvedValue('downloadable');
+    await resolveEngine('en', 'pt');
+    await resolveEngine('en', 'pt');
+    expect(bergamot.support).toHaveBeenCalledTimes(2);
+    expect(bergamotLoader.load).toHaveBeenCalledTimes(1);
   });
 });
