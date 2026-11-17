@@ -3,6 +3,9 @@ import type { TranslationSupport } from '@lib/translation/types';
 
 export const OUTGOING_TRANSLATION_DEBOUNCE_MS = 400;
 
+/** How long a send waits for its translation before that send is cancelled (nothing is sent). */
+export const OUTGOING_SEND_TIMEOUT_MS = 10_000;
+
 export type OutgoingDraftState = {
   status: 'idle' | 'translating' | 'ready' | 'failed';
   source: string;
@@ -15,11 +18,15 @@ export interface OutgoingDraftTranslator {
   update(text: string): void;
   resolveForSend(text: string): Promise<OutgoingSendResult>;
   subscribe(listener: (state: OutgoingDraftState) => void): () => void;
+  /** Rejects every send still awaiting its translation with `outgoing-send-cancelled`. */
+  cancelPendingSends(): void;
   dispose(): void;
 }
 
-// The message carries no text (security rule 3).
+// Error messages carry codes only, never text (security rule 3).
 const DISPOSED_ERROR = 'outgoing-draft-disposed';
+const TIMEOUT_ERROR = 'outgoing-send-timeout';
+const CANCELLED_ERROR = 'outgoing-send-cancelled';
 
 export const IDLE_OUTGOING_DRAFT: OutgoingDraftState = { status: 'idle', source: '', translated: null };
 
@@ -33,6 +40,7 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
   let inFlight: { source: string; result: Promise<string | null> } | null = null;
   let disposed = false;
   const listeners = new Set<(state: OutgoingDraftState) => void>();
+  const pendingSends = new Set<(code: string) => void>();
 
   const setState = (next: OutgoingDraftState) => {
     state = next;
@@ -76,6 +84,33 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
     return result;
   };
 
+  /**
+   * Bounds one send's wait. On timeout or cancel only this send is rejected (the caller sends nothing);
+   * the translation itself keeps running and can still become `ready` for the next send.
+   */
+  const waitForSend = (result: Promise<string | null>, source: string): Promise<string | null> =>
+    new Promise<string | null>((resolve, reject) => {
+      const finish = () => {
+        clearTimeout(sendTimer);
+        pendingSends.delete(cancel);
+      };
+      const cancel = (code: string) => {
+        finish();
+        reject(new Error(code));
+      };
+      const sendTimer = setTimeout(() => {
+        if (!disposed && state.source === source && state.status !== 'ready') {
+          setState({ status: 'failed', source, translated: null });
+        }
+        cancel(TIMEOUT_ERROR);
+      }, OUTGOING_SEND_TIMEOUT_MS);
+      pendingSends.add(cancel);
+      void result.then((translated) => {
+        finish();
+        resolve(translated);
+      });
+    });
+
   return {
     update(text) {
       if (disposed) {
@@ -115,11 +150,17 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
         // The draft moved on (or was never reported): this text becomes the latest one.
         setState({ status: 'translating', source: text, translated: null });
       }
-      const translated = await start(text);
+      const translated = await waitForSend(start(text), text);
       if (disposed) {
         throw new Error(DISPOSED_ERROR);
       }
       return translated === null ? { text, translated: false } : { text: translated, translated: true };
+    },
+
+    cancelPendingSends() {
+      for (const cancel of [...pendingSends]) {
+        cancel(CANCELLED_ERROR);
+      }
     },
 
     subscribe(listener) {
@@ -131,6 +172,9 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
 
     dispose() {
       disposed = true;
+      for (const cancel of [...pendingSends]) {
+        cancel(DISPOSED_ERROR);
+      }
       clearTimer();
       inFlight = null;
       listeners.clear();
@@ -142,19 +186,30 @@ export type OutgoingDraftView = { kind: 'preview'; text: string } | { kind: 'tra
 
 /** What the strip above the composer shows for the current draft. */
 export function describeOutgoingDraft({
+  isRequested,
   isEnabled,
   support,
   state,
   draft,
 }: {
+  /** The room's toggle is on and auto-translate is on. */
+  isRequested: boolean;
+  /** …and translation can actually run. */
   isEnabled: boolean;
   support: TranslationSupport;
   state: OutgoingDraftState;
   draft: string;
 }): OutgoingDraftView {
   const text = draft.trim();
-  if (!isEnabled || !hasTranslatableText(text)) {
+  if (!isRequested || !hasTranslatableText(text)) {
     return null;
+  }
+  // Asked for, but no engine can run (failed, unavailable or not resolved yet): it will go out as is.
+  if (!isEnabled) {
+    return { kind: 'failed' };
+  }
+  if (state.source === text && state.status === 'failed') {
+    return { kind: 'failed' };
   }
   if (support === 'downloadable' || support === 'downloading') {
     return { kind: 'translating' };

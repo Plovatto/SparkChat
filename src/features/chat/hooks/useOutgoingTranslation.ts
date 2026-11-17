@@ -13,6 +13,9 @@ import {
 import { AutoTranslateContext } from './useAutoTranslatePreference';
 
 export interface OutgoingTranslation {
+  /** The room's toggle is on (and auto-translate is on), whether or not an engine can run. */
+  isRequested: boolean;
+  /** Requested and an engine can run. */
   isEnabled: boolean;
   support: TranslationSupport;
   toggle: () => void;
@@ -65,7 +68,8 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
   const currentRoute = autoTranslate && route?.pair === pair ? route.route : null;
   const support: TranslationSupport = currentRoute?.support ?? 'unavailable';
   const isOnForRoom = ids.has(roomId);
-  const isEnabled = autoTranslate && isOnForRoom && isUsable(support);
+  const isRequested = autoTranslate && isOnForRoom;
+  const isEnabled = isRequested && isUsable(support);
 
   // One translator per room and language pair: leaving the room (or switching language) drops any pending work.
   useEffect(() => {
@@ -87,6 +91,10 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
   }, [draft, isEnabled, roomId, source, target]);
 
   const toggle = useCallback(() => {
+    if (isOnForRoom) {
+      // Turning it off while a send awaits its translation cancels that send, so the composer unlocks at once.
+      translatorRef.current?.cancelPendingSends();
+    }
     if (!isOnForRoom && currentRoute && isUsable(currentRoute.support)) {
       // Called synchronously inside the click so the native engine still has the user gesture it needs to download.
       const refresh = () => setRouteVersion((version) => version + 1);
@@ -106,5 +114,5 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
     return translator.resolveForSend(text);
   }, []);
 
-  return { isEnabled, support, toggle, target, state, resolveForSend };
+  return { isRequested, isEnabled, support, toggle, target, state, resolveForSend };
 }

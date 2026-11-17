@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createOutgoingDraftTranslator,
   describeOutgoingDraft,
+  OUTGOING_SEND_TIMEOUT_MS,
   OUTGOING_TRANSLATION_DEBOUNCE_MS,
   type OutgoingDraftState,
 } from './outgoing-draft';
@@ -10,32 +11,46 @@ describe('describeOutgoingDraft', () => {
   const ready: OutgoingDraftState = { status: 'ready', source: 'bom dia', translated: 'good morning' };
 
   it('shows nothing when disabled or the draft has nothing to translate', () => {
-    expect(describeOutgoingDraft({ isEnabled: false, support: 'available', state: ready, draft: 'bom dia' })).toBeNull();
-    expect(describeOutgoingDraft({ isEnabled: true, support: 'available', state: ready, draft: '   ' })).toBeNull();
+    expect(describeOutgoingDraft({ isRequested: false, isEnabled: false, support: 'available', state: ready, draft: 'bom dia' })).toBeNull();
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: ready, draft: '   ' })).toBeNull();
     expect(
-      describeOutgoingDraft({ isEnabled: true, support: 'available', state: { status: 'idle', source: 'kkkk', translated: null }, draft: 'kkkk' }),
+      describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: { status: 'idle', source: 'kkkk', translated: null }, draft: 'kkkk' }),
     ).toBeNull();
   });
 
   it('previews the translation of the current draft only', () => {
-    expect(describeOutgoingDraft({ isEnabled: true, support: 'available', state: ready, draft: ' bom dia ' })).toEqual({
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: ready, draft: ' bom dia ' })).toEqual({
       kind: 'preview',
       text: 'good morning',
     });
-    expect(describeOutgoingDraft({ isEnabled: true, support: 'available', state: ready, draft: 'bom dia gente' })).toEqual({
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: ready, draft: 'bom dia gente' })).toEqual({
       kind: 'translating',
     });
   });
 
   it('shows translating while the model downloads', () => {
-    expect(describeOutgoingDraft({ isEnabled: true, support: 'downloadable', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
-    expect(describeOutgoingDraft({ isEnabled: true, support: 'downloading', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloadable', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: ready, draft: 'bom dia' })).toEqual({ kind: 'translating' });
   });
 
   it('shows the failure notice', () => {
     expect(
-      describeOutgoingDraft({ isEnabled: true, support: 'available', state: { status: 'failed', source: 'bom dia', translated: null }, draft: 'bom dia' }),
+      describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'available', state: { status: 'failed', source: 'bom dia', translated: null }, draft: 'bom dia' }),
     ).toEqual({ kind: 'failed' });
+  });
+
+  it('warns that the draft goes as is when the room asks for translation but it cannot run', () => {
+    for (const support of ['unavailable', 'failed'] as const) {
+      expect(describeOutgoingDraft({ isRequested: true, isEnabled: false, support, state: ready, draft: 'bom dia' })).toEqual({ kind: 'failed' });
+    }
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: false, support: 'unavailable', state: ready, draft: 'kkkk' })).toBeNull();
+  });
+
+  it('shows a failure of the current draft even while the model downloads', () => {
+    const failed: OutgoingDraftState = { status: 'failed', source: 'bom dia', translated: null };
+    expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: failed, draft: 'bom dia' })).toEqual({
+      kind: 'failed',
+    });
   });
 });
 
@@ -199,5 +214,49 @@ describe('createOutgoingDraftTranslator', () => {
     d.update('boa noite');
     expect(lastState?.source).toBe('bom dia');
     await expect(d.resolveForSend('segredo pessoal')).rejects.toThrow(/^outgoing-draft-disposed$/);
+  });
+
+  it('uses a 10 s send timeout', () => {
+    expect(OUTGOING_SEND_TIMEOUT_MS).toBe(10_000);
+  });
+
+  it('a send that does not settle in time is cancelled, never resolved with the original', async () => {
+    const pending = deferred<string>();
+    const d = track(() => pending.promise);
+    d.update('bom dia');
+    let outcome: unknown;
+    d.resolveForSend('bom dia').then(
+      (result) => (outcome = result),
+      (error: Error) => (outcome = error.message),
+    );
+    await vi.advanceTimersByTimeAsync(OUTGOING_SEND_TIMEOUT_MS - 1);
+    expect(outcome).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(outcome).toBe('outgoing-send-timeout');
+    expect(lastState).toEqual({ status: 'failed', source: 'bom dia', translated: null });
+    // The translation keeps running; once it lands, the next send uses it without translating again.
+    pending.resolve('good morning');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastState).toEqual({ status: 'ready', source: 'bom dia', translated: 'good morning' });
+    expect(await d.resolveForSend('bom dia')).toEqual({ text: 'good morning', translated: true });
+    expect(translateCalls).toEqual(['bom dia']);
+  });
+
+  it('a fast send leaves no timeout behind', async () => {
+    const d = track((t) => Promise.resolve(`EN:${t}`));
+    expect(await d.resolveForSend('bom dia')).toEqual({ text: 'EN:bom dia', translated: true });
+    await vi.advanceTimersByTimeAsync(OUTGOING_SEND_TIMEOUT_MS * 2);
+    expect(lastState).toEqual({ status: 'ready', source: 'bom dia', translated: 'EN:bom dia' });
+  });
+
+  it('cancelPendingSends rejects the awaiting send right away, without text', async () => {
+    const pending = deferred<string>();
+    const d = track(() => pending.promise);
+    const send = d.resolveForSend('segredo pessoal');
+    d.cancelPendingSends();
+    await expect(send).rejects.toThrow(/^outgoing-send-cancelled$/);
+    pending.resolve('personal secret');
+    await vi.advanceTimersByTimeAsync(OUTGOING_SEND_TIMEOUT_MS);
+    expect(await d.resolveForSend('segredo pessoal')).toEqual({ text: 'personal secret', translated: true });
   });
 });

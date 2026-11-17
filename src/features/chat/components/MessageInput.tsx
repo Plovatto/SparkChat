@@ -236,7 +236,7 @@ interface OutgoingTranslationStripProps {
 function OutgoingTranslationStrip({ outgoing, draft }: OutgoingTranslationStripProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const view = describeOutgoingDraft({ isEnabled: outgoing.isEnabled, support: outgoing.support, state: outgoing.state, draft });
+  const view = describeOutgoingDraft({ isRequested: outgoing.isRequested, isEnabled: outgoing.isEnabled, support: outgoing.support, state: outgoing.state, draft });
   if (!view) {
     return null;
   }
@@ -373,7 +373,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   };
 
   const addPendingAttachments = (files: File[]) => {
-    if (files.length === 0) {
+    // Locked while a send awaits its translation, so what is sent is exactly what is shown.
+    if (files.length === 0 || isResolvingSendRef.current) {
       return;
     }
 
@@ -386,6 +387,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }));
 
   const removePendingAttachment = (index: number) => {
+    if (isResolvingSendRef.current) {
+      return;
+    }
     setPendingAttachments((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
   };
 
@@ -413,6 +417,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const isBlocked = isBlockedBy || userBlocked;
 
+  const characterLimit = (isCaption: boolean): number =>
+    isCaption ? Math.min(CAPTION_MAX_LENGTH, maxLength ?? CAPTION_MAX_LENGTH) : (maxLength ?? TEXT_MAX_LENGTH);
+
+  // The translation can be longer than the draft, so both limits are checked on the text that will be sent.
+  const exceedsLimits = (text: string, isCaption: boolean): boolean =>
+    text.length > characterLimit(isCaption) || exceedsEncryptedLimit(text, isCaption);
+
   const buildSubmitPayload = (text: string): MessageInputSubmitPayload => ({
     text,
     imageFiles: pendingAttachments.filter((file) => file.type.startsWith('image/')),
@@ -423,7 +434,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   /**
    * The text that actually goes out: the translation when "translate before sending" is on, otherwise the draft.
    * Only that one text reaches onSend (and so the encryption path); the original is not sent alongside it.
-   * Resolves to null when the composer went away meanwhile (room change), so nothing is sent.
+   * Resolves to null when this send was dropped (timeout, translation turned off, room change): nothing is sent and
+   * the draft stays in the composer.
    */
   const resolveOutgoingText = async (draftText: string): Promise<string | null> => {
     if (!outgoing.isEnabled || !draftText) {
@@ -466,7 +478,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     if (text === null) {
       return;
     }
-    if (exceedsEncryptedLimit(text, pendingAttachments.length > 0)) {
+    if (exceedsLimits(text, pendingAttachments.length > 0)) {
       window.alert(t('chat.input.tooLong'));
       return;
     }
@@ -480,11 +492,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     const draftCaption = messageRef.current.trim();
     const caption = attachments.length > 0 ? await resolveOutgoingText(draftCaption) : draftCaption;
     if (caption === null) {
-      // The composer went away while translating the caption: the audio still goes, its attachments do not.
+      // The caption's translation was dropped (timeout, turned off, room change): the audio still goes; the caption
+      // and attachments stay in the composer instead of going out untranslated.
       onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime });
       return;
     }
-    const canSendPending = attachments.length > 0 && !exceedsEncryptedLimit(caption, true);
+    const canSendPending = attachments.length > 0 && !exceedsLimits(caption, true);
     const pending = canSendPending
       ? {
           text: caption,
@@ -545,15 +558,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const blockedTitle = isBlockedBy ? t('chat.input.blockedBy') : userBlocked ? t('chat.input.youBlocked') : null;
   const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
-  // AutoTranslateContext off makes support 'unavailable', so the toggle only exists with auto-translate on.
-  const showOutgoingToggle = outgoing.support !== 'unavailable' && outgoing.support !== 'failed';
-  const outgoingToggleTitle = outgoing.isEnabled
-    ? t('chat.translation.outgoingToggleOff')
-    : t('chat.translation.outgoingToggleOn', { language: t(`chat.translation.languages.${outgoing.target}`) });
+  // Shown when an engine can run, or while the room's toggle is on so it can always be turned off again.
+  // Auto-translate off makes support 'unavailable' and isRequested false, so the toggle only exists with it on.
+  const showOutgoingToggle = outgoing.isRequested || (outgoing.support !== 'unavailable' && outgoing.support !== 'failed');
+  // Fixed accessible name with aria-pressed carrying the state; the tooltip keeps the brief's state-dependent copy.
+  const outgoingToggleLabel = t('chat.translation.outgoingToggleOn', { language: t(`chat.translation.languages.${outgoing.target}`) });
+  const outgoingToggleTitle = outgoing.isRequested ? t('chat.translation.outgoingToggleOff') : outgoingToggleLabel;
 
   return (
     <>
-      {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
+      {pendingAttachments.length > 0 && (
+        <PendingAttachmentsPreview files={pendingAttachments} onRemove={isResolvingSend ? undefined : removePendingAttachment} />
+      )}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
           <LinkPreviewCard preview={linkPreview.preview} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
@@ -584,7 +600,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <button
               type="button"
               onClick={() => attachmentInputRef.current?.click()}
-              disabled={isBlocked}
+              disabled={isBlocked || isResolvingSend}
               title={blockedTitle ?? t('chat.input.attach')}
               className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
@@ -607,17 +623,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <button
             type="button"
             onClick={outgoing.toggle}
-            disabled={isBlocked || isResolvingSend}
-            aria-pressed={outgoing.isEnabled}
+            disabled={isBlocked}
+            aria-pressed={outgoing.isRequested}
             title={outgoingToggleTitle}
-            aria-label={outgoingToggleTitle}
+            aria-label={outgoingToggleLabel}
             className="sc-icon-btn sc-icon-btn--muted"
             style={{
               width: '44px',
               height: '44px',
               flexDirection: 'column',
               gap: '1px',
-              color: outgoing.isEnabled ? theme.accent : undefined,
+              color: outgoing.isRequested ? theme.accent : undefined,
             }}
           >
             <MdTranslate size={18} aria-hidden="true" />
@@ -684,7 +700,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             onKeyDown={handleInputKeyDown}
             onPaste={handlePaste}
             readOnly={isResolvingSend}
-            maxLength={pendingAttachments.length > 0 ? Math.min(CAPTION_MAX_LENGTH, maxLength ?? CAPTION_MAX_LENGTH) : (maxLength ?? TEXT_MAX_LENGTH)}
+            maxLength={characterLimit(pendingAttachments.length > 0)}
             disabled={isBlocked}
             placeholder={
               isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')
