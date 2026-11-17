@@ -159,6 +159,10 @@
       "theme": {
         "question": "Does the theme I pick here carry over to the app?",
         "answer": "The light or dark mode you pick here already applies to the sign-in screen. Inside the app, you choose color, mode and wallpaper in the appearance menu, and your choice follows your account on every device."
+      },
+      "translation": {
+        "question": "Can messages be translated?",
+        "answer": "Yes. SparkChat translates messages between Portuguese and English right in your browser. In Chrome on desktop it uses Chrome's built-in translator; in other browsers it downloads a ~26 MB translator once. The text is never sent to a translation service, so end-to-end encryption still holds."
       }
     }
   },
