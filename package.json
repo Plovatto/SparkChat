@@ -8,7 +8,10 @@
   },
   "scripts": {
     "dev": "vite",
+    "predev": "npm run models:fetch -- --dev",
     "build": "tsc -b && vite build",
+    "prebuild": "npm run models:fetch",
+    "models:fetch": "node scripts/fetch-translation-models.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
@@ -17,6 +20,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mkljczk/bergamot-translator": "0.4.16",
     "bootstrap": "^5.3.3",
     "date-fns": "^4.1.0",
     "i18next": "^26.5.2",

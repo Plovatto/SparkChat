@@ -5,7 +5,14 @@ import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
-import { ChatArea, isAssistantRoom, useChatTriggerEffects, useEnsureAssistantChat } from '@features/chat';
+import {
+  AutoTranslateContext,
+  ChatArea,
+  isAssistantRoom,
+  useAutoTranslatePreference,
+  useChatTriggerEffects,
+  useEnsureAssistantChat,
+} from '@features/chat';
 import { LoginScreen, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
@@ -27,6 +34,7 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
+import { armNativeOnFirstInteraction, clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -238,6 +246,14 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   const notificationPreference = useNotificationPreference();
   const soundPreference = useSoundPreference();
+  const autoTranslate = useAutoTranslatePreference();
+  const autoTranslateEnabled = autoTranslate.isEnabled;
+  useEffect(() => {
+    if (!autoTranslateEnabled) {
+      return;
+    }
+    return armNativeOnFirstInteraction(['en-pt', 'pt-en']);
+  }, [autoTranslateEnabled]);
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
@@ -280,7 +296,10 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const handleDeleteRooms = (roomIds: string[]) => {
     const assistantRoomId = rooms.find(isAssistantRoom)?.id;
     const deletableRoomIds = roomIds.filter((roomId) => roomId !== assistantRoomId);
-    deletableRoomIds.forEach((roomId) => socket?.emit('room:delete', { roomId }));
+    deletableRoomIds.forEach((roomId) => {
+      socket?.emit('room:delete', { roomId });
+      clearTranslationsForRoom(roomId);
+    });
     if (selectedRoomId && deletableRoomIds.includes(selectedRoomId)) {
       setSelectedRoomId(null);
     }
@@ -430,6 +449,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onToggleNotifications={handleToggleNotifications}
                 soundEnabled={soundPreference.isEnabled}
                 onToggleSound={soundPreference.toggle}
+                autoTranslateEnabled={autoTranslate.isEnabled}
+                onToggleAutoTranslate={autoTranslate.toggle}
                 mutedRoomIds={mutedRoomIds}
                 onToggleMuted={toggleMuted}
               />
@@ -445,7 +466,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
-              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
+              <AutoTranslateContext.Provider value={autoTranslate.isEnabled}>
+                <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
+              </AutoTranslateContext.Provider>
             </Col>
           </Row>
         </Card>
