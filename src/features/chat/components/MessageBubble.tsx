@@ -191,7 +191,7 @@ export const MessageBubble = memo(function MessageBubble({
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(content) : '';
   const badgeTranslation = message.type === 'text' ? contentTranslation : caption ? captionTranslation : null;
   const metaBadge =
-    badgeTranslation && badgeTranslation.control !== 'none' ? (
+    badgeTranslation && translationMode !== 'off' && canTranslate ? (
       <TranslationBadge
         control={badgeTranslation.control}
         result={badgeTranslation.result}

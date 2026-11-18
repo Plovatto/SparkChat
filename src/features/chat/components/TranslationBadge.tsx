@@ -16,47 +16,53 @@ const BADGE_STYLE: CSSProperties = { margin: 0, fontSize: '0.7rem', lineHeight: 
 
 export function TranslationBadge({ control, result, onToggle, onTranslate, bubble }: TranslationBadgeProps) {
   const { t } = useTranslation();
-  if (control === 'none') {
-    return null;
-  }
+  const isPreparing = control === 'preparing';
+  const isTranslatedState = control === 'translated' || control === 'original';
+  const translatedLabel =
+    result.status === 'translated'
+      ? t('chat.translation.translatedFrom', { language: t(`chat.translation.languages.${result.sourceLanguage}`) })
+      : '';
+  const announcement = isPreparing ? t('chat.translation.translating') : control === 'translated' ? translatedLabel : '';
 
-  const style: CSSProperties = { ...BADGE_STYLE, color: bubble.mutedTextColor };
-  const linkStyle: CSSProperties = { color: bubble.accentColor };
-  const handle = (action: () => void) => (event: MouseEvent<HTMLButtonElement>) => {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    action();
+    if (isPreparing) {
+      return;
+    }
+    if (isTranslatedState) {
+      onToggle();
+    } else {
+      onTranslate();
+    }
   };
 
-  if (control === 'preparing') {
-    return (
-      <p style={style} role="status">
-        {t('chat.translation.translating')}
-      </p>
-    );
-  }
-
-  if (control === 'offer') {
-    return (
-      <p style={style}>
-        <button type="button" onClick={handle(onTranslate)} className="sc-read-more" style={linkStyle}>
-          {t('chat.translation.translate')}
-        </button>
-      </p>
-    );
-  }
-
-  const label =
-    control === 'translated' && result.status === 'translated'
-      ? t('chat.translation.translatedFrom', { language: t(`chat.translation.languages.${result.sourceLanguage}`) })
-      : t('chat.translation.original');
+  const buttonText = isPreparing
+    ? t('chat.translation.translating')
+    : control === 'translated'
+      ? t('chat.translation.showOriginal')
+      : control === 'original'
+        ? t('chat.translation.showTranslation')
+        : t('chat.translation.translate');
 
   return (
-    <p style={style}>
-      {label}
-      {' · '}
-      <button type="button" onClick={handle(onToggle)} className="sc-read-more" style={linkStyle}>
-        {control === 'translated' ? t('chat.translation.showOriginal') : t('chat.translation.showTranslation')}
-      </button>
-    </p>
+    <>
+      <span aria-live="polite" className="visually-hidden">
+        {announcement}
+      </span>
+      {control !== 'none' && (
+        <p style={{ ...BADGE_STYLE, color: bubble.mutedTextColor }}>
+          {isTranslatedState ? `${control === 'translated' ? translatedLabel : t('chat.translation.original')} · ` : null}
+          <button
+            type="button"
+            onClick={handleClick}
+            aria-disabled={isPreparing || undefined}
+            className="sc-read-more"
+            style={{ color: isPreparing ? bubble.mutedTextColor : bubble.accentColor, cursor: isPreparing ? 'default' : undefined }}
+          >
+            {buttonText}
+          </button>
+        </p>
+      )}
+    </>
   );
 }
