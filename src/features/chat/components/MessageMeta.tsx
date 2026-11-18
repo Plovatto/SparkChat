@@ -12,7 +12,6 @@ interface MessageMetaProps {
   bubble: ResolvedBubbleStyle;
   statusInfo: MessageStatusInfo | null;
   onRetry: () => void;
-  /** Shown at the bubble's bottom-left corner, on the same line as the time (the translation badge). */
   leading?: ReactNode;
 }
 

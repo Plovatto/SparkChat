@@ -1,14 +1,9 @@
 import type { PairKey } from '../types';
 
-/** Holds only public model files (never message text). */
 export const TRANSLATION_MODELS_CACHE = 'sparkchat-translation-models-v1';
 
 export type BergamotRegistryKey = 'enpt' | 'pten';
 export type BergamotModelPart = 'model' | 'lex' | 'vocab';
-/**
- * `size`/`expectedSha256Hash` describe the `.gz` file as published; `rawSize`/`rawSha256Hash` the decompressed
- * bytes, which is what arrives when the server sends the file with `Content-Encoding: gzip` and the browser decodes it.
- */
 export type BergamotModelFile = {
   name: string;
   size: number;
@@ -16,7 +11,6 @@ export type BergamotModelFile = {
   rawSize: number;
   rawSha256Hash: string;
 };
-/** Built from the pinned manifest (see model-registry.ts); `modelRegistry` resolves `name` to an absolute URL. */
 export type BergamotRegistry = Record<BergamotRegistryKey, Record<BergamotModelPart, BergamotModelFile>>;
 
 export function registryKeyOf(pair: PairKey): BergamotRegistryKey {
@@ -40,7 +34,6 @@ async function gunzip(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayB
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-/** Thrown (and mapped to `integrity-failed`) when a body grows past what the pinned manifest allows. */
 class OversizedBodyError extends Error {
   constructor() {
     super('integrity-failed');
@@ -62,7 +55,6 @@ async function readCounting(
     }
     length += value.byteLength;
     if (length > maxBytes) {
-      // Neither form of a pinned file can be this large: stop reading instead of buffering it all.
       void reader.cancel().catch(() => undefined);
       throw new OversizedBodyError();
     }
@@ -78,11 +70,6 @@ async function readCounting(
   return bytes;
 }
 
-/**
- * No `integrity` option: SRI hashes the bytes after any `Content-Encoding` decoding, so it fails on hosts that
- * serve `.gz` with `Content-Encoding: gzip` (Vite/sirv, some CDNs). Both forms are checked here against hashes
- * pinned in the bundle instead. Returns the verified decompressed bytes.
- */
 async function download(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
   let response: Response;
   try {
@@ -93,7 +80,6 @@ async function download(file: BergamotModelFile, onBytes: (n: number) => void, s
   if (!response.ok || !response.body) {
     throw new Error('download-failed');
   }
-  // Progress counts against the compressed size; a decoded body is larger, so never report past it.
   let reported = 0;
   let body: Uint8Array<ArrayBuffer>;
   try {
@@ -112,7 +98,6 @@ async function download(file: BergamotModelFile, onBytes: (n: number) => void, s
     throw new Error(error instanceof OversizedBodyError ? 'integrity-failed' : 'download-failed');
   }
   const compressed = isGzipBytes(body);
-  // A short body is a cut connection (network-class, retryable), not tampering.
   if (body.byteLength < (compressed ? file.size : file.rawSize)) {
     throw new Error('download-failed');
   }
@@ -136,10 +121,6 @@ async function download(file: BergamotModelFile, onBytes: (n: number) => void, s
   return raw;
 }
 
-/**
- * The cache keeps the verified decompressed bytes: one format whatever the host did, and no gunzip on load.
- * Entries are trusted on read (only verified bytes are ever put); a leftover compressed entry is dropped.
- */
 async function cachedOrDownloaded(
   file: BergamotModelFile,
   onBytes: (n: number) => void,
@@ -160,12 +141,10 @@ async function cachedOrDownloaded(
   return raw.buffer;
 }
 
-/** Makes sure the verified file is in the Cache API. */
 export async function ensureModelFileCached(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<void> {
   await cachedOrDownloaded(file, onBytes, signal, false);
 }
 
-/** The verified, decompressed model file, from the Cache API or downloaded into it. */
 export async function fetchModelFile(file: BergamotModelFile, onBytes: (n: number) => void, signal?: AbortSignal): Promise<ArrayBuffer> {
   const bytes = await cachedOrDownloaded(file, onBytes, signal, true);
   if (!bytes) {
@@ -181,7 +160,6 @@ export async function hasCachedPair(pair: PairKey, registry: BergamotRegistry): 
   return hits.every((hit) => hit !== undefined);
 }
 
-/** Not wired to the UI on purpose; kept for support and future settings. */
 export async function clearCachedModels(): Promise<void> {
   await caches.delete(TRANSLATION_MODELS_CACHE);
 }

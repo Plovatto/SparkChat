@@ -6,7 +6,6 @@ import { translatableText } from './segments';
 const MIN_PT_EN_SHARE = 0.2;
 
 let detectorPromise: Promise<LanguageDetectorInstance> | null = null;
-/** Set once create() never answered: the native detector is skipped for the rest of the session. */
 let detectorHung = false;
 
 function normalize(tag: string): Language | null {

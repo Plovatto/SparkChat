@@ -67,7 +67,6 @@ interface MessageInputProps {
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
   maxLength?: number;
-  /** The SparkAI room: sending is never translated and the toggle never shows. */
   isAssistantRoom?: boolean;
   auth: SessionAuth;
   roomId: string;
@@ -379,7 +378,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   };
 
   const addPendingAttachments = (files: File[]) => {
-    // Locked while a send awaits its translation, so what is sent is exactly what is shown.
     if (files.length === 0 || isResolvingSendRef.current) {
       return;
     }
@@ -426,7 +424,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const characterLimit = (isCaption: boolean): number =>
     isCaption ? Math.min(CAPTION_MAX_LENGTH, maxLength ?? CAPTION_MAX_LENGTH) : (maxLength ?? TEXT_MAX_LENGTH);
 
-  // The translation can be longer than the draft, so both limits are checked on the text that will be sent.
   const exceedsLimits = (text: string, isCaption: boolean): boolean =>
     text.length > characterLimit(isCaption) || exceedsEncryptedLimit(text, isCaption);
 
@@ -437,13 +434,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     linkPreview: linkPreview.preview ?? undefined,
   });
 
-  /**
-   * The text that actually goes out: the translation when "translate before sending" is on, otherwise the draft.
-   * Only that one text reaches onSend (and so the encryption path); the original is not sent alongside it.
-   * Resolves to null when this send was dropped (timeout, translation failed, translation turned off, room change):
-   * nothing is sent and the draft stays in the composer with the notice above it. After a failure notice, the next
-   * send of the same draft goes out as is.
-   */
   const resolveOutgoingText = async (draftText: string): Promise<string | null> => {
     if (!outgoing.isEnabled || !draftText) {
       return draftText;
@@ -473,7 +463,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // Guards a second Enter while the translation of the first one is still being awaited.
     if (isResolvingSendRef.current) {
       return;
     }
@@ -499,8 +488,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     const draftCaption = messageRef.current.trim();
     const caption = attachments.length > 0 ? await resolveOutgoingText(draftCaption) : draftCaption;
     if (caption === null) {
-      // The caption's translation was dropped (timeout, failure, turned off, room change): the audio still goes; the caption
-      // and attachments stay in the composer instead of going out untranslated.
       onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime });
       return;
     }
@@ -565,10 +552,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const blockedTitle = isBlockedBy ? t('chat.input.blockedBy') : userBlocked ? t('chat.input.youBlocked') : null;
   const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
-  // Shown when an engine can run, or while the room's toggle is on so it can always be turned off again.
-  // Auto-translate off makes support 'unavailable' and isRequested false, so the toggle only exists with it on.
   const showOutgoingToggle = !isAssistantRoom && (outgoing.isRequested || (outgoing.support !== 'unavailable' && outgoing.support !== 'failed'));
-  // Fixed accessible name with aria-pressed carrying the state; the tooltip keeps the brief's state-dependent copy.
   const outgoingToggleLabel = t('chat.translation.outgoingToggleOn', { language: t(`chat.translation.languages.${outgoing.target}`) });
   const outgoingToggleTitle = outgoing.isRequested ? t('chat.translation.outgoingToggleOff') : outgoingToggleLabel;
 

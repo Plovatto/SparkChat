@@ -96,7 +96,6 @@ const bundled = vi.hoisted(() => {
   return state;
 });
 
-// The real registry is bundled from the pinned manifest; tests swap in fixtures whose hashes match their bodies.
 vi.mock('./model-registry', () => ({
   modelRegistry: (baseUrl: string) => {
     bundled.calls += 1;
@@ -152,7 +151,6 @@ function smallFixture(): Fixture {
 }
 
 let realSizeFixture: Fixture | null = null;
-/** Bodies with the real enpt sizes, so progress is checked against the real total (25866313). */
 function realSizeFixture_(): Fixture {
   if (realSizeFixture) {
     return realSizeFixture;
@@ -162,7 +160,6 @@ function realSizeFixture_(): Fixture {
     const entry = fixture.registry.enpt![part]!;
     const bytes = new Uint8Array(REAL_ENPT_SIZES[part]).fill(part.length);
     fixture.bodies.set(BASE + entry.name, bytes);
-    // Not gzip: served as if the host had already decoded it, with the registry sizes equal to the real ones.
     const hash = sha256Hex(bytes);
     fixture.registry.enpt![part] = { ...entry, size: bytes.byteLength, expectedSha256Hash: hash, rawSize: bytes.byteLength, rawSha256Hash: hash };
   }
@@ -274,7 +271,6 @@ describe('bergamotEngine', () => {
       pivotLanguage: null,
       downloadTimeout: 0,
     });
-    // options are posted to the worker, so they must stay structured-cloneable (no functions)
     expect(Object.values(options).some((value) => typeof value === 'function')).toBe(false);
   });
 
@@ -317,7 +313,6 @@ describe('bergamotEngine', () => {
     await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('download-cooldown');
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(retry).not.toHaveBeenCalled();
-    // the cooldown is per pair: the other direction may still download
     await bergamotEngine.prepare('pt', 'en');
     expect(fetchedUrls().every((u) => u.includes('/pten/'))).toBe(true);
     vi.advanceTimersByTime(1);
@@ -340,7 +335,6 @@ describe('bergamotEngine', () => {
   it('serves model files from the Cache API on the second load', async () => {
     await bergamotEngine.prepare('en', 'pt');
     fetchSpy.mockClear();
-    // a new session: the models come from the Cache API and the registry from the bundle, so nothing is fetched
     const nextSession = createBergamotEngine();
     expect(await nextSession.support('en', 'pt')).toBe('available');
     expect(await nextSession.translate('hello there', 'en', 'pt')).toBe('PT:hello there');
@@ -479,7 +473,6 @@ describe('bergamotEngine', () => {
     expect(error?.message).not.toContain('secret');
     await flush();
     expect(fakes.deleted).toBe(1);
-    // not a failure: the next login can translate again (a fresh worker)
     fakes.translateImpl = null;
     expect(await bergamotEngine.support('en', 'pt')).toBe('available');
     expect(await bergamotEngine.translate('hello there', 'en', 'pt')).toBe('PT:hello there');
@@ -545,7 +538,6 @@ describe('bergamotEngine', () => {
     await expect(bergamotEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
     await expect(bergamotEngine.translate('hello there', 'en', 'pt')).rejects.toThrow();
     expect(fetchSpy).not.toHaveBeenCalled();
-    // probed once and remembered
     expect(open).toHaveBeenCalledTimes(1);
   });
 
@@ -580,7 +572,6 @@ describe('bergamotEngine', () => {
     vi.advanceTimersByTime(BERGAMOT_DOWNLOAD_RETRY_COOLDOWN_MS * 2);
     expect(retry).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
-    // only that pair: the other direction still works
     expect(await bergamotEngine.support('pt', 'en')).toBe('downloadable');
   });
 

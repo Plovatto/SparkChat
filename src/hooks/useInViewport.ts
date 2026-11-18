@@ -4,7 +4,6 @@ function supportsIntersectionObserver(): boolean {
   return typeof IntersectionObserver !== 'undefined';
 }
 
-/** True while the element is within the viewport extended by `rootMargin`. Without IntersectionObserver it is always true. */
 export function useInViewport<T extends Element>(ref: RefObject<T | null>, rootMargin = '300px 0px'): boolean {
   const [isInViewport, setIsInViewport] = useState(() => !supportsIntersectionObserver());
 

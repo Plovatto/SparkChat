@@ -7,13 +7,10 @@ export const ENGINE_ROUTE_MEMO_MS = 30_000;
 
 export type EngineRoute = { engine: TranslationEngine; support: TranslationSupport };
 
-// Registered here, not by whoever imports the barrel. The loader module is tiny: it reaches the Bergamot engine
-// only through a dynamic import(), and only when a route picks the fallback (no usable Translator API).
 let fallbackLoader: (() => Promise<TranslationEngine>) | null = loadBergamotEngine;
 let fallbackEngine: Promise<TranslationEngine> | null = null;
 const routes = new Map<PairKey, { expiresAt: number; route: Promise<EngineRoute | null> }>();
 
-/** The loader is only called when the route picks the fallback, so its module stays out of the bundle otherwise. */
 export function registerFallbackEngine(load: () => Promise<TranslationEngine>): void {
   fallbackLoader = load;
   fallbackEngine = null;
@@ -37,8 +34,6 @@ function loadFallback(): Promise<TranslationEngine> | null {
 }
 
 async function computeRoute(source: Language, target: Language): Promise<EngineRoute | null> {
-  // User rule: whenever the Translator API exists and does not rule the pair out, native wins,
-  // even while its model is downloadable, downloading or failed. The fallback is never loaded then.
   if ('Translator' in globalThis) {
     const support = await nativeEngine.support(source, target);
     if (support !== 'unavailable') {
@@ -67,7 +62,6 @@ export function resolveEngine(source: Language, target: Language): Promise<Engin
   const route = computeRoute(source, target).catch(() => null);
   const entry = { expiresAt: now + ENGINE_ROUTE_MEMO_MS, route };
   routes.set(key, entry);
-  // Only final states are memoized: a model that is downloading must be asked again so it is used once ready.
   void route.then((resolved) => {
     if (resolved && !isFinalSupport(resolved.support) && routes.get(key) === entry) {
       routes.delete(key);
@@ -80,10 +74,6 @@ function isFinalSupport(support: TranslationSupport): boolean {
   return support === 'available' || support === 'unavailable' || support === 'failed';
 }
 
-/**
- * Logout: frees the fallback engine's worker and rejects its in-flight work. Never loads the fallback: if it was
- * not loaded, there is nothing to dispose.
- */
 export function disposeTranslationEngines(): void {
   void fallbackEngine?.then(
     (engine) => engine.dispose?.(),
@@ -91,7 +81,6 @@ export function disposeTranslationEngines(): void {
   );
 }
 
-/** Forget memoized routes, e.g. after a model download finishes and support changed. */
 export function invalidateEngineRoutes(): void {
   routes.clear();
 }

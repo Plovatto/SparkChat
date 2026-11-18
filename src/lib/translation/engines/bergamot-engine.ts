@@ -13,7 +13,6 @@ import {
 import { modelRegistry } from './model-registry';
 
 export const BERGAMOT_IDLE_TEARDOWN_MS = 120_000;
-/** Without this, every visible message would start a new 26 MB download after a network failure. */
 export const BERGAMOT_DOWNLOAD_RETRY_COOLDOWN_MS = 60_000;
 
 type BergamotModule = typeof BergamotTranslator;
@@ -23,7 +22,6 @@ type WorkerCall = (...args: unknown[]) => Promise<unknown>;
 export type BergamotEngine = TranslationEngine & { onRetryAvailable(listener: () => void): () => void; dispose(): void };
 
 function modelsBaseUrl(): string {
-  // `||`, not `??`: an empty VITE_TRANSLATION_MODELS_URL= in .env means "not set".
   const configured = import.meta.env.VITE_TRANSLATION_MODELS_URL || `${import.meta.env.BASE_URL}translation-models/v1/`;
   const base = new URL(configured, location.origin).href;
   return base.endsWith('/') ? base : `${base}/`;
@@ -43,22 +41,15 @@ type BackingHooks = {
   onWorkerModelLoadFailed: () => void;
 };
 
-/**
- * The package's backing fetches without gunzip and without our cache. This subclass reads the verified,
- * cached `.gz` files and decompresses them. It keeps no class fields: the base constructor calls
- * `loadModelRegistry()` before subclass fields would exist.
- */
 function createBacking(module: BergamotModule, hooks: BackingHooks, options: Record<string, unknown>) {
   class SparkBacking extends module.TranslatorBacking {
     override loadModelRegistry() {
-      // Bundled from the pinned manifest: never fetched at runtime.
       return Promise.resolve(
         Object.entries(hooks.registry()).map(([key, files]) => ({ from: key.slice(0, 2), to: key.slice(2, 4), files })),
       );
     }
 
     override fetch(url: string, checksum: string | undefined, extra: { signal?: AbortSignal } | undefined): Promise<ArrayBuffer> {
-      // Only files of the bundled registry, matched by URL and pinned hash, are ever loaded.
       const resolved = new URL(url, this.registryUrl).href;
       const file = Object.values(hooks.registry())
         .flatMap((files) => Object.values(files))
@@ -77,7 +68,6 @@ function createBacking(module: BergamotModule, hooks: BackingHooks, options: Rec
         {},
         {
           get(_target, name) {
-            // Not then-able, like the package's own proxy.
             if (name === 'then') {
               return undefined;
             }
@@ -86,7 +76,6 @@ function createBacking(module: BergamotModule, hooks: BackingHooks, options: Rec
               if (name === 'loadTranslationModel') {
                 const { from, to } = args[0] as { from: string; to: string };
                 call.then(
-                  // The worker has its own copy now; drop the decompressed buffers held on the main thread.
                   () => buffers.delete(JSON.stringify({ from, to })),
                   () => hooks.onWorkerModelLoadFailed(),
                 );
@@ -106,7 +95,6 @@ export function createBergamotEngine(): BergamotEngine {
   let failed = false;
   let registry: BergamotRegistry | null = null;
   let cacheUsable: Promise<boolean> | null = null;
-  // Pairs whose files failed our own sha256 check: a broken deploy, not a network blip. No retry this session.
   const failedPairs = new Set<PairKey>();
   let translator: Promise<BatchTranslatorInstance> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -123,7 +111,6 @@ export function createBergamotEngine(): BergamotEngine {
     return registry;
   }
 
-  /** Probed once: the Cache API can exist and still throw (e.g. Firefox private browsing). */
   function probeCache(): Promise<boolean> {
     cacheUsable ??= (async () => {
       try {
@@ -169,7 +156,6 @@ export function createBergamotEngine(): BergamotEngine {
     }, BERGAMOT_IDLE_TEARDOWN_MS);
   }
 
-  /** Worker or WASM failure: unusable for the rest of the session, no retry until reload. */
   function fail(): void {
     if (failed) {
       return;
@@ -218,11 +204,9 @@ export function createBergamotEngine(): BergamotEngine {
         return;
       }
       const total = files.reduce((sum, file) => sum + file.size, 0);
-      // Files already in the cache count as loaded, so a partly filled cache still reaches the total.
       let loaded = files.reduce((sum, file, index) => (cachedFlags[index] ? sum + file.size : sum), 0);
       const onBytes = (n: number) => {
         loaded += n;
-        // `loaded >= total` means "ready"; only the final event below may claim it.
         emitProgress(pair, Math.min(loaded, total - 1), total);
       };
       await Promise.all(missing.map((file) => ensureModelFileCached(file, onBytes, controller.signal)));
@@ -261,12 +245,9 @@ export function createBergamotEngine(): BergamotEngine {
   function getTranslator(): Promise<BatchTranslatorInstance> {
     if (!translator) {
       const creating = import('@mkljczk/bergamot-translator/translator.js').then((module) => {
-        // Posted to the worker on initialize: must stay structured-cloneable (no callbacks here).
         const backingOptions = {
-          // Only a base for resolving names: loadModelRegistry() is overridden, so this URL is never fetched.
           registryUrl: new URL('registry.json', modelsBaseUrl()).href,
           workerUrl: workerUrl(),
-          // null disables pivoting through a third language (verified in the Task 0 spike).
           pivotLanguage: null as unknown as string,
           downloadTimeout: 0,
         };
@@ -285,7 +266,6 @@ export function createBergamotEngine(): BergamotEngine {
     return translator;
   }
 
-  /** Lets a worker failure reject requests the package itself would leave hanging. */
   function trackPending<T>(work: Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       pendingRejects.add(reject);
@@ -324,7 +304,6 @@ export function createBergamotEngine(): BergamotEngine {
       if (failed) {
         throw new Error('model-load-failed');
       }
-      // Maybe the cache was evicted: let the next call check it again.
       readyPairs.delete(pair);
       throw new Error('translate-failed');
     } finally {
@@ -354,7 +333,6 @@ export function createBergamotEngine(): BergamotEngine {
     }
   }
 
-  /** Logout: the worker and its in-memory requests go now, not after the idle timeout. Not a failure. */
   function dispose(): void {
     for (const reject of [...pendingRejects]) {
       reject(new Error('translate-failed'));

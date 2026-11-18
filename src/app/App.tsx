@@ -142,9 +142,6 @@ function AuthGate({
         return;
       }
 
-      // The chat only opens once the E2EE identity is in place: everything the room list pulls in
-      // is decrypted on arrival, so starting before the private key is loaded would render the
-      // whole history as undecryptable and leave rooms without their keys.
       const credential = consumePendingE2eCredential();
       const restoreIdentity =
         credential?.type === 'password'
@@ -253,7 +250,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     if (!autoTranslateEnabled) {
       return;
     }
-    // Each interaction unlocks one download: the pair that translates incoming messages into the UI language goes first.
     return armNativeOnFirstInteraction(appLanguage === 'en' ? ['pt-en', 'en-pt'] : ['en-pt', 'pt-en']);
   }, [autoTranslateEnabled, appLanguage]);
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);

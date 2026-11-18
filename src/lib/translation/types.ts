@@ -19,9 +19,7 @@ export interface TranslationEngine {
   prepare(source: Language, target: Language): Promise<void>;
   translate(text: string, source: Language, target: Language, options?: { priority?: number }): Promise<string>;
   onProgress(listener: (event: TranslationProgressEvent) => void): () => void;
-  /** Optional: called when a pair whose download failed may be tried again (e.g. after a cooldown). */
   onRetryAvailable?(listener: () => void): () => void;
-  /** Optional: frees workers and rejects work in flight (logout). The engine stays usable afterwards. */
   dispose?(): void;
 }
 

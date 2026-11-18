@@ -16,13 +16,7 @@ import {
 import { pairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
-/** A job that takes longer than this (wedged worker, hung engine) resolves to an uncached none and frees the queue. */
 export const TRANSLATION_JOB_TIMEOUT_MS = 20_000;
-/**
- * How often a native pair that is downloadable or downloading is asked again while messages wait for it: a download
- * started elsewhere (another tab, the browser itself) sends no progress event here. Each check is bounded by
- * NATIVE_API_TIMEOUT_MS inside the native engine.
- */
 export const NATIVE_AVAILABILITY_POLL_MS = 10_000;
 
 const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
@@ -34,7 +28,6 @@ export type IncomingResult =
   | { status: 'preparing'; sourceLanguage: Language }
   | { status: 'none' };
 
-/** Aborting `signal` before the request starts drops it: the promise resolves to an uncached `{ status: 'none' }`. */
 export type IncomingRequest = {
   roomId: string;
   messageId: string;
@@ -50,7 +43,6 @@ type Job = {
   epoch: TranslationEpoch;
   resolve: (result: IncomingResult) => void;
   onAbort: () => void;
-  // Set once the job timed out or settled; a late result must not be written then.
   finished: boolean;
 };
 
@@ -84,7 +76,6 @@ function watchProgress(engine: TranslationEngine): void {
       notifyInvalidation();
     }
   });
-  // A failed download is not retried in a loop; the engine says when the pair may be tried again.
   const unsubscribeRetry = engine.onRetryAvailable?.(notifyInvalidation);
   progressSubscriptions.set(engine, () => {
     unsubscribeProgress();
@@ -104,9 +95,6 @@ function prepareOnce(engine: TranslationEngine, source: Language, target: Langua
     },
     (error: unknown) => {
       preparing.delete(key);
-      // Waiting messages check again and see the new support (failed, or downloadable again under a cooldown).
-      // During a cooldown prepare() rejects at once without downloading: notifying then would loop, so it does not;
-      // onRetryAvailable says when the pair may be tried again.
       if (!(error instanceof Error && error.message === 'download-cooldown')) {
         notifyInvalidation();
       }
@@ -119,7 +107,6 @@ function isFinalSupport(support: TranslationSupport): boolean {
   return support === 'available' || support === 'unavailable' || support === 'failed';
 }
 
-/** Asks a not-yet-ready native pair again until it settles, and only while some message waits (listeners exist). */
 function pollNativeAvailability(engine: TranslationEngine, source: Language, target: Language): void {
   const key = pairKey(source, target);
   if (nativePolls.has(key) || invalidationListeners.size === 0) {
@@ -164,7 +151,6 @@ function remember(cacheKey: string, value: CachedTranslation): IncomingResult {
   return value;
 }
 
-/** Writes only while the job is still live and nothing was cleared since it was queued. */
 function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
   if (job.finished || !isTranslationEpochCurrent(job.epoch)) {
     return NONE;
@@ -189,11 +175,7 @@ async function run(job: Job): Promise<IncomingResult> {
   if (result !== FAILED) {
     return result;
   }
-  // A failure can be the engine giving the pair up (a native download that stalled, Chrome refusing one more
-  // translator): ask again, and if another engine took over, use it now. An uncached none would leave the message
-  // untranslated, since it stops listening for invalidations.
   if (job.finished) {
-    // Timed out meanwhile: the queue moved on and a result would be thrown away.
     return NONE;
   }
   invalidateEngineRoutes();
@@ -205,7 +187,6 @@ async function run(job: Job): Promise<IncomingResult> {
   return retried === FAILED ? NONE : retried;
 }
 
-/** Marks a translate call that threw, so run() can retry on another engine. */
 const FAILED = { status: 'none' } as const satisfies IncomingResult;
 
 function isSameText(a: string, b: string): boolean {
@@ -221,7 +202,6 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
       return NONE;
     }
     watchProgress(engine);
-    // Native needs a user gesture to download; armNativeOnFirstInteraction triggers it elsewhere.
     if (engine.id === 'native') {
       pollNativeAvailability(engine, source, request.target);
     } else {
@@ -262,16 +242,13 @@ async function pump(): Promise<void> {
   }
   running = true;
   try {
-    // LIFO: the message most recently scrolled into view is the one the person is looking at.
     for (let job = pending.pop(); job; job = pending.pop()) {
       job.request.signal.removeEventListener('abort', job.onAbort);
-      // Aborted (left the screen) or cleared (deleted, room removed, logout) while waiting: drop without translating.
       if (job.request.signal.aborted || !isTranslationEpochCurrent(job.epoch)) {
         job.resolve(NONE);
         continue;
       }
       const result = await runWithTimeout(job);
-      // A clear during the job hides whatever it produced, cached or not.
       job.resolve(isTranslationEpochCurrent(job.epoch) ? result : NONE);
     }
   } finally {
@@ -279,7 +256,6 @@ async function pump(): Promise<void> {
   }
 }
 
-/** Cache hits and the undecryptable placeholder answer at once; everything else waits in a sequential LIFO queue. */
 export function translateIncoming(request: IncomingRequest): Promise<IncomingResult> {
   if (isPlaceholder(request.text)) {
     return Promise.resolve(NONE);
@@ -316,17 +292,11 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   });
 }
 
-/** Synchronous memory read for the first render; an entry cached for another version of the text never matches. */
 export function getCachedIncoming(roomId: string, messageId: string, field: Field, target: Language, text: string): IncomingResult | undefined {
   return readTranslation(translationCacheKey({ roomId, messageId, field, target, sourceText: text }));
 }
 
-/**
- * Called when a model download finishes, fails or may be retried, and when a native pair becomes usable again,
- * so visible `preparing` messages can retry.
- */
 export function subscribeIncomingInvalidation(listener: () => void): () => void {
-  // Native download progress and recovery (a late availability answer) are watched as soon as anyone listens.
   watchProgress(nativeEngine);
   invalidationListeners.add(listener);
   return () => {
