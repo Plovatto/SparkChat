@@ -1,7 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { FaBan, FaCheck, FaCopy, FaCrown, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
+import { MdTranslate } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
+import { Switch } from '@components/common/Switch';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
@@ -26,6 +28,12 @@ interface RoomInfoPanelProps {
   messages: MessageView[];
   messagesLoaded: boolean;
   onLeftGroup: () => void;
+  autoTranslate?: RoomAutoTranslateProps;
+}
+
+interface RoomAutoTranslateProps {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
 }
 
 const COPY_KEY_NICKNAME = 'nickname';
@@ -69,6 +77,30 @@ function ActionIconButton({ onClick, title, tone, children }: ActionIconButtonPr
   );
 }
 
+function RoomAutoTranslateCard({ enabled, onChange }: RoomAutoTranslateProps) {
+  const { t } = useTranslation();
+  const { theme } = useTheme();
+  const labelId = useId();
+  const captionId = useId();
+
+  return (
+    <div className="sc-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderRadius: '10px', padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <MdTranslate size={18} color={enabled ? theme.accentText : theme.textMuted} aria-hidden="true" />
+          <span id={labelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+            {t('chat.translation.autoRoomTitle')}
+          </span>
+        </div>
+        <Switch checked={enabled} onChange={() => onChange(!enabled)} aria-labelledby={labelId} aria-describedby={captionId} />
+      </div>
+      <small id={captionId} style={{ color: theme.textSecondary }}>
+        {t('chat.translation.autoRoomCaption')}
+      </small>
+    </div>
+  );
+}
+
 function SectionDivider() {
   const { theme } = useTheme();
 
@@ -97,7 +129,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup }: RoomInfoPanelProps) {
+export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate }: RoomInfoPanelProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -229,6 +261,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
 
               <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
+
+              {autoTranslate && <RoomAutoTranslateCard enabled={autoTranslate.enabled} onChange={autoTranslate.onChange} />}
 
               <WallpaperPicker roomId={room.id} />
 
@@ -399,6 +433,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
               </div>
 
               <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
+
+              {autoTranslate && <RoomAutoTranslateCard enabled={autoTranslate.enabled} onChange={autoTranslate.onChange} />}
 
               <WallpaperPicker roomId={room.id} />
 

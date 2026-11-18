@@ -6,10 +6,8 @@ import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownl
 import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import {
-  AutoTranslateContext,
   ChatArea,
   isAssistantRoom,
-  useAutoTranslatePreference,
   useChatTriggerEffects,
   useEnsureAssistantChat,
 } from '@features/chat';
@@ -34,7 +32,7 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
-import { armNativeOnFirstInteraction, clearTranslationsForRoom } from '@lib/translation';
+import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 
@@ -243,15 +241,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   const notificationPreference = useNotificationPreference();
   const soundPreference = useSoundPreference();
-  const autoTranslate = useAutoTranslatePreference();
-  const autoTranslateEnabled = autoTranslate.isEnabled;
-  const { language: appLanguage } = useAppLanguage();
-  useEffect(() => {
-    if (!autoTranslateEnabled) {
-      return;
-    }
-    return armNativeOnFirstInteraction(appLanguage === 'en' ? ['pt-en', 'en-pt'] : ['en-pt', 'pt-en']);
-  }, [autoTranslateEnabled, appLanguage]);
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
@@ -447,8 +436,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onToggleNotifications={handleToggleNotifications}
                 soundEnabled={soundPreference.isEnabled}
                 onToggleSound={soundPreference.toggle}
-                autoTranslateEnabled={autoTranslate.isEnabled}
-                onToggleAutoTranslate={autoTranslate.toggle}
                 mutedRoomIds={mutedRoomIds}
                 onToggleMuted={toggleMuted}
               />
@@ -464,9 +451,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
-              <AutoTranslateContext.Provider value={autoTranslate.isEnabled}>
-                <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
-              </AutoTranslateContext.Provider>
+              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
             </Col>
           </Row>
         </Card>

@@ -26,6 +26,10 @@ function installFakeDetector(results: FakeResult[], options: { failDetect?: bool
   };
 }
 
+function setDetectorAvailability(availability: string): void {
+  (globalThis as unknown as { LanguageDetector: { availability?: () => Promise<string> } }).LanguageDetector.availability = () => Promise.resolve(availability);
+}
+
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).LanguageDetector;
   resetDetectorForTests();
@@ -82,6 +86,35 @@ describe('detectLanguage', () => {
   it('falls back to the heuristic when detect throws', async () => {
     installFakeDetector([], { failDetect: true });
     expect((await detectLanguage('good morning everyone'))?.language).toBe('en');
+  });
+});
+
+describe('detectLanguage without downloading', () => {
+  it('uses the heuristic when the detector cannot say it is available', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    expect((await detectLanguage('good morning everyone', { allowDownload: false }))?.language).toBe('en');
+    expect(fake.createCalls).toBe(0);
+  });
+
+  it('uses the heuristic when the detector model would need a download', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    setDetectorAvailability('downloadable');
+    expect((await detectLanguage('good morning everyone', { allowDownload: false }))?.language).toBe('en');
+    expect(fake.createCalls).toBe(0);
+  });
+
+  it('uses the native detector when its model is already available', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    setDetectorAvailability('available');
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('reuses a detector that already exists', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    await detectLanguage('oi gente');
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(fake.createCalls).toBe(1);
   });
 });
 

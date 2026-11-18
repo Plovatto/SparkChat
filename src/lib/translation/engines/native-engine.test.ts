@@ -5,8 +5,8 @@ import {
   NATIVE_DOWNLOAD_STALL_MS,
   NATIVE_STALL_MEMORY_MS,
   NATIVE_STALL_RECHECK_MS,
-  armNativeOnFirstInteraction,
   nativeEngine,
+  prepareNativeFromGesture,
   resetNativeEngineForTests,
 } from './native-engine';
 
@@ -58,43 +58,12 @@ function installFakeTranslator(options: FakeOptions): void {
   };
 }
 
-class FakeWindow {
-  private readonly listeners = new Map<string, Set<() => void>>();
-
-  addEventListener(type: string, listener: () => void): void {
-    const set = this.listeners.get(type) ?? new Set();
-    set.add(listener);
-    this.listeners.set(type, set);
-  }
-
-  removeEventListener(type: string, listener: () => void): void {
-    this.listeners.get(type)?.delete(listener);
-  }
-
-  dispatch(type: string): void {
-    for (const listener of [...(this.listeners.get(type) ?? [])]) {
-      listener();
-    }
-  }
-
-  count(type: string): number {
-    return this.listeners.get(type)?.size ?? 0;
-  }
-}
-
-const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
-
-let fakeWindow: FakeWindow;
-
 beforeEach(() => {
   resetNativeEngineForTests();
-  fakeWindow = new FakeWindow();
-  (globalThis as Record<string, unknown>).window = fakeWindow;
 });
 
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).Translator;
-  delete (globalThis as Record<string, unknown>).window;
 });
 
 describe('nativeEngine', () => {
@@ -141,82 +110,39 @@ describe('nativeEngine', () => {
   });
 });
 
-describe('armNativeOnFirstInteraction', () => {
-  it('prepares downloadable pairs on first interaction only', async () => {
+describe('prepareNativeFromGesture', () => {
+  it('starts the download of a downloadable pair', async () => {
     installFakeTranslator({ availability: 'downloadable' });
-    armNativeOnFirstInteraction(['en-pt']);
-    expect(fake.createCalls).toBe(0);
-    fakeWindow.dispatch('pointerdown');
-    await flush();
+    await prepareNativeFromGesture('en', 'pt');
     expect(fake.createCalls).toBe(1);
-    fakeWindow.dispatch('keydown');
-    await flush();
+    expect(await nativeEngine.translate('hello', 'en', 'pt')).toBe('hello');
     expect(fake.createCalls).toBe(1);
   });
 
-  it('also prepares pairs whose download is already "downloading" (started elsewhere, maybe stalled)', async () => {
+  it('also prepares a pair whose download is already "downloading" (started elsewhere, maybe stalled)', async () => {
     installFakeTranslator({ availability: 'downloading' });
-    armNativeOnFirstInteraction(['en-pt']);
-    fakeWindow.dispatch('pointerdown');
-    await flush();
+    await prepareNativeFromGesture('en', 'pt');
     expect(fake.createCalls).toBe(1);
   });
 
-  it('creates the pairs in the given order even when the first availability answers last', async () => {
-    const order: string[] = [];
-    (globalThis as Record<string, unknown>).Translator = {
-      availability: ({ sourceLanguage }: { sourceLanguage: string }) =>
-        new Promise((resolve) => setTimeout(() => resolve('downloadable'), sourceLanguage === 'pt' ? 5 : 0)),
-      create: ({ sourceLanguage, targetLanguage }: { sourceLanguage: string; targetLanguage: string }) => {
-        order.push(`${sourceLanguage}-${targetLanguage}`);
-        return Promise.resolve({ translate: (text: string) => Promise.resolve(text) });
-      },
-    };
-    armNativeOnFirstInteraction(['pt-en', 'en-pt']);
-    fakeWindow.dispatch('pointerdown');
-    await vi.waitFor(() => expect(order).toHaveLength(2));
-    expect(order).toEqual(['pt-en', 'en-pt']);
-  });
-
-  it('skips pairs that are not downloadable', async () => {
+  it('skips pairs that are available or unavailable', async () => {
     installFakeTranslator({ availability: 'available' });
-    armNativeOnFirstInteraction(['en-pt']);
-    fakeWindow.dispatch('keydown');
-    await flush();
+    await prepareNativeFromGesture('en', 'pt');
+    installFakeTranslator({ availability: 'unavailable' });
+    await prepareNativeFromGesture('pt', 'en');
     expect(fake.createCalls).toBe(0);
   });
 
-  it('arms again when create fails, so the next interaction retries', async () => {
+  it('does nothing without the native API', async () => {
+    await expect(prepareNativeFromGesture('en', 'pt')).resolves.toBeUndefined();
+  });
+
+  it('rejects when the download cannot start, without treating a missing gesture as a stall', async () => {
     installFakeTranslator({ availability: 'downloadable', failCreates: 1 });
-    armNativeOnFirstInteraction(['en-pt']);
-    fakeWindow.dispatch('pointerdown');
-    await flush();
-    expect(fake.createCalls).toBe(1);
-    expect(fakeWindow.count('pointerdown')).toBe(1);
-    fakeWindow.dispatch('keydown');
-    await flush();
+    await expect(prepareNativeFromGesture('en', 'pt')).rejects.toThrow('model-load-failed');
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    await prepareNativeFromGesture('en', 'pt');
     expect(fake.createCalls).toBe(2);
-    expect(fakeWindow.count('pointerdown')).toBe(0);
-    expect(fakeWindow.count('keydown')).toBe(0);
-  });
-
-  it('does not arm again after dispose', async () => {
-    installFakeTranslator({ availability: 'downloadable', failCreates: 1 });
-    const dispose = armNativeOnFirstInteraction(['en-pt']);
-    fakeWindow.dispatch('pointerdown');
-    dispose();
-    await flush();
-    expect(fake.createCalls).toBe(0);
-    expect(fakeWindow.count('pointerdown')).toBe(0);
-  });
-
-  it('returns a disposer that removes the listeners', () => {
-    installFakeTranslator({ availability: 'downloadable' });
-    const dispose = armNativeOnFirstInteraction(['en-pt']);
-    expect(fakeWindow.count('pointerdown')).toBe(1);
-    dispose();
-    expect(fakeWindow.count('pointerdown')).toBe(0);
-    expect(fakeWindow.count('keydown')).toBe(0);
   });
 });
 
@@ -509,8 +435,7 @@ describe('nativeEngine stall memory across sessions', () => {
     };
     const retry = vi.fn();
     nativeEngine.onRetryAvailable!(retry);
-    const dispose = armNativeOnFirstInteraction(['pt-en']);
-    fakeWindow.dispatch('pointerdown');
+    void prepareNativeFromGesture('pt', 'en').catch(() => undefined);
     await vi.advanceTimersByTimeAsync(0);
     expect(create).toHaveBeenCalledTimes(1);
     expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
@@ -521,7 +446,6 @@ describe('nativeEngine stall memory across sessions', () => {
     resetNativeEngineForTests();
     installFakeTranslator({ availability: 'downloadable' });
     expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
-    dispose();
   });
 
   it('a pair that stalls again is not retried on every click and keeps its original expiry', async () => {
@@ -530,26 +454,13 @@ describe('nativeEngine stall memory across sessions', () => {
     await vi.advanceTimersByTimeAsync(60_000);
     resetNativeEngineForTests();
     installFakeTranslator({ availability: 'downloadable', hangCreates: true });
-    const dispose = armNativeOnFirstInteraction(['pt-en']);
-    fakeWindow.dispatch('pointerdown');
+    void prepareNativeFromGesture('pt', 'en').catch(() => undefined);
     await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
     expect(fake.createCalls).toBe(1);
-    expect(fakeWindow.count('pointerdown')).toBe(0);
-    fakeWindow.dispatch('pointerdown');
+    void prepareNativeFromGesture('pt', 'en').catch(() => undefined);
     await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
     expect(fake.createCalls).toBe(1);
     expect(storage.getItem(NATIVE_STALLED_PAIRS_STORAGE_KEY)).toBe(firstExpiry);
-    dispose();
-  });
-
-  it('a create that fails for another reason does not re-arm the interaction', async () => {
-    installFakeTranslator({ availability: 'downloadable', failCreates: 1, failName: 'NotSupportedError' });
-    const dispose = armNativeOnFirstInteraction(['pt-en']);
-    fakeWindow.dispatch('pointerdown');
-    await vi.advanceTimersByTimeAsync(0);
-    expect(fake.createCalls).toBe(1);
-    expect(fakeWindow.count('pointerdown')).toBe(0);
-    dispose();
   });
 
   it('an entry that expires further out than the memory window is ignored', async () => {

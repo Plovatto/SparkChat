@@ -1,4 +1,4 @@
-import { memo, useContext, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
+import { memo, useCallback, useContext, useRef, useState, type CSSProperties, type RefObject, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
@@ -7,7 +7,8 @@ import type { SessionAuth } from '@lib/api/session-auth';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
-import { AutoTranslateContext } from '../hooks/useAutoTranslatePreference';
+import type { IncomingAssessment } from '@lib/translation/incoming';
+import { RoomTranslationContext } from '../hooks/room-translation-context';
 import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
 import { localizeAssistantWelcome } from '../utils/assistant-welcome';
@@ -133,24 +134,35 @@ export const MessageBubble = memo(function MessageBubble({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const isVisible = useInViewport(bubbleRef);
   const { language } = useAppLanguage();
-  const autoTranslate = useContext(AutoTranslateContext) && !isAssistantRoom;
-  const canTranslate = !message.pending && !message.failed && !message.deletedForEveryone;
+  const roomTranslation = useContext(RoomTranslationContext);
+  const translationMode = isAssistantRoom ? 'off' : roomTranslation.mode;
+  const { reportAssessment, reportManualTranslation } = roomTranslation;
+  const canTranslate = !isOwn && !message.pending && !message.failed && !message.deletedForEveryone;
+  const handleAssessed = useCallback(
+    (assessment: IncomingAssessment) => reportAssessment(message.id, message.timestamp, assessment),
+    [reportAssessment, message.id, message.timestamp],
+  );
+  const handleManualTranslation = useCallback(() => reportManualTranslation(message.id), [reportManualTranslation, message.id]);
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
     messageId: message.id,
     field: 'content',
     text: canTranslate && message.type === 'text' ? originalContent : null,
-    enabled: autoTranslate,
+    mode: translationMode,
     isVisible,
+    onAssessed: handleAssessed,
+    onManualTranslation: handleManualTranslation,
   });
   const captionTranslation = useMessageTranslation({
     roomId,
     messageId: message.id,
     field: 'caption',
     text: canTranslate && message.type !== 'text' ? message.caption : null,
-    enabled: autoTranslate,
+    mode: translationMode,
     isVisible,
+    onAssessed: handleAssessed,
+    onManualTranslation: handleManualTranslation,
   });
 
   if (message.deletedForEveryone) {
@@ -177,20 +189,17 @@ export const MessageBubble = memo(function MessageBubble({
   const displayContent = truncatedContent ?? content;
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
   const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(content) : '';
-  const contentBadge = (
-    <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} bubble={bubbleStyle} />
-  );
-  const captionBadge = (
-    <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
-  );
+  const badgeTranslation = message.type === 'text' ? contentTranslation : caption ? captionTranslation : null;
   const metaBadge =
-    message.type === 'text'
-      ? contentTranslation.result.status !== 'none'
-        ? contentBadge
-        : null
-      : caption && captionTranslation.result.status !== 'none'
-        ? captionBadge
-        : null;
+    badgeTranslation && translationMode !== 'off' && canTranslate ? (
+      <TranslationBadge
+        control={badgeTranslation.control}
+        result={badgeTranslation.result}
+        onToggle={badgeTranslation.toggleOriginal}
+        onTranslate={badgeTranslation.requestTranslation}
+        bubble={bubbleStyle}
+      />
+    ) : null;
   const textAccentColor = bubbleStyle.accentColor;
 
   const handleRetry = () => {

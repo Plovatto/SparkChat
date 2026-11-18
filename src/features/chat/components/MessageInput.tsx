@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -12,15 +11,12 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
-import { MdTranslate } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
 import { useLinkPreview } from '../hooks/useLinkPreview';
-import { describeOutgoingDraft } from '../hooks/outgoing-draft';
-import { useOutgoingTranslation, type OutgoingTranslation } from '../hooks/useOutgoingTranslation';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { PendingAttachmentTile } from './PendingAttachmentTile';
 
@@ -67,10 +63,7 @@ interface MessageInputProps {
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
   maxLength?: number;
-  isAssistantRoom?: boolean;
   auth: SessionAuth;
-  roomId: string;
-  userId: string;
 }
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@([\p{L}\p{N}_]*)$/u;
@@ -229,77 +222,13 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
   );
 }
 
-interface OutgoingTranslationStripProps {
-  outgoing: OutgoingTranslation;
-  draft: string;
-}
-
-function OutgoingTranslationStrip({ outgoing, draft }: OutgoingTranslationStripProps) {
-  const { t } = useTranslation();
-  const { theme } = useTheme();
-  const view = describeOutgoingDraft({ isRequested: outgoing.isRequested, isEnabled: outgoing.isEnabled, support: outgoing.support, state: outgoing.state, draft });
-  if (!view) {
-    return null;
-  }
-
-  return (
-    <div
-      translate="no"
-      className="sc-anim-rise-in"
-      style={{
-        position: 'absolute',
-        bottom: 'calc(100% + 8px)',
-        left: 0,
-        right: 0,
-        background: theme.surfaceElevated,
-        border: `1px solid ${theme.border}`,
-        borderRadius: '12px',
-        boxShadow: theme.shadowMd,
-        zIndex: 20,
-        padding: '8px 14px',
-        transformOrigin: 'bottom center',
-        fontSize: '0.85rem',
-        maxHeight: '140px',
-        overflowY: 'auto',
-      }}
-    >
-      {view.kind === 'preview' ? (
-        <>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.textSecondary, marginBottom: '2px' }}>
-            {t('chat.translation.outgoingPreview', { language: t(`chat.translation.languages.${outgoing.target}`) })}
-          </div>
-          <div style={{ color: theme.textPrimary, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{view.text}</div>
-        </>
-      ) : (
-        <div style={{ color: theme.textSecondary }}>
-          {view.kind === 'translating'
-            ? t('chat.translation.outgoingTranslating')
-            : view.kind === 'timedOut'
-              ? t('chat.translation.outgoingTimedOut')
-              : t('chat.translation.outgoingFailed')}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, isAssistantRoom = false, auth, roomId, userId },
+  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
   ref,
 ) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [message, setMessage] = useState('');
-  const outgoing = useOutgoingTranslation(roomId, userId, message, !isAssistantRoom);
-  const [isResolvingSend, setIsResolvingSend] = useState(false);
-  const isResolvingSendRef = useRef(false);
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const pendingAttachmentsRef = useRef(pendingAttachments);
   pendingAttachmentsRef.current = pendingAttachments;
@@ -378,7 +307,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   };
 
   const addPendingAttachments = (files: File[]) => {
-    if (files.length === 0 || isResolvingSendRef.current) {
+    if (files.length === 0) {
       return;
     }
 
@@ -391,9 +320,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }));
 
   const removePendingAttachment = (index: number) => {
-    if (isResolvingSendRef.current) {
-      return;
-    }
     setPendingAttachments((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
   };
 
@@ -404,10 +330,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   };
 
   const handlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    if (isResolvingSendRef.current) {
-      event.preventDefault();
-      return;
-    }
     const files = Array.from(event.clipboardData?.items ?? [])
       .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
       .map((item) => item.getAsFile())
@@ -434,25 +356,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     linkPreview: linkPreview.preview ?? undefined,
   });
 
-  const resolveOutgoingText = async (draftText: string): Promise<string | null> => {
-    if (!outgoing.isEnabled || !draftText) {
-      return draftText;
-    }
-    isResolvingSendRef.current = true;
-    setIsResolvingSend(true);
-    try {
-      const { text } = await outgoing.resolveForSend(draftText);
-      return isMountedRef.current ? text : null;
-    } catch {
-      return null;
-    } finally {
-      isResolvingSendRef.current = false;
-      if (isMountedRef.current) {
-        setIsResolvingSend(false);
-      }
-    }
-  };
-
   const clearComposer = () => {
     setMessage('');
     setMentionQuery(null);
@@ -461,17 +364,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     setTimeout(() => inputRef.current?.focus(), 10);
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isResolvingSendRef.current) {
-      return;
-    }
-    const draftText = message.trim();
-    if ((!draftText && pendingAttachments.length === 0) || isBlocked) {
-      return;
-    }
-    const text = await resolveOutgoingText(draftText);
-    if (text === null) {
+    const text = message.trim();
+    if ((!text && pendingAttachments.length === 0) || isBlocked) {
       return;
     }
     if (exceedsLimits(text, pendingAttachments.length > 0)) {
@@ -483,14 +379,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     clearComposer();
   };
 
-  const finishRecording = async (result: AudioRecordingResult) => {
+  const finishRecording = (result: AudioRecordingResult) => {
     const attachments = pendingAttachmentsRef.current;
-    const draftCaption = messageRef.current.trim();
-    const caption = attachments.length > 0 ? await resolveOutgoingText(draftCaption) : draftCaption;
-    if (caption === null) {
-      onSendAudio({ blob: result.blob, mimeType: result.mimeType, duration: recordingTime });
-      return;
-    }
+    const caption = messageRef.current.trim();
     const canSendPending = attachments.length > 0 && !exceedsLimits(caption, true);
     const pending = canSendPending
       ? {
@@ -519,7 +410,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
       const result = await stopRecording();
       if (result) {
-        void finishRecording(result);
+        finishRecording(result);
       }
       onRecordingStop();
       return;
@@ -552,22 +443,17 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const blockedTitle = isBlockedBy ? t('chat.input.blockedBy') : userBlocked ? t('chat.input.youBlocked') : null;
   const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
-  const showOutgoingToggle = !isAssistantRoom && (outgoing.isRequested || (outgoing.support !== 'unavailable' && outgoing.support !== 'failed'));
-  const outgoingToggleLabel = t('chat.translation.outgoingToggleOn', { language: t(`chat.translation.languages.${outgoing.target}`) });
-  const outgoingToggleTitle = outgoing.isRequested ? t('chat.translation.outgoingToggleOff') : outgoingToggleLabel;
 
   return (
     <>
-      {pendingAttachments.length > 0 && (
-        <PendingAttachmentsPreview files={pendingAttachments} onRemove={isResolvingSend ? undefined : removePendingAttachment} />
-      )}
+      {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
           <LinkPreviewCard preview={linkPreview.preview} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
         </div>
       )}
       <form
-        onSubmit={(event) => void handleSubmit(event)}
+        onSubmit={handleSubmit}
         className="chat-input-bar"
         style={{
           background: theme.surface,
@@ -591,7 +477,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             <button
               type="button"
               onClick={() => attachmentInputRef.current?.click()}
-              disabled={isBlocked || isResolvingSend}
+              disabled={isBlocked}
               title={blockedTitle ?? t('chat.input.attach')}
               className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
               style={{ width: '44px', height: '44px' }}
@@ -610,29 +496,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             </button>
           </>
         )}
-        {showOutgoingToggle && (
-          <button
-            type="button"
-            onClick={outgoing.toggle}
-            disabled={isBlocked}
-            aria-pressed={outgoing.isRequested}
-            title={outgoingToggleTitle}
-            aria-label={outgoingToggleLabel}
-            className="sc-icon-btn sc-icon-btn--muted"
-            style={{
-              width: '44px',
-              height: '44px',
-              flexDirection: 'column',
-              gap: '1px',
-              color: outgoing.isRequested ? theme.accent : undefined,
-            }}
-          >
-            <MdTranslate size={18} aria-hidden="true" />
-            <span style={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>{outgoing.target.toUpperCase()}</span>
-          </button>
-        )}
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-          {!isMentionListOpen && !isAssistantRoom && <OutgoingTranslationStrip outgoing={outgoing} draft={message} />}
           {isMentionListOpen && (
             <div
               className="sc-anim-rise-in"
@@ -690,7 +554,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }}
             onKeyDown={handleInputKeyDown}
             onPaste={handlePaste}
-            readOnly={isResolvingSend}
             maxLength={characterLimit(pendingAttachments.length > 0)}
             disabled={isBlocked}
             placeholder={
@@ -703,7 +566,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         {(message.trim() || pendingAttachments.length > 0) && (
           <button
             type="submit"
-            disabled={isResolvingSend}
             title={t('chat.input.send')}
             className="sc-icon-btn sc-icon-btn--gradient sc-anim-send-in"
             style={{ width: '44px', height: '44px', fontSize: '1rem' }}

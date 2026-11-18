@@ -1,7 +1,9 @@
 import { appI18n } from '@lib/i18n/app-i18n';
 import { oppositeLanguage, type Language } from '@lib/i18n/language';
+import { normalizeChatAbbreviations } from './abbreviations';
 import { detectLanguage } from './detection';
-import { nativeEngine } from './engines/native-engine';
+import { nativeEngine, prepareNativeFromGesture } from './engines/native-engine';
+import type { DetectedLanguage } from './heuristic-detector';
 import { invalidateEngineRoutes, resolveEngine, type EngineRoute } from './router';
 import { hasTranslatableText, translatePreservingSegments } from './segments';
 import {
@@ -13,7 +15,7 @@ import {
   type CachedTranslation,
   type TranslationEpoch,
 } from './translation-cache';
-import { pairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
+import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
 export const TRANSLATION_JOB_TIMEOUT_MS = 20_000;
@@ -24,7 +26,7 @@ const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
 type Field = 'content' | 'caption';
 
 export type IncomingResult =
-  | { status: 'translated'; text: string; sourceLanguage: Language }
+  | { status: 'translated'; text: string; sourceLanguage: Language; explicit?: true }
   | { status: 'preparing'; sourceLanguage: Language }
   | { status: 'none' };
 
@@ -35,7 +37,10 @@ export type IncomingRequest = {
   text: string;
   target: Language;
   signal: AbortSignal;
+  explicit?: boolean;
 };
+
+export type IncomingAssessment = 'target' | 'other' | 'unsure' | 'skip';
 
 type Job = {
   request: IncomingRequest;
@@ -55,6 +60,7 @@ const progressSubscriptions = new Map<TranslationEngine, () => void>();
 const preparing = new Map<string, Promise<void>>();
 type NativePoll = { timer: ReturnType<typeof setTimeout> | undefined };
 const nativePolls = new Map<string, NativePoll>();
+const gesturePrepares = new Map<PairKey, Promise<void>>();
 
 function isPlaceholder(text: string): boolean {
   return text === appI18n.t(PLACEHOLDER_KEY, { lng: 'pt' }) || text === appI18n.t(PLACEHOLDER_KEY, { lng: 'en' });
@@ -151,6 +157,13 @@ function remember(cacheKey: string, value: CachedTranslation): IncomingResult {
   return value;
 }
 
+function claimCached(cacheKey: string, cached: CachedTranslation, request: IncomingRequest): IncomingResult {
+  if (request.explicit !== true || cached.status !== 'translated' || cached.explicit === true) {
+    return cached;
+  }
+  return remember(cacheKey, { ...cached, explicit: true });
+}
+
 function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
   if (job.finished || !isTranslationEpochCurrent(job.epoch)) {
     return NONE;
@@ -160,13 +173,14 @@ function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
 
 async function run(job: Job): Promise<IncomingResult> {
   const { request } = job;
-  const detected = await detectLanguage(request.text);
+  const detected = await detectLanguage(request.text, { allowDownload: request.explicit === true });
   const confident = detected !== null && detected.confidence >= MIN_DETECTION_CONFIDENCE;
-  if (confident && detected.language === request.target) {
+  if (confident && detected.language === request.target && request.explicit !== true) {
     return rememberFor(job, NONE);
   }
-  const source = confident ? detected.language : oppositeLanguage(request.target);
-  const guessed = !confident;
+  const confidentOther = confident && detected.language !== request.target;
+  const source = confidentOther ? detected.language : oppositeLanguage(request.target);
+  const guessed = !confidentOther;
   const route = await resolveEngine(source, request.target);
   if (!route) {
     return NONE;
@@ -198,7 +212,10 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
   const { request } = job;
   const { engine, support } = route;
   if (support === 'downloadable' || support === 'downloading') {
-    if (guessed) {
+    if (guessed && request.explicit !== true) {
+      return NONE;
+    }
+    if (engine.id === 'native' && support === 'downloadable' && !gesturePrepares.has(pairKey(source, request.target))) {
       return NONE;
     }
     watchProgress(engine);
@@ -214,12 +231,12 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
   }
   try {
     const text = await translatePreservingSegments(request.text, (chunk) =>
-      engine.translate(chunk, source, request.target, { priority: 1 }),
+      engine.translate(normalizeChatAbbreviations(chunk, source), source, request.target, { priority: 1 }),
     );
-    if (guessed && isSameText(text, request.text)) {
+    if (isSameText(text, request.text)) {
       return rememberFor(job, NONE);
     }
-    return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
+    return rememberFor(job, { status: 'translated', text, sourceLanguage: source, ...(request.explicit === true ? { explicit: true } : {}) });
   } catch {
     return FAILED;
   }
@@ -250,7 +267,7 @@ async function pump(): Promise<void> {
       }
       const cachedNow = readTranslation(job.cacheKey);
       if (cachedNow) {
-        job.resolve(cachedNow);
+        job.resolve(claimCached(job.cacheKey, cachedNow, job.request));
         continue;
       }
       const result = await runWithTimeout(job);
@@ -268,7 +285,7 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   const cacheKey = translationCacheKey({ ...request, sourceText: request.text });
   const cached = readTranslation(cacheKey);
   if (cached) {
-    return Promise.resolve(cached);
+    return Promise.resolve(claimCached(cacheKey, cached, request));
   }
   if (!hasTranslatableText(request.text)) {
     return Promise.resolve(remember(cacheKey, NONE));
@@ -297,6 +314,42 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   });
 }
 
+export function classifyDetection(detected: DetectedLanguage | null, target: Language): IncomingAssessment {
+  if (detected === null || detected.confidence < MIN_DETECTION_CONFIDENCE) {
+    return 'unsure';
+  }
+  return detected.language === target ? 'target' : 'other';
+}
+
+export async function assessIncoming(text: string, target: Language): Promise<IncomingAssessment> {
+  if (isPlaceholder(text) || !hasTranslatableText(text)) {
+    return 'skip';
+  }
+  try {
+    return classifyDetection(await detectLanguage(text, { allowDownload: false }), target);
+  } catch {
+    return 'unsure';
+  }
+}
+
+export function prepareTranslationOnGesture(target: Language): void {
+  const source = oppositeLanguage(target);
+  const key = pairKey(source, target);
+  if (!('Translator' in globalThis) || gesturePrepares.has(key)) {
+    return;
+  }
+  watchProgress(nativeEngine);
+  const download: Promise<void> = prepareNativeFromGesture(source, target)
+    .catch(() => undefined)
+    .then(() => {
+      if (gesturePrepares.get(key) === download) {
+        gesturePrepares.delete(key);
+      }
+      notifyInvalidation();
+    });
+  gesturePrepares.set(key, download);
+}
+
 export function getCachedIncoming(roomId: string, messageId: string, field: Field, target: Language, text: string): IncomingResult | undefined {
   return readTranslation(translationCacheKey({ roomId, messageId, field, target, sourceText: text }));
 }
@@ -322,4 +375,5 @@ export function resetIncomingForTests(): void {
     clearTimeout(poll.timer);
   }
   nativePolls.clear();
+  gesturePrepares.clear();
 }

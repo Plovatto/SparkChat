@@ -12,7 +12,8 @@ type FakeEngine = {
   onProgress: TranslationEngine['onProgress'];
   emitProgress: (event: TranslationProgressEvent) => void;
 };
-type DetectMock = Mock<(text: string) => Promise<DetectedLanguage | null>>;
+type DetectMock = Mock<(text: string, options?: { allowDownload?: boolean }) => Promise<DetectedLanguage | null>>;
+type GestureMock = Mock<(source: Language, target: Language) => Promise<void>>;
 
 function fakeEngine(id: 'native' | 'bergamot'): FakeEngine {
   const listeners = new Set<(event: TranslationProgressEvent) => void>();
@@ -33,21 +34,24 @@ function fakeEngine(id: 'native' | 'bergamot'): FakeEngine {
   };
 }
 
-const mocks = vi.hoisted(() => ({ native: null as unknown as FakeEngine, detect: null as unknown as DetectMock }));
+const mocks = vi.hoisted(() => ({ native: null as unknown as FakeEngine, detect: null as unknown as DetectMock, gesture: null as unknown as GestureMock }));
 
 vi.mock('./engines/native-engine', () => ({
   get nativeEngine() {
     return mocks.native;
   },
+  prepareNativeFromGesture: (source: Language, target: Language) => mocks.gesture(source, target),
 }));
 
 vi.mock('./detection', () => ({
-  detectLanguage: (text: string) => mocks.detect(text),
+  detectLanguage: (text: string, options?: { allowDownload?: boolean }) => mocks.detect(text, options),
 }));
 
 import {
+  assessIncoming,
   getCachedIncoming,
   NATIVE_AVAILABILITY_POLL_MS,
+  prepareTranslationOnGesture,
   resetIncomingForTests,
   subscribeIncomingInvalidation,
   translateIncoming,
@@ -60,6 +64,7 @@ import { clearTranslationCache, clearTranslationsForRoom, forgetTranslation } fr
 let native: FakeEngine;
 let bergamot: FakeEngine;
 let detect: DetectMock;
+let gesture: GestureMock;
 const bergamotLoader = { load: vi.fn<() => Promise<TranslationEngine>>() };
 
 function req(messageId: string, text: string, target: Language): IncomingRequest {
@@ -85,6 +90,8 @@ beforeEach(() => {
   mocks.native = native;
   detect = vi.fn<(text: string) => Promise<DetectedLanguage | null>>(() => Promise.resolve({ language: 'en', confidence: 0.9 }));
   mocks.detect = detect;
+  gesture = vi.fn<(source: Language, target: Language) => Promise<void>>(() => Promise.resolve());
+  mocks.gesture = gesture;
   bergamotLoader.load.mockReset();
   bergamotLoader.load.mockResolvedValue(bergamot);
   registerFallbackEngine(() => bergamotLoader.load());
@@ -246,7 +253,7 @@ describe('translateIncoming', () => {
 
   it('stops polling native availability when nothing waits any more', async () => {
     vi.useFakeTimers();
-    native.support.mockResolvedValue('downloadable');
+    native.support.mockResolvedValue('downloading');
     const unsubscribe = subscribeIncomingInvalidation(vi.fn());
     expect((await translateIncoming(req('p3', 'see you later', 'pt'))).status).toBe('preparing');
     unsubscribe();
@@ -291,8 +298,8 @@ describe('translateIncoming', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('returns preparing for a native model that is not downloaded, without calling prepare', async () => {
-    for (const availability of ['downloadable', 'downloading'] as const) {
+  it('returns preparing for a native model that is downloading, without calling prepare', async () => {
+    for (const availability of ['downloading'] as const) {
       native.support.mockResolvedValue(availability);
       resetRouterForTests();
       registerFallbackEngine(() => bergamotLoader.load());
@@ -451,6 +458,187 @@ describe('translateIncoming', () => {
     native.translate.mockImplementation((text) => Promise.resolve(` ${text.toUpperCase()} `));
     expect(await translateIncoming(req('p4', 'Hello Team', 'en'))).toEqual({ status: 'none' });
     expect(getCachedIncoming('r1', 'p4', 'content', 'en', 'Hello Team')).toEqual({ status: 'none' });
+  });
+
+  it('a confident translation that comes back equal to the original is none, cached', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.9 });
+    native.translate.mockImplementation((text) => Promise.resolve(`${text}.`));
+    expect(await translateIncoming(req('p7', 'Ok Google', 'pt'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'p7', 'content', 'pt', 'Ok Google')).toEqual({ status: 'none' });
+  });
+
+  it('translates very short chat messages', async () => {
+    detect.mockResolvedValue(null);
+    expect(await translateIncoming(req('a1', 'oi', 'en'))).toEqual({ status: 'translated', text: 'EN:oi', sourceLanguage: 'pt' });
+  });
+
+  it('expands chat abbreviations only in the text sent to the engine', async () => {
+    detect.mockResolvedValue(null);
+    expect(await translateIncoming(req('a2', 'vlw', 'en'))).toEqual({ status: 'translated', text: 'EN:obrigado', sourceLanguage: 'pt' });
+    expect(native.translate).toHaveBeenCalledWith('obrigado', 'pt', 'en', { priority: 1 });
+    expect(getCachedIncoming('r1', 'a2', 'content', 'en', 'vlw')?.status).toBe('translated');
+  });
+
+  it('uses the abbreviations of the source language', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.9 });
+    await translateIncoming(req('a3', 'thx u', 'pt'));
+    expect(native.translate).toHaveBeenCalledWith('thanks you', 'en', 'pt', { priority: 1 });
+  });
+
+  it('translates a multi-line message paragraph by paragraph', async () => {
+    expect(await translateIncoming(req('a4', 'good morning\n\nsee you soon', 'pt'))).toEqual({
+      status: 'translated',
+      text: 'PT:good morning\n\nPT:see you soon',
+      sourceLanguage: 'en',
+    });
+    expect(native.translate).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('explicit requests', () => {
+  function explicit(messageId: string, text: string, target: Language): IncomingRequest {
+    return { ...req(messageId, text, target), explicit: true };
+  }
+
+  it('an explicit request with an unsure guess may download the fallback model', async () => {
+    delete (globalThis as Record<string, unknown>).Translator;
+    detect.mockResolvedValue(null);
+    bergamot.support.mockResolvedValue('downloadable');
+    expect(await translateIncoming(explicit('e1', 'achei bom', 'en'))).toEqual({ status: 'preparing', sourceLanguage: 'pt' });
+    expect(bergamot.prepare).toHaveBeenCalledWith('pt', 'en');
+  });
+
+  it('lets detection download its model only for an explicit request', async () => {
+    await translateIncoming(explicit('e2', 'see you later', 'pt'));
+    expect(detect).toHaveBeenLastCalledWith('see you later', { allowDownload: true });
+    await translateIncoming(req('e3', 'see you later', 'pt'));
+    expect(detect).toHaveBeenLastCalledWith('see you later', { allowDownload: false });
+  });
+
+  it('a downloadable native pair without a gesture is a retryable none, never preparing', async () => {
+    native.support.mockResolvedValue('downloadable');
+    expect(await translateIncoming(explicit('e4', 'see you later', 'pt'))).toEqual({ status: 'none' });
+    expect(await translateIncoming(req('e5', 'see you later', 'pt'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'e4', 'content', 'pt', 'see you later')).toBeUndefined();
+    expect(native.prepare).not.toHaveBeenCalled();
+  });
+
+  it('a gesture starts the native download of the other language into the interface language', async () => {
+    const download = deferred<void>();
+    gesture.mockReturnValue(download.promise);
+    native.support.mockResolvedValue('downloadable');
+    const listener = vi.fn();
+    subscribeIncomingInvalidation(listener);
+    prepareTranslationOnGesture('pt');
+    prepareTranslationOnGesture('pt');
+    expect(gesture).toHaveBeenCalledTimes(1);
+    expect(gesture).toHaveBeenCalledWith('en', 'pt');
+    expect(await translateIncoming(explicit('e6', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
+    download.resolve();
+    await flush();
+    expect(listener).toHaveBeenCalled();
+    native.support.mockResolvedValue('available');
+    expect((await translateIncoming(explicit('e6', 'see you later', 'pt'))).status).toBe('translated');
+  });
+
+  it('a gesture whose download fails still notifies so the request can be retried', async () => {
+    gesture.mockRejectedValue(new Error('model-load-failed'));
+    const listener = vi.fn();
+    subscribeIncomingInvalidation(listener);
+    prepareTranslationOnGesture('en');
+    await flush();
+    expect(gesture).toHaveBeenCalledWith('pt', 'en');
+    expect(listener).toHaveBeenCalled();
+    prepareTranslationOnGesture('en');
+    expect(gesture).toHaveBeenCalledTimes(2);
+  });
+
+  it('a gesture does nothing without the native API', () => {
+    delete (globalThis as Record<string, unknown>).Translator;
+    prepareTranslationOnGesture('pt');
+    expect(gesture).not.toHaveBeenCalled();
+  });
+
+  it('an explicit request for a stalled native pair goes to the fallback engine', async () => {
+    native.support.mockResolvedValue('unavailable');
+    bergamot.support.mockResolvedValue('downloadable');
+    prepareTranslationOnGesture('pt');
+    expect(await translateIncoming(explicit('st1', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
+    expect(bergamot.prepare).toHaveBeenCalledWith('en', 'pt');
+  });
+
+  it('detection confidently in the interface language never vetoes an explicit request', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect(await translateIncoming(explicit('v1', 'vlw', 'en'))).toEqual({
+      status: 'translated',
+      text: 'EN:obrigado',
+      sourceLanguage: 'pt',
+      explicit: true,
+    });
+    expect(native.translate).toHaveBeenCalledWith('obrigado', 'pt', 'en', { priority: 1 });
+  });
+
+  it('detection confidently in the other language is used as the source of an explicit request', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect((await translateIncoming(explicit('v2', 'see you later', 'pt'))).status).toBe('translated');
+    expect(native.translate).toHaveBeenCalledWith('see you later', 'en', 'pt', { priority: 1 });
+  });
+
+  it('an explicit request whose translation equals the original caches none', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    native.translate.mockImplementation((text) => Promise.resolve(text));
+    expect(await translateIncoming(explicit('v3', 'hello team', 'en'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'v3', 'content', 'en', 'hello team')).toEqual({ status: 'none' });
+  });
+
+  it('an automatic request confidently in the interface language still caches none without translating', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect(await translateIncoming(req('v4', 'vlw', 'en'))).toEqual({ status: 'none' });
+    expect(native.translate).not.toHaveBeenCalled();
+    expect(getCachedIncoming('r1', 'v4', 'content', 'en', 'vlw')).toEqual({ status: 'none' });
+  });
+
+  it('marks translations from explicit requests, and upgrades an automatic one when it is asked for', async () => {
+    expect(await translateIncoming(req('x1', 'see you later', 'pt'))).toEqual({ status: 'translated', text: 'PT:see you later', sourceLanguage: 'en' });
+    expect(await translateIncoming(explicit('x1', 'see you later', 'pt'))).toEqual({
+      status: 'translated',
+      text: 'PT:see you later',
+      sourceLanguage: 'en',
+      explicit: true,
+    });
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    expect(getCachedIncoming('r1', 'x1', 'content', 'pt', 'see you later')).toEqual({
+      status: 'translated',
+      text: 'PT:see you later',
+      sourceLanguage: 'en',
+      explicit: true,
+    });
+    expect((await translateIncoming(req('x1', 'see you later', 'pt'))).status).toBe('translated');
+    expect(getCachedIncoming('r1', 'x1', 'content', 'pt', 'see you later')).toMatchObject({ explicit: true });
+  });
+});
+
+describe('assessIncoming', () => {
+  it('skips text that is not translatable or is the undecryptable placeholder', async () => {
+    expect(await assessIncoming('kkkk 😂', 'pt')).toBe('skip');
+    expect(await assessIncoming(translate('chat.message.encryptedUnavailable'), 'pt')).toBe('skip');
+    expect(detect).not.toHaveBeenCalled();
+  });
+
+  it('classifies the detection against the interface language without downloading', async () => {
+    detect.mockResolvedValue({ language: 'pt', confidence: 0.9 });
+    expect(await assessIncoming('bom dia equipe', 'pt')).toBe('target');
+    expect(detect).toHaveBeenCalledWith('bom dia equipe', { allowDownload: false });
+    expect(await assessIncoming('bom dia equipe', 'en')).toBe('other');
+    detect.mockResolvedValue({ language: 'pt', confidence: 0.5 });
+    expect(await assessIncoming('bom dia', 'pt')).toBe('unsure');
+    detect.mockResolvedValue(null);
+    expect(await assessIncoming('oi', 'pt')).toBe('unsure');
+  });
+
+  it('is unsure when detection fails', async () => {
+    detect.mockRejectedValue(new Error('boom'));
+    expect(await assessIncoming('good morning', 'pt')).toBe('unsure');
   });
 });
 
