@@ -38,7 +38,9 @@
       "nicknameInvalid": "Nickname deve ter entre {{minLength}} e {{maxLength}} caracteres, usando apenas letras e números, com pelo menos {{minLetters}} letras.",
       "nicknameTaken": "Esse nickname já está em uso.",
       "passwordTooShort": "A senha deve ter pelo menos {{minLength}} caracteres.",
-      "currentPasswordIncorrect": "Senha atual incorreta."
+      "currentPasswordIncorrect": "Senha atual incorreta.",
+      "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
+      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
     },
     "room": {
       "notFound": "Sala não encontrada.",
@@ -82,7 +84,9 @@
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
       "loginAttempts": "Muitas tentativas de login. Tente novamente mais tarde.",
       "registrations": "Muitas contas criadas a partir deste endereço. Tente novamente mais tarde.",
-      "messages": "Você está enviando mensagens muito rápido. Aguarde um instante."
+      "messages": "Você está enviando mensagens muito rápido. Aguarde um instante.",
+      "passwordAttempts": "Muitas tentativas de senha. Tente novamente mais tarde.",
+      "resumeAttempts": "Muitas tentativas de reconexão. Aguarde um instante."
     },
     "internal": {
       "unexpected": "Erro inesperado.",
@@ -457,7 +461,7 @@
     "avatar": "Avatar",
     "saveChanges": "Salvar Alterações",
     "currentPassword": "Senha atual",
-    "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.",
+    "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — nos primeiros 10 minutos pode trocar a senha uma vez sem informar a atual.",
     "newPasswordPlaceholder": "Nova senha (mín. {{minLength}} caracteres)",
     "confirmNewPassword": "Confirmar nova senha",
     "forgotPassword": "Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da atual.",
@@ -474,7 +478,10 @@
       "keyfile": "Entrou com arquivo de recuperação"
     },
     "lastUsed": "Último uso: {{date}}",
-    "revokeSession": "Encerrar esta sessão"
+    "revokeSession": "Encerrar esta sessão",
+    "nicknamePasswordHint": "Trocar o username gera um novo arquivo de recuperação e encerra as outras sessões. Confirme com a sua senha atual.",
+    "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
+    "confirmRegenerate": "Gerar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
