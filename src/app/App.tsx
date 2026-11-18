@@ -6,10 +6,8 @@ import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownl
 import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import {
-  AutoTranslateContext,
   ChatArea,
   isAssistantRoom,
-  useAutoTranslatePreference,
   useChatTriggerEffects,
   useEnsureAssistantChat,
 } from '@features/chat';
@@ -243,7 +241,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   const notificationPreference = useNotificationPreference();
   const soundPreference = useSoundPreference();
-  const autoTranslate = useAutoTranslatePreference();
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
@@ -439,8 +436,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onToggleNotifications={handleToggleNotifications}
                 soundEnabled={soundPreference.isEnabled}
                 onToggleSound={soundPreference.toggle}
-                autoTranslateEnabled={autoTranslate.isEnabled}
-                onToggleAutoTranslate={autoTranslate.toggle}
                 mutedRoomIds={mutedRoomIds}
                 onToggleMuted={toggleMuted}
               />
@@ -456,9 +451,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
-              <AutoTranslateContext.Provider value={autoTranslate.isEnabled}>
-                <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
-              </AutoTranslateContext.Provider>
+              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
             </Col>
           </Row>
         </Card>

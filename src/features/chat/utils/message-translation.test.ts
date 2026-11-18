@@ -1,40 +1,50 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
-import { resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation, shouldRetryOnInvalidation } from './message-translation';
+import { resolveDisplayText, resolveTranslationControl, selectCurrentResult, shouldRequestTranslation, shouldRetryOnInvalidation } from './message-translation';
 
 const translated: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en' };
 const preparing: IncomingResult = { status: 'preparing', sourceLanguage: 'en' };
 const none: IncomingResult = { status: 'none' };
 
 describe('shouldRequestTranslation', () => {
-  const base = { enabled: true, isVisible: true, text: 'good morning everyone', current: undefined };
+  const base = { mode: 'manual', requested: false, isVisible: true, text: 'good morning everyone', current: undefined, assessment: 'other' } as const;
 
-  it('requests a visible, enabled message with no known result', () => {
-    expect(shouldRequestTranslation(base)).toBe(true);
+  it('never requests on its own in on-demand mode', () => {
+    expect(shouldRequestTranslation(base)).toBe(false);
   });
 
-  it('does not request when the message is off screen', () => {
-    expect(shouldRequestTranslation({ ...base, isVisible: false })).toBe(false);
+  it('requests once the person asked for it', () => {
+    expect(shouldRequestTranslation({ ...base, requested: true })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, requested: true, assessment: null })).toBe(true);
   });
 
-  it('does not request when auto-translate is disabled', () => {
-    expect(shouldRequestTranslation({ ...base, enabled: false })).toBe(false);
+  it('requests a visible message in automatic mode unless it is confidently in the interface language', () => {
+    expect(shouldRequestTranslation({ ...base, mode: 'auto' })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'unsure' })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'target' })).toBe(false);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'skip' })).toBe(false);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: null })).toBe(false);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', isVisible: false })).toBe(false);
+  });
+
+  it('does not request when translation is off', () => {
+    expect(shouldRequestTranslation({ ...base, mode: 'off', requested: true })).toBe(false);
   });
 
   it('does not request empty or whitespace-only text', () => {
-    expect(shouldRequestTranslation({ ...base, text: '' })).toBe(false);
-    expect(shouldRequestTranslation({ ...base, text: '   ' })).toBe(false);
-    expect(shouldRequestTranslation({ ...base, text: null })).toBe(false);
-    expect(shouldRequestTranslation({ ...base, text: undefined })).toBe(false);
+    for (const text of ['', '   ', null, undefined]) {
+      expect(shouldRequestTranslation({ ...base, requested: true, text })).toBe(false);
+    }
   });
 
   it('does not request again once the result is final', () => {
-    expect(shouldRequestTranslation({ ...base, current: translated })).toBe(false);
-    expect(shouldRequestTranslation({ ...base, current: none })).toBe(false);
+    expect(shouldRequestTranslation({ ...base, requested: true, current: translated })).toBe(false);
+    expect(shouldRequestTranslation({ ...base, requested: true, current: none })).toBe(false);
   });
 
   it('keeps requesting while the model is still preparing', () => {
-    expect(shouldRequestTranslation({ ...base, current: preparing })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, requested: true, current: preparing })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', current: preparing })).toBe(true);
   });
 });
 
@@ -77,19 +87,41 @@ describe('resolveDisplayText', () => {
   });
 });
 
-describe('resolveBadgeState', () => {
+describe('resolveTranslationControl', () => {
+  const base = { current: undefined, cached: undefined, requested: false, autoPending: false, assessment: 'other', showingOriginal: false } as const;
+
+  it('offers the link when the message is not confidently in the interface language', () => {
+    expect(resolveTranslationControl(base)).toBe('offer');
+    expect(resolveTranslationControl({ ...base, assessment: 'unsure' })).toBe('offer');
+  });
+
+  it('offers nothing when the message is in the interface language, untranslatable or not assessed yet', () => {
+    expect(resolveTranslationControl({ ...base, assessment: 'target' })).toBe('none');
+    expect(resolveTranslationControl({ ...base, assessment: 'skip' })).toBe('none');
+    expect(resolveTranslationControl({ ...base, assessment: null })).toBe('none');
+  });
+
+  it('shows translating right after the click and while the model is preparing', () => {
+    expect(resolveTranslationControl({ ...base, requested: true })).toBe('preparing');
+    expect(resolveTranslationControl({ ...base, current: preparing })).toBe('preparing');
+  });
+
   it('maps a translation to translated or original depending on the toggle', () => {
-    expect(resolveBadgeState(translated, false)).toBe('translated');
-    expect(resolveBadgeState(translated, true)).toBe('original');
+    expect(resolveTranslationControl({ ...base, current: translated })).toBe('translated');
+    expect(resolveTranslationControl({ ...base, current: translated, showingOriginal: true })).toBe('original');
   });
 
-  it('shows translating while preparing, regardless of the toggle', () => {
-    expect(resolveBadgeState(preparing, false)).toBe('preparing');
-    expect(resolveBadgeState(preparing, true)).toBe('preparing');
+  it('hides the link for good when the message turned out to be in the interface language', () => {
+    expect(resolveTranslationControl({ ...base, requested: true, current: none, cached: none })).toBe('none');
   });
 
-  it('shows nothing for none', () => {
-    expect(resolveBadgeState(none, false)).toBe('none');
+  it('brings the link back after a failed translation', () => {
+    expect(resolveTranslationControl({ ...base, requested: true, current: none, cached: undefined })).toBe('offer');
+  });
+
+  it('stays quiet while an automatic translation is on its way', () => {
+    expect(resolveTranslationControl({ ...base, autoPending: true })).toBe('none');
+    expect(resolveTranslationControl({ ...base, autoPending: true, current: none })).toBe('offer');
   });
 });
 

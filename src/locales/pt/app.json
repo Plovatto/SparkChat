@@ -340,6 +340,12 @@
       "showOriginal": "Ver original",
       "showTranslation": "Ver tradução",
       "translating": "Traduzindo…",
+      "translate": "Traduzir",
+      "suggestTitle": "Esta conversa está em {{language}}. Traduzir automaticamente?",
+      "suggestAccept": "Traduzir",
+      "suggestDismiss": "Agora não",
+      "autoRoomTitle": "Traduzir mensagens automaticamente",
+      "autoRoomCaption": "Mensagens recebidas em outro idioma nesta conversa são traduzidas assim que aparecem, direto no seu dispositivo.",
       "languages": {
         "pt": "português",
         "en": "inglês"
@@ -457,9 +463,6 @@
     "changePassword": "Trocar senha",
     "downloadRecovery": "Baixar arquivo de recuperação",
     "sounds": "Sons do app",
-    "autoTranslate": "Traduzir mensagens automaticamente",
-    "autoTranslateHint": "Mensagens em outro idioma são traduzidas para o idioma do app, direto no seu navegador.",
-    "autoTranslateUnavailable": "A tradução automática não está disponível neste dispositivo.",
     "activeSessions": "Dispositivos com sessão ativa",
     "revokeOthers": "Encerrar todas as outras",
     "noOtherSessions": "Nenhuma outra sessão ativa.",
