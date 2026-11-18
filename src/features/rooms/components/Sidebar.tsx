@@ -73,6 +73,8 @@ interface SidebarProps {
   onToggleNotifications: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  notificationContentHidden: boolean;
+  onToggleNotificationContent: () => void;
   mutedRoomIds: Set<string>;
   onToggleMuted: (roomIds: string[]) => void;
 }
@@ -94,6 +96,8 @@ export function Sidebar({
   onToggleNotifications,
   soundEnabled,
   onToggleSound,
+  notificationContentHidden,
+  onToggleNotificationContent,
   mutedRoomIds,
   onToggleMuted,
 }: SidebarProps) {
@@ -604,6 +608,8 @@ export function Sidebar({
         onLogout={onLogout}
         soundEnabled={soundEnabled}
         onToggleSound={onToggleSound}
+        notificationContentHidden={notificationContentHidden}
+        onToggleNotificationContent={onToggleNotificationContent}
       />
     </div>
   );

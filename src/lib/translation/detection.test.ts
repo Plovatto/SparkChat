@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NATIVE_API_TIMEOUT_MS } from './native-timeout';
 import { detectLanguage, resetDetectorForTests } from './detection';
+import { MAX_ANALYSED_TEXT_LENGTH } from './segments';
 
 interface FakeResult {
   detectedLanguage: string;
@@ -186,5 +187,15 @@ describe('detectLanguage native timeouts', () => {
     await vi.advanceTimersByTimeAsync(NATIVE_API_TIMEOUT_MS);
     expect((await pending)?.language).toBe('en');
     expect(detect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('detectLanguage input size', () => {
+  it('feeds at most MAX_ANALYSED_TEXT_LENGTH characters of peer text to detection', async () => {
+    installFakeDetector([{ detectedLanguage: 'en', confidence: 0.9 }]);
+    await detectLanguage(`${'hello '.repeat(MAX_ANALYSED_TEXT_LENGTH)}tail`);
+    expect(fake.detectCalls).toHaveLength(1);
+    expect(fake.detectCalls[0]?.length).toBeLessThanOrEqual(MAX_ANALYSED_TEXT_LENGTH);
+    expect(fake.detectCalls[0]).not.toContain('tail');
   });
 });

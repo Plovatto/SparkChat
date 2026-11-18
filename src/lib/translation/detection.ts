@@ -1,7 +1,7 @@
 import type { Language } from '@lib/i18n/language';
 import { detectPtEn, type DetectedLanguage } from './heuristic-detector';
 import { TIMED_OUT, withNativeTimeout } from './native-timeout';
-import { collapseStretchedLetters, translatableText } from './segments';
+import { collapseStretchedLetters, MAX_ANALYSED_TEXT_LENGTH, translatableText } from './segments';
 
 const MIN_NATIVE_CONFIDENCE = 0.6;
 const DETECTOR_OPTIONS = { expectedInputLanguages: ['pt', 'en'] };
@@ -93,7 +93,7 @@ export function resetDetectorForTests(): void {
 }
 
 export async function detectLanguage(text: string, options: DetectOptions = {}): Promise<DetectedLanguage | null> {
-  const input = collapseStretchedLetters(translatableText(text));
+  const input = collapseStretchedLetters(translatableText(text.slice(0, MAX_ANALYSED_TEXT_LENGTH)));
   if (typeof LanguageDetector === 'undefined') return detectPtEn(input);
   try {
     if (options.allowDownload === false && !(await isDetectorReady())) return detectPtEn(input);
