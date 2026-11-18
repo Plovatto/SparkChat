@@ -200,7 +200,8 @@ describe('armNativeOnFirstInteraction', () => {
     fakeWindow.dispatch('pointerdown');
     dispose();
     await flush();
-    expect(fake.createCalls).toBe(1);
+    // Disposed while the availability check was in flight: no download starts and nothing listens again.
+    expect(fake.createCalls).toBe(0);
     expect(fakeWindow.count('pointerdown')).toBe(0);
   });
 
