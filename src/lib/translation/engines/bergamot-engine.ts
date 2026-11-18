@@ -216,10 +216,10 @@ export function createBergamotEngine(): BergamotEngine {
       controller.abort();
       if (error instanceof Error && error.message === 'integrity-failed') {
         failedPairs.add(pair);
-        throw new Error('model-load-failed');
+        throw new Error('model-load-failed', { cause: error });
       }
       startCooldown(pair);
-      throw new Error('download-failed');
+      throw new Error('download-failed', { cause: error });
     }
   }
 

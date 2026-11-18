@@ -95,7 +95,7 @@ async function download(file: BergamotModelFile, onBytes: (n: number) => void, s
       Math.max(file.size, file.rawSize),
     );
   } catch (error) {
-    throw new Error(error instanceof OversizedBodyError ? 'integrity-failed' : 'download-failed');
+    throw new Error(error instanceof OversizedBodyError ? 'integrity-failed' : 'download-failed', { cause: error });
   }
   const compressed = isGzipBytes(body);
   if (body.byteLength < (compressed ? file.size : file.rawSize)) {
