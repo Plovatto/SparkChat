@@ -63,3 +63,13 @@ describe('detectPtEn does not decide on weak evidence', () => {
     expect(detectPtEn('kkkkk que isso')?.language).toBe('pt');
   });
 });
+
+describe('detectPtEn single typical words', () => {
+  it.each(['valeu', 'beleza', 'sim', 'oi', 'obg', 'nossa', 'show de bola'])('reads "%s" as pt', (text) => {
+    expect(detectPtEn(text)?.language).toBe('pt');
+  });
+
+  it.each(['thanks', 'hello', 'awesome'])('reads "%s" as en', (text) => {
+    expect(detectPtEn(text)?.language).toBe('en');
+  });
+});

@@ -60,3 +60,9 @@ describe('collapseStretchedLetters leaves non-words alone', () => {
     expect(collapseStretchedLetters(text)).toBe(text);
   });
 });
+
+describe('collapseStretchedLetters with trailing punctuation', () => {
+  it('collapses words followed by punctuation', () => {
+    expect(collapseStretchedLetters('sooo... simmm.')).toBe('so... sim.');
+  });
+});

@@ -12,7 +12,7 @@ const PT_WORDS = new Set(
     'menos mais mas porque quando onde como quem qual quais ele ela eles elas nós meu minha seu sua nosso nossa dele dela ' +
     'do da dos das no na nos nas num numa pelo pela pelos pelas ao aos à às se já só ou nem até sem sobre entre depois antes ' +
     'ser ter fazer foi era são estão estou tô vou vai vem tem tinha fica ficou acabou acabava pode posso quer quero sabe ' +
-    'coisa gente nada nunca sempre ontem cedo tarde noite dia semana daí aí lá cá então né tipo cara mano vlw blz obg'
+    'coisa gente nada nunca sempre ontem cedo tarde noite dia semana daí aí lá cá então né tipo cara mano vlw blz obg show'
   ).split(' '),
 );
 const EN_WORDS = new Set(
@@ -38,7 +38,7 @@ const EN_PATTERN = /th|wh|sh|w|y|ck|ee|oo/;
 const SUFFIX_WEIGHT = 1;
 const PATTERN_WEIGHT = 0.5;
 const MIN_STEM = 2;
-const MIN_SIGNAL = 2;
+const MIN_SIGNAL = 1.5;
 const WORD = /\p{L}+/gu;
 
 function hasSuffix(word: string, suffixes: string[]): boolean {
@@ -65,15 +65,22 @@ function scoreWord(word: string): { pt: number; en: number } {
   return { pt, en };
 }
 
+function isTypicalWord(word: string): boolean {
+  if (AMBIGUOUS_WORDS.has(word)) return false;
+  const pt = PT_WORDS.has(word) || PT_SLANG.has(word);
+  return pt !== EN_WORDS.has(word);
+}
+
 export function detectPtEn(text: string): DetectedLanguage | null {
   let pt = 0;
   let en = 0;
-  for (const word of text.toLowerCase().match(WORD) ?? []) {
+  const words = text.toLowerCase().match(WORD) ?? [];
+  for (const word of words) {
     const score = scoreWord(word);
     pt += score.pt;
     en += score.en;
   }
   const total = pt + en;
-  if (total < MIN_SIGNAL) return null;
+  if (total < MIN_SIGNAL && !(words.length === 1 && isTypicalWord(words[0]))) return null;
   return { language: pt >= en ? 'pt' : 'en', confidence: Math.abs(pt - en) / total };
 }

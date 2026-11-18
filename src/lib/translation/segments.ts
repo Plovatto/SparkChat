@@ -25,8 +25,11 @@ const NOT_A_WORD = /[.@/:\d]/;
 const UPPERCASE_WORD = /^[^\p{Ll}]*\p{Lu}[^\p{Ll}]*\p{Lu}[^\p{Ll}]*$/u;
 const LAUGHTER_TOKEN = /^k{2,}\P{L}*$/iu;
 
+const TRAILING_PUNCTUATION = /[.,!?;:…]+$/u;
+
 function keepsStretchedLetters(token: string): boolean {
-  return NOT_A_WORD.test(token) || UPPERCASE_WORD.test(token) || LAUGHTER_TOKEN.test(token);
+  const word = token.replace(TRAILING_PUNCTUATION, '');
+  return NOT_A_WORD.test(word) || UPPERCASE_WORD.test(word) || LAUGHTER_TOKEN.test(word);
 }
 
 export function collapseStretchedLetters(text: string): string {
