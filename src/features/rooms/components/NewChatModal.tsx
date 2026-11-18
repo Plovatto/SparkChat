@@ -250,7 +250,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                       setError('');
                     }}
                     placeholder={t('newChat.codePlaceholder')}
-                    maxLength={8}
+                    maxLength={12}
                     autoFocus={groupMode === 'join'}
                     className="sc-input"
                   />

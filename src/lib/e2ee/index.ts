@@ -16,6 +16,7 @@ export {
   handleGroupUserJoined,
   handleIncomingRoomKeyPush,
   handleKeyRequest,
+  handleRoomKeyRejected,
   MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
   subscribeRoomKeyAvailable,

@@ -271,9 +271,30 @@ async function establishPrivateRoomKeyImpl(
 }
 
 async function handleIncomingRoomKeyPushImpl(payload: { roomId: string; sealedKey: string }): Promise<void> {
+  if (memoryCache.has(payload.roomId)) {
+    return;
+  }
+
+  const persisted = await loadRoomKey(payload.roomId);
+  if (persisted) {
+    setMemoryRoomKey(payload.roomId, persisted);
+    return;
+  }
+
   const unsealed = await unsealRoomKey(payload.sealedKey);
-  if (unsealed) {
+  if (unsealed && !memoryCache.has(payload.roomId)) {
     cacheRoomKey(payload.roomId, unsealed);
+  }
+}
+
+async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: { roomId: string }): Promise<void> {
+  memoryCache.delete(payload.roomId);
+  pendingLookups.delete(payload.roomId);
+  await deleteRoomKey(payload.roomId);
+
+  const stored = await ensureRoomKeyForDecryption(socket, payload.roomId);
+  if (!stored) {
+    socket.emit('e2e:request-room-key', { roomId: payload.roomId });
   }
 }
 
@@ -367,6 +388,7 @@ async function clearRoomKeysImpl(): Promise<void> {
 
 export const establishPrivateRoomKey = safeAsync('establishPrivateRoomKey', establishPrivateRoomKeyImpl);
 export const handleIncomingRoomKeyPush = safeAsync('handleIncomingRoomKeyPush', handleIncomingRoomKeyPushImpl);
+export const handleRoomKeyRejected = safeAsync('handleRoomKeyRejected', handleRoomKeyRejectedImpl);
 export const establishGroupRoomKeyOnCreate = safeAsync('establishGroupRoomKeyOnCreate', establishGroupRoomKeyOnCreateImpl);
 export const requestGroupRoomKeyIfMissing = safeAsync('requestGroupRoomKeyIfMissing', requestGroupRoomKeyIfMissingImpl);
 export const handleGroupUserJoined = safeAsync('handleGroupUserJoined', handleGroupUserJoinedImpl);

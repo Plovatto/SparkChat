@@ -196,13 +196,20 @@ export interface ServerToClientEvents {
   'room:deleted': (payload: { roomId: string }) => void;
   'group:left': (payload: { roomId: string }) => void;
   'group:user-joined': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
-  'group:user-left': (payload: { roomId: string; userId: string; userName: string; participants: RoomParticipant[] }) => void;
+  'group:user-left': (payload: {
+    roomId: string;
+    userId: string;
+    userName: string;
+    participants: RoomParticipant[];
+    roomCode?: string;
+  }) => void;
   'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
   'e2e:room-keys': (payload: { keys: { roomId: string; sealedKey: string }[] }) => void;
   'e2e:room-key': (payload: { roomId: string; sealedKey: string }) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string }) => void;
+  'e2e:room-key-rejected': (payload: { roomId: string }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
