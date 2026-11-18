@@ -153,7 +153,7 @@
       },
       "translation": {
         "question": "As mensagens podem ser traduzidas?",
-        "answer": "Sim. O SparkChat traduz as mensagens entre português e inglês direto no seu navegador. No Chrome para computador ele usa o tradutor do próprio Chrome; nos outros navegadores, baixa uma única vez um tradutor de cerca de 26 MB. O texto nunca é enviado para um serviço de tradução, então a criptografia ponta a ponta continua valendo."
+        "answer": "Sim, entre português e inglês. Mensagens recebidas em outro idioma ganham um link \"Traduzir\" logo abaixo: um toque e a tradução aparece no lugar, com a opção de ver o original. Se você traduz com frequência numa conversa, o SparkChat oferece traduzir aquela conversa automaticamente, e dá para mudar isso a qualquer momento nos detalhes da conversa. Tudo acontece no seu navegador: no Chrome para computador ele usa o tradutor do próprio Chrome; nos outros navegadores, baixa uma única vez um tradutor de cerca de 26 MB. O texto nunca é enviado para um serviço de tradução, então a criptografia ponta a ponta continua valendo."
       }
     }
   },

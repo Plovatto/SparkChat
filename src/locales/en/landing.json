@@ -162,7 +162,7 @@
       },
       "translation": {
         "question": "Can messages be translated?",
-        "answer": "Yes. SparkChat translates messages between Portuguese and English right in your browser. In Chrome on desktop it uses Chrome's built-in translator; in other browsers it downloads a ~26 MB translator once. The text is never sent to a translation service, so end-to-end encryption still holds."
+        "answer": "Yes, between Portuguese and English. Messages you receive in another language get a \"Translate\" link right below them: one tap and the translation takes their place, with the option to see the original. If you translate often in a conversation, SparkChat offers to translate that conversation automatically, and you can change it anytime in the conversation details. It all happens in your browser: in Chrome on desktop it uses Chrome's built-in translator; in other browsers it downloads a ~26 MB translator once. The text is never sent to a translation service, so end-to-end encryption still holds."
       }
     }
   },
