@@ -141,6 +141,9 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     pendingRemoval && pendingRemoval.roomId === room.id && room.participants.some((participant) => participant.id === pendingRemoval.participant.id)
       ? pendingRemoval
       : null;
+  if (pendingRemoval && !removalTarget) {
+    setPendingRemoval(null);
+  }
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;

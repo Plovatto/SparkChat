@@ -185,6 +185,10 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
   const lookup = (async () => {
     const persisted = await loadRoomKey(roomId);
     if (persisted) {
+      const current = memoryCache.get(roomId);
+      if (current) {
+        return current;
+      }
       setMemoryRoomKey(roomId, persisted);
       return persisted;
     }
