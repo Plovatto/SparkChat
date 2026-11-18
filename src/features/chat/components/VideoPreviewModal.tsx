@@ -8,6 +8,7 @@ import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadMessageMedia } from '@lib/e2ee';
 import { useSocket, type MessageFileMeta } from '@lib/socket';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 import {
   MEDIA_VIEWER_BACKDROP_STYLE,
   MEDIA_VIEWER_CHROME_STYLE,
@@ -84,6 +85,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, file
                 roomId: source.roomId,
                 fileMeta: source.fileMeta,
                 fileName: source.fileName,
+                messageType: 'file',
               })
             }
             title={t('chat.viewer.downloadVideo')}
@@ -131,7 +133,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, file
           }}
         >
           <video
-            src={source.url}
+            src={toLocalMediaUrl(source.url)}
             controls
             autoPlay
             style={{

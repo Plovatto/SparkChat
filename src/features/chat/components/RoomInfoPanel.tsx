@@ -158,6 +158,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         roomId: room.id,
         fileMeta: message.fileMeta,
         fileName: message.fileMeta?.name ?? t('chat.message.defaultFileName'),
+        messageType: message.type,
       });
       return;
     }

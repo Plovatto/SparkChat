@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties, type RefObject } from 
 import { FaPause, FaPlay } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, withAlpha, type ResolvedBubbleStyle } from '@features/theme';
-import { isEncryptedMediaUrl } from '@lib/e2ee';
 import { formatAudioTime } from '@lib/format';
 import { useAudioWaveform } from '../hooks/useAudioWaveform';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH } from '../utils/chat-attachment-layout';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 export interface CurrentAudioRef {
   id: string;
@@ -38,7 +38,8 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
   const [playbackRate, setPlaybackRate] = useState(1);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const audioWaveform = useAudioWaveform(isEncryptedMediaUrl(message.content) ? null : message.content);
+  const audioSrc = toLocalMediaUrl(message.content);
+  const audioWaveform = useAudioWaveform(audioSrc ?? null);
 
   useEffect(() => {
     setHasBeenPlayed(isOwn ? message.playedBy.length > 0 : message.playedBy.includes(currentUserId ?? ''));
@@ -146,7 +147,7 @@ export function AudioMessageContent({ message, isOwn, bubble, currentUserId, cur
         }
       >
         <audio
-          src={message.content}
+          src={audioSrc}
           ref={audioElementRef}
           onEnded={handleAudioEnded}
           onLoadedMetadata={(event) => setAudioDuration(event.currentTarget.duration)}

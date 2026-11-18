@@ -5,12 +5,14 @@ import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
 import type { ChatMessage } from '../types';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
 import type { MessageBubbleActions } from './MessageBubble';
 import { MessageBubbleShell } from './MessageBubbleShell';
 import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
+import { UnencryptedNotice } from './UnencryptedNotice';
 
 interface ImageGroupBubbleProps extends MessageBubbleActions {
   images: ChatMessage[];
@@ -107,6 +109,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
         </>
       }
     >
+      {images.some((image) => image.unencrypted) && <UnencryptedNotice />}
       <div
         style={{
           padding: '0 10px',
@@ -134,7 +137,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
               }}
             >
               <img
-                src={image.fileMeta?.thumbnailUrl ?? image.content}
+                src={toLocalMediaUrl(image.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(image.content)}
                 alt={t('chat.message.sentImage')}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />

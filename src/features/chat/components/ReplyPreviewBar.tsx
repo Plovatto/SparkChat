@@ -5,6 +5,7 @@ import { formatAudioTime } from '@lib/format';
 import type { MessageView } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 interface ReplyPreviewBarProps {
   message: MessageView;
@@ -21,7 +22,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
 
   const renderPreview = () => {
     if (message.type === 'image') {
-      const imageSrc = message.fileMeta?.thumbnailUrl ?? message.content;
+      const imageSrc = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
       return imageSrc ? (
         <img
           src={imageSrc}

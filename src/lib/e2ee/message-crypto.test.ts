@@ -1,8 +1,9 @@
 import fc from 'fast-check';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket, MessageView } from '@lib/socket';
 import { encryptAttachment } from './attachment-crypto';
-import { decryptMessageView, encryptOutgoingMessage } from './message-crypto';
+import { clearDecryptedMediaCache } from './media-cache';
+import { decryptMediaContentIfNeeded, decryptMessageView, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
 import { MissingRoomKeyError } from './room-keys';
 
 const roomKeys = vi.hoisted(() => new Map<string, Uint8Array>());
@@ -27,12 +28,11 @@ vi.mock('./room-keys', () => {
 const ROOM_ID = 'room-1';
 const socket = {} as AppSocket;
 
-function toMessageView(fields: { content: string; caption?: string }): MessageView {
+function toMessageView(fields: { content: string; caption?: string } & Partial<MessageView>): MessageView {
   return {
     id: 'message-1',
     roomId: ROOM_ID,
     sender: { id: 'user-1', nickname: 'ana', avatar: null },
-    content: fields.content,
     type: 'text',
     duration: null,
     timestamp: new Date(0).toISOString(),
@@ -44,8 +44,9 @@ function toMessageView(fields: { content: string; caption?: string }): MessageVi
     replyTo: null,
     mentionedUserIds: [],
     fileMeta: null,
-    caption: fields.caption ?? null,
     linkPreview: null,
+    ...fields,
+    caption: fields.caption ?? null,
   };
 }
 
@@ -144,7 +145,139 @@ describe('decryptMessageView link preview image', () => {
 
     const decrypted = await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl));
 
-    expect(fetchSpy).toHaveBeenCalledWith(imageUrl);
+    expect(fetchSpy).toHaveBeenCalledWith(imageUrl, expect.objectContaining({ credentials: 'omit' }));
     expect(decrypted.linkPreview?.imageUrl).toMatch(/^blob:/);
+  });
+});
+
+describe('hasUnencryptedFields', () => {
+  const ENCRYPTED_TEXT = 'e2e:v1:AAAA';
+
+  it('flags plaintext text, captions, file details and link previews', () => {
+    expect(hasUnencryptedFields(toMessageView({ content: 'olá' }))).toBe(true);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, caption: 'legenda' }))).toBe(true);
+    expect(
+      hasUnencryptedFields(
+        toMessageView({
+          content: 'https://cdn.test/uploads/files/a.bin?e2e=1',
+          type: 'file',
+          fileMeta: { name: 'nota.pdf', mimeType: ENCRYPTED_TEXT, size: 1 },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      hasUnencryptedFields(
+        toMessageView({
+          content: ENCRYPTED_TEXT,
+          linkPreview: { url: ENCRYPTED_TEXT, title: 'Plain title', description: null, imageUrl: null, siteName: null },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('flags media urls that were not encrypted on upload', () => {
+    expect(hasUnencryptedFields(toMessageView({ content: 'https://cdn.test/uploads/images/a.png', type: 'image' }))).toBe(true);
+    expect(
+      hasUnencryptedFields(
+        toMessageView({
+          content: 'https://cdn.test/uploads/images/a.png?e2e=1',
+          type: 'image',
+          fileMeta: { name: ENCRYPTED_TEXT, mimeType: ENCRYPTED_TEXT, size: 1, thumbnailUrl: 'https://cdn.test/uploads/images/t.webp' },
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('does not flag fully encrypted, system, error or deleted messages', () => {
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, caption: ENCRYPTED_TEXT }))).toBe(false);
+    expect(
+      hasUnencryptedFields(
+        toMessageView({
+          content: 'https://cdn.test/uploads/images/a.png?e2e=1',
+          type: 'image',
+          fileMeta: { name: ENCRYPTED_TEXT, mimeType: ENCRYPTED_TEXT, size: 1, thumbnailUrl: 'https://cdn.test/uploads/images/t.webp?e2e=1' },
+        }),
+      ),
+    ).toBe(false);
+    expect(hasUnencryptedFields(toMessageView({ content: 'entrou na sala', type: 'system' }))).toBe(false);
+    expect(hasUnencryptedFields(toMessageView({ content: 'falhou', type: 'error' }))).toBe(false);
+    expect(hasUnencryptedFields(toMessageView({ content: '', deletedForEveryone: true }))).toBe(false);
+  });
+
+  it('marks decrypted views that arrived without encryption', async () => {
+    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    const plain = await decryptMessageView(socket, toMessageView({ content: 'olá' }));
+    const encrypted = await decryptMessageView(socket, toMessageView(await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'olá' })));
+
+    expect(plain.unencrypted).toBe(true);
+    expect(encrypted.unencrypted).toBe(false);
+    expect(encrypted.content).toBe('olá');
+  });
+});
+
+describe('decryptMediaContentIfNeeded', () => {
+  const MEDIA_URL = 'https://cdn.test/uploads/files/payload.bin?e2e=1';
+  const createdBlobs: Blob[] = [];
+  const fetchMock = vi.fn<typeof fetch>();
+  let ciphertext: ArrayBuffer;
+
+  const fileMeta = (mimeType: string) => ({ name: 'x', mimeType, size: 1 });
+
+  beforeEach(async () => {
+    roomKeys.clear();
+    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    createdBlobs.length = 0;
+    const html = new Blob(['<script>alert(1)</script>'], { type: 'text/html' });
+    ciphertext = await (await encryptAttachment(ROOM_ID, html)).arrayBuffer();
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(ciphertext.slice(0))));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      createdBlobs.push(blob as Blob);
+      return `blob:https://app.test/${createdBlobs.length}`;
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    clearDecryptedMediaCache();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('never creates an active blob type from the sender-chosen mime type', async () => {
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('text/html'), 'file');
+    clearDecryptedMediaCache();
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('image/svg+xml'), 'image');
+    clearDecryptedMediaCache();
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'image');
+
+    expect(createdBlobs.map((blob) => blob.type)).toEqual(['application/octet-stream', 'application/octet-stream', 'application/octet-stream']);
+  });
+
+  it('keeps passive types that match the message type', async () => {
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('image/png'), 'image');
+    clearDecryptedMediaCache();
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('audio/webm;codecs=opus'), 'audio');
+    clearDecryptedMediaCache();
+    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'file');
+
+    expect(createdBlobs.map((blob) => blob.type)).toEqual(['image/png', 'audio/webm', 'application/pdf']);
+  });
+
+  it('does not let a second message reusing the url inherit the first message type', async () => {
+    const first = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('text/html'), 'file');
+    const second = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'file');
+
+    expect(first).not.toBe(second);
+    expect(createdBlobs.map((blob) => blob.type)).toEqual(['application/octet-stream', 'application/pdf']);
+  });
+
+  it('never fetches media outside the storage upload paths', async () => {
+    const outside = 'https://evil.test/payload.bin?e2e=1';
+    await expect(decryptMediaContentIfNeeded(socket, outside, ROOM_ID, fileMeta('image/png'), 'image')).resolves.toBe(outside);
+    const insecure = 'http://cdn.test/uploads/images/a.png?e2e=1';
+    await expect(decryptMediaContentIfNeeded(socket, insecure, ROOM_ID, fileMeta('image/png'), 'image')).resolves.toBe(insecure);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

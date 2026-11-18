@@ -7,6 +7,7 @@ import { Spinner } from '@components/common/Spinner';
 import { decryptMediaContentIfNeeded, downloadMessageMedia } from '@lib/e2ee';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useSocket, type MessageFileMeta } from '@lib/socket';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
 interface ImageModalProps {
@@ -92,7 +93,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
     }
     let cancelled = false;
     const fileMeta = fileMetas?.[currentIndex] ?? null;
-    void decryptMediaContentIfNeeded(socket, currentRaw, roomId, fileMeta).then((resolved) => {
+    void decryptMediaContentIfNeeded(socket, currentRaw, roomId, fileMeta, 'image').then((resolved) => {
       if (!cancelled) {
         setResolvedSrc((previous) => ({ ...previous, [currentRaw]: resolved }));
       }
@@ -102,7 +103,9 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
     };
   }, [isOpen, roomId, socket, currentRaw, currentIndex, fileMetas, resolvedSrc]);
 
-  const currentSrc = currentRaw ? (roomId ? resolvedSrc[currentRaw] : currentRaw) : undefined;
+  const resolvedCurrent = currentRaw ? (roomId ? resolvedSrc[currentRaw] : currentRaw) : undefined;
+  const currentSrc = toLocalMediaUrl(resolvedCurrent);
+  const currentUnavailable = resolvedCurrent !== undefined && currentSrc === undefined;
 
   if (!isPresent || !currentRaw) {
     return null;
@@ -117,7 +120,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
   const handleDownload = () => {
     const fileMeta = fileMetas?.[currentIndex] ?? null;
     const fileName = fileNames?.[currentIndex] ?? fileMeta?.name ?? t('chat.message.defaultImageName');
-    void downloadMessageMedia(socket, { content: currentRaw, roomId, fileMeta, fileName });
+    void downloadMessageMedia(socket, { content: currentRaw, roomId, fileMeta, fileName, messageType: 'image' });
   };
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
@@ -279,6 +282,8 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
                 event.currentTarget.style.cursor = 'grab';
               }}
             />
+          ) : currentUnavailable ? (
+            <p style={{ margin: 0, color: '#fff', textAlign: 'center' }}>{t('chat.message.mediaNotLoaded')}</p>
           ) : (
             <Spinner size={36} />
           )}
