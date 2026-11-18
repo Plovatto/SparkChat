@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { FaBan, FaCheck, FaCopy, FaCrown, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
 import { MdTranslate } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
+import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Modal } from '@components/common/Modal';
 import { Switch } from '@components/common/Switch';
 import { AVATARS } from '@features/auth/constants/avatars';
@@ -135,6 +136,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<RoomParticipant | null>(null);
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
@@ -178,8 +180,10 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     socket?.emit('group:promote-admin', { roomId: room.id, userId });
   };
 
-  const handleRemoveMember = (userId: string) => {
-    socket?.emit('group:remove-member', { roomId: room.id, userId });
+  const confirmRemoveMember = () => {
+    if (pendingRemoval) {
+      socket?.emit('group:remove-member', { roomId: room.id, userId: pendingRemoval.id });
+    }
   };
 
   const avatarHaloStyle = {
@@ -421,7 +425,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                           )}
 
                           {canManage && (
-                            <ActionIconButton onClick={() => handleRemoveMember(participant.id)} title={t('roomInfo.remove')} tone="danger">
+                            <ActionIconButton onClick={() => setPendingRemoval(participant)} title={t('roomInfo.remove')} tone="danger">
                               <FaUserMinus size={13} />
                             </ActionIconButton>
                           )}
@@ -460,6 +464,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
           )}
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={pendingRemoval !== null}
+        title={t('roomInfo.removeTitle')}
+        message={t('roomInfo.removeConfirm', { name: pendingRemoval?.nickname ?? '' })}
+        confirmLabel={t('roomInfo.remove')}
+        onConfirm={confirmRemoveMember}
+        onCancel={() => setPendingRemoval(null)}
+      />
       <ImageModal
         isOpen={selectedMedia?.type === 'image'}
         images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
