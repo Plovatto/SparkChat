@@ -2,6 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { FaBan, FaCheck, FaCopy, FaCrown, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
 import { MdTranslate } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
+import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Modal } from '@components/common/Modal';
 import { Switch } from '@components/common/Switch';
 import { AVATARS } from '@features/auth/constants/avatars';
@@ -135,6 +136,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{ roomId: string; participant: RoomParticipant } | null>(null);
+  const removalTarget =
+    pendingRemoval && pendingRemoval.roomId === room.id && room.participants.some((participant) => participant.id === pendingRemoval.participant.id)
+      ? pendingRemoval
+      : null;
+  if (pendingRemoval && !removalTarget) {
+    setPendingRemoval(null);
+  }
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
@@ -178,8 +187,10 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     socket?.emit('group:promote-admin', { roomId: room.id, userId });
   };
 
-  const handleRemoveMember = (userId: string) => {
-    socket?.emit('group:remove-member', { roomId: room.id, userId });
+  const confirmRemoveMember = () => {
+    if (removalTarget) {
+      socket?.emit('group:remove-member', { roomId: removalTarget.roomId, userId: removalTarget.participant.id });
+    }
   };
 
   const avatarHaloStyle = {
@@ -196,7 +207,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
+      <Modal isOpen={isOpen} onClose={removalTarget ? () => setPendingRemoval(null) : onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {room.type === 'private' && otherUser && (
             <>
@@ -421,7 +432,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                           )}
 
                           {canManage && (
-                            <ActionIconButton onClick={() => handleRemoveMember(participant.id)} title={t('roomInfo.remove')} tone="danger">
+                            <ActionIconButton onClick={() => setPendingRemoval({ roomId: room.id, participant })} title={t('roomInfo.remove')} tone="danger">
                               <FaUserMinus size={13} />
                             </ActionIconButton>
                           )}
@@ -460,6 +471,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
           )}
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={removalTarget !== null}
+        title={t('roomInfo.removeTitle')}
+        message={t('roomInfo.removeConfirm', { name: removalTarget?.participant.nickname ?? '' })}
+        confirmLabel={t('roomInfo.remove')}
+        onConfirm={confirmRemoveMember}
+        onCancel={() => setPendingRemoval(null)}
+      />
       <ImageModal
         isOpen={selectedMedia?.type === 'image'}
         images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}

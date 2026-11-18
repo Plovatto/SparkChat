@@ -361,6 +361,8 @@
     "admin": "Admin",
     "promote": "Make admin",
     "remove": "Remove from group",
+    "removeTitle": "Remove member",
+    "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite code.",
     "leave": "Leave Group",
     "seen": "Seen {{time}}",
     "members_one": "{{count}} member",

@@ -14,7 +14,10 @@ interface SealedRoomKeyEntry {
 
 const REQUEST_TIMEOUT_MS = 8000;
 
+const PROVISIONAL_KEY_WINDOW_MS = 15000;
+
 const memoryCache = new Map<string, Uint8Array>();
+const provisionalUntil = new Map<string, number>();
 const pendingLookups = new Map<string, Promise<Uint8Array | null>>();
 const knownParticipantsByRoom = new Map<string, Set<string>>();
 const refetchedRoomIds = new Set<string>();
@@ -132,6 +135,23 @@ function cacheRoomKey(roomId: string, key: Uint8Array): void {
   void saveRoomKey(roomId, key);
 }
 
+function cacheProvisionalRoomKey(roomId: string, key: Uint8Array): void {
+  provisionalUntil.set(roomId, Date.now() + PROVISIONAL_KEY_WINDOW_MS);
+  cacheRoomKey(roomId, key);
+}
+
+function isProvisional(roomId: string): boolean {
+  const until = provisionalUntil.get(roomId);
+  if (until === undefined) {
+    return false;
+  }
+  if (until > Date.now()) {
+    return true;
+  }
+  provisionalUntil.delete(roomId);
+  return false;
+}
+
 export function getCachedRoomKey(roomId: string): Uint8Array | null {
   return memoryCache.get(roomId) ?? null;
 }
@@ -165,6 +185,10 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
   const lookup = (async () => {
     const persisted = await loadRoomKey(roomId);
     if (persisted) {
+      const current = memoryCache.get(roomId);
+      if (current) {
+        return current;
+      }
       setMemoryRoomKey(roomId, persisted);
       return persisted;
     }
@@ -177,6 +201,11 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
     const unsealed = await unsealRoomKey(entry.sealedKey);
     if (!unsealed) {
       return null;
+    }
+
+    const current = memoryCache.get(roomId);
+    if (current) {
+      return current;
     }
 
     cacheRoomKey(entry.roomId, unsealed);
@@ -260,7 +289,11 @@ async function establishPrivateRoomKeyImpl(
     sealRoomKeyFor(roomKey, otherPublicKey),
   ]);
 
-  cacheRoomKey(room.id, roomKey);
+  if (memoryCache.has(room.id)) {
+    return;
+  }
+
+  cacheProvisionalRoomKey(room.id, roomKey);
   socket.emit('e2e:publish-room-key', {
     roomId: room.id,
     keys: [
@@ -271,9 +304,46 @@ async function establishPrivateRoomKeyImpl(
 }
 
 async function handleIncomingRoomKeyPushImpl(payload: { roomId: string; sealedKey: string }): Promise<void> {
+  if (!getCurrentIdentity()) {
+    return;
+  }
+
+  if (isProvisional(payload.roomId)) {
+    const unsealed = await unsealRoomKey(payload.sealedKey);
+    if (unsealed) {
+      provisionalUntil.delete(payload.roomId);
+      cacheRoomKey(payload.roomId, unsealed);
+    }
+    return;
+  }
+
+  if (memoryCache.has(payload.roomId)) {
+    return;
+  }
+
+  const persisted = await loadRoomKey(payload.roomId);
+  if (persisted) {
+    if (!memoryCache.has(payload.roomId)) {
+      setMemoryRoomKey(payload.roomId, persisted);
+    }
+    return;
+  }
+
   const unsealed = await unsealRoomKey(payload.sealedKey);
-  if (unsealed) {
+  if (unsealed && !memoryCache.has(payload.roomId)) {
     cacheRoomKey(payload.roomId, unsealed);
+  }
+}
+
+async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: { roomId: string }): Promise<void> {
+  provisionalUntil.delete(payload.roomId);
+  memoryCache.delete(payload.roomId);
+  pendingLookups.delete(payload.roomId);
+  await deleteRoomKey(payload.roomId);
+
+  const stored = await ensureRoomKeyForDecryption(socket, payload.roomId);
+  if (!stored) {
+    socket.emit('e2e:request-room-key', { roomId: payload.roomId });
   }
 }
 
@@ -300,7 +370,11 @@ async function establishGroupRoomKeyOnCreateImpl(socket: AppSocket, room: RoomSu
   const roomKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
   const sealedForSelf = await sealRoomKeyFor(roomKey, identity.publicKey);
 
-  cacheRoomKey(room.id, roomKey);
+  if (memoryCache.has(room.id)) {
+    return;
+  }
+
+  cacheProvisionalRoomKey(room.id, roomKey);
   socket.emit('e2e:publish-room-key', {
     roomId: room.id,
     keys: [{ userId: currentUserId, sealedKey: sealedForSelf }],
@@ -357,6 +431,7 @@ async function handleKeyRequestImpl(socket: AppSocket, payload: { roomId: string
 
 async function clearRoomKeysImpl(): Promise<void> {
   memoryCache.clear();
+  provisionalUntil.clear();
   pendingLookups.clear();
   knownParticipantsByRoom.clear();
   refetchedRoomIds.clear();
@@ -367,6 +442,7 @@ async function clearRoomKeysImpl(): Promise<void> {
 
 export const establishPrivateRoomKey = safeAsync('establishPrivateRoomKey', establishPrivateRoomKeyImpl);
 export const handleIncomingRoomKeyPush = safeAsync('handleIncomingRoomKeyPush', handleIncomingRoomKeyPushImpl);
+export const handleRoomKeyRejected = safeAsync('handleRoomKeyRejected', handleRoomKeyRejectedImpl);
 export const establishGroupRoomKeyOnCreate = safeAsync('establishGroupRoomKeyOnCreate', establishGroupRoomKeyOnCreateImpl);
 export const requestGroupRoomKeyIfMissing = safeAsync('requestGroupRoomKeyIfMissing', requestGroupRoomKeyIfMissingImpl);
 export const handleGroupUserJoined = safeAsync('handleGroupUserJoined', handleGroupUserJoinedImpl);

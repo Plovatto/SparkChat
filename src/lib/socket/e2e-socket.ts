@@ -11,6 +11,7 @@ import {
   handleGroupUserJoined,
   handleIncomingRoomKeyPush,
   handleKeyRequest,
+  handleRoomKeyRejected,
   MissingRoomKeyError,
   requestGroupRoomKeyIfMissing,
   subscribeCurrentIdentity,
@@ -222,6 +223,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string }) => {
     void handleKeyRequest(socket, payload);
+  });
+
+  originalOn('e2e:room-key-rejected', (payload: { roomId: string }) => {
+    void handleRoomKeyRejected(socket, payload);
   });
 
   return socket;

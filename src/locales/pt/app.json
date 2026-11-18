@@ -361,6 +361,8 @@
     "admin": "Administrador",
     "promote": "Promover a administrador",
     "remove": "Remover do grupo",
+    "removeTitle": "Remover membro",
+    "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o código de convite.",
     "leave": "Sair do Grupo",
     "seen": "Visto {{time}}",
     "members_one": "{{count}} membro",

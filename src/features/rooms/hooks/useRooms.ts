@@ -183,6 +183,10 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants })));
     };
 
+    const handleMemberLeft = ({ roomId, participants, roomCode }: { roomId: string; participants: RoomParticipant[]; roomCode?: string }) => {
+      setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants, ...(roomCode ? { roomCode } : {}) })));
+    };
+
     const handleBlockStatusChanged = ({ roomId, blockedBy }: BlockStatusPayload) => {
       setRooms((previous) =>
         patchRoom(previous, roomId, (room) => {
@@ -206,7 +210,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('room:deleted', handleRoomRemoved);
     socket.on('group:left', handleRoomRemoved);
     socket.on('group:user-joined', handleParticipantsUpdated);
-    socket.on('group:user-left', handleParticipantsUpdated);
+    socket.on('group:user-left', handleMemberLeft);
     socket.on('group:participants-updated', handleParticipantsUpdated);
     socket.on('user:blocked', handleBlockStatusChanged);
     socket.on('user:unblocked', handleBlockStatusChanged);
@@ -231,7 +235,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('room:deleted', handleRoomRemoved);
       socket.off('group:left', handleRoomRemoved);
       socket.off('group:user-joined', handleParticipantsUpdated);
-      socket.off('group:user-left', handleParticipantsUpdated);
+      socket.off('group:user-left', handleMemberLeft);
       socket.off('group:participants-updated', handleParticipantsUpdated);
       socket.off('user:blocked', handleBlockStatusChanged);
       socket.off('user:unblocked', handleBlockStatusChanged);
