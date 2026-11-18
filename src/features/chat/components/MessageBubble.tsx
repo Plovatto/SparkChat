@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { useInViewport } from '@hooks/useInViewport';
-import type { SessionAuth } from '@lib/api/session-auth';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
@@ -14,6 +13,7 @@ import type { ChatMessage } from '../types';
 import { localizeAssistantWelcome } from '../utils/assistant-welcome';
 import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { resolveLinkPreviewTarget } from '../utils/link-preview-target';
 import { truncateLongText } from '../utils/truncate-long-text';
 import { AudioMessageContent, type CurrentAudioRef } from './AudioMessageContent';
 import { FileMessageContent } from './FileMessageContent';
@@ -46,7 +46,6 @@ interface MessageBubbleProps extends MessageBubbleActions {
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
-  auth: SessionAuth;
   isSelected: boolean;
   currentAudioRef: RefObject<CurrentAudioRef | null>;
   receipt: MessageReceiptInfo | null;
@@ -111,7 +110,6 @@ export const MessageBubble = memo(function MessageBubble({
   participants,
   currentUserId,
   currentNickname,
-  auth,
   isSelected,
   currentAudioRef,
   receipt,
@@ -188,7 +186,8 @@ export const MessageBubble = memo(function MessageBubble({
   const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(content) : null;
   const displayContent = truncatedContent ?? content;
   const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
-  const linkPreviewCaption = hasLinkPreview ? removeFirstUrl(content) : '';
+  const linkPreviewOpensUrl = Boolean(message.linkPreview && resolveLinkPreviewTarget(message.linkPreview.url, originalContent));
+  const linkPreviewCaption = hasLinkPreview ? (linkPreviewOpensUrl ? removeFirstUrl(content) : content) : '';
   const badgeTranslation = message.type === 'text' ? contentTranslation : caption ? captionTranslation : null;
   const metaBadge =
     badgeTranslation && translationMode !== 'off' && canTranslate ? (
@@ -302,7 +301,7 @@ export const MessageBubble = memo(function MessageBubble({
 
       {hasLinkPreview && message.linkPreview && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-          <LinkPreviewCard preview={message.linkPreview} auth={auth} variant="bubble" bubble={bubbleStyle} />
+          <LinkPreviewCard preview={message.linkPreview} variant="bubble" bubble={bubbleStyle} messageText={originalContent} />
         </div>
       )}
 

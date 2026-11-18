@@ -245,6 +245,13 @@
       "removeAttachment": "Remover",
       "discard": "Descartar",
       "removePreview": "Remover preview",
+      "linkPreview": {
+        "generate": "Gerar prévia do link",
+        "generating": "Gerando prévia…",
+        "disclosure": "Para gerar a prévia, o servidor do SparkChat verá o endereço deste link.",
+        "failed": "Não foi possível gerar a prévia deste link.",
+        "dismiss": "Não gerar prévia"
+      },
       "tooLong": "A mensagem está longa demais. Divida em partes menores."
     },
     "message": {

@@ -15,7 +15,7 @@ import { oppositeLanguage } from '@lib/i18n/language';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
-import { uploadChatAudio, uploadChatFile, uploadChatImage, type UploadedFile } from '../api/chat-api';
+import { uploadChatAudio, uploadChatFile, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -24,6 +24,7 @@ import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
+import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import type { CurrentAudioRef } from './AudioMessageContent';
@@ -867,12 +868,22 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
           )
         : undefined;
 
-    if (trimmed && !hasAttachments) {
-      sendMessage({ content: trimmed, type: 'text', replyTo: repliedMessage, mentionedUserIds, linkPreview });
-    }
-
     const caption = hasAttachments && trimmed ? trimmed : undefined;
     const uploads: Promise<void>[] = [];
+
+    if (trimmed && !hasAttachments) {
+      const textReplyTo = repliedMessage;
+      const targetRoomId = room.id;
+      if (linkPreview?.image) {
+        uploads.push(
+          finalizeComposerLinkPreview(linkPreview, (image) => uploadLinkPreviewImage(image, auth, targetRoomId)).then((outgoingPreview) => {
+            sendMessage({ content: trimmed, type: 'text', replyTo: textReplyTo, mentionedUserIds, linkPreview: outgoingPreview });
+          }),
+        );
+      } else {
+        sendMessage({ content: trimmed, type: 'text', replyTo: textReplyTo, mentionedUserIds, linkPreview: linkPreview?.preview });
+      }
+    }
 
     if (imageFiles.length > 0) {
       uploads.push(sendAttachmentMessages(imageFiles, 'image', repliedMessage, caption, mentionedUserIds));
@@ -1129,7 +1140,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 participants={room.participants}
                                 currentUserId={user.id}
                                 currentNickname={user.nickname}
-                                auth={auth}
                                 isSelected={selectedMessageId === item.message.id}
                                 currentAudioRef={currentAudioRef}
                                 receipt={visibleReceipts.get(itemKey) ?? null}

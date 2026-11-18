@@ -2,7 +2,7 @@ import { env } from '@config/env';
 import { toApiError } from '@lib/api/api-error';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
 import { encryptAttachment } from '@lib/e2ee';
-import { buildImageVariants } from '@lib/media/image-compression';
+import { buildImageVariants, THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 
 export interface UploadedMedia {
   url: string;
@@ -129,4 +129,19 @@ export async function uploadChatFile(file: File, auth: SessionAuth, roomId: stri
     mimeType: data.mimeType ?? file.type,
     size: file.size,
   };
+}
+
+export async function uploadLinkPreviewImage(image: Blob, auth: SessionAuth, roomId: string): Promise<string> {
+  const mimeType = image.type || THUMBNAIL_MIME_TYPE;
+  const data = await uploadAttachment(
+    '/api/messages/upload-image',
+    'image',
+    image,
+    `link-preview.${extensionFromMimeType(mimeType)}`,
+    mimeType,
+    auth,
+    roomId,
+    'chat.upload.imageFailed',
+  );
+  return data.url;
 }

@@ -10,6 +10,8 @@ const E2E_PREFIX = 'e2e:v1:';
 
 const ENCRYPTED_MEDIA_PARAM = 'e2e';
 
+const LINK_PREVIEW_IMAGE_META: MessageFileMeta = { name: 'link-preview', mimeType: THUMBNAIL_MIME_TYPE, size: 0 };
+
 async function encryptText(plaintext: string, roomKey: Uint8Array): Promise<string> {
   const sodium = await getSodium();
   const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
@@ -160,7 +162,16 @@ async function decryptLinkPreviewIfNeeded(
     decryptNullableTextIfNeeded(socket, linkPreview.siteName, roomId),
   ]);
 
-  return { url, title, description, imageUrl, siteName };
+  return { url, title, description, imageUrl: await resolveLinkPreviewImage(socket, imageUrl, roomId), siteName };
+}
+
+async function resolveLinkPreviewImage(socket: AppSocket, imageUrl: string | null, roomId: string): Promise<string | null> {
+  if (!imageUrl || !isEncryptedMediaUrl(imageUrl)) {
+    return null;
+  }
+
+  const resolved = await decryptMediaContentIfNeeded(socket, imageUrl, roomId, LINK_PREVIEW_IMAGE_META);
+  return resolved.startsWith('blob:') ? resolved : null;
 }
 
 async function decryptReplySnapshot(

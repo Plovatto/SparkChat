@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket, MessageView } from '@lib/socket';
+import { encryptAttachment } from './attachment-crypto';
 import { decryptMessageView, encryptOutgoingMessage } from './message-crypto';
 import { MissingRoomKeyError } from './room-keys';
 
@@ -104,5 +105,46 @@ describe('encryptOutgoingMessage', () => {
       }),
       { numRuns: 50 },
     );
+  });
+});
+
+describe('decryptMessageView link preview image', () => {
+  beforeEach(() => {
+    roomKeys.clear();
+    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    vi.unstubAllGlobals();
+  });
+
+  async function encryptedPreviewMessage(imageUrl: string | null): Promise<MessageView> {
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      type: 'text',
+      content: 'veja https://site.test',
+      linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl, siteName: null },
+    });
+    return { ...toMessageView(encrypted), linkPreview: encrypted.linkPreview ?? null };
+  }
+
+  it('drops a legacy plain image URL without fetching it', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const decrypted = await decryptMessageView(socket, await encryptedPreviewMessage('https://tracker.test/pixel.png'));
+
+    expect(decrypted.linkPreview?.title).toBe('Site');
+    expect(decrypted.linkPreview?.imageUrl).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('decrypts an image that the sender uploaded encrypted with the room key', async () => {
+    const imageUrl = 'https://cdn.test/uploads/images/preview.webp?e2e=1';
+    const ciphertext = await encryptAttachment(ROOM_ID, new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' }));
+    const fetchSpy = vi.fn().mockResolvedValue(new Response(ciphertext));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const decrypted = await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl));
+
+    expect(fetchSpy).toHaveBeenCalledWith(imageUrl);
+    expect(decrypted.linkPreview?.imageUrl).toMatch(/^blob:/);
   });
 });

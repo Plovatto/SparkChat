@@ -245,6 +245,13 @@
       "removeAttachment": "Remove",
       "discard": "Discard",
       "removePreview": "Remove preview",
+      "linkPreview": {
+        "generate": "Generate link preview",
+        "generating": "Generating preview…",
+        "disclosure": "To build the preview, the SparkChat server will see this link's address.",
+        "failed": "Couldn't generate a preview for this link.",
+        "dismiss": "Don't generate a preview"
+      },
       "tooLong": "This message is too long. Please split it into smaller parts."
     },
     "message": {
