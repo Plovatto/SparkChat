@@ -18,6 +18,24 @@ export function splitSegments(text: string): Segment[] {
   return segments;
 }
 
+const STRETCHED_LETTERS = /(\p{L})\1{2,}/giu;
+const MAX_FILLER_LETTERS = 2;
+
+const NOT_A_WORD = /[.@/:\d]/;
+const UPPERCASE_WORD = /^[^\p{Ll}]*\p{Lu}[^\p{Ll}]*\p{Lu}[^\p{Ll}]*$/u;
+const LAUGHTER_TOKEN = /^k{2,}\P{L}*$/iu;
+
+const TRAILING_PUNCTUATION = /[.,!?;:…]+$/u;
+
+function keepsStretchedLetters(token: string): boolean {
+  const word = token.replace(TRAILING_PUNCTUATION, '');
+  return NOT_A_WORD.test(word) || UPPERCASE_WORD.test(word) || LAUGHTER_TOKEN.test(word);
+}
+
+export function collapseStretchedLetters(text: string): string {
+  return text.replace(/\S+/g, (token) => (keepsStretchedLetters(token) ? token : token.replace(STRETCHED_LETTERS, '$1')));
+}
+
 export function translatableText(text: string): string {
   return splitSegments(text)
     .filter((segment) => segment.kind === 'text')
@@ -30,8 +48,12 @@ export function hasTranslatableText(text: string): boolean {
   if (isWholeMessageAbbreviation(translatable)) return true;
   let letters = 0;
   for (const word of translatable.split(/\s+/)) {
-    if (!word || LAUGHTER_WORD.test(word.replace(/[^\p{L}\p{N}]/gu, ''))) continue;
-    letters += word.match(LETTER)?.length ?? 0;
+    const cleaned = word.replace(/[^\p{L}\p{N}]/gu, '');
+    if (!cleaned || LAUGHTER_WORD.test(cleaned)) continue;
+    const collapsed = collapseStretchedLetters(cleaned);
+    const collapsedLetters = collapsed.match(LETTER)?.length ?? 0;
+    if (collapsed !== cleaned && collapsedLetters <= MAX_FILLER_LETTERS) continue;
+    letters += collapsedLetters;
   }
   return letters >= MIN_TRANSLATABLE_LETTERS;
 }

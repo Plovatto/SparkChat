@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { hasTranslatableText, MIN_TRANSLATABLE_LETTERS, splitSegments, translatableText, translatePreservingSegments } from './segments';
+import { collapseStretchedLetters, hasTranslatableText, MIN_TRANSLATABLE_LETTERS, splitSegments, translatableText, translatePreservingSegments } from './segments';
 
 describe('segments', () => {
   it('splits mentions and urls into protected segments', () => {
@@ -37,5 +37,32 @@ describe('segments', () => {
   });
   it('translatable with enough letters outside mentions', () => {
     expect(hasTranslatableText('@Ana good morning')).toBe(true);
+  });
+});
+
+describe('stretched letters and fillers', () => {
+  it.each(['Baaaaaa', 'Hmmmm', 'Aaaaaaa', 'Ahhhh', 'Oooooh'])('treats "%s" as nothing to translate', (text) => {
+    expect(hasTranslatableText(text)).toBe(false);
+  });
+
+  it.each(['Siiiim', 'Nãooooo', 'Booom dia', 'oi'])('still translates "%s"', (text) => {
+    expect(hasTranslatableText(text)).toBe(true);
+  });
+
+  it('collapses stretched letters to one', () => {
+    expect(collapseStretchedLetters('Siiiim, booom demaaais!!!')).toBe('Sim, bom demais!!!');
+    expect(collapseStretchedLetters('cool week')).toBe('cool week');
+  });
+});
+
+describe('collapseStretchedLetters leaves non-words alone', () => {
+  it.each(['www.google.com', 'Henry VIII', 'AAA batteries', 'aaa@x.com', 'kkkkk', 'HMMMM'])('keeps "%s"', (text) => {
+    expect(collapseStretchedLetters(text)).toBe(text);
+  });
+});
+
+describe('collapseStretchedLetters with trailing punctuation', () => {
+  it('collapses words followed by punctuation', () => {
+    expect(collapseStretchedLetters('sooo... simmm.')).toBe('so... sim.');
   });
 });

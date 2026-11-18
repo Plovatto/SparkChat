@@ -71,9 +71,9 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
       const fileIcon = getFileTypeIcon(message.fileMeta?.mimeType ?? '');
       const FileIcon = fileIcon.icon;
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0 }}>
           <FileIcon size={14} color={fileIcon.color} style={{ flexShrink: 0 }} />
-          <span style={{ display: 'inline-block', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.fileMeta?.name ?? fileIcon.label}
           </span>
         </div>
@@ -81,7 +81,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
     }
 
     return (
-      <span style={{ display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ display: 'block', minWidth: 0, flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {message.content}
       </span>
     );
@@ -99,7 +99,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
         borderTop: `1px solid ${theme.border}`,
       }}
     >
-      <div>
+      <div style={{ flex: '1 1 auto', minWidth: 0, marginRight: '12px' }}>
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accentText, marginBottom: '4px' }}>
           {message.sender.id === currentUserId ? t('chat.message.replyingToSelf') : t('chat.message.replyingTo', { name: message.sender.unknown ? t('common.unknownUser') : message.sender.nickname })}
         </div>
@@ -107,7 +107,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
           style={{
             fontSize: '0.9rem',
             color: theme.textPrimary,
-            maxWidth: '300px',
+            minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             gap: '8px',

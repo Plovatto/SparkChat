@@ -49,6 +49,7 @@ vi.mock('./detection', () => ({
 
 import {
   assessIncoming,
+  classifyDetection,
   getCachedIncoming,
   NATIVE_AVAILABILITY_POLL_MS,
   prepareTranslationOnGesture,
@@ -631,7 +632,8 @@ describe('assessIncoming', () => {
     expect(detect).toHaveBeenCalledWith('bom dia equipe', { allowDownload: false });
     expect(await assessIncoming('bom dia equipe', 'en')).toBe('other');
     detect.mockResolvedValue({ language: 'pt', confidence: 0.5 });
-    expect(await assessIncoming('bom dia', 'pt')).toBe('unsure');
+    expect(await assessIncoming('bom dia', 'pt')).toBe('target');
+    expect(await assessIncoming('bom dia', 'en')).toBe('unsure');
     detect.mockResolvedValue(null);
     expect(await assessIncoming('oi', 'pt')).toBe('unsure');
   });
@@ -765,5 +767,22 @@ describe('getCachedIncoming', () => {
     await translateIncoming(req('m6', 'see you later', 'pt'));
     forgetTranslation('r1', 'm6');
     expect(getCachedIncoming('r1', 'm6', 'content', 'pt', 'see you later')).toBeUndefined();
+  });
+});
+
+describe('classifyDetection for the translate link', () => {
+  it('hides the link when the message clearly leans to the interface language, even without full confidence', () => {
+    expect(classifyDetection({ language: 'pt', confidence: 0.5 }, 'pt')).toBe('target');
+    expect(classifyDetection({ language: 'pt', confidence: 0.3 }, 'pt')).toBe('unsure');
+  });
+
+  it('offers it when the message leans to the other language or there is no signal', () => {
+    expect(classifyDetection({ language: 'en', confidence: 0.3 }, 'pt')).toBe('unsure');
+    expect(classifyDetection(null, 'pt')).toBe('unsure');
+  });
+
+  it('is confident only above the threshold', () => {
+    expect(classifyDetection({ language: 'en', confidence: 0.9 }, 'pt')).toBe('other');
+    expect(classifyDetection({ language: 'pt', confidence: 0.9 }, 'pt')).toBe('target');
   });
 });

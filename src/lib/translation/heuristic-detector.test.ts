@@ -28,3 +28,48 @@ describe('detectPtEn short chat phrases', () => {
     expect(detectPtEn(text)?.language).toBe('en');
   });
 });
+
+describe('detectPtEn word shapes and chat signals', () => {
+  it.each([
+    'Definitivamente menos bugado kkkkkkkkkk',
+    'Daí acabava com a concorrência',
+    'rapidamente resolvido',
+    'tava pensando nisso ontem',
+    'rsrs que coisa',
+    'trabalhando em casa hoje',
+    'ficou lindinho',
+  ])('reads "%s" as pt', (text) => {
+    expect(detectPtEn(text)?.language).toBe('pt');
+  });
+
+  it.each([
+    'Definitely less buggy lol',
+    'working from home today',
+    'that was really helpful',
+    'the weather is nice',
+    'what should we do tonight',
+    'thinking about it',
+  ])('reads "%s" as en', (text) => {
+    expect(detectPtEn(text)?.language).toBe('en');
+  });
+});
+
+describe('detectPtEn does not decide on weak evidence', () => {
+  it.each(['no', 'no problem', 'a lot', 'avocado toast', 'Orlando trip', 'Colorado', 'ok', 'yes', 'to indo'])('stays undecided on "%s"', (text) => {
+    expect(detectPtEn(text)).toBeNull();
+  });
+
+  it('reads laughter as Portuguese', () => {
+    expect(detectPtEn('kkkkk que isso')?.language).toBe('pt');
+  });
+});
+
+describe('detectPtEn single typical words', () => {
+  it.each(['valeu', 'beleza', 'sim', 'oi', 'obg', 'nossa', 'show de bola'])('reads "%s" as pt', (text) => {
+    expect(detectPtEn(text)?.language).toBe('pt');
+  });
+
+  it.each(['thanks', 'hello', 'awesome'])('reads "%s" as en', (text) => {
+    expect(detectPtEn(text)?.language).toBe('en');
+  });
+});
