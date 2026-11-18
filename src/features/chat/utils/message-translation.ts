@@ -65,6 +65,28 @@ export function selectCurrentResult(params: {
   return fetched.result;
 }
 
+export type RevealAction = 'refetch' | 'clear' | 'none';
+
+export function resolveRevealAction(params: {
+  becameVisible: boolean;
+  requested: boolean;
+  needsRequest: boolean;
+  retryOnInvalidation: boolean;
+}): RevealAction {
+  const { becameVisible, requested, needsRequest, retryOnInvalidation } = params;
+  if (!becameVisible) {
+    return 'none';
+  }
+  if (needsRequest) {
+    return requested ? 'refetch' : 'none';
+  }
+  return retryOnInvalidation ? 'clear' : 'none';
+}
+
+export function shouldEndExplicitRequest(result: IncomingResult): boolean {
+  return result.status === 'none';
+}
+
 export function resolveVisibleResult(params: { mode: TranslationMode; current: IncomingResult | undefined }): IncomingResult | undefined {
   const { mode, current } = params;
   if (current?.status === 'translated' && current.explicit !== true && mode !== 'auto') {

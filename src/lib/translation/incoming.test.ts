@@ -559,6 +559,14 @@ describe('explicit requests', () => {
     expect(gesture).not.toHaveBeenCalled();
   });
 
+  it('an explicit request for a stalled native pair goes to the fallback engine', async () => {
+    native.support.mockResolvedValue('unavailable');
+    bergamot.support.mockResolvedValue('downloadable');
+    prepareTranslationOnGesture('pt');
+    expect(await translateIncoming(explicit('st1', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
+    expect(bergamot.prepare).toHaveBeenCalledWith('en', 'pt');
+  });
+
   it('detection confidently in the interface language never vetoes an explicit request', async () => {
     detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
     expect(await translateIncoming(explicit('v1', 'vlw', 'en'))).toEqual({

@@ -12,9 +12,11 @@ import {
 import {
   hasText,
   resolveDisplayText,
+  resolveRevealAction,
   resolveTranslationControl,
   resolveVisibleResult,
   selectCurrentResult,
+  shouldEndExplicitRequest,
   shouldRequestTranslation,
   shouldRetryOnInvalidation,
   type FetchedTranslation,
@@ -76,6 +78,7 @@ export function useMessageTranslation({
     ? resolveTranslationControl({ current, cached, requested, autoPending: needsRequest && !requested, assessment, showingOriginal })
     : 'none';
   const needsRequestRef = useRef(needsRequest);
+  const requestedRef = useRef(requested);
   const retryOnInvalidation = shouldRetryOnInvalidation({ current, cached });
   const retryOnInvalidationRef = useRef(retryOnInvalidation);
   const onAssessedRef = useRef(onAssessed);
@@ -83,10 +86,11 @@ export function useMessageTranslation({
 
   useEffect(() => {
     needsRequestRef.current = needsRequest;
+    requestedRef.current = requested;
     retryOnInvalidationRef.current = retryOnInvalidation;
     onAssessedRef.current = onAssessed;
     onManualTranslationRef.current = onManualTranslation;
-  }, [needsRequest, retryOnInvalidation, onAssessed, onManualTranslation]);
+  }, [needsRequest, requested, retryOnInvalidation, onAssessed, onManualTranslation]);
 
   useEffect(() => {
     if (!active || !isVisible || assessedKey === key) {
@@ -125,6 +129,9 @@ export function useMessageTranslation({
       (next) => {
         if (!controller.signal.aborted) {
           setFetched({ key, result: next });
+          if (requested && shouldEndExplicitRequest(next)) {
+            setRequestedKey((previous) => (previous === key ? null : previous));
+          }
         }
       },
     );
@@ -148,7 +155,15 @@ export function useMessageTranslation({
   useEffect(() => {
     const becameVisible = isVisible && !wasVisibleRef.current;
     wasVisibleRef.current = isVisible;
-    if (becameVisible && retryOnInvalidationRef.current && !needsRequestRef.current) {
+    const action = resolveRevealAction({
+      becameVisible,
+      requested: requestedRef.current,
+      needsRequest: needsRequestRef.current,
+      retryOnInvalidation: retryOnInvalidationRef.current,
+    });
+    if (action === 'refetch') {
+      setInvalidation((count) => count + 1);
+    } else if (action === 'clear') {
       setFetched(null);
     }
   }, [isVisible]);

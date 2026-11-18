@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
 import {
   resolveDisplayText,
+  resolveRevealAction,
   resolveTranslationControl,
   resolveVisibleResult,
   selectCurrentResult,
   shouldRequestTranslation,
+  shouldEndExplicitRequest,
   shouldRetryOnInvalidation,
 } from './message-translation';
 
@@ -159,6 +161,38 @@ describe('resolveVisibleResult', () => {
     const visible = resolveVisibleResult({ mode: 'manual', current: translated });
     expect(shouldRequestTranslation({ mode: 'manual', requested: true, isVisible: true, text: 'good morning', current: visible, assessment: 'other' })).toBe(true);
     expect(resolveTranslationControl({ current: visible, cached: translated, requested: false, autoPending: false, assessment: 'other', showingOriginal: false })).toBe('offer');
+  });
+});
+
+describe('resolveRevealAction', () => {
+  const base = { becameVisible: true, requested: false, needsRequest: false, retryOnInvalidation: false };
+
+  it('does nothing unless the message just came back on screen', () => {
+    expect(resolveRevealAction({ ...base, becameVisible: false, requested: true, needsRequest: true })).toBe('none');
+  });
+
+  it('asks again for a clicked message that was still waiting while off screen', () => {
+    expect(resolveRevealAction({ ...base, requested: true, needsRequest: true })).toBe('refetch');
+  });
+
+  it('leaves automatic requests to the normal request flow', () => {
+    expect(resolveRevealAction({ ...base, needsRequest: true, retryOnInvalidation: true })).toBe('none');
+  });
+
+  it('forgets a retryable result so it is asked again', () => {
+    expect(resolveRevealAction({ ...base, retryOnInvalidation: true })).toBe('clear');
+    expect(resolveRevealAction(base)).toBe('none');
+  });
+});
+
+describe('shouldEndExplicitRequest', () => {
+  it('ends the click once nothing came back, so the link stays put', () => {
+    expect(shouldEndExplicitRequest(none)).toBe(true);
+  });
+
+  it('keeps the click while preparing or once translated', () => {
+    expect(shouldEndExplicitRequest(preparing)).toBe(false);
+    expect(shouldEndExplicitRequest(translated)).toBe(false);
   });
 });
 
