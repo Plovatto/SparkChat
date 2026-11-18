@@ -21,8 +21,16 @@ export function splitSegments(text: string): Segment[] {
 const STRETCHED_LETTERS = /(\p{L})\1{2,}/giu;
 const MAX_FILLER_LETTERS = 2;
 
+const NOT_A_WORD = /[.@/:\d]/;
+const UPPERCASE_WORD = /^[^\p{Ll}]*\p{Lu}[^\p{Ll}]*\p{Lu}[^\p{Ll}]*$/u;
+const LAUGHTER_TOKEN = /^k{2,}\P{L}*$/iu;
+
+function keepsStretchedLetters(token: string): boolean {
+  return NOT_A_WORD.test(token) || UPPERCASE_WORD.test(token) || LAUGHTER_TOKEN.test(token);
+}
+
 export function collapseStretchedLetters(text: string): string {
-  return text.replace(STRETCHED_LETTERS, '$1');
+  return text.replace(/\S+/g, (token) => (keepsStretchedLetters(token) ? token : token.replace(STRETCHED_LETTERS, '$1')));
 }
 
 export function translatableText(text: string): string {

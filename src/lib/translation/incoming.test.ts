@@ -771,8 +771,9 @@ describe('getCachedIncoming', () => {
 });
 
 describe('classifyDetection for the translate link', () => {
-  it('hides the link when the message leans to the interface language, even without full confidence', () => {
-    expect(classifyDetection({ language: 'pt', confidence: 0.3 }, 'pt')).toBe('target');
+  it('hides the link when the message clearly leans to the interface language, even without full confidence', () => {
+    expect(classifyDetection({ language: 'pt', confidence: 0.5 }, 'pt')).toBe('target');
+    expect(classifyDetection({ language: 'pt', confidence: 0.3 }, 'pt')).toBe('unsure');
   });
 
   it('offers it when the message leans to the other language or there is no signal', () => {

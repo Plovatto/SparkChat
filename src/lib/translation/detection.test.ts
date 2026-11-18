@@ -43,18 +43,25 @@ describe('detectLanguage', () => {
 
   it('normalizes pt-BR to pt', async () => {
     installFakeDetector([{ detectedLanguage: 'pt-BR', confidence: 0.9 }]);
-    expect(await detectLanguage('oi gente')).toEqual({ language: 'pt', confidence: 1 });
+    expect(await detectLanguage('oi gente')).toEqual({ language: 'pt', confidence: 0.9 });
   });
 
-  it('scores a short phrase as pt against en only (other languages do not dilute it)', async () => {
+  it('trusts the native detector only when it is sure, measured as the gap between pt and en', async () => {
     installFakeDetector([
-      { detectedLanguage: 'gl', confidence: 0.6 },
-      { detectedLanguage: 'pt', confidence: 0.3 },
-      { detectedLanguage: 'en', confidence: 0.02 },
+      { detectedLanguage: 'pt', confidence: 0.99 },
+      { detectedLanguage: 'en', confidence: 0.01 },
     ]);
-    const result = await detectLanguage('achei bom');
+    const result = await detectLanguage('tava pensando nisso ontem');
     expect(result?.language).toBe('pt');
-    expect(result?.confidence).toBeCloseTo(0.3 / 0.32);
+    expect(result?.confidence).toBeCloseTo(0.98);
+  });
+
+  it.each([
+    ['no problem', [{ detectedLanguage: 'pt', confidence: 0.34 }, { detectedLanguage: 'en', confidence: 0.33 }]],
+    ['avocado toast', [{ detectedLanguage: 'pt', confidence: 0.54 }, { detectedLanguage: 'ro', confidence: 0.43 }]],
+  ])('falls back to the heuristic when the native detector is unsure about "%s"', async (text, results) => {
+    installFakeDetector(results);
+    expect(await detectLanguage(text)).toBeNull();
   });
 
   it('does not trust a tiny pt share when the text is in a third language', async () => {
@@ -102,7 +109,19 @@ describe('detectLanguage without downloading', () => {
     expect((await detectLanguage('good morning everyone', { allowDownload: false }))?.language).toBe('en');
     expect(fake.createCalls).toBe(1);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 0.9 });
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('waits for a detector that is being created from an available model instead of falling back', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    setDetectorAvailability('available');
+    const [first, second] = await Promise.all([
+      detectLanguage('good morning everyone', { allowDownload: false }),
+      detectLanguage('good evening everyone', { allowDownload: false }),
+    ]);
+    expect(first?.language).toBe('pt');
+    expect(second?.language).toBe('pt');
     expect(fake.createCalls).toBe(1);
   });
 
@@ -127,14 +146,14 @@ describe('detectLanguage without downloading', () => {
   it('uses the native detector when its model is already available', async () => {
     installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
     setDetectorAvailability('available');
-    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 0.9 });
     expect(fake.createCalls).toBe(1);
   });
 
   it('reuses a detector that already exists', async () => {
     installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
     await detectLanguage('oi gente');
-    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 0.9 });
     expect(fake.createCalls).toBe(1);
   });
 });

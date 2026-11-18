@@ -53,3 +53,13 @@ describe('detectPtEn word shapes and chat signals', () => {
     expect(detectPtEn(text)?.language).toBe('en');
   });
 });
+
+describe('detectPtEn does not decide on weak evidence', () => {
+  it.each(['no', 'no problem', 'a lot', 'avocado toast', 'Orlando trip', 'Colorado', 'ok', 'yes', 'to indo'])('stays undecided on "%s"', (text) => {
+    expect(detectPtEn(text)).toBeNull();
+  });
+
+  it('reads laughter as Portuguese', () => {
+    expect(detectPtEn('kkkkk que isso')?.language).toBe('pt');
+  });
+});

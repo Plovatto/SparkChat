@@ -25,6 +25,8 @@ const EN_WORDS = new Set(
   ).split(' '),
 );
 
+const AMBIGUOUS_WORDS = new Set(['no', 'a', 'as', 'to', 'me', 'so', 'do', 'ok', 'yes', 'show']);
+const AMBIGUOUS_WEIGHT = 0.5;
 const PT_SLANG = new Set(['vc', 'pra', 'tá', 'tô']);
 const PT_SLANG_WEIGHT = 2;
 const PT_ACCENT = /[ãõçáéíóúâêô]/g;
@@ -36,7 +38,7 @@ const EN_PATTERN = /th|wh|sh|w|y|ck|ee|oo/;
 const SUFFIX_WEIGHT = 1;
 const PATTERN_WEIGHT = 0.5;
 const MIN_STEM = 2;
-const MIN_SIGNAL = 1;
+const MIN_SIGNAL = 2;
 const WORD = /\p{L}+/gu;
 
 function hasSuffix(word: string, suffixes: string[]): boolean {
@@ -49,9 +51,10 @@ function scoreWord(word: string): { pt: number; en: number } {
   if (PT_LAUGHTER.test(word)) {
     return { pt: 1, en: 0 };
   }
+  const wordWeight = AMBIGUOUS_WORDS.has(word) ? AMBIGUOUS_WEIGHT : 1;
   if (PT_SLANG.has(word)) pt += PT_SLANG_WEIGHT;
-  else if (PT_WORDS.has(word)) pt += 1;
-  if (EN_WORDS.has(word)) en += 1;
+  else if (PT_WORDS.has(word)) pt += wordWeight;
+  if (EN_WORDS.has(word)) en += wordWeight;
   pt += word.match(PT_ACCENT)?.length ?? 0;
   if (!PT_WORDS.has(word) && !EN_WORDS.has(word)) {
     if (hasSuffix(word, PT_SUFFIXES)) pt += SUFFIX_WEIGHT;

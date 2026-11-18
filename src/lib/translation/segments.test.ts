@@ -54,3 +54,9 @@ describe('stretched letters and fillers', () => {
     expect(collapseStretchedLetters('cool week')).toBe('cool week');
   });
 });
+
+describe('collapseStretchedLetters leaves non-words alone', () => {
+  it.each(['www.google.com', 'Henry VIII', 'AAA batteries', 'aaa@x.com', 'kkkkk', 'HMMMM'])('keeps "%s"', (text) => {
+    expect(collapseStretchedLetters(text)).toBe(text);
+  });
+});

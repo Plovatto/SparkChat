@@ -18,6 +18,7 @@ import {
 import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
+const LEAN_TARGET_CONFIDENCE = 0.5;
 export const TRANSLATION_JOB_TIMEOUT_MS = 20_000;
 export const NATIVE_AVAILABILITY_POLL_MS = 10_000;
 
@@ -319,7 +320,7 @@ export function classifyDetection(detected: DetectedLanguage | null, target: Lan
     return 'unsure';
   }
   if (detected.language === target) {
-    return detected.confidence > 0 ? 'target' : 'unsure';
+    return detected.confidence >= LEAN_TARGET_CONFIDENCE ? 'target' : 'unsure';
   }
   return detected.confidence >= MIN_DETECTION_CONFIDENCE ? 'other' : 'unsure';
 }
