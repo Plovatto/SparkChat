@@ -5,7 +5,7 @@ import { detectLanguage } from './detection';
 import { nativeEngine, prepareNativeFromGesture } from './engines/native-engine';
 import type { DetectedLanguage } from './heuristic-detector';
 import { invalidateEngineRoutes, resolveEngine, type EngineRoute } from './router';
-import { hasTranslatableText, translatePreservingSegments } from './segments';
+import { collapseStretchedLetters, hasTranslatableText, translatePreservingSegments } from './segments';
 import {
   captureTranslationEpoch,
   isTranslationEpochCurrent,
@@ -231,7 +231,7 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
   }
   try {
     const text = await translatePreservingSegments(request.text, (chunk) =>
-      engine.translate(normalizeChatAbbreviations(chunk, source), source, request.target, { priority: 1 }),
+      engine.translate(normalizeChatAbbreviations(collapseStretchedLetters(chunk), source), source, request.target, { priority: 1 }),
     );
     if (isSameText(text, request.text)) {
       return rememberFor(job, NONE);
@@ -315,10 +315,13 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
 }
 
 export function classifyDetection(detected: DetectedLanguage | null, target: Language): IncomingAssessment {
-  if (detected === null || detected.confidence < MIN_DETECTION_CONFIDENCE) {
+  if (detected === null) {
     return 'unsure';
   }
-  return detected.language === target ? 'target' : 'other';
+  if (detected.language === target) {
+    return detected.confidence > 0 ? 'target' : 'unsure';
+  }
+  return detected.confidence >= MIN_DETECTION_CONFIDENCE ? 'other' : 'unsure';
 }
 
 export async function assessIncoming(text: string, target: Language): Promise<IncomingAssessment> {

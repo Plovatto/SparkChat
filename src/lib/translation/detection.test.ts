@@ -96,11 +96,32 @@ describe('detectLanguage without downloading', () => {
     expect(fake.createCalls).toBe(0);
   });
 
-  it('uses the heuristic when the detector model would need a download', async () => {
+  it('uses the heuristic while the detector model downloads in the background, then the native detector', async () => {
     installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
     setDetectorAvailability('downloadable');
     expect((await detectLanguage('good morning everyone', { allowDownload: false }))?.language).toBe('en');
-    expect(fake.createCalls).toBe(0);
+    expect(fake.createCalls).toBe(1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await detectLanguage('good morning everyone', { allowDownload: false })).toEqual({ language: 'pt', confidence: 1 });
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('starts the background detector download only once', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    (globalThis as unknown as { LanguageDetector: { create: () => Promise<never> } }).LanguageDetector.create = () => {
+      fake.createCalls += 1;
+      return new Promise<never>(() => undefined);
+    };
+    setDetectorAvailability('downloadable');
+    await detectLanguage('good morning', { allowDownload: false });
+    await detectLanguage('good evening', { allowDownload: false });
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('collapses stretched letters before detecting', async () => {
+    installFakeDetector([{ detectedLanguage: 'pt', confidence: 0.9 }]);
+    await detectLanguage('siiiim, booom demaaais');
+    expect(fake.detectCalls).toEqual(['sim, bom demais']);
   });
 
   it('uses the native detector when its model is already available', async () => {

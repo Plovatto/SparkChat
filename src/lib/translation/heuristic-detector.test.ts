@@ -28,3 +28,28 @@ describe('detectPtEn short chat phrases', () => {
     expect(detectPtEn(text)?.language).toBe('en');
   });
 });
+
+describe('detectPtEn word shapes and chat signals', () => {
+  it.each([
+    'Definitivamente menos bugado kkkkkkkkkk',
+    'Daí acabava com a concorrência',
+    'rapidamente resolvido',
+    'tava pensando nisso ontem',
+    'rsrs que coisa',
+    'trabalhando em casa hoje',
+    'ficou lindinho',
+  ])('reads "%s" as pt', (text) => {
+    expect(detectPtEn(text)?.language).toBe('pt');
+  });
+
+  it.each([
+    'Definitely less buggy lol',
+    'working from home today',
+    'that was really helpful',
+    'the weather is nice',
+    'what should we do tonight',
+    'thinking about it',
+  ])('reads "%s" as en', (text) => {
+    expect(detectPtEn(text)?.language).toBe('en');
+  });
+});
