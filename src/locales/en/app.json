@@ -38,7 +38,9 @@
       "nicknameInvalid": "Usernames must be {{minLength}} to {{maxLength}} characters long, using only letters and numbers, with at least {{minLetters}} letters.",
       "nicknameTaken": "That username is already taken.",
       "passwordTooShort": "Your password must be at least {{minLength}} characters long.",
-      "currentPasswordIncorrect": "Current password is incorrect."
+      "currentPasswordIncorrect": "Current password is incorrect.",
+      "passwordTooLong": "Your password must be at most {{maxLength}} characters long.",
+      "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file."
     },
     "room": {
       "notFound": "Conversation not found.",
@@ -82,7 +84,9 @@
       "upload": "Too many file uploads. Please wait a moment and try again.",
       "loginAttempts": "Too many sign-in attempts. Please try again later.",
       "registrations": "Too many accounts created from this address. Please try again later.",
-      "messages": "You're sending messages too fast. Please wait a moment."
+      "messages": "You're sending messages too fast. Please wait a moment.",
+      "passwordAttempts": "Too many password attempts. Please try again later.",
+      "resumeAttempts": "Too many reconnection attempts. Please wait a moment."
     },
     "internal": {
       "unexpected": "Unexpected error.",
@@ -468,7 +472,7 @@
     "avatar": "Avatar",
     "saveChanges": "Save Changes",
     "currentPassword": "Current password",
-    "keyfileNoCurrent": "You signed in with your recovery file — you can change your password without entering the current one.",
+    "keyfileNoCurrent": "You signed in with your recovery file — for the first 10 minutes you can change your password once without entering the current one.",
     "newPasswordPlaceholder": "New password (min. {{minLength}} characters)",
     "confirmNewPassword": "Confirm new password",
     "forgotPassword": "Forgot your password? Sign out and sign back in with your recovery file — then you can change your password without the current one.",
@@ -486,7 +490,10 @@
       "keyfile": "Signed in with recovery file"
     },
     "lastUsed": "Last used: {{date}}",
-    "revokeSession": "Sign out this session"
+    "revokeSession": "Sign out this session",
+    "nicknamePasswordHint": "Changing your username issues a new recovery file and signs out your other sessions. Confirm with your current password.",
+    "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
+    "confirmRegenerate": "Generate new file"
   },
   "notifications": {
     "sentImage": "Sent an image",

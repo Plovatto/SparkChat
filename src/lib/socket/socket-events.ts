@@ -223,14 +223,14 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'user:join': (payload: JoinPayload) => void;
-  'user:update-profile': (payload: { nickname: string; avatar: number }) => void;
+  'user:update-profile': (payload: { nickname: string; avatar: number; currentPassword?: string }) => void;
   'user:update-status-text': (payload: { statusText: string }) => void;
   'user:update-theme': (payload: SocketUserTheme) => void;
   'user:update-chat-settings': (payload: SocketChatSettings) => void;
   'user:logout': () => void;
   'user:visibility': (payload: { visible: boolean }, ack?: () => void) => void;
   'user:change-password': (payload: { currentPassword?: string; newPassword: string }) => void;
-  'user:regenerate-recovery-file': () => void;
+  'user:regenerate-recovery-file': (payload: { currentPassword: string }) => void;
   'user:list-sessions': () => void;
   'user:revoke-session': (payload: { sessionId: string }) => void;
   'e2e:publish-keys': (payload: {

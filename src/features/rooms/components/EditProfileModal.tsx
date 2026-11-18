@@ -36,6 +36,7 @@ import { translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import { buildProfileUpdatePayload, isNicknameChange } from '../utils/profile-update';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -111,6 +112,10 @@ export function EditProfileModal({
 
   const [profileError, setProfileError] = useState('');
   useAutoDismiss(profileError, setProfileError);
+  const [profilePassword, setProfilePassword] = useState('');
+  const [isConfirmingRegenerate, setIsConfirmingRegenerate] = useState(false);
+  const [regeneratePassword, setRegeneratePassword] = useState('');
+  const [isCurrentPasswordRequired, setIsCurrentPasswordRequired] = useState(false);
 
   const [regenerateError, setRegenerateError] = useState('');
   useAutoDismiss(regenerateError, setRegenerateError);
@@ -141,6 +146,10 @@ export function EditProfileModal({
       setPasswordError('');
       setProfileError('');
       setRegenerateError('');
+      setProfilePassword('');
+      setIsConfirmingRegenerate(false);
+      setRegeneratePassword('');
+      setIsCurrentPasswordRequired(false);
       socket?.emit('user:list-sessions');
     }
   }, [isOpen, user.nickname, user.avatar, socket]);
@@ -168,6 +177,7 @@ export function EditProfileModal({
       recoveryToken: string | null;
     }) => {
       pendingActionRef.current = null;
+      setProfilePassword('');
       onUserUpdate({ nickname: updated.nickname, avatar: updated.avatar });
       if (!recoveryFile || !recoveryToken) {
         onClose();
@@ -201,6 +211,8 @@ export function EditProfileModal({
 
     const handleRecoveryFileRegenerated = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
       pendingActionRef.current = null;
+      setIsConfirmingRegenerate(false);
+      setRegeneratePassword('');
       void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         return;
@@ -227,6 +239,9 @@ export function EditProfileModal({
         pendingPasswordRef.current = '';
         setPasswordError(message);
         setIsWrongPassword(payload.code === 'user.currentPasswordIncorrect');
+        if (payload.code === 'user.currentPasswordRequired') {
+          setIsCurrentPasswordRequired(true);
+        }
       } else if (action === 'regenerate') {
         setRegenerateError(message);
       } else if (action === 'profile') {
@@ -250,12 +265,17 @@ export function EditProfileModal({
   }, [socket, onUserUpdate, onClose, onLogout, user.id, user.nickname]);
 
   const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
+  const isNicknameChanging = isNicknameChange(user.nickname, nickname);
+  const saveProfileDisabled = isNicknameChanging && !profilePassword;
 
   const handleSaveProfile = () => {
+    if (saveProfileDisabled) {
+      return;
+    }
     setProfileError('');
     pendingActionRef.current = 'profile';
     void ensureAutoSavePermission(user.id);
-    socket?.emit('user:update-profile', { nickname: nickname.trim(), avatar });
+    socket?.emit('user:update-profile', buildProfileUpdatePayload(user.nickname, nickname, avatar, profilePassword));
   };
 
   const handleShare = () => {
@@ -288,10 +308,19 @@ export function EditProfileModal({
   };
 
   const handleRegenerateRecoveryFile = () => {
+    if (!regeneratePassword) {
+      return;
+    }
     setRegenerateError('');
     pendingActionRef.current = 'regenerate';
     void ensureAutoSavePermission(user.id);
-    socket?.emit('user:regenerate-recovery-file');
+    socket?.emit('user:regenerate-recovery-file', { currentPassword: regeneratePassword });
+  };
+
+  const handleCancelRegenerate = () => {
+    setIsConfirmingRegenerate(false);
+    setRegeneratePassword('');
+    setRegenerateError('');
   };
 
   const handleRevokeSession = (sessionId: string) => {
@@ -321,7 +350,7 @@ export function EditProfileModal({
   };
 
   const labelStyle: CSSProperties = { fontWeight: 600, display: 'block', marginBottom: '10px', color: theme.textPrimary, fontSize: '0.95rem' };
-  const needsCurrentPassword = user.authMethod !== 'keyfile';
+  const needsCurrentPassword = user.authMethod !== 'keyfile' || isCurrentPasswordRequired;
   const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword);
   const otherSessionsCount = sessions.filter((session) => !session.isCurrent).length;
 
@@ -438,6 +467,21 @@ export function EditProfileModal({
             </div>
           </div>
 
+          {hasChanges && isNicknameChanging && (
+            <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
+                {t('profile.nicknamePasswordHint')}
+              </InfoNotice>
+              <PasswordField
+                value={profilePassword}
+                onChange={setProfilePassword}
+                placeholder={t('profile.currentPassword')}
+                autoComplete="current-password"
+                dense
+              />
+            </div>
+          )}
+
           {profileError && <small key={profileError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
           {hasChanges && (
@@ -446,13 +490,19 @@ export function EditProfileModal({
                 onClick={() => {
                   setNickname(user.nickname);
                   setAvatar(user.avatar);
+                  setProfilePassword('');
                 }}
                 className="sc-btn sc-btn--secondary"
                 style={{ flex: 1, padding: '12px 20px' }}
               >
                 {t('common.cancel')}
               </button>
-              <button onClick={handleSaveProfile} className="sc-btn sc-btn--gradient sc-btn--lift" style={{ flex: 1, padding: '12px 20px' }}>
+              <button
+                onClick={handleSaveProfile}
+                disabled={saveProfileDisabled}
+                className="sc-btn sc-btn--gradient sc-btn--lift"
+                style={{ flex: 1, padding: '12px 20px' }}
+              >
                 {t('profile.saveChanges')}
               </button>
             </div>
@@ -463,7 +513,7 @@ export function EditProfileModal({
       {activeTab === 'security' && (
         <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {needsCurrentPassword ? (
-            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder={t('profile.currentPassword')} dense />
+            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder={t('profile.currentPassword')} autoComplete="current-password" dense />
           ) : (
             <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
               {t('profile.keyfileNoCurrent')}
@@ -520,10 +570,39 @@ export function EditProfileModal({
           <div style={{ borderTop: `2px solid ${theme.borderStrong}`, margin: '14px 0' }} />
 
           {regenerateError && <small key={regenerateError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
-          <button onClick={handleRegenerateRecoveryFile} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
-            <FaFileDownload size={14} />
-            {t('profile.downloadRecovery')}
-          </button>
+          {isConfirmingRegenerate ? (
+            <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <InfoNotice icon={<FaExclamationTriangle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="danger">
+                {t('profile.regeneratePasswordHint')}
+              </InfoNotice>
+              <PasswordField
+                value={regeneratePassword}
+                onChange={setRegeneratePassword}
+                placeholder={t('profile.currentPassword')}
+                autoComplete="current-password"
+                dense
+              />
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button onClick={handleCancelRegenerate} className="sc-btn sc-btn--secondary" style={{ flex: 1, padding: '11px 16px', fontSize: '0.9rem' }}>
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleRegenerateRecoveryFile}
+                  disabled={!regeneratePassword}
+                  className="sc-btn sc-btn--gradient sc-btn--lift"
+                  style={{ flex: 1, padding: '11px 16px', fontSize: '0.9rem' }}
+                >
+                  <FaFileDownload size={14} />
+                  {t('profile.confirmRegenerate')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setIsConfirmingRegenerate(true)} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
+              <FaFileDownload size={14} />
+              {t('profile.downloadRecovery')}
+            </button>
+          )}
         </div>
       )}
 
