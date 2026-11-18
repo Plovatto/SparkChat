@@ -176,7 +176,7 @@ describe('armNativeOnFirstInteraction', () => {
     };
     armNativeOnFirstInteraction(['pt-en', 'en-pt']);
     fakeWindow.dispatch('pointerdown');
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await vi.waitFor(() => expect(order).toHaveLength(2));
     expect(order).toEqual(['pt-en', 'en-pt']);
   });
 
@@ -503,5 +503,38 @@ describe('nativeEngine stall memory across sessions', () => {
       },
     });
     await stallOnce();
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('after a reload, an interaction still retries the native download of a remembered stall in the background', async () => {
+    await stallOnce();
+    resetNativeEngineForTests();
+    let finish: (value: unknown) => void = () => undefined;
+    const create = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: vi.fn(() => Promise.resolve('downloadable')),
+      create,
+    };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    const dispose = armNativeOnFirstInteraction(['pt-en']);
+    fakeWindow.dispatch('pointerdown');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
+    finish({ translate: (text: string) => Promise.resolve(`EN:${text}`) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(await nativeEngine.translate('oi', 'pt', 'en')).toBe('EN:oi');
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+    dispose();
+  });
+
+  it('an entry that expires further out than the memory window is ignored', async () => {
+    storage.setItem(NATIVE_STALLED_PAIRS_STORAGE_KEY, JSON.stringify({ 'pt-en': Date.now() + NATIVE_STALL_MEMORY_MS * 10 }));
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
   });
 });

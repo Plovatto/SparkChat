@@ -61,7 +61,10 @@ function readRememberedStalls(): RememberedStalls {
     }
     const now = Date.now();
     return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > now),
+      Object.entries(parsed).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === 'number' && entry[1] > now && entry[1] <= now + NATIVE_STALL_MEMORY_MS,
+      ),
     );
   } catch {
     return {};
@@ -91,6 +94,20 @@ function clearStall(key: PairKey): boolean {
     writeRememberedStalls(stalls);
   }
   return stalledPairs.delete(key);
+}
+
+async function interactionAvailability(source: Language, target: Language): Promise<TranslationSupport> {
+  const translatorApi = api();
+  const key = pairKey(source, target);
+  if (!translatorApi || translators.has(key) || !isStalled(key)) {
+    return support(source, target);
+  }
+  try {
+    const result = await withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }));
+    return result === TIMED_OUT ? 'unavailable' : result;
+  } catch {
+    return 'unavailable';
+  }
 }
 
 function isStalled(key: PairKey): boolean {
@@ -300,7 +317,7 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
     void (async () => {
       for (const pair of pairs) {
         const [source, target] = pair.split('-') as [Language, Language];
-        const availability = await support(source, target);
+        const availability = await interactionAvailability(source, target);
         if (disposed) {
           return;
         }
