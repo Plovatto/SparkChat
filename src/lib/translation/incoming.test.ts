@@ -337,6 +337,23 @@ describe('translateIncoming', () => {
     expect(getCachedIncoming('r1', 'e1', 'content', 'pt', 'see you later')).toBeUndefined();
   });
 
+  it('a native failure that hands the pair to the fallback is retried on the fallback at once', async () => {
+    // The native engine marks the pair unusable when its create() fails (stall, service limit).
+    native.translate.mockImplementation(() => {
+      native.support.mockResolvedValue('unavailable');
+      return Promise.reject(new Error('translate-failed'));
+    });
+    expect(await translateIncoming(req('h1', 'see you later', 'pt'))).toEqual({ status: 'translated', text: 'PT:see you later', sourceLanguage: 'en' });
+    expect(bergamot.translate).toHaveBeenCalledTimes(1);
+  });
+
+  it('a native failure that leaves native in charge is not retried', async () => {
+    native.translate.mockRejectedValue(new Error('translate-failed'));
+    expect(await translateIncoming(req('h2', 'see you later', 'pt'))).toEqual({ status: 'none' });
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    expect(bergamotLoader.load).not.toHaveBeenCalled();
+  });
+
   it('returns none when no engine is available', async () => {
     delete (globalThis as Record<string, unknown>).Translator;
     resetRouterForTests();
