@@ -83,6 +83,15 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
     });
   }, [isVisible, active]);
 
+  const wasVisibleRef = useRef(isVisible);
+  useEffect(() => {
+    const becameVisible = isVisible && !wasVisibleRef.current;
+    wasVisibleRef.current = isVisible;
+    if (becameVisible && retryOnInvalidationRef.current && !needsRequestRef.current) {
+      setFetched(null);
+    }
+  }, [isVisible]);
+
   const toggleOriginal = useCallback(() => {
     setToggledKey((previous) => (previous === key ? null : key));
   }, [key]);

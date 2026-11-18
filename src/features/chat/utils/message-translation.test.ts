@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
-import { shouldRetryOnInvalidation, resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation } from './message-translation';
+import { resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation, shouldRetryOnInvalidation } from './message-translation';
 
 const translated: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en' };
 const preparing: IncomingResult = { status: 'preparing', sourceLanguage: 'en' };
@@ -50,6 +50,11 @@ describe('selectCurrentResult', () => {
   it('ignores a fetched result for a superseded request key and falls back to the cache', () => {
     expect(selectCurrentResult({ active: true, key: 'k2', fetched: { key: 'k1', result: translated }, cached: none })).toBe(none);
     expect(selectCurrentResult({ active: true, key: 'k2', fetched: { key: 'k1', result: translated }, cached: undefined })).toBeUndefined();
+  });
+
+  it('prefers a cached translation over a fetched none for the same request', () => {
+    const cached = { status: 'translated', text: 'oi', sourceLanguage: 'en' } as const;
+    expect(selectCurrentResult({ active: true, key: 'k', fetched: { key: 'k', result: { status: 'none' } }, cached })).toBe(cached);
   });
 
   it('uses the cache when nothing was fetched yet', () => {

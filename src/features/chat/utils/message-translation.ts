@@ -42,7 +42,13 @@ export function selectCurrentResult(params: {
   if (!active) {
     return undefined;
   }
-  return fetched?.key === key ? fetched.result : cached;
+  if (fetched?.key !== key) {
+    return cached;
+  }
+  if (fetched.result.status === 'none' && cached?.status === 'translated') {
+    return cached;
+  }
+  return fetched.result;
 }
 
 export function resolveDisplayText(params: { original: string; result: IncomingResult; showingOriginal: boolean }): string {
