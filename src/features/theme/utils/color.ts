@@ -78,7 +78,7 @@ export function toHsl(color: string): Hsl {
   }
 
   const s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
-  let h = 0;
+  let h: number;
   if (max === red) {
     h = ((green - blue) / delta + (green < blue ? 6 : 0)) * 60;
   } else if (max === green) {
