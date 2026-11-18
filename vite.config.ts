@@ -112,6 +112,10 @@ function landingDocument(): Plugin {
     name: 'sparkchat:landing-document',
     configResolved(config) {
       env = config.env;
+      const isProductionApi = (env.VITE_API_URL ?? '').startsWith('https://');
+      if (config.command === 'build' && !config.build.ssr && isProductionApi && !env.VITE_MEDIA_ORIGIN) {
+        throw new Error('VITE_MEDIA_ORIGIN must be set when building against an https API');
+      }
     },
     transformIndexHtml(html, context) {
       const isLanding = html.includes(LANDING_BOOT_PLACEHOLDER);

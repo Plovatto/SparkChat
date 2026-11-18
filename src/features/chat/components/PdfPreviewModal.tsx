@@ -15,6 +15,7 @@ interface PdfPreviewModalProps {
 
 const MAX_PIXEL_RATIO = 2;
 const FALLBACK_PAGE_WIDTH = 860;
+const MAX_PREVIEW_PAGES = 30;
 
 type PdfStatus = 'loading' | 'ready' | 'failed';
 
@@ -22,7 +23,8 @@ async function renderPages(pdf: PDFDocumentProxy, container: HTMLDivElement, isC
   const cssWidth = container.clientWidth || FALLBACK_PAGE_WIDTH;
   const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+  const lastPage = Math.min(pdf.numPages, MAX_PREVIEW_PAGES);
+  for (let pageNumber = 1; pageNumber <= lastPage; pageNumber += 1) {
     if (isCancelled()) {
       return;
     }
