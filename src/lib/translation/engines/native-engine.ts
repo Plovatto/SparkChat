@@ -1,11 +1,14 @@
 import type { Language } from '@lib/i18n/language';
+import { NATIVE_STALLED_PAIRS_STORAGE_KEY } from '@constants/storage-keys';
 import { NATIVE_API_TIMEOUT_MS, TIMED_OUT, withNativeTimeout } from '../native-timeout';
 import { invalidateEngineRoutes } from '../router';
 import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
 
 export { NATIVE_API_TIMEOUT_MS };
 
-export const NATIVE_DOWNLOAD_STALL_MS = 30_000;
+export const NATIVE_DOWNLOAD_STALL_MS = 15_000;
+
+export const NATIVE_STALL_MEMORY_MS = 24 * 60 * 60 * 1000;
 
 export const NATIVE_STALL_RECHECK_MS = 30_000;
 
@@ -36,7 +39,77 @@ function notifyRetry(): void {
   }
 }
 
+type RememberedStalls = Record<string, number>;
+
+function readRememberedStalls(): RememberedStalls {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(NATIVE_STALLED_PAIRS_STORAGE_KEY) ?? '{}');
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+    const now = Date.now();
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === 'number' && entry[1] > now && entry[1] <= now + NATIVE_STALL_MEMORY_MS,
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeRememberedStalls(stalls: RememberedStalls): void {
+  try {
+    if (Object.keys(stalls).length === 0) {
+      localStorage.removeItem(NATIVE_STALLED_PAIRS_STORAGE_KEY);
+    } else {
+      localStorage.setItem(NATIVE_STALLED_PAIRS_STORAGE_KEY, JSON.stringify(stalls));
+    }
+  } catch {
+    return;
+  }
+}
+
+function rememberStall(key: PairKey): void {
+  const stalls = readRememberedStalls();
+  if (!(key in stalls)) {
+    writeRememberedStalls({ ...stalls, [key]: Date.now() + NATIVE_STALL_MEMORY_MS });
+  }
+}
+
+function clearStall(key: PairKey): boolean {
+  const stalls = readRememberedStalls();
+  if (key in stalls) {
+    delete stalls[key];
+    writeRememberedStalls(stalls);
+  }
+  return stalledPairs.delete(key);
+}
+
+async function interactionAvailability(source: Language, target: Language): Promise<TranslationSupport> {
+  const translatorApi = api();
+  const key = pairKey(source, target);
+  if (!translatorApi || translators.has(key) || !isStalled(key)) {
+    return support(source, target);
+  }
+  try {
+    const result = await withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }));
+    return result === TIMED_OUT ? 'unavailable' : result;
+  } catch {
+    return 'unavailable';
+  }
+}
+
+function isStalled(key: PairKey): boolean {
+  if (!stalledPairs.has(key) && key in readRememberedStalls()) {
+    stalledPairs.add(key);
+  }
+  return stalledPairs.has(key);
+}
+
 function markStalled(key: PairKey): void {
+  rememberStall(key);
   if (!stalledPairs.has(key)) {
     stalledPairs.add(key);
     notifyRetry();
@@ -93,7 +166,7 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
     (instance) => {
       settled = true;
       clearTimeout(stallTimer);
-      if (stalledPairs.delete(key)) {
+      if (clearStall(key)) {
         if (!translators.has(key)) {
           translators.set(key, Promise.resolve(instance));
         }
@@ -120,7 +193,7 @@ async function support(source: Language, target: Language): Promise<TranslationS
     return 'unavailable';
   }
   const key = pairKey(source, target);
-  if (stalledPairs.has(key)) {
+  if (isStalled(key)) {
     recheckStalled(translatorApi, key, source, target);
     return 'unavailable';
   }
@@ -151,7 +224,7 @@ function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: L
   void withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }))
     .then(
       (result) => {
-        if (result === 'available' && stalledPairs.delete(key)) {
+        if (result === 'available' && clearStall(key)) {
           notifyRetry();
         }
       },
@@ -223,13 +296,13 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
     void (async () => {
       for (const pair of pairs) {
         const [source, target] = pair.split('-') as [Language, Language];
-        const availability = await support(source, target);
+        const availability = await interactionAvailability(source, target);
         if (disposed) {
           return;
         }
         if (availability === 'downloadable' || availability === 'downloading') {
           void nativeEngine.prepare(source, target).catch(() => {
-            if (!disposed) {
+            if (!disposed && !stalledPairs.has(pairKey(source, target))) {
               listen();
             }
           });
