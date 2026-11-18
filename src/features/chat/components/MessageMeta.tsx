@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { FaCheck, FaExclamationCircle, FaRegClock } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
@@ -11,15 +12,18 @@ interface MessageMetaProps {
   bubble: ResolvedBubbleStyle;
   statusInfo: MessageStatusInfo | null;
   onRetry: () => void;
+  /** Shown at the bubble's bottom-left corner, on the same line as the time (the translation badge). */
+  leading?: ReactNode;
 }
 
-export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry }: MessageMetaProps) {
+export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry, leading }: MessageMetaProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const statusColor = statusInfo?.read ? theme.receiptRead : bubble.mutedTextColor;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
+      {leading && <div style={{ flex: '1 1 auto', minWidth: 0 }}>{leading}</div>}
       <span style={{ fontSize: '0.7rem', color: bubble.mutedTextColor, fontWeight: 500 }}>{formatTime(message.timestamp)}</span>
       {message.pending ? (
         <FaRegClock size={11} color={bubble.mutedTextColor} className="sc-anim-pulse-soft" />

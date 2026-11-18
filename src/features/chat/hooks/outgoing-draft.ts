@@ -23,6 +23,8 @@ export interface OutgoingDraftTranslator {
    */
   resolveForSend(text: string): Promise<OutgoingSendResult>;
   subscribe(listener: (state: OutgoingDraftState) => void): () => void;
+  /** Translates the current draft again when its translation failed, e.g. after the engine changed. */
+  retryFailed(): void;
   /** Rejects every send still awaiting its translation with `outgoing-send-cancelled`. */
   cancelPendingSends(): void;
   dispose(): void;
@@ -169,6 +171,15 @@ export function createOutgoingDraftTranslator(translate: (text: string) => Promi
         throw new Error(FAILED_ERROR);
       }
       return { text: translated, translated: true };
+    },
+
+    retryFailed() {
+      if (disposed || state.status !== 'failed' || !hasTranslatableText(state.source)) {
+        return;
+      }
+      const { source } = state;
+      setState({ status: 'translating', source, translated: null });
+      void start(source);
     },
 
     cancelPendingSends() {
