@@ -13,6 +13,7 @@ import {
   hasText,
   resolveDisplayText,
   resolveTranslationControl,
+  resolveVisibleResult,
   selectCurrentResult,
   shouldRequestTranslation,
   shouldRetryOnInvalidation,
@@ -67,7 +68,7 @@ export function useMessageTranslation({
   const assessedKey = assessed?.key ?? null;
   const requested = active && requestedKey === key;
   const cached = active ? getCachedIncoming(roomId, messageId, field, language, original) : undefined;
-  const current = selectCurrentResult({ active, key, fetched, cached });
+  const current = resolveVisibleResult({ mode, current: selectCurrentResult({ active, key, fetched, cached }) });
   const result = current ?? NONE;
   const showingOriginal = toggledKey === key;
   const needsRequest = shouldRequestTranslation({ mode, requested, isVisible, text: active ? text : null, current, assessment });

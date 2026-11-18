@@ -565,6 +565,7 @@ describe('explicit requests', () => {
       status: 'translated',
       text: 'EN:obrigado',
       sourceLanguage: 'pt',
+      explicit: true,
     });
     expect(native.translate).toHaveBeenCalledWith('obrigado', 'pt', 'en', { priority: 1 });
   });
@@ -589,6 +590,24 @@ describe('explicit requests', () => {
     expect(getCachedIncoming('r1', 'v4', 'content', 'en', 'vlw')).toEqual({ status: 'none' });
   });
 
+  it('marks translations from explicit requests, and upgrades an automatic one when it is asked for', async () => {
+    expect(await translateIncoming(req('x1', 'see you later', 'pt'))).toEqual({ status: 'translated', text: 'PT:see you later', sourceLanguage: 'en' });
+    expect(await translateIncoming(explicit('x1', 'see you later', 'pt'))).toEqual({
+      status: 'translated',
+      text: 'PT:see you later',
+      sourceLanguage: 'en',
+      explicit: true,
+    });
+    expect(native.translate).toHaveBeenCalledTimes(1);
+    expect(getCachedIncoming('r1', 'x1', 'content', 'pt', 'see you later')).toEqual({
+      status: 'translated',
+      text: 'PT:see you later',
+      sourceLanguage: 'en',
+      explicit: true,
+    });
+    expect((await translateIncoming(req('x1', 'see you later', 'pt'))).status).toBe('translated');
+    expect(getCachedIncoming('r1', 'x1', 'content', 'pt', 'see you later')).toMatchObject({ explicit: true });
+  });
 });
 
 describe('assessIncoming', () => {

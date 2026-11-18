@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
-import { resolveDisplayText, resolveTranslationControl, selectCurrentResult, shouldRequestTranslation, shouldRetryOnInvalidation } from './message-translation';
+import {
+  resolveDisplayText,
+  resolveTranslationControl,
+  resolveVisibleResult,
+  selectCurrentResult,
+  shouldRequestTranslation,
+  shouldRetryOnInvalidation,
+} from './message-translation';
 
 const translated: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en' };
 const preparing: IncomingResult = { status: 'preparing', sourceLanguage: 'en' };
@@ -122,6 +129,36 @@ describe('resolveTranslationControl', () => {
   it('stays quiet while an automatic translation is on its way', () => {
     expect(resolveTranslationControl({ ...base, autoPending: true })).toBe('none');
     expect(resolveTranslationControl({ ...base, autoPending: true, current: none })).toBe('offer');
+  });
+});
+
+describe('resolveVisibleResult', () => {
+  const explicitTranslation: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en', explicit: true };
+
+  it('shows every translation while automatic translation is on', () => {
+    expect(resolveVisibleResult({ mode: 'auto', current: translated })).toBe(translated);
+    expect(resolveVisibleResult({ mode: 'auto', current: explicitTranslation })).toBe(explicitTranslation);
+  });
+
+  it('hides automatic translations once automatic translation is off, so the link comes back', () => {
+    expect(resolveVisibleResult({ mode: 'manual', current: translated })).toBeUndefined();
+    expect(resolveVisibleResult({ mode: 'off', current: translated })).toBeUndefined();
+  });
+
+  it('keeps translations the person asked for', () => {
+    expect(resolveVisibleResult({ mode: 'manual', current: explicitTranslation })).toBe(explicitTranslation);
+  });
+
+  it('leaves other results untouched', () => {
+    expect(resolveVisibleResult({ mode: 'manual', current: none })).toBe(none);
+    expect(resolveVisibleResult({ mode: 'manual', current: preparing })).toBe(preparing);
+    expect(resolveVisibleResult({ mode: 'manual', current: undefined })).toBeUndefined();
+  });
+
+  it('lets a click on a hidden automatic translation ask for it again', () => {
+    const visible = resolveVisibleResult({ mode: 'manual', current: translated });
+    expect(shouldRequestTranslation({ mode: 'manual', requested: true, isVisible: true, text: 'good morning', current: visible, assessment: 'other' })).toBe(true);
+    expect(resolveTranslationControl({ current: visible, cached: translated, requested: false, autoPending: false, assessment: 'other', showingOriginal: false })).toBe('offer');
   });
 });
 

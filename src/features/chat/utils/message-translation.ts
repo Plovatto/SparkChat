@@ -65,6 +65,14 @@ export function selectCurrentResult(params: {
   return fetched.result;
 }
 
+export function resolveVisibleResult(params: { mode: TranslationMode; current: IncomingResult | undefined }): IncomingResult | undefined {
+  const { mode, current } = params;
+  if (current?.status === 'translated' && current.explicit !== true && mode !== 'auto') {
+    return undefined;
+  }
+  return current;
+}
+
 export function resolveDisplayText(params: { original: string; result: IncomingResult; showingOriginal: boolean }): string {
   const { original, result, showingOriginal } = params;
   return result.status === 'translated' && !showingOriginal ? result.text : original;

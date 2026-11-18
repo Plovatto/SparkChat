@@ -26,7 +26,7 @@ const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
 type Field = 'content' | 'caption';
 
 export type IncomingResult =
-  | { status: 'translated'; text: string; sourceLanguage: Language }
+  | { status: 'translated'; text: string; sourceLanguage: Language; explicit?: true }
   | { status: 'preparing'; sourceLanguage: Language }
   | { status: 'none' };
 
@@ -157,6 +157,13 @@ function remember(cacheKey: string, value: CachedTranslation): IncomingResult {
   return value;
 }
 
+function claimCached(cacheKey: string, cached: CachedTranslation, request: IncomingRequest): IncomingResult {
+  if (request.explicit !== true || cached.status !== 'translated' || cached.explicit === true) {
+    return cached;
+  }
+  return remember(cacheKey, { ...cached, explicit: true });
+}
+
 function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
   if (job.finished || !isTranslationEpochCurrent(job.epoch)) {
     return NONE;
@@ -229,7 +236,7 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
     if (isSameText(text, request.text)) {
       return rememberFor(job, NONE);
     }
-    return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
+    return rememberFor(job, { status: 'translated', text, sourceLanguage: source, ...(request.explicit === true ? { explicit: true } : {}) });
   } catch {
     return FAILED;
   }
@@ -260,7 +267,7 @@ async function pump(): Promise<void> {
       }
       const cachedNow = readTranslation(job.cacheKey);
       if (cachedNow) {
-        job.resolve(cachedNow);
+        job.resolve(claimCached(job.cacheKey, cachedNow, job.request));
         continue;
       }
       const result = await runWithTimeout(job);
@@ -278,7 +285,7 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   const cacheKey = translationCacheKey({ ...request, sourceText: request.text });
   const cached = readTranslation(cacheKey);
   if (cached) {
-    return Promise.resolve(cached);
+    return Promise.resolve(claimCached(cacheKey, cached, request));
   }
   if (!hasTranslatableText(request.text)) {
     return Promise.resolve(remember(cacheKey, NONE));
