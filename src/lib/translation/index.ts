@@ -1,4 +1,6 @@
-export { armNativeOnFirstInteraction, nativeEngine } from './engines/native-engine';
+export { nativeEngine } from './engines/native-engine';
+export { isTranslationSupportedOnDevice } from './device-support';
+export { normalizeChatAbbreviations } from './abbreviations';
 export { isBergamotRuntimeSupported, loadBergamotEngine } from './engines/bergamot-loader';
 export { pairKey } from './types';
 export type { EngineId, PairKey, TranslationEngine, TranslationProgressEvent, TranslationSupport } from './types';
@@ -28,10 +30,13 @@ export type { CachedTranslation, TranslationEpoch } from './translation-cache';
 export { disposeTranslationEngines, ENGINE_ROUTE_MEMO_MS, invalidateEngineRoutes, registerFallbackEngine, resolveEngine } from './router';
 export type { EngineRoute } from './router';
 export {
+  assessIncoming,
+  classifyDetection,
   getCachedIncoming,
   MIN_DETECTION_CONFIDENCE,
+  prepareTranslationOnGesture,
   subscribeIncomingInvalidation,
   translateIncoming,
   TRANSLATION_JOB_TIMEOUT_MS,
 } from './incoming';
-export type { IncomingRequest, IncomingResult } from './incoming';
+export type { IncomingAssessment, IncomingRequest, IncomingResult } from './incoming';

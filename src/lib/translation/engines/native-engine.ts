@@ -12,13 +12,12 @@ export const NATIVE_STALL_MEMORY_MS = 24 * 60 * 60 * 1000;
 
 export const NATIVE_STALL_RECHECK_MS = 30_000;
 
-const INTERACTION_EVENTS = ['pointerdown', 'keydown'] as const;
-
 const translators = new Map<PairKey, Promise<TranslatorInstance>>();
 const hungPairs = new Set<PairKey>();
 const stalledPairs = new Set<PairKey>();
 const stalledRechecks = new Set<PairKey>();
 const lastStalledRecheck = new Map<PairKey, number>();
+const gestureRetriedStalls = new Set<PairKey>();
 const progressListeners = new Set<(event: TranslationProgressEvent) => void>();
 const retryListeners = new Set<() => void>();
 
@@ -276,45 +275,21 @@ export const nativeEngine: TranslationEngine = {
   },
 };
 
-export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
-  if (typeof window === 'undefined') {
-    return () => undefined;
+export async function prepareNativeFromGesture(source: Language, target: Language): Promise<void> {
+  const key = pairKey(source, target);
+  if (!api()) {
+    return;
   }
-  let disposed = false;
-  const unlisten = () => {
-    for (const type of INTERACTION_EVENTS) {
-      window.removeEventListener(type, handler, true);
+  if (!translators.has(key) && isStalled(key)) {
+    if (gestureRetriedStalls.has(key)) {
+      return;
     }
-  };
-  const listen = () => {
-    for (const type of INTERACTION_EVENTS) {
-      window.addEventListener(type, handler, { capture: true, once: true });
-    }
-  };
-  const handler = () => {
-    unlisten();
-    void (async () => {
-      for (const pair of pairs) {
-        const [source, target] = pair.split('-') as [Language, Language];
-        const availability = await interactionAvailability(source, target);
-        if (disposed) {
-          return;
-        }
-        if (availability === 'downloadable' || availability === 'downloading') {
-          void nativeEngine.prepare(source, target).catch(() => {
-            if (!disposed && !stalledPairs.has(pairKey(source, target))) {
-              listen();
-            }
-          });
-        }
-      }
-    })();
-  };
-  listen();
-  return () => {
-    disposed = true;
-    unlisten();
-  };
+    gestureRetriedStalls.add(key);
+  }
+  const availability = await interactionAvailability(source, target);
+  if (availability === 'downloadable' || availability === 'downloading') {
+    await nativeEngine.prepare(source, target);
+  }
 }
 
 export function resetNativeEngineForTests(): void {
@@ -323,6 +298,7 @@ export function resetNativeEngineForTests(): void {
   stalledPairs.clear();
   stalledRechecks.clear();
   lastStalledRecheck.clear();
+  gestureRetriedStalls.clear();
   progressListeners.clear();
   retryListeners.clear();
 }

@@ -45,6 +45,7 @@ interface LanguageDetectorInstance {
 }
 
 interface LanguageDetectorStatic {
+  availability?(options?: { expectedInputLanguages?: string[] }): Promise<TranslatorAvailability>;
   create(options?: { expectedInputLanguages?: string[]; signal?: AbortSignal }): Promise<LanguageDetectorInstance>;
 }
 
