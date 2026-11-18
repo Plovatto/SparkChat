@@ -46,7 +46,7 @@ export function TranslationBadge({ control, result, onToggle, onTranslate, bubbl
 
   return (
     <>
-      <span aria-live="polite" className="visually-hidden">
+      <span aria-live="polite" className="sc-sr-only">
         {announcement}
       </span>
       {control !== 'none' && (

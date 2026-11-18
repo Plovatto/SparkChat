@@ -968,7 +968,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         }
       />
 
-      <div aria-live="polite" className="visually-hidden">
+      <div aria-live="polite" className="sc-sr-only">
         {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
       </div>
       {showTranslationSuggestion && (
