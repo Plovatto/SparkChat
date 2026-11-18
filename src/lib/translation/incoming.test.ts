@@ -474,8 +474,8 @@ describe('translateIncoming', () => {
 
   it('expands chat abbreviations only in the text sent to the engine', async () => {
     detect.mockResolvedValue(null);
-    expect(await translateIncoming(req('a2', 'vlw', 'en'))).toEqual({ status: 'translated', text: 'EN:valeu', sourceLanguage: 'pt' });
-    expect(native.translate).toHaveBeenCalledWith('valeu', 'pt', 'en', { priority: 1 });
+    expect(await translateIncoming(req('a2', 'vlw', 'en'))).toEqual({ status: 'translated', text: 'EN:obrigado', sourceLanguage: 'pt' });
+    expect(native.translate).toHaveBeenCalledWith('obrigado', 'pt', 'en', { priority: 1 });
     expect(getCachedIncoming('r1', 'a2', 'content', 'en', 'vlw')?.status).toBe('translated');
   });
 

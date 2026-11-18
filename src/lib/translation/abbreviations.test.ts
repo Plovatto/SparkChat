@@ -5,7 +5,7 @@ describe('normalizeChatAbbreviations', () => {
   it.each([
     ['vc vem hj?', 'você vem hoje?'],
     ['vcs tão bem?', 'vocês tão bem?'],
-    ['blz, vlw!', 'beleza, valeu!'],
+    ['blz, vlw!', 'beleza, obrigado!'],
     ['obg pela msg', 'obrigado pela mensagem'],
     ['pq q vc n veio', 'porque que você não veio'],
     ['tb gostei, td certo', 'também gostei, tudo certo'],
@@ -31,6 +31,12 @@ describe('normalizeChatAbbreviations', () => {
     ['see ya, ur the best', 'see you, your the best'],
   ])('expands english chat abbreviations: %s', (input, expected) => {
     expect(normalizeChatAbbreviations(input, 'en')).toBe(expected);
+  });
+
+  it('reads a whole-message "valeu" as thanks, but keeps "valeu a pena"', () => {
+    expect(normalizeChatAbbreviations('valeu!', 'pt')).toBe('obrigado!');
+    expect(normalizeChatAbbreviations('Vlw', 'pt')).toBe('Obrigado');
+    expect(normalizeChatAbbreviations('valeu a pena', 'pt')).toBe('valeu a pena');
   });
 
   it('keeps the capital letter of the abbreviation', () => {

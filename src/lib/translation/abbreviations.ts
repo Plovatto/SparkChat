@@ -15,7 +15,7 @@ const WORD_ABBREVIATIONS: Record<Language, Record<string, string>> = {
     td: 'tudo',
     tds: 'todos',
     blz: 'beleza',
-    vlw: 'valeu',
+    vlw: 'obrigado',
     obg: 'obrigado',
     msg: 'mensagem',
     cmg: 'comigo',
@@ -51,7 +51,7 @@ const BEFORE_SPACE_ABBREVIATIONS: Record<Language, Record<string, string>> = {
 };
 
 const WHOLE_MESSAGE_ABBREVIATIONS: Record<Language, Record<string, string>> = {
-  pt: { n: 'não', s: 'sim' },
+  pt: { n: 'não', s: 'sim', valeu: 'obrigado' },
   en: {},
 };
 
