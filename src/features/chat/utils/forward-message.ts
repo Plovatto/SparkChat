@@ -34,11 +34,12 @@ async function reuploadAttachment(message: ChatMessage, blob: Blob, auth: Sessio
 
   if (message.type === 'audio') {
     const uploaded = await uploadChatAudio(blob, mimeType, auth, targetRoomId);
-    return { url: uploaded.url, fileMeta: { name, mimeType: uploaded.mimeType, size: blob.size } };
+    return { url: uploaded.url, fileMeta: { name, mimeType, size: blob.size } };
   }
 
-  const uploaded = await uploadChatFile(new File([blob], name, { type: mimeType }), auth, targetRoomId);
-  return { url: uploaded.url, fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size } };
+  const file = new File([blob], name, { type: mimeType });
+  const uploaded = await uploadChatFile(file, auth, targetRoomId);
+  return { url: uploaded.url, fileMeta: { name, mimeType, size: file.size } };
 }
 
 function sendAndConfirm(socket: AppSocket, payload: Omit<OutgoingMessage, 'clientTempId'>): Promise<void> {
