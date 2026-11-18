@@ -340,12 +340,6 @@
       "showOriginal": "Ver original",
       "showTranslation": "Ver tradução",
       "translating": "Traduzindo…",
-      "outgoingToggleOn": "Traduzir para {{language}} ao enviar",
-      "outgoingToggleOff": "Parar de traduzir ao enviar",
-      "outgoingPreview": "Será enviada em {{language}}:",
-      "outgoingTranslating": "Traduzindo…",
-      "outgoingFailed": "Não foi possível traduzir; será enviada como está.",
-      "outgoingTimedOut": "A tradução está demorando; a mensagem não foi enviada. Tente de novo ou desative a tradução.",
       "languages": {
         "pt": "português",
         "en": "inglês"
