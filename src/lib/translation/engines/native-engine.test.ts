@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NATIVE_API_TIMEOUT_MS, NATIVE_DOWNLOAD_STALL_MS, NATIVE_STALL_RECHECK_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
+import { NATIVE_STALLED_PAIRS_STORAGE_KEY } from '@constants/storage-keys';
+import {
+  NATIVE_API_TIMEOUT_MS,
+  NATIVE_DOWNLOAD_STALL_MS,
+  NATIVE_STALL_MEMORY_MS,
+  NATIVE_STALL_RECHECK_MS,
+  armNativeOnFirstInteraction,
+  nativeEngine,
+  resetNativeEngineForTests,
+} from './native-engine';
 
 type Availability = 'unavailable' | 'downloadable' | 'downloading' | 'available';
 
@@ -388,5 +397,111 @@ describe('nativeEngine stalled download', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(retry).toHaveBeenCalledTimes(2);
     expect(await nativeEngine.support('en', 'pt')).toBe('available');
+  });
+});
+
+class MemoryStorage {
+  readonly values = new Map<string, string>();
+
+  getItem(key: string): string | null {
+    return this.values.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string): void {
+    this.values.set(key, value);
+  }
+
+  removeItem(key: string): void {
+    this.values.delete(key);
+  }
+}
+
+describe('nativeEngine stall memory across sessions', () => {
+  let storage: MemoryStorage;
+
+  beforeEach(() => {
+    resetNativeEngineForTests();
+    vi.useFakeTimers();
+    storage = new MemoryStorage();
+    vi.stubGlobal('localStorage', storage);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete (globalThis as Record<string, unknown>).Translator;
+    resetNativeEngineForTests();
+  });
+
+  async function stallOnce(): Promise<void> {
+    installFakeTranslator({ availability: 'downloadable', hangCreates: true });
+    void nativeEngine.prepare('pt', 'en').catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
+  }
+
+  it('a pair that stalled stays on the fallback after a reload, without waiting for another stall', async () => {
+    await stallOnce();
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable', hangCreates: true });
+    expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    expect(fake.createCalls).toBe(0);
+  });
+
+  it('the remembered stall expires, and native is tried again', async () => {
+    await stallOnce();
+    await vi.advanceTimersByTimeAsync(NATIVE_STALL_MEMORY_MS);
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+  });
+
+  it('a remembered stall whose model is now available goes back to native and is forgotten', async () => {
+    await stallOnce();
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'available' });
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(await nativeEngine.support('pt', 'en')).toBe('available');
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+  });
+
+  it('a stalled download that finishes later is forgotten too', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: vi.fn(() => Promise.resolve('downloadable')),
+      create: vi.fn(() => new Promise((resolve) => (finish = resolve))),
+    };
+    void nativeEngine.prepare('pt', 'en').catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(await nativeEngine.support('pt', 'en')).toBe('unavailable');
+    finish({ translate: (text: string) => Promise.resolve(text) });
+    await vi.advanceTimersByTimeAsync(0);
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+  });
+
+  it('unreadable or blocked storage falls back to the in-memory behaviour', async () => {
+    storage.setItem(NATIVE_STALLED_PAIRS_STORAGE_KEY, '{not json');
+    installFakeTranslator({ availability: 'downloadable' });
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('blocked');
+      },
+      setItem: () => {
+        throw new Error('blocked');
+      },
+      removeItem: () => {
+        throw new Error('blocked');
+      },
+    });
+    await stallOnce();
   });
 });

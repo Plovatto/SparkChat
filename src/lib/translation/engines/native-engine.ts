@@ -1,17 +1,14 @@
 import type { Language } from '@lib/i18n/language';
+import { NATIVE_STALLED_PAIRS_STORAGE_KEY } from '@constants/storage-keys';
 import { NATIVE_API_TIMEOUT_MS, TIMED_OUT, withNativeTimeout } from '../native-timeout';
 import { invalidateEngineRoutes } from '../router';
 import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
 
 export { NATIVE_API_TIMEOUT_MS };
 
-/**
- * A model download that shows no progress for this long (create() pending, no downloadprogress event) is treated as
- * stalled: blocked by policy or network, or a language pack stuck in Chrome. Measured on Chrome 157, fresh profile:
- * first progress 8-9 s after create(), gaps under 2.1 s, then 4-8 s of silent install after 100 %. A busy machine
- * stretches those, so the window is generous: a false stall costs a needless fallback download.
- */
-export const NATIVE_DOWNLOAD_STALL_MS = 30_000;
+export const NATIVE_DOWNLOAD_STALL_MS = 15_000;
+
+export const NATIVE_STALL_MEMORY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * A stalled pair asks Chrome again at most this often. Chrome can answer 'available' and still refuse create()
@@ -54,7 +51,57 @@ function notifyRetry(): void {
   }
 }
 
+type RememberedStalls = Record<string, number>;
+
+function readRememberedStalls(): RememberedStalls {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(NATIVE_STALLED_PAIRS_STORAGE_KEY) ?? '{}');
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return {};
+    }
+    const now = Date.now();
+    return Object.fromEntries(
+      Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && entry[1] > now),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeRememberedStalls(stalls: RememberedStalls): void {
+  try {
+    if (Object.keys(stalls).length === 0) {
+      localStorage.removeItem(NATIVE_STALLED_PAIRS_STORAGE_KEY);
+    } else {
+      localStorage.setItem(NATIVE_STALLED_PAIRS_STORAGE_KEY, JSON.stringify(stalls));
+    }
+  } catch {
+    return;
+  }
+}
+
+function rememberStall(key: PairKey): void {
+  writeRememberedStalls({ ...readRememberedStalls(), [key]: Date.now() + NATIVE_STALL_MEMORY_MS });
+}
+
+function clearStall(key: PairKey): boolean {
+  const stalls = readRememberedStalls();
+  if (key in stalls) {
+    delete stalls[key];
+    writeRememberedStalls(stalls);
+  }
+  return stalledPairs.delete(key);
+}
+
+function isStalled(key: PairKey): boolean {
+  if (!stalledPairs.has(key) && key in readRememberedStalls()) {
+    stalledPairs.add(key);
+  }
+  return stalledPairs.has(key);
+}
+
 function markStalled(key: PairKey): void {
+  rememberStall(key);
   if (!stalledPairs.has(key)) {
     stalledPairs.add(key);
     notifyRetry();
@@ -114,7 +161,7 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
       settled = true;
       clearTimeout(stallTimer);
       // A download that was given up on finished after all: native wins again.
-      if (stalledPairs.delete(key)) {
+      if (clearStall(key)) {
         if (!translators.has(key)) {
           translators.set(key, Promise.resolve(instance));
         }
@@ -142,7 +189,7 @@ async function support(source: Language, target: Language): Promise<TranslationS
     return 'unavailable';
   }
   const key = pairKey(source, target);
-  if (stalledPairs.has(key)) {
+  if (isStalled(key)) {
     recheckStalled(translatorApi, key, source, target);
     return 'unavailable';
   }
@@ -178,7 +225,7 @@ function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: L
   void withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }))
     .then(
       (result) => {
-        if (result === 'available' && stalledPairs.delete(key)) {
+        if (result === 'available' && clearStall(key)) {
           notifyRetry();
         }
       },
