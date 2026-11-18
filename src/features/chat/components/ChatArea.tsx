@@ -10,16 +10,24 @@ import { useTheme } from '@features/theme';
 import { translateError } from '@lib/api/api-error';
 import { MissingRoomKeyError } from '@lib/e2ee';
 import { formatDayLabel, resolveActiveUserNames } from '@lib/format';
-import { translate } from '@lib/i18n/app-i18n';
+import { translate, useAppLanguage } from '@lib/i18n/app-i18n';
+import { oppositeLanguage } from '@lib/i18n/language';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
+import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
 import { uploadChatAudio, uploadChatFile, uploadChatImage, type UploadedFile } from '../api/chat-api';
+import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
+import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
 import { useRoomMessages } from '../hooks/useRoomMessages';
+import { useRoomTranslationPreferences } from '../hooks/useRoomTranslationPreferences';
 import type { ChatMessage } from '../types';
 import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
+import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
+import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import type { CurrentAudioRef } from './AudioMessageContent';
+import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
@@ -725,9 +733,37 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     [socket],
   );
 
+  const { language: appLanguage } = useAppLanguage();
+  const [translationSupported] = useState(isTranslationSupportedOnDevice);
+  const { autoRoomIds, dismissedRoomIds, setAutoTranslate, dismissSuggestion } = useRoomTranslationPreferences(user.id);
+  const suggestion = useAutoTranslateSuggestion(room?.id ?? null);
+  const translationMode: TranslationMode =
+    !room || !translationSupported || isAssistantRoom(room) ? 'off' : autoRoomIds.has(room.id) ? 'auto' : 'manual';
+  const { reportAssessment, reportManualTranslation } = suggestion;
+  const roomTranslation = useMemo<RoomTranslation>(
+    () => ({ mode: translationMode, reportAssessment, reportManualTranslation }),
+    [translationMode, reportAssessment, reportManualTranslation],
+  );
+
+  const changeAutoTranslate = useCallback(
+    (roomId: string, enabled: boolean) => {
+      if (enabled) {
+        prepareTranslationOnGesture(appLanguage);
+      }
+      setAutoTranslate(roomId, enabled);
+    },
+    [appLanguage, setAutoTranslate],
+  );
+
   if (!room) {
     return <EmptyChatState />;
   }
+
+  const showTranslationSuggestion = shouldShowAutoTranslateBanner({
+    mode: translationMode,
+    dismissed: dismissedRoomIds.has(room.id),
+    triggered: suggestion.triggered,
+  });
 
   const beginUpload = (type: AttachmentMessageType | 'audio'): number => {
     uploadsInFlightRef.current += 1;
@@ -907,7 +943,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   }
   const replyPreviewMessage = repliedMessage ?? lastRepliedMessageRef.current;
 
-  return (
+  const content = (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.canvas }}>
       <ChatHeader key={room.id} room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
       <RoomInfoPanel
@@ -918,7 +954,21 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         messages={messages}
         messagesLoaded={areMessagesLoaded}
         onLeftGroup={handleLeftGroup}
+        autoTranslate={
+          translationMode === 'off' ? undefined : { enabled: translationMode === 'auto', onChange: (enabled) => changeAutoTranslate(room.id, enabled) }
+        }
       />
+
+      {showTranslationSuggestion && (
+        <AutoTranslateBanner
+          language={oppositeLanguage(appLanguage)}
+          onAccept={() => {
+            changeAutoTranslate(room.id, true);
+            dismissSuggestion(room.id);
+          }}
+          onDismiss={() => dismissSuggestion(room.id)}
+        />
+      )}
 
       <div
         style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
@@ -1240,4 +1290,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       />
     </div>
   );
+
+  return <RoomTranslationContext.Provider value={roomTranslation}>{content}</RoomTranslationContext.Provider>;
 }
