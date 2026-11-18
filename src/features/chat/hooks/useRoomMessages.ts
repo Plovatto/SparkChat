@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeRoomKeyAvailable } from '@lib/e2ee';
+import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
 import { forgetTranslation } from '@lib/translation';
 import {
   useSocket,
@@ -11,6 +11,11 @@ import {
   type SocketErrorPayload,
 } from '@lib/socket';
 import type { ChatMessage } from '../types';
+
+function linkPreviewAttachmentUrls(linkPreview: { imageUrl: string | null } | null | undefined): string[] | undefined {
+  const imageUrl = linkPreview?.imageUrl;
+  return imageUrl && isEncryptedMediaUrl(imageUrl) ? [imageUrl] : undefined;
+}
 
 export interface RoomMessagesCurrentUser {
   id: string;
@@ -412,6 +417,7 @@ export function useRoomMessages(
         mentionedUserIds: input.mentionedUserIds,
         caption: input.caption,
         linkPreview: input.linkPreview,
+        attachmentUrls: linkPreviewAttachmentUrls(input.linkPreview),
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],
@@ -442,6 +448,7 @@ export function useRoomMessages(
         mentionedUserIds: target.mentionedUserIds.length > 0 ? target.mentionedUserIds : undefined,
         caption: target.caption ?? undefined,
         linkPreview: target.linkPreview ?? undefined,
+        attachmentUrls: linkPreviewAttachmentUrls(target.linkPreview),
       });
     },
     [socket, schedulePendingTimeout],

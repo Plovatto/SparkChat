@@ -71,7 +71,8 @@
       "invalidType_file": "Tipo de arquivo inválido. Envie PDF, vídeo (MP4, WEBM, MOV, AVI), documento do Office, ZIP, TXT ou CSV.",
       "invalidType": "Tipo de arquivo inválido.",
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
-      "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde."
+      "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
+      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos."
     },
     "linkPreview": {
       "invalidUrl": "URL inválida.",
@@ -86,7 +87,10 @@
       "registrations": "Muitas contas criadas a partir deste endereço. Tente novamente mais tarde.",
       "messages": "Você está enviando mensagens muito rápido. Aguarde um instante.",
       "passwordAttempts": "Muitas tentativas de senha. Tente novamente mais tarde.",
-      "resumeAttempts": "Muitas tentativas de reconexão. Aguarde um instante."
+      "resumeAttempts": "Muitas tentativas de reconexão. Aguarde um instante.",
+      "roomJoin": "Muitas tentativas de entrar com código. Tente novamente mais tarde.",
+      "roomCreate": "Você criou muitos grupos em pouco tempo. Tente novamente mais tarde.",
+      "socket": "Muitas ações em pouco tempo. Aguarde um instante."
     },
     "internal": {
       "unexpected": "Erro inesperado.",

@@ -71,7 +71,8 @@
       "invalidType_file": "Invalid file type. Send a PDF, video (MP4, WEBM, MOV, AVI), Office document, ZIP, TXT or CSV.",
       "invalidType": "Invalid file type.",
       "contentMismatch": "The file content doesn't match its declared type.",
-      "quotaExceeded": "The server storage limit was reached. Please try again later."
+      "quotaExceeded": "The server storage limit was reached. Please try again later.",
+      "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones."
     },
     "linkPreview": {
       "invalidUrl": "Invalid URL.",
@@ -86,7 +87,10 @@
       "registrations": "Too many accounts created from this address. Please try again later.",
       "messages": "You're sending messages too fast. Please wait a moment.",
       "passwordAttempts": "Too many password attempts. Please try again later.",
-      "resumeAttempts": "Too many reconnection attempts. Please wait a moment."
+      "resumeAttempts": "Too many reconnection attempts. Please wait a moment.",
+      "roomJoin": "Too many attempts to join with a code. Try again later.",
+      "roomCreate": "You created too many groups in a short time. Try again later.",
+      "socket": "Too many actions in a short time. Wait a moment."
     },
     "internal": {
       "unexpected": "Unexpected error.",

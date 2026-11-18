@@ -264,6 +264,7 @@ export interface ClientToServerEvents {
     mentionedUserIds?: string[];
     caption?: string;
     linkPreview?: MessageLinkPreview;
+    attachmentUrls?: string[];
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'user:set-locale': (payload: { locale: 'pt' | 'en' }) => void;
