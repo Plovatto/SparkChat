@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { VideoPreviewModal } from './VideoPreviewModal';
 
 const VIDEO_THUMBNAIL_WIDTH = 380;
@@ -48,7 +49,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
         }}
       >
         <video
-          src={message.content}
+          src={toLocalMediaUrl(message.content)}
           controls
           poster={thumbnail?.dataUrl}
           style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}

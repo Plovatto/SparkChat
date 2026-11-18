@@ -47,7 +47,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
   }, [isPdf, message.content]);
 
   const download = () =>
-    void downloadMessageMedia(socket, { content: message.content, roomId: message.roomId, fileMeta: message.fileMeta, fileName });
+    void downloadMessageMedia(socket, { content: message.content, roomId: message.roomId, fileMeta: message.fileMeta, fileName, messageType: message.type });
 
   return (
     <div style={{ padding: '0 9px' }}>

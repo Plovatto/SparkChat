@@ -1,10 +1,11 @@
-const SAFE_MEDIA_PROTOCOLS = new Set(['https:', 'blob:']);
-
-export function toSafeMediaUrl(url: string): string | null {
+export function toLocalMediaUrl(url: string | null | undefined): string | undefined {
+  if (!url) {
+    return undefined;
+  }
   try {
     const parsed = new URL(url);
-    return SAFE_MEDIA_PROTOCOLS.has(parsed.protocol) ? parsed.href : null;
+    return parsed.protocol === 'blob:' ? parsed.href : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }

@@ -1,6 +1,16 @@
 import { translate } from '@lib/i18n/app-i18n';
 import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
-import type { AppSocket, MessageFileMeta, MessageLinkPreview, MessageReplySnapshot, MessageView, RoomSummary } from '@lib/socket';
+import { isStorageMediaUrl } from '@lib/media/media-origin';
+import { resolveSafeMediaType } from '@lib/media/media-type';
+import type {
+  AppSocket,
+  MessageFileMeta,
+  MessageLinkPreview,
+  MessageReplySnapshot,
+  MessageType,
+  MessageView,
+  RoomSummary,
+} from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
 import { ensureRoomKeyForDecryption, refetchRoomKeyAfterDecryptionFailure, requireCachedRoomKey } from './room-keys';
@@ -69,8 +79,9 @@ export async function decryptMediaContentIfNeeded(
   content: string,
   roomId: string,
   fileMeta: MessageFileMeta | null,
+  messageType: MessageType,
 ): Promise<string> {
-  if (!isEncryptedMediaUrl(content)) {
+  if (!isEncryptedMediaUrl(content) || !isStorageMediaUrl(content)) {
     return content;
   }
 
@@ -79,14 +90,15 @@ export async function decryptMediaContentIfNeeded(
     return content;
   }
 
-  return resolveDecryptedMediaUrl(content, async () => {
+  const mimeType = resolveSafeMediaType(messageType, fileMeta?.mimeType);
+  return resolveDecryptedMediaUrl(content, mimeType, async () => {
     try {
-      const response = await fetch(content);
+      const response = await fetch(content, { credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!response.ok) {
         return null;
       }
       const ciphertext = await response.arrayBuffer();
-      const blob = await decryptAttachment(roomId, ciphertext, fileMeta?.mimeType ?? 'application/octet-stream');
+      const blob = await decryptAttachment(roomId, ciphertext, mimeType);
       return blob ? URL.createObjectURL(blob) : null;
     } catch {
       return null;
@@ -98,12 +110,12 @@ async function resolveContent(
   socket: AppSocket,
   content: string,
   roomId: string,
-  type: string,
+  type: MessageType,
   fileMeta: MessageFileMeta | null,
 ): Promise<string> {
   return type === 'text'
     ? decryptTextContentIfNeeded(socket, content, roomId)
-    : decryptMediaContentIfNeeded(socket, content, roomId, fileMeta);
+    : decryptMediaContentIfNeeded(socket, content, roomId, fileMeta, type);
 }
 
 async function decryptCaptionIfNeeded(
@@ -131,7 +143,7 @@ async function decryptFileMetaIfNeeded(
   ]);
   const decrypted = { ...fileMeta, name, mimeType };
   const thumbnailUrl = fileMeta.thumbnailUrl
-    ? await decryptMediaContentIfNeeded(socket, fileMeta.thumbnailUrl, roomId, { ...decrypted, mimeType: THUMBNAIL_MIME_TYPE })
+    ? await decryptMediaContentIfNeeded(socket, fileMeta.thumbnailUrl, roomId, { ...decrypted, mimeType: THUMBNAIL_MIME_TYPE }, 'image')
     : undefined;
   return { ...decrypted, ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}) };
 }
@@ -179,7 +191,35 @@ async function decryptReplySnapshot(
   return { ...reply, content, caption, fileMeta };
 }
 
+const UNENCRYPTED_EXEMPT_TYPES: ReadonlySet<MessageType> = new Set(['system', 'error']);
+
+function isPlaintextField(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.length > 0 && !value.startsWith(E2E_PREFIX);
+}
+
+function isPlaintextMediaUrl(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.length > 0 && !isEncryptedMediaUrl(value);
+}
+
+export function hasUnencryptedFields(message: MessageView): boolean {
+  if (UNENCRYPTED_EXEMPT_TYPES.has(message.type) || message.deletedForEveryone) {
+    return false;
+  }
+
+  const { fileMeta, linkPreview } = message;
+  const contentIsPlain = message.type === 'text' ? isPlaintextField(message.content) : isPlaintextMediaUrl(message.content);
+  const fileMetaIsPlain = fileMeta
+    ? isPlaintextField(fileMeta.name) || isPlaintextField(fileMeta.mimeType) || isPlaintextMediaUrl(fileMeta.thumbnailUrl)
+    : false;
+  const linkPreviewIsPlain = linkPreview
+    ? [linkPreview.url, linkPreview.title, linkPreview.description, linkPreview.imageUrl, linkPreview.siteName].some(isPlaintextField)
+    : false;
+
+  return contentIsPlain || isPlaintextField(message.caption) || fileMetaIsPlain || linkPreviewIsPlain;
+}
+
 export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
+  const unencrypted = hasUnencryptedFields(message);
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId);
   const deferOriginal = message.type === 'image' && Boolean(fileMeta?.thumbnailUrl);
   const [content, replyTo, caption, linkPreview] = await Promise.all([
@@ -188,7 +228,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     decryptCaptionIfNeeded(socket, message.caption, message.roomId),
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId),
   ]);
-  return { ...message, content, replyTo, caption, fileMeta, linkPreview };
+  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted };
 }
 
 export function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {

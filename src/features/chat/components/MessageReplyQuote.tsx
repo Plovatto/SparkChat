@@ -6,6 +6,7 @@ import { formatAudioTime, getDisplayName } from '@lib/format';
 import type { MessageReplySnapshot, MessageType } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 const REPLY_QUOTE_HEIGHT = 52;
 const HIGHLIGHT_DURATION_MS = 1500;
@@ -36,7 +37,7 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
   const hasThumbnail = isReplyToImage || isReplyToVideo;
   const replyVideoThumbnail = useReplyVideoThumbnail(isReplyToVideo, replyTo.content);
   const replyThumbnailUrl = isReplyToImage
-    ? (replyTo.fileMeta?.thumbnailUrl ?? replyTo.content)
+    ? (toLocalMediaUrl(replyTo.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(replyTo.content) ?? null)
     : isReplyToVideo
       ? replyVideoThumbnail
       : null;

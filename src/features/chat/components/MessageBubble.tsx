@@ -26,6 +26,7 @@ import { MessageReceiptRow } from './MessageReceiptRow';
 import { MessageReplyQuote } from './MessageReplyQuote';
 import { DeletedMessageBubble, ErrorMessageBubble, SystemMessageBubble } from './SpecialMessageBubbles';
 import { TranslationBadge } from './TranslationBadge';
+import { UnencryptedNotice } from './UnencryptedNotice';
 import { VideoMessageContent } from './VideoMessageContent';
 
 export interface MessageBubbleActions {
@@ -294,6 +295,8 @@ export const MessageBubble = memo(function MessageBubble({
         </>
       }
     >
+      {message.unencrypted && <UnencryptedNotice />}
+
       {message.replyTo && (
         <MessageReplyQuote replyTo={message.replyTo} parentType={message.type} isOwn={isOwn} bubble={bubbleStyle} currentUserId={currentUserId} />
       )}

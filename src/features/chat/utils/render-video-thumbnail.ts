@@ -1,5 +1,5 @@
 import { BoundedMap } from '@lib/cache/bounded-map';
-import { toSafeMediaUrl } from './safe-media-url';
+import { toLocalMediaUrl } from './safe-media-url';
 
 export interface VideoThumbnail {
   dataUrl: string;
@@ -13,7 +13,7 @@ const pendingThumbnails = new Map<string, Promise<VideoThumbnail>>();
 
 function captureVideoThumbnail(url: string, maxWidth: number): Promise<VideoThumbnail> {
   return new Promise((resolve, reject) => {
-    const safeUrl = toSafeMediaUrl(url);
+    const safeUrl = toLocalMediaUrl(url);
     if (!safeUrl) {
       reject(new Error('Não foi possível carregar o vídeo.'));
       return;

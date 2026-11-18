@@ -1,16 +1,5 @@
 import { BoundedMap } from '@lib/cache/bounded-map';
-
-let workerConfigured = false;
-
-async function loadPdfjs() {
-  const pdfjsLib = await import('pdfjs-dist');
-  if (!workerConfigured) {
-    const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
-    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
-    workerConfigured = true;
-  }
-  return pdfjsLib;
-}
+import { loadLocalPdfDocument } from './pdf-document';
 
 export interface PdfThumbnail {
   dataUrl: string;
@@ -22,8 +11,8 @@ const thumbnailCache = new BoundedMap<string, PdfThumbnail>(MAX_CACHED_THUMBNAIL
 const pendingThumbnails = new Map<string, Promise<PdfThumbnail>>();
 
 async function capturePdfThumbnail(url: string, maxWidth: number): Promise<PdfThumbnail> {
-  const pdfjsLib = await loadPdfjs();
-  const pdf = await pdfjsLib.getDocument({ url }).promise;
+  const loaded = await loadLocalPdfDocument(url);
+  const pdf = loaded.document;
   const page = await pdf.getPage(1);
 
   const baseViewport = page.getViewport({ scale: 1 });
@@ -40,7 +29,9 @@ async function capturePdfThumbnail(url: string, maxWidth: number): Promise<PdfTh
 
   await page.render({ canvasContext: context, viewport, canvas }).promise;
 
-  return { dataUrl: canvas.toDataURL('image/png'), pageCount: pdf.numPages };
+  const thumbnail = { dataUrl: canvas.toDataURL('image/png'), pageCount: pdf.numPages };
+  void loaded.destroy();
+  return thumbnail;
 }
 
 export function renderPdfThumbnail(url: string, maxWidth: number): Promise<PdfThumbnail> {

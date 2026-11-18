@@ -6,6 +6,7 @@ import type { MessageView } from '@lib/socket';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail } from '../utils/render-pdf-thumbnail';
 import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 const GALLERY_TILE_RENDER_WIDTH = 240;
 
@@ -60,7 +61,7 @@ export function GalleryMediaTile({ message }: GalleryMediaTileProps) {
     };
   }, [isPdf, message.content]);
 
-  const thumbnailSrc = isImage ? (message.fileMeta?.thumbnailUrl ?? message.content) : generatedThumbnail;
+  const thumbnailSrc = isImage ? (toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content)) : generatedThumbnail;
 
   if (thumbnailSrc) {
     return (

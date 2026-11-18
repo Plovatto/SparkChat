@@ -128,6 +128,7 @@ export interface MessageView {
   caption: string | null;
   linkPreview: MessageLinkPreview | null;
   systemEvent?: SystemEvent | null;
+  unencrypted?: boolean;
 }
 
 export interface BlockStatusPayload {

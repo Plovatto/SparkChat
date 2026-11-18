@@ -111,7 +111,14 @@ Utilize `.env.example` como referência:
 ```env
 VITE_API_URL=http://localhost:3001
 VITE_SOCKET_URL=http://localhost:3001
+VITE_MEDIA_ORIGIN=
 ```
+
+`VITE_MEDIA_ORIGIN` é opcional e indica a origem que serve as mídias enviadas (por exemplo, a URL pública do bucket R2, igual a `R2_PUBLIC_BASE_URL` na API). Quando definida, o app só busca mídias dessa origem e a Content-Security-Policy libera conexões apenas para ela. Sem ela, o app continua aceitando qualquer origem `https`, desde que o caminho seja `/uploads/images/`, `/uploads/audio/` ou `/uploads/files/`.
+
+## Content-Security-Policy
+
+No build, as duas páginas (`index.html` e `app/index.html`) recebem uma Content-Security-Policy em `<meta http-equiv>`. Ela libera scripts do próprio site (mais o hash sha256 do script de inicialização da apresentação, calculado no build), `wasm-unsafe-eval` para libsodium e Bergamot, workers do próprio site e `blob:`, conexões para `VITE_API_URL`, `VITE_SOCKET_URL` (http e ws), a origem de mídia e `VITE_TRANSLATION_MODELS_URL`, e imagens do próprio site, `blob:`, `data:` e do Unsplash (papéis de parede). Plugins, frames, `<base>` e envio de formulários ficam bloqueados. O servidor de desenvolvimento não aplica a política.
 
 ## Tradução de mensagens
 
@@ -141,7 +148,7 @@ Três configurações são necessárias no repositório:
 
 - Em **Settings → Pages**, a origem deve estar como **GitHub Actions**.
 - Em **Settings → Pages → Custom domain**, o valor deve ser `sparkchat.plovatto.dev`, com **Enforce HTTPS** ativo.
-- Em **Settings → Environments → github-pages**, os valores `VITE_API_URL` e `VITE_SOCKET_URL` devem apontar para a API hospedada. O Vite embute essas variáveis no build, então elas precisam existir no ambiente da Action, não apenas no `.env` local.
+- Em **Settings → Environments → github-pages**, os valores `VITE_API_URL` e `VITE_SOCKET_URL` devem apontar para a API hospedada, e `VITE_MEDIA_ORIGIN` (opcional, recomendado) para a origem pública das mídias. O Vite embute essas variáveis no build, então elas precisam existir no ambiente da Action, não apenas no `.env` local.
 
 No DNS do domínio, o subdomínio `sparkchat` é um registro `CNAME` apontando para `plovatto.github.io`.
 

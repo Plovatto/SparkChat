@@ -274,7 +274,10 @@
       "defaultFileName": "file",
       "defaultImageName": "image.jpg",
       "readMore": "Read more",
-      "encryptedUnavailable": "🔒 Encrypted message — no local key yet."
+      "encryptedUnavailable": "🔒 Encrypted message — no local key yet.",
+      "notEncrypted": "Not encrypted",
+      "notEncryptedHint": "This message arrived without end-to-end encryption. Its media is not loaded automatically.",
+      "mediaNotLoaded": "This media could not be loaded safely."
     },
     "fileTypes": {
       "pdf": "PDF",

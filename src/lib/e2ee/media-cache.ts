@@ -1,14 +1,19 @@
-const objectUrlsByContent = new Map<string, string>();
-const pendingByContent = new Map<string, Promise<string>>();
+const objectUrlsByKey = new Map<string, string>();
+const pendingByKey = new Map<string, Promise<string>>();
 let generation = 0;
 
-export function resolveDecryptedMediaUrl(content: string, decrypt: () => Promise<string | null>): Promise<string> {
-  const cached = objectUrlsByContent.get(content);
+function cacheKeyOf(content: string, mimeType: string): string {
+  return `${mimeType}\n${content}`;
+}
+
+export function resolveDecryptedMediaUrl(content: string, mimeType: string, decrypt: () => Promise<string | null>): Promise<string> {
+  const key = cacheKeyOf(content, mimeType);
+  const cached = objectUrlsByKey.get(key);
   if (cached) {
     return Promise.resolve(cached);
   }
 
-  const pending = pendingByContent.get(content);
+  const pending = pendingByKey.get(key);
   if (pending) {
     return pending;
   }
@@ -23,28 +28,28 @@ export function resolveDecryptedMediaUrl(content: string, decrypt: () => Promise
         URL.revokeObjectURL(objectUrl);
         return content;
       }
-      objectUrlsByContent.set(content, objectUrl);
+      objectUrlsByKey.set(key, objectUrl);
       return objectUrl;
     })
     .finally(() => {
-      if (pendingByContent.get(content) === task) {
-        pendingByContent.delete(content);
+      if (pendingByKey.get(key) === task) {
+        pendingByKey.delete(key);
       }
     });
 
-  pendingByContent.set(content, task);
+  pendingByKey.set(key, task);
   return task;
 }
 
 export function getDecryptedMediaCacheSize(): number {
-  return objectUrlsByContent.size;
+  return objectUrlsByKey.size;
 }
 
 export function clearDecryptedMediaCache(): void {
   generation += 1;
-  pendingByContent.clear();
-  for (const objectUrl of objectUrlsByContent.values()) {
+  pendingByKey.clear();
+  for (const objectUrl of objectUrlsByKey.values()) {
     URL.revokeObjectURL(objectUrl);
   }
-  objectUrlsByContent.clear();
+  objectUrlsByKey.clear();
 }

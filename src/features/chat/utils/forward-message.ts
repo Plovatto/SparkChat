@@ -1,19 +1,24 @@
 import { toApiError } from '@lib/api/api-error';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { decryptMediaContentIfNeeded, ensureRoomKeyForDecryption, isEncryptedMediaUrl, MissingRoomKeyError } from '@lib/e2ee';
+import { isStorageMediaUrl } from '@lib/media/media-origin';
 import type { AppSocket, MessageFileMeta, MessageView, SocketErrorPayload } from '@lib/socket';
 import type { ClientToServerEvents } from '@lib/socket/socket-events';
 import { uploadChatAudio, uploadChatFile, uploadChatImage } from '../api/chat-api';
 import type { ChatMessage } from '../types';
+import { toLocalMediaUrl } from './safe-media-url';
 
 const DELIVERY_TIMEOUT_MS = 15000;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
 async function loadPlainAttachment(socket: AppSocket, message: ChatMessage): Promise<Blob> {
-  const url = await decryptMediaContentIfNeeded(socket, message.content, message.roomId, message.fileMeta);
+  const url = await decryptMediaContentIfNeeded(socket, message.content, message.roomId, message.fileMeta, message.type);
   if (isEncryptedMediaUrl(url)) {
     throw new Error('Attachment could not be decrypted');
+  }
+  if (!toLocalMediaUrl(url) && !isStorageMediaUrl(url)) {
+    throw new Error('Attachment source is not trusted');
   }
   const response = await fetch(url);
   if (!response.ok) {
