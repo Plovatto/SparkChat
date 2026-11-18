@@ -40,7 +40,7 @@ export function AutoTranslateBanner({ language, onAccept, onDismiss }: AutoTrans
         <button type="button" onClick={onDismiss} className="sc-btn sc-btn--secondary" style={{ padding: '6px 14px', fontSize: '0.82rem', fontWeight: 500 }}>
           {t('chat.translation.suggestDismiss')}
         </button>
-        <button type="button" onClick={onAccept} className="sc-btn sc-btn--primary" style={{ padding: '6px 14px', fontSize: '0.82rem' }}>
+        <button type="button" onClick={onAccept} aria-describedby={titleId} className="sc-btn sc-btn--primary" style={{ padding: '6px 14px', fontSize: '0.82rem' }}>
           {t('chat.translation.suggestAccept')}
         </button>
       </div>

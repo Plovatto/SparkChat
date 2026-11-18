@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSuggestionTriggered, shouldShowAutoTranslateBanner } from './auto-translate-suggestion';
+import { isSuggestionTriggered, recordAssessment, shouldShowAutoTranslateBanner, STORED_ASSESSMENTS_PER_ROOM } from './auto-translate-suggestion';
 
 describe('isSuggestionTriggered', () => {
   it('triggers after two manual translations in the conversation', () => {
@@ -15,6 +15,36 @@ describe('isSuggestionTriggered', () => {
   it('only looks at the most recent received messages', () => {
     expect(isSuggestionTriggered({ manualCount: 0, assessments: ['other', 'other', 'other', 'target', 'target', 'target', 'unsure', 'target'] })).toBe(false);
     expect(isSuggestionTriggered({ manualCount: 0, assessments: ['target', 'target', 'other', 'unsure', 'other', 'target', 'other'] })).toBe(true);
+  });
+});
+
+describe('recordAssessment', () => {
+  const at = (minute: number) => `2026-11-18T10:${String(minute).padStart(2, '0')}:00.000Z`;
+
+  it('keeps the assessments ordered by time', () => {
+    const list = recordAssessment(recordAssessment([], { messageId: 'b', timestamp: at(2), assessment: 'other' }), {
+      messageId: 'a',
+      timestamp: at(1),
+      assessment: 'target',
+    });
+    expect(list.map((entry) => entry.messageId)).toEqual(['a', 'b']);
+  });
+
+  it('replaces the assessment of the same message', () => {
+    const first = recordAssessment([], { messageId: 'a', timestamp: at(1), assessment: 'unsure' });
+    expect(recordAssessment(first, { messageId: 'a', timestamp: at(1), assessment: 'other' })).toEqual([
+      { messageId: 'a', timestamp: at(1), assessment: 'other' },
+    ]);
+  });
+
+  it('keeps only the most recent assessments', () => {
+    let list: ReturnType<typeof recordAssessment> = [];
+    for (let minute = 0; minute < STORED_ASSESSMENTS_PER_ROOM + 5; minute += 1) {
+      list = recordAssessment(list, { messageId: `m${minute}`, timestamp: at(minute), assessment: 'other' });
+    }
+    expect(list).toHaveLength(STORED_ASSESSMENTS_PER_ROOM);
+    expect(list[0]?.messageId).toBe('m5');
+    expect(STORED_ASSESSMENTS_PER_ROOM).toBe(10);
   });
 });
 

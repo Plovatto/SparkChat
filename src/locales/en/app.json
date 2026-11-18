@@ -342,7 +342,7 @@
       "translating": "Translating…",
       "translate": "Translate",
       "suggestTitle": "This conversation is in {{language}}. Translate automatically?",
-      "suggestAccept": "Translate",
+      "suggestAccept": "Translate automatically",
       "suggestDismiss": "Not now",
       "autoRoomTitle": "Translate messages automatically",
       "autoRoomCaption": "Messages you receive in another language in this conversation are translated as they appear, right on your device.",

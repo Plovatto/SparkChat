@@ -736,7 +736,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const { language: appLanguage } = useAppLanguage();
   const [translationSupported] = useState(isTranslationSupportedOnDevice);
   const { autoRoomIds, dismissedRoomIds, setAutoTranslate, dismissSuggestion } = useRoomTranslationPreferences(user.id);
-  const suggestion = useAutoTranslateSuggestion(room?.id ?? null);
+  const roomIds = useMemo(() => rooms.map((candidate) => candidate.id), [rooms]);
+  const suggestion = useAutoTranslateSuggestion(room?.id ?? null, roomIds);
   const translationMode: TranslationMode =
     !room || !translationSupported || isAssistantRoom(room) ? 'off' : autoRoomIds.has(room.id) ? 'auto' : 'manual';
   const { reportAssessment, reportManualTranslation } = suggestion;
@@ -955,10 +956,21 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         messagesLoaded={areMessagesLoaded}
         onLeftGroup={handleLeftGroup}
         autoTranslate={
-          translationMode === 'off' ? undefined : { enabled: translationMode === 'auto', onChange: (enabled) => changeAutoTranslate(room.id, enabled) }
+          translationMode === 'off'
+            ? undefined
+            : {
+                enabled: translationMode === 'auto',
+                onChange: (enabled) => {
+                  changeAutoTranslate(room.id, enabled);
+                  dismissSuggestion(room.id);
+                },
+              }
         }
       />
 
+      <div aria-live="polite" className="visually-hidden">
+        {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
+      </div>
       {showTranslationSuggestion && (
         <AutoTranslateBanner
           language={oppositeLanguage(appLanguage)}

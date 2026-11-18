@@ -1,9 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IncomingAssessment } from '@lib/translation/incoming';
-import { isSuggestionTriggered } from '../utils/auto-translate-suggestion';
+import { isSuggestionTriggered, recordAssessment, type RecordedAssessment } from '../utils/auto-translate-suggestion';
 
 interface RoomSignals {
-  assessments: Map<string, { timestamp: string; assessment: IncomingAssessment }>;
+  assessments: RecordedAssessment[];
   manual: Set<string>;
 }
 
@@ -13,27 +13,36 @@ export interface AutoTranslateSuggestion {
   reportManualTranslation: (messageId: string) => void;
 }
 
-function orderedAssessments(signals: RoomSignals): IncomingAssessment[] {
-  return [...signals.assessments.values()]
-    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp))
-    .map((entry) => entry.assessment);
-}
-
-export function useAutoTranslateSuggestion(roomId: string | null): AutoTranslateSuggestion {
+export function useAutoTranslateSuggestion(roomId: string | null, roomIds: string[]): AutoTranslateSuggestion {
   const signalsRef = useRef(new Map<string, RoomSignals>());
   const [triggeredRooms, setTriggeredRooms] = useState<ReadonlySet<string>>(() => new Set());
+  const roomIdsKey = roomIds.join('\u0000');
+
+  useEffect(() => {
+    const known = new Set(roomIdsKey.split('\u0000'));
+    for (const id of [...signalsRef.current.keys()]) {
+      if (!known.has(id)) {
+        signalsRef.current.delete(id);
+      }
+    }
+    setTriggeredRooms((previous) => {
+      const kept = [...previous].filter((id) => known.has(id));
+      return kept.length === previous.size ? previous : new Set(kept);
+    });
+  }, [roomIdsKey]);
 
   const signalsFor = useCallback((id: string): RoomSignals => {
     let signals = signalsRef.current.get(id);
     if (!signals) {
-      signals = { assessments: new Map(), manual: new Set() };
+      signals = { assessments: [], manual: new Set() };
       signalsRef.current.set(id, signals);
     }
     return signals;
   }, []);
 
   const evaluate = useCallback((id: string, signals: RoomSignals) => {
-    if (!isSuggestionTriggered({ manualCount: signals.manual.size, assessments: orderedAssessments(signals) })) {
+    const assessments = signals.assessments.map((entry) => entry.assessment);
+    if (!isSuggestionTriggered({ manualCount: signals.manual.size, assessments })) {
       return;
     }
     setTriggeredRooms((previous) => (previous.has(id) ? previous : new Set(previous).add(id)));
@@ -45,10 +54,10 @@ export function useAutoTranslateSuggestion(roomId: string | null): AutoTranslate
         return;
       }
       const signals = signalsFor(roomId);
-      if (signals.assessments.get(messageId)?.assessment === assessment) {
+      if (signals.assessments.some((entry) => entry.messageId === messageId && entry.assessment === assessment)) {
         return;
       }
-      signals.assessments.set(messageId, { timestamp, assessment });
+      signals.assessments = recordAssessment(signals.assessments, { messageId, timestamp, assessment });
       evaluate(roomId, signals);
     },
     [roomId, signalsFor, evaluate],
