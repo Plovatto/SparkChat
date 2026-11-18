@@ -24,6 +24,14 @@ export function shouldRequestTranslation(params: {
   return current === undefined || current.status === 'preparing';
 }
 
+export function shouldRetryOnInvalidation(params: { current: IncomingResult | undefined; cached: IncomingResult | undefined }): boolean {
+  const { current, cached } = params;
+  if (current?.status === 'preparing') {
+    return true;
+  }
+  return current?.status === 'none' && cached === undefined;
+}
+
 export function selectCurrentResult(params: {
   active: boolean;
   key: string;

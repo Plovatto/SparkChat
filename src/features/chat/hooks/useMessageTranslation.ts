@@ -11,6 +11,7 @@ import {
   resolveDisplayText,
   selectCurrentResult,
   shouldRequestTranslation,
+  shouldRetryOnInvalidation,
   type FetchedTranslation,
 } from '../utils/message-translation';
 
@@ -48,10 +49,13 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
   const showingOriginal = toggledKey === key;
   const needsRequest = shouldRequestTranslation({ enabled, isVisible, text, current });
   const needsRequestRef = useRef(needsRequest);
+  const retryOnInvalidation = shouldRetryOnInvalidation({ current, cached });
+  const retryOnInvalidationRef = useRef(retryOnInvalidation);
 
   useEffect(() => {
     needsRequestRef.current = needsRequest;
-  }, [needsRequest]);
+    retryOnInvalidationRef.current = retryOnInvalidation;
+  }, [needsRequest, retryOnInvalidation]);
 
   useEffect(() => {
     if (!needsRequest) {
@@ -73,6 +77,8 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
     return subscribeIncomingInvalidation(() => {
       if (needsRequestRef.current) {
         setInvalidation((count) => count + 1);
+      } else if (retryOnInvalidationRef.current) {
+        setFetched(null);
       }
     });
   }, [isVisible, active]);

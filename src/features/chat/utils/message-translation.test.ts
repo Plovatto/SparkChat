@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
-import { resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation } from './message-translation';
+import { shouldRetryOnInvalidation, resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation } from './message-translation';
 
 const translated: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en' };
 const preparing: IncomingResult = { status: 'preparing', sourceLanguage: 'en' };
@@ -85,5 +85,24 @@ describe('resolveBadgeState', () => {
 
   it('shows nothing for none', () => {
     expect(resolveBadgeState(none, false)).toBe('none');
+  });
+});
+
+describe('shouldRetryOnInvalidation', () => {
+  it('retries while preparing', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'preparing', sourceLanguage: 'en' }, cached: undefined })).toBe(true);
+  });
+
+  it('retries an uncached none (timeout or transient failure)', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'none' }, cached: undefined })).toBe(true);
+  });
+
+  it('does not retry a definitive none from the cache', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'none' }, cached: { status: 'none' } })).toBe(false);
+  });
+
+  it('does not retry a translation or a message with no result yet', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'translated', text: 'oi', sourceLanguage: 'en' }, cached: undefined })).toBe(false);
+    expect(shouldRetryOnInvalidation({ current: undefined, cached: undefined })).toBe(false);
   });
 });
