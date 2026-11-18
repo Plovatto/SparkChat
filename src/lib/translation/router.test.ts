@@ -66,7 +66,7 @@ describe('resolveEngine', () => {
   });
 
   it('falls back to bergamot only without the API or with an unavailable pair', async () => {
-    expect((await resolveEngine('en', 'pt'))?.engine.id).toBe('bergamot'); // no API
+    expect((await resolveEngine('en', 'pt'))?.engine.id).toBe('bergamot');
     installTranslatorApi({ availability: 'unavailable' });
     expect((await resolveEngine('pt', 'en'))?.engine.id).toBe('bergamot');
   });

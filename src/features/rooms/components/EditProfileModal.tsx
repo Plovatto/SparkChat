@@ -80,7 +80,6 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
 }
 
 export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound, autoTranslateEnabled, onToggleAutoTranslate }: EditProfileModalProps) {
-  // Off = nothing resolved, loaded or downloaded, not even to word the caption.
   const translationAvailable = useTranslationAvailability(autoTranslateEnabled);
   const soundsLabelId = useId();
   const autoTranslateLabelId = useId();

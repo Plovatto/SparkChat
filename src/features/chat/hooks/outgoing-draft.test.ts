@@ -32,7 +32,6 @@ describe('describeOutgoingDraft', () => {
     const translating: OutgoingDraftState = { status: 'translating', source: 'bom dia', translated: null };
     expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloadable', state: translating, draft: 'bom dia' })).toEqual({ kind: 'translating' });
     expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: translating, draft: 'bom dia' })).toEqual({ kind: 'translating' });
-    // An older draft's translation is never previewed, whatever the support.
     expect(describeOutgoingDraft({ isRequested: true, isEnabled: true, support: 'downloading', state: ready, draft: 'bom dia gente' })).toEqual({ kind: 'translating' });
   });
 
@@ -301,9 +300,7 @@ describe('createOutgoingDraftTranslator', () => {
     expect(outcome).toBeUndefined();
     await vi.advanceTimersByTimeAsync(1);
     expect(outcome).toBe('outgoing-send-timeout');
-    // Its own notice: nothing was sent (not the "will be sent as is" one).
     expect(lastState).toEqual({ status: 'timedOut', source: 'bom dia', translated: null });
-    // The translation keeps running; once it lands, the next send uses it without translating again.
     pending.resolve('good morning');
     await vi.advanceTimersByTimeAsync(0);
     expect(lastState).toEqual({ status: 'ready', source: 'bom dia', translated: 'good morning' });

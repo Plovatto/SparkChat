@@ -19,9 +19,7 @@ import {
 import { AutoTranslateContext } from './useAutoTranslatePreference';
 
 export interface OutgoingTranslation {
-  /** The room's toggle is on (and auto-translate is on), whether or not an engine can run. */
   isRequested: boolean;
-  /** Requested and an engine can run. */
   isEnabled: boolean;
   support: TranslationSupport;
   toggle: () => void;
@@ -42,13 +40,10 @@ async function translateOutgoing(text: string, source: Language, target: Languag
   return translatePreservingSegments(text, (chunk) => route.engine.translate(chunk, source, target, { priority: 0 }));
 }
 
-/** Per-room "translate before sending" (interface language -> the other one). Gated by the global auto-translate switch. */
 export function useOutgoingTranslation(roomId: string, userId: string, draft: string, available = true): OutgoingTranslation {
-  // `available` false (the SparkAI room) behaves like auto-translate off: no engine resolved, nothing translated.
   const autoTranslate = useContext(AutoTranslateContext) && available;
   const { language: source } = useAppLanguage();
   const target = oppositeLanguage(source);
-  // Only room ids are stored (security rule 1).
   const { ids, toggle: toggleIds } = usePersistedIdSet(`outgoingTranslation:${userId}`);
   const [route, setRoute] = useState<{ pair: string; route: EngineRoute | null } | null>(null);
   const [routeVersion, setRouteVersion] = useState(0);
@@ -56,7 +51,6 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
   const translatorRef = useRef<OutgoingDraftTranslator | null>(null);
   const pair = `${source}-${target}`;
 
-  // Auto-translate off = the engine is never even resolved, so nothing is loaded or downloaded.
   useEffect(() => {
     if (!autoTranslate) {
       return;
@@ -72,7 +66,6 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
     };
   }, [autoTranslate, source, target, pair, routeVersion]);
 
-  // A download finished (or a failed one may be retried): resolve again so the strip leaves "translating".
   useEffect(() => {
     if (!autoTranslate) {
       return;
@@ -87,15 +80,12 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
   const isEnabled = isRequested && isUsable(support);
   const isRoutePending = support === 'downloadable' || support === 'downloading';
 
-  // A draft translated while the route still said "downloading" means the model is there now: resolve again.
   useEffect(() => {
     if (isRoutePending && state.status === 'ready') {
       setRouteVersion((version) => version + 1);
     }
   }, [isRoutePending, state.status]);
 
-  // The engine changed (a stalled native download handed over to the fallback): a draft that failed on the old one
-  // is translated again on the new one instead of waiting for the next keystroke.
   const engineId = currentRoute?.engine.id;
   const previousEngineId = useRef(engineId);
   useEffect(() => {
@@ -105,7 +95,6 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
     previousEngineId.current = engineId;
   }, [engineId]);
 
-  // One translator per room and language pair: leaving the room (or switching language) drops any pending work.
   useEffect(() => {
     const translator = createOutgoingDraftTranslator((text) => translateOutgoing(text, source, target));
     translatorRef.current = translator;
@@ -126,11 +115,9 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
 
   const toggle = useCallback(() => {
     if (isOnForRoom) {
-      // Turning it off while a send awaits its translation cancels that send, so the composer unlocks at once.
       translatorRef.current?.cancelPendingSends();
     }
     if (!isOnForRoom && currentRoute && isUsable(currentRoute.support)) {
-      // Called synchronously inside the click so the native engine still has the user gesture it needs to download.
       const refresh = () => setRouteVersion((version) => version + 1);
       currentRoute.engine.prepare(source, target).then(refresh, refresh);
       if (currentRoute.support === 'downloadable') {

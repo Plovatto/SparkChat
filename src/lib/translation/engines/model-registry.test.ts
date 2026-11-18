@@ -32,7 +32,6 @@ describe('bundled model registry', () => {
     const registry = modelRegistry('https://models.example/v1/');
     expect(registry.pten.vocab.name).toBe('https://models.example/v1/pten/vocab.pten.spm.gz');
     expect(registry.pten.vocab.expectedSha256Hash).toBe(BUNDLED_MODEL_REGISTRY.pten.vocab.expectedSha256Hash);
-    // the bundled registry itself stays relative
     expect(BUNDLED_MODEL_REGISTRY.pten.vocab.name).toBe('pten/vocab.pten.spm.gz');
   });
 });

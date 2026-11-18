@@ -7,10 +7,8 @@ interface FakeOptions {
   availability: Availability;
   translate?: (text: string) => string;
   failCreates?: number;
-  /** DOMException name of the failed creates; NotAllowedError is the missing-gesture rejection. */
   failName?: string;
   progress?: number[];
-  /** create() never settles, like a download that never starts. */
   hangCreates?: boolean;
 }
 
@@ -189,7 +187,6 @@ describe('armNativeOnFirstInteraction', () => {
     fakeWindow.dispatch('keydown');
     await flush();
     expect(fake.createCalls).toBe(2);
-    // succeeded: no longer armed
     expect(fakeWindow.count('pointerdown')).toBe(0);
     expect(fakeWindow.count('keydown')).toBe(0);
   });
@@ -200,7 +197,6 @@ describe('armNativeOnFirstInteraction', () => {
     fakeWindow.dispatch('pointerdown');
     dispose();
     await flush();
-    // Disposed while the availability check was in flight: no download starts and nothing listens again.
     expect(fake.createCalls).toBe(0);
     expect(fakeWindow.count('pointerdown')).toBe(0);
   });
@@ -340,7 +336,6 @@ describe('nativeEngine stalled download', () => {
     nativeEngine.onRetryAvailable!(retry);
     const prepared = nativeEngine.prepare('en', 'pt');
     const waiting = nativeEngine.translate('hello', 'en', 'pt');
-    // Work that waited on the stalled download fails instead of hanging.
     const preparedFails = expect(prepared).rejects.toThrow('model-load-failed');
     const waitingFails = expect(waiting).rejects.toThrow('translate-failed');
     await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
@@ -351,7 +346,6 @@ describe('nativeEngine stalled download', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(retry).toHaveBeenCalledTimes(2);
     expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
-    // The finished translator is reused, not created again.
     expect(await nativeEngine.translate('hi', 'en', 'pt')).toBe('PT:hi');
     expect(create).toHaveBeenCalledTimes(1);
   });
@@ -373,12 +367,10 @@ describe('nativeEngine stalled download', () => {
     void nativeEngine.prepare('en', 'pt').catch(() => undefined);
     await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
     expect(retry).toHaveBeenCalledTimes(1);
-    // Still downloading elsewhere: stays on the fallback.
     state = 'downloading';
     expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
     await vi.advanceTimersByTimeAsync(0);
     expect(retry).toHaveBeenCalledTimes(1);
-    // Another tab finished the download: checks are bounded, so only the next one after the window brings native back.
     state = 'available';
     expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
     await vi.advanceTimersByTimeAsync(0);

@@ -144,7 +144,6 @@ describe('translation epochs', () => {
       forgetTranslation('r', `m${i}`);
     }
     expect(getTranslationCacheSizeForTests('epochs')).toBe(TRANSLATION_EPOCH_TRACK_SIZE);
-    // m0's stamp was evicted, yet the old epoch still reads as stale
     expect(isTranslationEpochCurrent(epoch)).toBe(false);
   });
 });

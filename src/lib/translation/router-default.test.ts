@@ -20,7 +20,6 @@ vi.mock('./engines/bergamot-loader', () => ({
   },
 }));
 
-// Imported directly, not through the barrel: the router registers the Bergamot loader itself.
 import { resolveEngine } from './router';
 
 describe('router default fallback', () => {

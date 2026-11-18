@@ -1,6 +1,3 @@
-// Verifies a downloaded model file against its manifest entry: the compressed bytes (size + sha256)
-// and, after gunzip, the uncompressed bytes (rawSize + rawSha256) the browser may receive when a
-// server decodes `Content-Encoding: gzip`. Returns an error message, or null when the file is valid.
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 

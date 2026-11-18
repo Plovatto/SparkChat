@@ -39,10 +39,9 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
     return translate('chat.message.encryptedUnavailable');
   }
 
-  try {
-    return await decryptText(content, roomKey);
-  } catch {
-    // Held a key but it does not open this room — replace the local copy from the server and retry.
+  const decrypted = await decryptText(content, roomKey).catch(() => null);
+  if (decrypted !== null) {
+    return decrypted;
   }
 
   const refetched = await refetchRoomKeyAfterDecryptionFailure(socket, roomId);
@@ -216,14 +215,11 @@ export interface OutgoingMessageFields {
   linkPreview?: MessageLinkPreview;
 }
 
-// Without the room key there is no way to encrypt, so this throws instead of handing back
-// plaintext: a message that cannot be encrypted is never sent.
 export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T> {
   const roomKey = requireCachedRoomKey(message.roomId);
   const encrypt = (value: string) => encryptText(value, roomKey);
   const encryptNullable = (value: string | null) => (value ? encrypt(value) : Promise.resolve(null));
 
-  // Media content is the URL of an upload that was already encrypted before it left the device.
   const contentPromise = (message.type ?? 'text') === 'text' ? encrypt(message.content) : Promise.resolve(message.content);
   const captionPromise = message.caption ? encrypt(message.caption) : Promise.resolve(undefined);
   const fileMetaPromise = message.fileMeta

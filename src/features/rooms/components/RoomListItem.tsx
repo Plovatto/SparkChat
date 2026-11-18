@@ -198,7 +198,6 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   }
 
   const isOwnMessage = message.sender.id === user.id;
-  // The SparkAI welcome is stored in the language the account was created in: shown in the current one, like the bubble.
   const content = (isAssistantRoom(room) && !isOwnMessage ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const statusInfo = getMessageStatus(message, isOwnMessage, room.type === 'group', room.participants, user.id);
   const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id);
@@ -432,7 +431,6 @@ export const RoomListItem = memo(function RoomListItem({
             )}
           </div>
         </div>
-        {/* The counters always sit at the right of the preview line, under the time: the preview takes what is left. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (

@@ -2,14 +2,12 @@ export type Segment = { kind: 'text' | 'protected'; value: string };
 
 export const MIN_TRANSLATABLE_LETTERS = 4;
 
-// Mentions mirror MENTION_TOKEN_PATTERN in MessageBubble; URLs run to the next whitespace.
 const PROTECTED_PATTERN = /(https?:\/\/\S+|@[\p{L}\p{N}_]+)/gu;
 const LAUGHTER_WORD = /^(k{3,}|(ha){2,}|(he){2,}|(rs)+|lol|lmao)$/i;
 const LETTER = /\p{L}/gu;
 
 export function splitSegments(text: string): Segment[] {
   const segments: Segment[] = [];
-  // split with a capture group puts protected parts at odd indexes
   text.split(PROTECTED_PATTERN).forEach((value, index) => {
     if (value === '') return;
     segments.push({ kind: index % 2 === 1 ? 'protected' : 'text', value });

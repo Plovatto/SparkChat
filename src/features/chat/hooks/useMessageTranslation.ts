@@ -36,7 +36,6 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
   const { language } = useAppLanguage();
   const original = text ?? '';
   const active = enabled && hasText(text);
-  // Identifies one request; in memory only. Any change (text, language, ids) supersedes the previous result and toggle.
   const key = [roomId, messageId, field, language, original].join('\u0000');
 
   const [fetched, setFetched] = useState<FetchedTranslation | null>(null);
@@ -50,7 +49,6 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
   const needsRequest = shouldRequestTranslation({ enabled, isVisible, text, current });
   const needsRequestRef = useRef(needsRequest);
 
-  // Declared before the request effect so the listener sees `true` from the moment a request is sent.
   useEffect(() => {
     needsRequestRef.current = needsRequest;
   }, [needsRequest]);
@@ -61,7 +59,6 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
     }
     const controller = new AbortController();
     void translateIncoming({ roomId, messageId, field, text: original, target: language, signal: controller.signal }).then((next) => {
-      // Aborted means superseded (left the screen, text/language changed, unmounted): its result is ignored.
       if (!controller.signal.aborted) {
         setFetched({ key, result: next });
       }
@@ -69,8 +66,6 @@ export function useMessageTranslation({ roomId, messageId, field, text, enabled,
     return () => controller.abort();
   }, [needsRequest, key, roomId, messageId, field, original, language, invalidation]);
 
-  // Subscribed for the whole visible lifetime, not only once 'preparing' is rendered: a download finishing while a
-  // request is in flight would otherwise be missed. Only bubbles still waiting (in flight or preparing) re-request.
   useEffect(() => {
     if (!isVisible || !active) {
       return;

@@ -27,8 +27,6 @@ type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
-// The server never sees a message that failed to encrypt, so the failure is reported locally
-// through the same 'error' event the server uses, letting the chat mark it as failed right away.
 function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, error: unknown): void {
   const message = error instanceof MissingRoomKeyError ? error.message : translate('errors.e2ee.encryptFailed');
   for (const listener of socket.listeners('error')) {
@@ -64,8 +62,6 @@ function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: stri
   }
 
   if (room.type === 'private') {
-    // 'room:joined' for a private room only ever fires once, for whoever actively called
-    // room:create-private — every other discovery path (room:new, rooms:list) is passive.
     const isActiveCreationEvent = event === 'room:joined';
     void establishPrivateRoomKey(socket, room, currentUserId, isActiveCreationEvent);
   } else if (room.type === 'group') {
@@ -128,11 +124,6 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   const originalOff = genericSocket.off.bind(socket);
   const originalEmit = genericSocket.emit.bind(socket);
 
-  // Decrypting is async, but plain socket.io dispatches events to handlers strictly in arrival
-  // order — existing code (e.g. useRoomMessages telling an initial page load apart from a
-  // just-arrived live message) silently depends on that. Chaining every wrapped event through
-  // one queue keeps that same in-order guarantee even though each payload takes a moment to
-  // decrypt, instead of letting whichever one decrypts fastest jump ahead.
   let dispatchQueue: Promise<void> = Promise.resolve();
 
   genericSocket.on = (event: string, handler: AnyHandler) => {
@@ -206,10 +197,6 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     return originalClose();
   };
 
-  // Registered once here (not inside transformPayload) so room-key establishment fires exactly
-  // once per raw event no matter how many app-level consumers independently call
-  // socket.on('room:joined' | ...) — transformPayload runs once per *registered handler*, which
-  // would otherwise generate/overwrite the room key multiple times concurrently for one event.
   originalOn('room:created', (payload: { room: RoomSummary; messages: MessageView[] }) => {
     maybeEstablishRoomKey(socket, payload.room, 'room:created', deferredRoomEvents);
   });

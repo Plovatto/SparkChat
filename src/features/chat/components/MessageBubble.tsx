@@ -41,7 +41,6 @@ interface MessageBubbleProps extends MessageBubbleActions {
   isOwn: boolean;
   isGroupChat: boolean;
   roomId: string;
-  /** The SparkAI room: no translation, and its welcome is shown in the current language. */
   isAssistantRoom?: boolean;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
@@ -134,10 +133,7 @@ export const MessageBubble = memo(function MessageBubble({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const isVisible = useInViewport(bubbleRef);
   const { language } = useAppLanguage();
-  // The assistant already answers in the right language (even a deliberately different one), so it is never translated.
   const autoTranslate = useContext(AutoTranslateContext) && !isAssistantRoom;
-  // Only delivered messages are translated, own ones included (one sent in the other language, e.g. translated before
-  // sending, reads back in the interface language); never pending, failed or deleted ones.
   const canTranslate = !message.pending && !message.failed && !message.deletedForEveryone;
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
@@ -187,8 +183,6 @@ export const MessageBubble = memo(function MessageBubble({
   const captionBadge = (
     <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
   );
-  // One badge per bubble, in the bottom row next to the time: text messages translate the content, media the caption.
-  // Only when there is something to show: an empty slot would widen short bubbles by the row's gap.
   const metaBadge =
     message.type === 'text'
       ? contentTranslation.result.status !== 'none'
