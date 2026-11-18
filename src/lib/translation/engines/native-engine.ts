@@ -254,6 +254,9 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
       for (const pair of pairs) {
         const [source, target] = pair.split('-') as [Language, Language];
         const availability = await support(source, target);
+        if (disposed) {
+          return;
+        }
         // 'downloading' too: a download started by an earlier page may be stuck, and create() attaches our monitor.
         if (availability === 'downloadable' || availability === 'downloading') {
           // create() can reject when the gesture's activation was already gone: wait for the next interaction.

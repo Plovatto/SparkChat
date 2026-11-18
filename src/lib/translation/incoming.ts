@@ -190,6 +190,10 @@ async function run(job: Job): Promise<IncomingResult> {
   // A failure can be the engine giving the pair up (a native download that stalled, Chrome refusing one more
   // translator): ask again, and if another engine took over, use it now. An uncached none would leave the message
   // untranslated, since it stops listening for invalidations.
+  if (job.finished) {
+    // Timed out meanwhile: the queue moved on and a result would be thrown away.
+    return NONE;
+  }
   invalidateEngineRoutes();
   const next = await resolveEngine(source, request.target);
   if (!next || next.engine === route.engine) {
