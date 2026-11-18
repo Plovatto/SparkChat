@@ -136,8 +136,9 @@ export const MessageBubble = memo(function MessageBubble({
   const { language } = useAppLanguage();
   // The assistant already answers in the right language (even a deliberately different one), so it is never translated.
   const autoTranslate = useContext(AutoTranslateContext) && !isAssistantRoom;
-  // Only someone else's delivered message is translated: never own, pending, failed or deleted ones.
-  const canTranslate = !isOwn && !message.pending && !message.failed && !message.deletedForEveryone;
+  // Only delivered messages are translated, own ones included (one sent in the other language, e.g. translated before
+  // sending, reads back in the interface language); never pending, failed or deleted ones.
+  const canTranslate = !message.pending && !message.failed && !message.deletedForEveryone;
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
