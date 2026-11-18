@@ -452,6 +452,40 @@ describe('translateIncoming', () => {
     expect(await translateIncoming(req('p4', 'Hello Team', 'en'))).toEqual({ status: 'none' });
     expect(getCachedIncoming('r1', 'p4', 'content', 'en', 'Hello Team')).toEqual({ status: 'none' });
   });
+
+  it('a confident translation that comes back equal to the original is none, cached', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.9 });
+    native.translate.mockImplementation((text) => Promise.resolve(`${text}.`));
+    expect(await translateIncoming(req('p7', 'Ok Google', 'pt'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'p7', 'content', 'pt', 'Ok Google')).toEqual({ status: 'none' });
+  });
+
+  it('translates very short chat messages', async () => {
+    detect.mockResolvedValue(null);
+    expect(await translateIncoming(req('a1', 'oi', 'en'))).toEqual({ status: 'translated', text: 'EN:oi', sourceLanguage: 'pt' });
+  });
+
+  it('expands chat abbreviations only in the text sent to the engine', async () => {
+    detect.mockResolvedValue(null);
+    expect(await translateIncoming(req('a2', 'vlw', 'en'))).toEqual({ status: 'translated', text: 'EN:valeu', sourceLanguage: 'pt' });
+    expect(native.translate).toHaveBeenCalledWith('valeu', 'pt', 'en', { priority: 1 });
+    expect(getCachedIncoming('r1', 'a2', 'content', 'en', 'vlw')?.status).toBe('translated');
+  });
+
+  it('uses the abbreviations of the source language', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.9 });
+    await translateIncoming(req('a3', 'thx u', 'pt'));
+    expect(native.translate).toHaveBeenCalledWith('thanks you', 'en', 'pt', { priority: 1 });
+  });
+
+  it('translates a multi-line message paragraph by paragraph', async () => {
+    expect(await translateIncoming(req('a4', 'good morning\n\nsee you soon', 'pt'))).toEqual({
+      status: 'translated',
+      text: 'PT:good morning\n\nPT:see you soon',
+      sourceLanguage: 'en',
+    });
+    expect(native.translate).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('clearing while translating (security rule 6)', () => {

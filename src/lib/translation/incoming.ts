@@ -1,5 +1,6 @@
 import { appI18n } from '@lib/i18n/app-i18n';
 import { oppositeLanguage, type Language } from '@lib/i18n/language';
+import { normalizeChatAbbreviations } from './abbreviations';
 import { detectLanguage } from './detection';
 import { nativeEngine } from './engines/native-engine';
 import { invalidateEngineRoutes, resolveEngine, type EngineRoute } from './router';
@@ -214,9 +215,9 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
   }
   try {
     const text = await translatePreservingSegments(request.text, (chunk) =>
-      engine.translate(chunk, source, request.target, { priority: 1 }),
+      engine.translate(normalizeChatAbbreviations(chunk, source), source, request.target, { priority: 1 }),
     );
-    if (guessed && isSameText(text, request.text)) {
+    if (isSameText(text, request.text)) {
       return rememberFor(job, NONE);
     }
     return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
