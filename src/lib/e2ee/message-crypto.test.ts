@@ -123,7 +123,7 @@ describe('decryptMessageView link preview image', () => {
       content: 'veja https://site.test',
       linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl, siteName: null },
     });
-    return { ...toMessageView(encrypted), linkPreview: encrypted.linkPreview ?? null };
+    return { ...toMessageView({ content: encrypted.content }), linkPreview: encrypted.linkPreview ?? null };
   }
 
   it('drops a legacy plain image URL without fetching it', async () => {

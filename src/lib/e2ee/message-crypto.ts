@@ -182,7 +182,7 @@ async function resolveLinkPreviewImage(socket: AppSocket, imageUrl: string | nul
     return null;
   }
 
-  const resolved = await decryptMediaContentIfNeeded(socket, imageUrl, roomId, LINK_PREVIEW_IMAGE_META);
+  const resolved = await decryptMediaContentIfNeeded(socket, imageUrl, roomId, LINK_PREVIEW_IMAGE_META, 'image');
   return resolved.startsWith('blob:') ? resolved : null;
 }
 
