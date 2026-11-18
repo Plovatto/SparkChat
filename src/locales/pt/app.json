@@ -91,7 +91,8 @@
     "e2ee": {
       "encryptFailed": "Não foi possível criptografar a mensagem.",
       "missingRoomKey": "A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes.",
-      "mediaUndecryptable": "Não foi possível descriptografar este arquivo. Tente de novo em instantes."
+      "mediaUndecryptable": "Não foi possível descriptografar este arquivo. Tente de novo em instantes.",
+      "identityKeyMismatch": "A chave de criptografia recebida do servidor não corresponde à sua chave pública. Por segurança, ela não foi usada. Entre de novo ou use seu arquivo de recuperação."
     },
     "download": {
       "failed": "Não foi possível baixar o arquivo."
@@ -465,6 +466,7 @@
     "changePassword": "Trocar senha",
     "downloadRecovery": "Baixar arquivo de recuperação",
     "sounds": "Sons do app",
+    "hideNotificationContent": "Ocultar conteúdo nas notificações",
     "activeSessions": "Dispositivos com sessão ativa",
     "revokeOthers": "Encerrar todas as outras",
     "noOtherSessions": "Nenhuma outra sessão ativa.",
@@ -480,11 +482,21 @@
     "sentImage": "Enviou uma imagem",
     "sentAudio": "Enviou um áudio",
     "sentFile": "Enviou um arquivo",
-    "sentNamedFile": "Enviou um arquivo: {{name}}"
+    "sentNamedFile": "Enviou um arquivo: {{name}}",
+    "newMessage": "Nova mensagem"
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
-    "connecting": "Conectando ao servidor..."
+    "connecting": "Conectando ao servidor...",
+    "deepLink": {
+      "joinTitle": "Entrar no grupo?",
+      "joinMessage": "Um link pediu para você entrar no grupo com o código {{code}}. Quer entrar?",
+      "chatTitle": "Iniciar conversa?",
+      "chatMessage": "Um link pediu para você iniciar uma conversa com {{nickname}}. Quer continuar?",
+      "notice": "Só confirme se você confia em quem enviou o link.",
+      "confirmJoin": "Entrar no grupo",
+      "confirmChat": "Iniciar conversa"
+    }
   },
   "avatars": {
     "User": "Pessoa",

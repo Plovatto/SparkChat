@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { LoadingScreen } from '@components/common/LoadingScreen';
@@ -11,7 +11,7 @@ import {
   useChatTriggerEffects,
   useEnsureAssistantChat,
 } from '@features/chat';
-import { LoginScreen, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
+import { LoginScreen, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
   ensureIdentityAfterKeyfileLogin,
@@ -22,6 +22,7 @@ import {
 import {
   useAudioContextPrimer,
   useMessageNotifications,
+  useNotificationContentPreference,
   useNotificationPreference,
   useSoundPreference,
   useUnreadBadge,
@@ -35,6 +36,8 @@ import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
+import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
+import { hasDeepLinkParams, readDeepLinkIntents, type DeepLinkIntent } from './deep-link';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
@@ -183,10 +186,14 @@ function AuthGate({
   useThemeSync();
   useChatSettingsSync();
 
+  const currentSessionToken = user?.sessionToken;
   const handleUserLogout = useCallback(() => {
+    if (currentUserId && currentSessionToken) {
+      void revokeServerSession({ userId: currentUserId, sessionToken: currentSessionToken });
+    }
     socket?.emit('user:logout');
     onLogout();
-  }, [socket, onLogout]);
+  }, [socket, onLogout, currentUserId, currentSessionToken]);
 
   if (isRestoring) {
     return <LoadingScreen theme={theme} />;
@@ -239,7 +246,13 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
+  const [deepLinkIntents, setDeepLinkIntents] = useState<DeepLinkIntent[]>(() =>
+    readDeepLinkIntents(window.location.search, user.nickname),
+  );
+  const stopDeepLinkErrorWatchRef = useRef<(() => void) | null>(null);
+
   const notificationPreference = useNotificationPreference();
+  const notificationContentPreference = useNotificationContentPreference();
   const soundPreference = useSoundPreference();
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
@@ -253,6 +266,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     notificationPreference.isEnabled,
     soundPreference.isEnabled,
     setSelectedRoomId,
+    notificationContentPreference.isContentHidden,
   );
   useUnreadBadge(totalUnread);
   useChatTriggerEffects(selectedRoomId, user.id, soundPreference.isEnabled);
@@ -293,48 +307,51 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   };
 
   useEffect(() => {
-    if (!socket) {
-      return;
+    if (hasDeepLinkParams(window.location.search)) {
+      window.history.replaceState({}, '', window.location.pathname);
     }
+  }, []);
 
-    const params = new URLSearchParams(window.location.search);
-    const startChatWith = params.get('startChat');
-    const joinCode = params.get('join');
+  useEffect(() => () => stopDeepLinkErrorWatchRef.current?.(), []);
 
-    const wantsChat = Boolean(startChatWith) && startChatWith?.toLowerCase() !== user.nickname.toLowerCase();
-    if (!wantsChat && !joinCode) {
-      if (startChatWith) {
-        window.history.replaceState({}, '', window.location.pathname);
+  const dismissDeepLink = useCallback(() => setDeepLinkIntents((previous) => previous.slice(1)), []);
+
+  const confirmDeepLink = useCallback(
+    (intent: DeepLinkIntent) => {
+      if (!socket) {
+        return;
       }
-      return;
-    }
 
-    const handleDeepLinkError = (payload: SocketErrorPayload) => {
-      if (!payload.clientTempId && !payload.event) {
-        window.alert(translateErrorPayload(payload, 'errors.generic'));
+      stopDeepLinkErrorWatchRef.current?.();
+      const handleDeepLinkError = (payload: SocketErrorPayload) => {
+        if (!payload.clientTempId && !payload.event) {
+          window.alert(translateErrorPayload(payload, 'errors.generic'));
+        }
+      };
+      const stopListening = () => {
+        window.clearTimeout(timer);
+        socket.off('error', handleDeepLinkError);
+        socket.off('room:joined', stopListening);
+        socket.off('room:created', stopListening);
+        if (stopDeepLinkErrorWatchRef.current === stopListening) {
+          stopDeepLinkErrorWatchRef.current = null;
+        }
+      };
+      socket.on('error', handleDeepLinkError);
+      socket.on('room:joined', stopListening);
+      socket.on('room:created', stopListening);
+      const timer = window.setTimeout(stopListening, DEEP_LINK_ERROR_WINDOW_MS);
+      stopDeepLinkErrorWatchRef.current = stopListening;
+
+      if (intent.kind === 'chat') {
+        socket.emit('room:create-private', { targetNickname: intent.nickname });
+      } else {
+        socket.emit('room:join-by-code', { roomCode: intent.code });
       }
-    };
-    const stopListening = () => socket.off('error', handleDeepLinkError);
-    socket.on('error', handleDeepLinkError);
-    socket.on('room:joined', stopListening);
-    socket.on('room:created', stopListening);
-    const timer = window.setTimeout(stopListening, DEEP_LINK_ERROR_WINDOW_MS);
-
-    if (wantsChat && startChatWith) {
-      socket.emit('room:create-private', { targetNickname: startChatWith });
-    }
-    if (joinCode) {
-      socket.emit('room:join-by-code', { roomCode: joinCode.toUpperCase() });
-    }
-    window.history.replaceState({}, '', window.location.pathname);
-
-    return () => {
-      window.clearTimeout(timer);
-      stopListening();
-      socket.off('room:joined', stopListening);
-      socket.off('room:created', stopListening);
-    };
-  }, [socket, user.nickname]);
+      dismissDeepLink();
+    },
+    [socket, dismissDeepLink],
+  );
 
   useEffect(() => {
     if (!socket) {
@@ -436,6 +453,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onToggleNotifications={handleToggleNotifications}
                 soundEnabled={soundPreference.isEnabled}
                 onToggleSound={soundPreference.toggle}
+                notificationContentHidden={notificationContentPreference.isContentHidden}
+                onToggleNotificationContent={notificationContentPreference.toggle}
                 mutedRoomIds={mutedRoomIds}
                 onToggleMuted={toggleMuted}
               />
@@ -457,6 +476,12 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
         </Card>
       </div>
       <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} />
+      <DeepLinkConfirmDialog
+        intent={deepLinkIntents[0] ?? null}
+        canConfirm={socket !== null}
+        onConfirm={confirmDeepLink}
+        onCancel={dismissDeepLink}
+      />
     </Container>
   );
 }

@@ -91,7 +91,8 @@
     "e2ee": {
       "encryptFailed": "Couldn't encrypt the message.",
       "missingRoomKey": "This conversation's encryption key hasn't arrived yet. Please try again in a moment.",
-      "mediaUndecryptable": "Couldn't decrypt this file. Please try again in a moment."
+      "mediaUndecryptable": "Couldn't decrypt this file. Please try again in a moment.",
+      "identityKeyMismatch": "The encryption key received from the server doesn't match your public key. For your safety it wasn't used. Sign in again or use your recovery file."
     },
     "download": {
       "failed": "Couldn't download the file."
@@ -465,6 +466,7 @@
     "changePassword": "Change password",
     "downloadRecovery": "Download recovery file",
     "sounds": "App sounds",
+    "hideNotificationContent": "Hide message content in notifications",
     "activeSessions": "Devices with an active session",
     "revokeOthers": "Sign out all other sessions",
     "noOtherSessions": "No other active sessions.",
@@ -480,11 +482,21 @@
     "sentImage": "Sent an image",
     "sentAudio": "Sent a voice message",
     "sentFile": "Sent a file",
-    "sentNamedFile": "Sent a file: {{name}}"
+    "sentNamedFile": "Sent a file: {{name}}",
+    "newMessage": "New message"
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connecting": "Connecting to the server..."
+    "connecting": "Connecting to the server...",
+    "deepLink": {
+      "joinTitle": "Join group?",
+      "joinMessage": "A link asked you to join the group with code {{code}}. Do you want to join?",
+      "chatTitle": "Start chat?",
+      "chatMessage": "A link asked you to start a chat with {{nickname}}. Do you want to continue?",
+      "notice": "Only confirm if you trust whoever sent you the link.",
+      "confirmJoin": "Join group",
+      "confirmChat": "Start chat"
+    }
   },
   "avatars": {
     "User": "Person",

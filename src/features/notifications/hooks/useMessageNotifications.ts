@@ -11,8 +11,11 @@ export function useMessageNotifications(
   isNotificationEnabled: boolean,
   isSoundEnabled: boolean,
   onNotificationClick: (roomId: string) => void,
+  isContentHidden = true,
 ): void {
   const { socket } = useSocket();
+  const isContentHiddenRef = useRef(isContentHidden);
+  isContentHiddenRef.current = isContentHidden;
   const roomsRef = useRef(rooms);
   roomsRef.current = rooms;
   const mutedRoomIdsRef = useRef(mutedRoomIds);
@@ -49,7 +52,7 @@ export function useMessageNotifications(
         return;
       }
 
-      void buildNotificationContent(message, room).then(({ title, body, icon, image }) => {
+      void buildNotificationContent(message, room, { hideContent: isContentHiddenRef.current }).then(({ title, body, icon, image }) => {
         const options: NotificationOptions & { renotify?: boolean; image?: string } = {
           body,
           tag: message.roomId,

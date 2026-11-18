@@ -4,6 +4,8 @@ import {
   FaCheck,
   FaDesktop,
   FaExclamationTriangle,
+  FaEye,
+  FaEyeSlash,
   FaFileDownload,
   FaKey,
   FaLock,
@@ -43,6 +45,8 @@ interface EditProfileModalProps {
   onLogout: () => void;
   soundEnabled: boolean;
   onToggleSound: () => void;
+  notificationContentHidden: boolean;
+  onToggleNotificationContent: () => void;
 }
 
 type ProfileTab = 'profile' | 'security' | 'system';
@@ -75,8 +79,19 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
   );
 }
 
-export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout, soundEnabled, onToggleSound }: EditProfileModalProps) {
+export function EditProfileModal({
+  isOpen,
+  onClose,
+  user,
+  onUserUpdate,
+  onLogout,
+  soundEnabled,
+  onToggleSound,
+  notificationContentHidden,
+  onToggleNotificationContent,
+}: EditProfileModalProps) {
   const soundsLabelId = useId();
+  const notificationContentLabelId = useId();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -532,6 +547,30 @@ export function EditProfileModal({ isOpen, onClose, user, onUserUpdate, onLogout
               </span>
             </div>
             <Switch checked={soundEnabled} onChange={onToggleSound} aria-labelledby={soundsLabelId} />
+          </div>
+
+          <div
+            className="sc-card"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              borderRadius: '10px',
+              padding: '12px 16px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {notificationContentHidden ? <FaEyeSlash size={16} color={theme.accentText} /> : <FaEye size={16} color={theme.textMuted} />}
+              <span id={notificationContentLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+                {t('profile.hideNotificationContent')}
+              </span>
+            </div>
+            <Switch
+              checked={notificationContentHidden}
+              onChange={onToggleNotificationContent}
+              aria-labelledby={notificationContentLabelId}
+            />
           </div>
 
           <div>

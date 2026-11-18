@@ -21,6 +21,28 @@ export async function generateIdentity(): Promise<Identity> {
   };
 }
 
+export class IdentityKeyMismatchError extends Error {
+  constructor() {
+    super('The unwrapped private key does not match the published public key.');
+    this.name = 'IdentityKeyMismatchError';
+  }
+}
+
+export async function privateKeyMatchesPublicKey(privateKey: Uint8Array, publicKey: string): Promise<boolean> {
+  const sodium = await getSodium();
+  if (privateKey.length !== sodium.crypto_scalarmult_SCALARBYTES) {
+    return false;
+  }
+  let expected: Uint8Array;
+  try {
+    expected = sodium.from_base64(publicKey);
+  } catch {
+    return false;
+  }
+  const derived = sodium.crypto_scalarmult_base(privateKey);
+  return expected.length === derived.length && sodium.memcmp(derived, expected);
+}
+
 async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promise<Uint8Array> {
   const sodium = await getSodium();
   return sodium.crypto_pwhash(
