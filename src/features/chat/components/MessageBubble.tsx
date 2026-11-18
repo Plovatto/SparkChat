@@ -183,6 +183,11 @@ export const MessageBubble = memo(function MessageBubble({
   const contentBadge = (
     <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} bubble={bubbleStyle} />
   );
+  const captionBadge = (
+    <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
+  );
+  // One badge per bubble, in the bottom row next to the time: text messages translate the content, media the caption.
+  const metaBadge = message.type === 'text' ? contentBadge : caption ? captionBadge : null;
   const textAccentColor = bubbleStyle.accentColor;
 
   const handleRetry = () => {
@@ -238,7 +243,6 @@ export const MessageBubble = memo(function MessageBubble({
             </>
           )}
         </p>
-        {contentBadge}
       </div>
     );
   };
@@ -293,18 +297,16 @@ export const MessageBubble = memo(function MessageBubble({
       {hasLinkPreview && linkPreviewCaption && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
           <p style={MESSAGE_TEXT_STYLE}>{linkPreviewCaption}</p>
-          {contentBadge}
         </div>
       )}
 
       {message.type !== 'text' && caption && (
         <div style={MEDIA_CAPTION_STYLE}>
           <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(caption, participants, textAccentColor)}</p>
-          <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
         </div>
       )}
 
-      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} />
+      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} leading={metaBadge} />
     </MessageBubbleShell>
   );
 });

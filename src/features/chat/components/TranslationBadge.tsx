@@ -11,7 +11,7 @@ interface TranslationBadgeProps {
   bubble: ResolvedBubbleStyle;
 }
 
-const BADGE_STYLE: CSSProperties = { margin: '2px 0 0', fontSize: '0.72rem', lineHeight: 1.4 };
+const BADGE_STYLE: CSSProperties = { margin: 0, fontSize: '0.7rem', lineHeight: 1.4 };
 
 export function TranslationBadge({ result, showingOriginal, onToggle, bubble }: TranslationBadgeProps) {
   const { t } = useTranslation();
