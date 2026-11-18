@@ -94,6 +94,17 @@ export function useOutgoingTranslation(roomId: string, userId: string, draft: st
     }
   }, [isRoutePending, state.status]);
 
+  // The engine changed (a stalled native download handed over to the fallback): a draft that failed on the old one
+  // is translated again on the new one instead of waiting for the next keystroke.
+  const engineId = currentRoute?.engine.id;
+  const previousEngineId = useRef(engineId);
+  useEffect(() => {
+    if (previousEngineId.current !== undefined && engineId !== undefined && engineId !== previousEngineId.current) {
+      translatorRef.current?.retryFailed();
+    }
+    previousEngineId.current = engineId;
+  }, [engineId]);
+
   // One translator per room and language pair: leaving the room (or switching language) drops any pending work.
   useEffect(() => {
     const translator = createOutgoingDraftTranslator((text) => translateOutgoing(text, source, target));

@@ -136,8 +136,9 @@ export const MessageBubble = memo(function MessageBubble({
   const { language } = useAppLanguage();
   // The assistant already answers in the right language (even a deliberately different one), so it is never translated.
   const autoTranslate = useContext(AutoTranslateContext) && !isAssistantRoom;
-  // Only someone else's delivered message is translated: never own, pending, failed or deleted ones.
-  const canTranslate = !isOwn && !message.pending && !message.failed && !message.deletedForEveryone;
+  // Only delivered messages are translated, own ones included (one sent in the other language, e.g. translated before
+  // sending, reads back in the interface language); never pending, failed or deleted ones.
+  const canTranslate = !message.pending && !message.failed && !message.deletedForEveryone;
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
@@ -183,6 +184,19 @@ export const MessageBubble = memo(function MessageBubble({
   const contentBadge = (
     <TranslationBadge result={contentTranslation.result} showingOriginal={contentTranslation.showingOriginal} onToggle={contentTranslation.toggleOriginal} bubble={bubbleStyle} />
   );
+  const captionBadge = (
+    <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
+  );
+  // One badge per bubble, in the bottom row next to the time: text messages translate the content, media the caption.
+  // Only when there is something to show: an empty slot would widen short bubbles by the row's gap.
+  const metaBadge =
+    message.type === 'text'
+      ? contentTranslation.result.status !== 'none'
+        ? contentBadge
+        : null
+      : caption && captionTranslation.result.status !== 'none'
+        ? captionBadge
+        : null;
   const textAccentColor = bubbleStyle.accentColor;
 
   const handleRetry = () => {
@@ -238,7 +252,6 @@ export const MessageBubble = memo(function MessageBubble({
             </>
           )}
         </p>
-        {contentBadge}
       </div>
     );
   };
@@ -293,18 +306,16 @@ export const MessageBubble = memo(function MessageBubble({
       {hasLinkPreview && linkPreviewCaption && (
         <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
           <p style={MESSAGE_TEXT_STYLE}>{linkPreviewCaption}</p>
-          {contentBadge}
         </div>
       )}
 
       {message.type !== 'text' && caption && (
         <div style={MEDIA_CAPTION_STYLE}>
           <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(caption, participants, textAccentColor)}</p>
-          <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
         </div>
       )}
 
-      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} />
+      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} leading={metaBadge} />
     </MessageBubbleShell>
   );
 });

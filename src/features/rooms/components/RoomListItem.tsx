@@ -23,10 +23,11 @@ import { MEDIUM_SCREEN_MIN_WIDTH_PX, minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } 
 import type { User } from '@features/auth';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
+import { localizeAssistantWelcome } from '@features/chat/utils/assistant-welcome';
 import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatAudioTime, formatTime, getDisplayName, resolveActiveUserNames, systemMessageSegments } from '@lib/format';
-import { translate } from '@lib/i18n/app-i18n';
+import { translate, useAppLanguage } from '@lib/i18n/app-i18n';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomSummary } from '@lib/socket';
 import { getOtherParticipant, getRoomDisplayName } from '../utils/room-display';
@@ -47,9 +48,9 @@ interface RoomListItemProps {
   entranceIndex?: number;
 }
 
-const PREVIEW_LENGTH_SMALL_SCREEN = 70;
-const PREVIEW_LENGTH_MEDIUM_SCREEN = 190;
-const PREVIEW_LENGTH_LARGE_SCREEN = 100;
+const PREVIEW_LENGTH_SMALL_SCREEN = 45;
+const PREVIEW_LENGTH_MEDIUM_SCREEN = 120;
+const PREVIEW_LENGTH_LARGE_SCREEN = 60;
 
 function useMessagePreviewLength(): number {
   const isSplitLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
@@ -164,6 +165,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   const { theme } = useTheme();
   const message = room.lastMessage;
   const previewLength = useMessagePreviewLength();
+  const { language } = useAppLanguage();
 
   if (!message) {
     return null;
@@ -196,6 +198,8 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   }
 
   const isOwnMessage = message.sender.id === user.id;
+  // The SparkAI welcome is stored in the language the account was created in: shown in the current one, like the bubble.
+  const content = (isAssistantRoom(room) && !isOwnMessage ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const statusInfo = getMessageStatus(message, isOwnMessage, room.type === 'group', room.participants, user.id);
   const audioHasBeenPlayed = isOwnMessage ? message.playedBy.length > 0 : message.playedBy.includes(user.id);
   const showGroupSender = room.type === 'group' && !isOwnMessage;
@@ -267,7 +271,7 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
     return (
       <span style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, lineHeight: 1.5, overflow: 'hidden' }}>
         {senderLabel}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.5 }}>{truncate(message.content, previewLength)}</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.5 }}>{truncate(content, previewLength)}</span>
       </span>
     );
   };
@@ -420,57 +424,6 @@ export const RoomListItem = memo(function RoomListItem({
             {room.userBlocked && <FaBan size={12} color={theme.dangerText} style={{ flexShrink: 0 }} title={t('chat.youBlocked')} />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
-            {room.mentionCount > 0 && (
-              <span
-                title={t('rooms.mentioned')}
-                className="sc-anim-badge-pop"
-                style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  boxSizing: 'border-box',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: theme.onWarning,
-                  background: theme.warning,
-                  flexShrink: 0,
-                }}
-              >
-                <FaAt size={10} />
-              </span>
-            )}
-            {room.unreadCount > 0 &&
-              (() => {
-                const unreadLabel = room.unreadCount > 99 ? '99+' : String(room.unreadCount);
-                const diameter = unreadLabel.length === 1 ? 20 : unreadLabel.length === 2 ? 23 : 27;
-
-                return (
-                  <span
-                    key={unreadLabel}
-                    className="sc-anim-badge-pop"
-                    style={{
-                      fontSize: unreadLabel.length > 2 ? '0.6rem' : '0.7rem',
-                      borderRadius: '50%',
-                      width: `${diameter}px`,
-                      height: `${diameter}px`,
-                      boxSizing: 'border-box',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      color: theme.textOnAccent,
-                      background: theme.accent,
-                      boxShadow: theme.shadowAccent,
-                      border: 'none',
-                      marginRight: '5px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {unreadLabel}
-                  </span>
-                );
-              })()}
             {isAssistantRoom(room) && <FaThumbtack size={11} color={theme.accentText} style={{ flexShrink: 0 }} title={t('rooms.pinned')} />}
             {room.lastMessage && (
               <small style={{ fontSize: '0.7rem', color: hasUnread ? theme.accentText : theme.textMuted, flexShrink: 0, fontWeight: hasUnread ? 700 : 500 }}>
@@ -479,11 +432,66 @@ export const RoomListItem = memo(function RoomListItem({
             )}
           </div>
         </div>
-        {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (
-          <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} />
-        ) : (
-          <LastMessagePreview key={room.lastMessage?.id ?? 'empty'} room={room} user={user} />
-        )}
+        {/* The counters always sit at the right of the preview line, under the time: the preview takes what is left. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {typingUserIds.length > 0 || recordingUserIds.length > 0 ? (
+              <ActivityPreview room={room} user={user} typingUserIds={typingUserIds} recordingUserIds={recordingUserIds} />
+            ) : (
+              <LastMessagePreview key={room.lastMessage?.id ?? 'empty'} room={room} user={user} />
+            )}
+          </div>
+          {room.mentionCount > 0 && (
+            <span
+              title={t('rooms.mentioned')}
+              className="sc-anim-badge-pop"
+              style={{
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: theme.onWarning,
+                background: theme.warning,
+                flexShrink: 0,
+              }}
+            >
+              <FaAt size={10} />
+            </span>
+          )}
+          {room.unreadCount > 0 &&
+            (() => {
+              const unreadLabel = room.unreadCount > 99 ? '99+' : String(room.unreadCount);
+              const diameter = unreadLabel.length === 1 ? 20 : unreadLabel.length === 2 ? 23 : 27;
+
+              return (
+                <span
+                  key={unreadLabel}
+                  className="sc-anim-badge-pop"
+                  style={{
+                    fontSize: unreadLabel.length > 2 ? '0.6rem' : '0.7rem',
+                    borderRadius: '50%',
+                    width: `${diameter}px`,
+                    height: `${diameter}px`,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    color: theme.textOnAccent,
+                    background: theme.accent,
+                    boxShadow: theme.shadowAccent,
+                    border: 'none',
+                    flexShrink: 0,
+                  }}
+                >
+                  {unreadLabel}
+                </span>
+              );
+            })()}
+        </div>
       </div>
     </div>
   );

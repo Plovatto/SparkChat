@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NATIVE_API_TIMEOUT_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
+import { NATIVE_API_TIMEOUT_MS, NATIVE_DOWNLOAD_STALL_MS, NATIVE_STALL_RECHECK_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
 
 type Availability = 'unavailable' | 'downloadable' | 'downloading' | 'available';
 
@@ -7,10 +7,20 @@ interface FakeOptions {
   availability: Availability;
   translate?: (text: string) => string;
   failCreates?: number;
+  /** DOMException name of the failed creates; NotAllowedError is the missing-gesture rejection. */
+  failName?: string;
   progress?: number[];
+  /** create() never settles, like a download that never starts. */
+  hangCreates?: boolean;
 }
 
-const fake = { createCalls: 0 };
+const fake: { createCalls: number; monitor?: EventTarget } = { createCalls: 0 };
+
+function dispatchProgress(loaded: number): void {
+  const event = new Event('downloadprogress') as Event & { loaded: number };
+  event.loaded = loaded;
+  fake.monitor!.dispatchEvent(event);
+}
 
 function installFakeTranslator(options: FakeOptions): void {
   let failuresLeft = options.failCreates ?? 0;
@@ -21,10 +31,16 @@ function installFakeTranslator(options: FakeOptions): void {
       fake.createCalls += 1;
       if (failuresLeft > 0) {
         failuresLeft -= 1;
-        return Promise.reject(new Error('create-failed'));
+        const error = new Error('create-failed');
+        error.name = options.failName ?? 'NotAllowedError';
+        return Promise.reject(error);
       }
       const monitor = new EventTarget();
       createOptions.monitor?.(monitor);
+      fake.monitor = monitor;
+      if (options.hangCreates) {
+        return new Promise<never>(() => undefined);
+      }
       for (const loaded of options.progress ?? []) {
         const event = new Event('downloadprogress') as Event & { loaded: number };
         event.loaded = loaded;
@@ -131,6 +147,30 @@ describe('armNativeOnFirstInteraction', () => {
     expect(fake.createCalls).toBe(1);
   });
 
+  it('also prepares pairs whose download is already "downloading" (started elsewhere, maybe stalled)', async () => {
+    installFakeTranslator({ availability: 'downloading' });
+    armNativeOnFirstInteraction(['en-pt']);
+    fakeWindow.dispatch('pointerdown');
+    await flush();
+    expect(fake.createCalls).toBe(1);
+  });
+
+  it('creates the pairs in the given order even when the first availability answers last', async () => {
+    const order: string[] = [];
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: ({ sourceLanguage }: { sourceLanguage: string }) =>
+        new Promise((resolve) => setTimeout(() => resolve('downloadable'), sourceLanguage === 'pt' ? 5 : 0)),
+      create: ({ sourceLanguage, targetLanguage }: { sourceLanguage: string; targetLanguage: string }) => {
+        order.push(`${sourceLanguage}-${targetLanguage}`);
+        return Promise.resolve({ translate: (text: string) => Promise.resolve(text) });
+      },
+    };
+    armNativeOnFirstInteraction(['pt-en', 'en-pt']);
+    fakeWindow.dispatch('pointerdown');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(order).toEqual(['pt-en', 'en-pt']);
+  });
+
   it('skips pairs that are not downloadable', async () => {
     installFakeTranslator({ availability: 'available' });
     armNativeOnFirstInteraction(['en-pt']);
@@ -160,7 +200,8 @@ describe('armNativeOnFirstInteraction', () => {
     fakeWindow.dispatch('pointerdown');
     dispose();
     await flush();
-    expect(fake.createCalls).toBe(1);
+    // Disposed while the availability check was in flight: no download starts and nothing listens again.
+    expect(fake.createCalls).toBe(0);
     expect(fakeWindow.count('pointerdown')).toBe(0);
   });
 
@@ -234,5 +275,118 @@ describe('nativeEngine availability timeout', () => {
     expect(retry).not.toHaveBeenCalled();
     expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
     expect(availability).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nativeEngine stalled download', () => {
+  beforeEach(() => {
+    resetNativeEngineForTests();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    delete (globalThis as Record<string, unknown>).Translator;
+    resetNativeEngineForTests();
+  });
+
+  it('a download with no progress for the stall window makes the pair unavailable and says so', async () => {
+    installFakeTranslator({ availability: 'downloadable', hangCreates: true });
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    void nativeEngine.prepare('en', 'pt').catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS - 1);
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    expect(retry).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    expect(await nativeEngine.support('pt', 'en')).toBe('downloadable');
+  });
+
+  it('progress events keep a slow download alive', async () => {
+    installFakeTranslator({ availability: 'downloadable', hangCreates: true });
+    void nativeEngine.prepare('en', 'pt').catch(() => undefined);
+    for (let step = 1; step <= 5; step += 1) {
+      await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS - 1);
+      dispatchProgress(step / 10);
+    }
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+  });
+
+  it('a create that fails for a reason other than the gesture makes the pair unavailable', async () => {
+    installFakeTranslator({ availability: 'downloadable', failCreates: 1, failName: 'NotSupportedError' });
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    await expect(nativeEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+  });
+
+  it('a missing-gesture rejection is not a stall', async () => {
+    installFakeTranslator({ availability: 'downloadable', failCreates: 1 });
+    await expect(nativeEngine.prepare('en', 'pt')).rejects.toThrow('model-load-failed');
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+  });
+
+  it('a stalled download that finishes later brings the pair back to native', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    const create = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: vi.fn(() => Promise.resolve('downloadable')),
+      create,
+    };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    const prepared = nativeEngine.prepare('en', 'pt');
+    const waiting = nativeEngine.translate('hello', 'en', 'pt');
+    // Work that waited on the stalled download fails instead of hanging.
+    const preparedFails = expect(prepared).rejects.toThrow('model-load-failed');
+    const waitingFails = expect(waiting).rejects.toThrow('translate-failed');
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    await preparedFails;
+    await waitingFails;
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    finish({ translate: (text: string) => Promise.resolve(`PT:${text}`) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect(await nativeEngine.support('en', 'pt')).toBe('downloadable');
+    // The finished translator is reused, not created again.
+    expect(await nativeEngine.translate('hi', 'en', 'pt')).toBe('PT:hi');
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('an available pair leaves no stall timer once created', async () => {
+    installFakeTranslator({ availability: 'available' });
+    await nativeEngine.prepare('en', 'pt');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a stalled pair whose model becomes available another way goes back to native', async () => {
+    let state = 'downloadable';
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: vi.fn(() => Promise.resolve(state)),
+      create: vi.fn(() => new Promise<never>(() => undefined)),
+    };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    void nativeEngine.prepare('en', 'pt').catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(retry).toHaveBeenCalledTimes(1);
+    // Still downloading elsewhere: stays on the fallback.
+    state = 'downloading';
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    // Another tab finished the download: checks are bounded, so only the next one after the window brings native back.
+    state = 'available';
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(NATIVE_STALL_RECHECK_MS);
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect(await nativeEngine.support('en', 'pt')).toBe('available');
   });
 });
