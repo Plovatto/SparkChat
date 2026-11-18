@@ -248,12 +248,14 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const soundPreference = useSoundPreference();
   const autoTranslate = useAutoTranslatePreference();
   const autoTranslateEnabled = autoTranslate.isEnabled;
+  const { language: appLanguage } = useAppLanguage();
   useEffect(() => {
     if (!autoTranslateEnabled) {
       return;
     }
-    return armNativeOnFirstInteraction(['en-pt', 'pt-en']);
-  }, [autoTranslateEnabled]);
+    // Each interaction unlocks one download: the pair that translates incoming messages into the UI language goes first.
+    return armNativeOnFirstInteraction(appLanguage === 'en' ? ['pt-en', 'en-pt'] : ['en-pt', 'pt-en']);
+  }, [autoTranslateEnabled, appLanguage]);
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);

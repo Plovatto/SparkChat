@@ -203,6 +203,36 @@ describe('createOutgoingDraftTranslator', () => {
     expect(await d.resolveForSend('boa noite pessoal')).toEqual({ text: 'EN:boa noite pessoal', translated: true });
   });
 
+  it('retryFailed translates a failed draft again (the engine changed)', async () => {
+    let fail = true;
+    const d = track((t) => (fail ? Promise.reject(new Error('translate-failed')) : Promise.resolve(`EN:${t}`)));
+    d.update('olá pessoal');
+    await vi.advanceTimersByTimeAsync(400);
+    expect(lastState?.status).toBe('failed');
+    fail = false;
+    d.retryFailed();
+    expect(lastState).toEqual({ status: 'translating', source: 'olá pessoal', translated: null });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lastState).toEqual({ status: 'ready', source: 'olá pessoal', translated: 'EN:olá pessoal' });
+    expect(translateCalls).toEqual(['olá pessoal', 'olá pessoal']);
+  });
+
+  it('retryFailed leaves ready, idle and disposed drafts alone', async () => {
+    const d = track((t) => Promise.resolve(`EN:${t}`));
+    d.retryFailed();
+    expect(translateCalls).toEqual([]);
+    d.update('olá pessoal');
+    await vi.advanceTimersByTimeAsync(400);
+    d.retryFailed();
+    expect(translateCalls).toEqual(['olá pessoal']);
+    const failing = track(() => Promise.reject(new Error('translate-failed')));
+    failing.update('boa noite pessoal');
+    await vi.advanceTimersByTimeAsync(400);
+    failing.dispose();
+    failing.retryFailed();
+    expect(translateCalls).toEqual(['olá pessoal', 'boa noite pessoal']);
+  });
+
   it('reports a failed draft translation', async () => {
     const d = track(() => Promise.reject(new Error('translate-failed')));
     d.update('olá pessoal');
