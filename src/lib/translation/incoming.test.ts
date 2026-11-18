@@ -418,15 +418,38 @@ describe('translateIncoming', () => {
     expect(await translateIncoming(req('m4', 'see you later', 'en'))).toEqual({ status: 'none' });
   });
 
-  it('returns none for same language or low confidence', async () => {
+  it('returns none for a message confidently in the target language, without translating', async () => {
     detect.mockResolvedValue({ language: 'pt', confidence: 0.95 });
     expect(await translateIncoming(req('p1', 'bom dia equipe', 'pt'))).toEqual({ status: 'none' });
-    detect.mockResolvedValue({ language: 'en', confidence: 0.5 });
-    expect(await translateIncoming(req('p2', 'good morning team', 'pt'))).toEqual({ status: 'none' });
-    detect.mockResolvedValue(null);
-    expect(await translateIncoming(req('p3', 'good evening team', 'pt'))).toEqual({ status: 'none' });
     expect(native.translate).not.toHaveBeenCalled();
-    expect(getCachedIncoming('r1', 'p2', 'content', 'pt', 'good morning team')).toEqual({ status: 'none' });
+  });
+
+  it('translates from the other language when detection is unsure (short messages)', async () => {
+    detect.mockResolvedValue(null);
+    expect(await translateIncoming(req('p2', 'achei bom', 'en'))).toEqual({ status: 'translated', text: 'EN:achei bom', sourceLanguage: 'pt' });
+    detect.mockResolvedValue({ language: 'en', confidence: 0.5 });
+    expect(await translateIncoming(req('p3', 'nice one', 'pt'))).toEqual({ status: 'translated', text: 'PT:nice one', sourceLanguage: 'en' });
+    expect(native.translate).toHaveBeenCalledWith('achei bom', 'pt', 'en', { priority: 1 });
+  });
+
+  it('an unsure guess never shows preparing nor downloads a model', async () => {
+    detect.mockResolvedValue(null);
+    native.support.mockResolvedValue('downloadable');
+    expect(await translateIncoming(req('p5', 'achei bom', 'pt'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'p5', 'content', 'pt', 'achei bom')).toBeUndefined();
+    delete (globalThis as Record<string, unknown>).Translator;
+    resetRouterForTests();
+    registerFallbackEngine(() => bergamotLoader.load());
+    bergamot.support.mockResolvedValue('downloadable');
+    expect(await translateIncoming(req('p6', 'achei bom', 'pt'))).toEqual({ status: 'none' });
+    expect(bergamot.prepare).not.toHaveBeenCalled();
+  });
+
+  it('an unsure guess that translates to the same text was already in the target language: none, cached', async () => {
+    detect.mockResolvedValue(null);
+    native.translate.mockImplementation((text) => Promise.resolve(` ${text.toUpperCase()} `));
+    expect(await translateIncoming(req('p4', 'Hello Team', 'en'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'p4', 'content', 'en', 'Hello Team')).toEqual({ status: 'none' });
   });
 });
 

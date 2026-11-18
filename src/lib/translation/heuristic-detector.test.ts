@@ -18,3 +18,13 @@ describe('detectPtEn', () => {
     expect(detectPtEn('')).toBeNull();
   });
 });
+
+describe('detectPtEn short chat phrases', () => {
+  it.each(['achei bom', 'muito legal', 'gostei demais', 'beleza então', 'oi tudo bem'])('detects "%s" as pt', (text) => {
+    expect(detectPtEn(text)?.language).toBe('pt');
+  });
+
+  it.each(['nice one', 'love it', 'sounds great', 'see you soon'])('detects "%s" as en', (text) => {
+    expect(detectPtEn(text)?.language).toBe('en');
+  });
+});

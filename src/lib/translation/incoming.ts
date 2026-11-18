@@ -1,5 +1,5 @@
 import { appI18n } from '@lib/i18n/app-i18n';
-import type { Language } from '@lib/i18n/language';
+import { oppositeLanguage, type Language } from '@lib/i18n/language';
 import { detectLanguage } from './detection';
 import { nativeEngine } from './engines/native-engine';
 import { invalidateEngineRoutes, resolveEngine, type EngineRoute } from './router';
@@ -175,15 +175,17 @@ function rememberFor(job: Job, value: CachedTranslation): IncomingResult {
 async function run(job: Job): Promise<IncomingResult> {
   const { request } = job;
   const detected = await detectLanguage(request.text);
-  if (!detected || detected.confidence < MIN_DETECTION_CONFIDENCE || detected.language === request.target) {
+  const confident = detected !== null && detected.confidence >= MIN_DETECTION_CONFIDENCE;
+  if (confident && detected.language === request.target) {
     return rememberFor(job, NONE);
   }
-  const source = detected.language;
+  const source = confident ? detected.language : oppositeLanguage(request.target);
+  const guessed = !confident;
   const route = await resolveEngine(source, request.target);
   if (!route) {
     return NONE;
   }
-  const result = await runOnRoute(job, source, route);
+  const result = await runOnRoute(job, source, route, guessed);
   if (result !== FAILED) {
     return result;
   }
@@ -199,17 +201,25 @@ async function run(job: Job): Promise<IncomingResult> {
   if (!next || next.engine === route.engine) {
     return NONE;
   }
-  const retried = await runOnRoute(job, source, next);
+  const retried = await runOnRoute(job, source, next, guessed);
   return retried === FAILED ? NONE : retried;
 }
 
 /** Marks a translate call that threw, so run() can retry on another engine. */
 const FAILED = { status: 'none' } as const satisfies IncomingResult;
 
-async function runOnRoute(job: Job, source: Language, route: EngineRoute): Promise<IncomingResult> {
+function isSameText(a: string, b: string): boolean {
+  const normalize = (text: string) => text.toLocaleLowerCase().replace(/[\s\p{P}]+/gu, '');
+  return normalize(a) === normalize(b);
+}
+
+async function runOnRoute(job: Job, source: Language, route: EngineRoute, guessed: boolean): Promise<IncomingResult> {
   const { request } = job;
   const { engine, support } = route;
   if (support === 'downloadable' || support === 'downloading') {
+    if (guessed) {
+      return NONE;
+    }
     watchProgress(engine);
     // Native needs a user gesture to download; armNativeOnFirstInteraction triggers it elsewhere.
     if (engine.id === 'native') {
@@ -226,6 +236,9 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute): Promi
     const text = await translatePreservingSegments(request.text, (chunk) =>
       engine.translate(chunk, source, request.target, { priority: 1 }),
     );
+    if (guessed && isSameText(text, request.text)) {
+      return rememberFor(job, NONE);
+    }
     return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
   } catch {
     return FAILED;

@@ -39,7 +39,27 @@ describe('detectLanguage', () => {
 
   it('normalizes pt-BR to pt', async () => {
     installFakeDetector([{ detectedLanguage: 'pt-BR', confidence: 0.9 }]);
-    expect(await detectLanguage('oi gente')).toEqual({ language: 'pt', confidence: 0.9 });
+    expect(await detectLanguage('oi gente')).toEqual({ language: 'pt', confidence: 1 });
+  });
+
+  it('scores a short phrase as pt against en only (other languages do not dilute it)', async () => {
+    installFakeDetector([
+      { detectedLanguage: 'gl', confidence: 0.6 },
+      { detectedLanguage: 'pt', confidence: 0.3 },
+      { detectedLanguage: 'en', confidence: 0.02 },
+    ]);
+    const result = await detectLanguage('achei bom');
+    expect(result?.language).toBe('pt');
+    expect(result?.confidence).toBeCloseTo(0.3 / 0.32);
+  });
+
+  it('does not trust a tiny pt share when the text is in a third language', async () => {
+    installFakeDetector([
+      { detectedLanguage: 'es', confidence: 0.95 },
+      { detectedLanguage: 'pt', confidence: 0.03 },
+      { detectedLanguage: 'en', confidence: 0.005 },
+    ]);
+    expect(await detectLanguage('hola amigos')).toBeNull();
   });
 
   it('reuses a single detector instance', async () => {

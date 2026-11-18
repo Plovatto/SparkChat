@@ -3,6 +3,8 @@ import { detectPtEn, type DetectedLanguage } from './heuristic-detector';
 import { TIMED_OUT, withNativeTimeout } from './native-timeout';
 import { translatableText } from './segments';
 
+const MIN_PT_EN_SHARE = 0.2;
+
 let detectorPromise: Promise<LanguageDetectorInstance> | null = null;
 /** Set once create() never answered: the native detector is skipped for the rest of the session. */
 let detectorHung = false;
@@ -38,10 +40,15 @@ export async function detectLanguage(text: string): Promise<DetectedLanguage | n
     }
     const results = await withNativeTimeout(detector.detect(input));
     if (results === TIMED_OUT) return detectPtEn(input);
-    const top = results[0];
-    if (!top) return null;
-    const language = normalize(top.detectedLanguage);
-    return language ? { language, confidence: top.confidence } : null;
+    const scores = { pt: 0, en: 0 };
+    for (const result of results) {
+      const language = normalize(result.detectedLanguage);
+      if (language) scores[language] += result.confidence;
+    }
+    const total = scores.pt + scores.en;
+    if (total < MIN_PT_EN_SHARE) return detectPtEn(input);
+    const language: Language = scores.pt >= scores.en ? 'pt' : 'en';
+    return { language, confidence: scores[language] / total };
   } catch {
     return detectPtEn(input);
   }

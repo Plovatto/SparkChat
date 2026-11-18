@@ -7,14 +7,16 @@ export interface DetectedLanguage {
 
 const PT_WORDS = new Set(
   (
-    'de que não o a os as um uma é eu você vc pra para com por mas está tá tudo bem obrigado valeu sim também isso aqui hoje amanhã'
+    'de que não o a os as um uma é eu você vc pra para com por mas está tá tudo bem obrigado valeu sim também isso aqui hoje amanhã ' +
+    'achei acho bom boa legal muito mesmo gostei demais beleza então oi olá nossa tbm sei agora ainda vamos'
   ).split(' '),
 );
 const EN_WORDS = new Set(
   (
     'the and is are you i to of it that this what with for not have be was will can just yeah thanks ok hello hi ' +
     // extra chat words so short English messages reach the minimum signal
-    'we my at if how they in on good morning still'
+    'we my at if how they in on good morning still ' +
+    'nice one love great sounds see soon cool awesome yes'
   ).split(' '),
 );
 
