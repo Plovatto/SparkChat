@@ -13,6 +13,12 @@ export { NATIVE_API_TIMEOUT_MS };
  */
 export const NATIVE_DOWNLOAD_STALL_MS = 30_000;
 
+/**
+ * A stalled pair asks Chrome again at most this often. Chrome can answer 'available' and still refuse create()
+ * (e.g. "translation service count exceeded"): without a bound, un-stalling and stalling again would loop.
+ */
+export const NATIVE_STALL_RECHECK_MS = 30_000;
+
 const INTERACTION_EVENTS = ['pointerdown', 'keydown'] as const;
 
 const translators = new Map<PairKey, Promise<TranslatorInstance>>();
@@ -26,6 +32,8 @@ const hungPairs = new Set<PairKey>();
  * unavailable (the fallback takes over) until that create() succeeds after all.
  */
 const stalledPairs = new Set<PairKey>();
+const stalledRechecks = new Set<PairKey>();
+const lastStalledRecheck = new Map<PairKey, number>();
 const progressListeners = new Set<(event: TranslationProgressEvent) => void>();
 const retryListeners = new Set<() => void>();
 
@@ -134,7 +142,11 @@ async function support(source: Language, target: Language): Promise<TranslationS
     return 'unavailable';
   }
   const key = pairKey(source, target);
-  if (hungPairs.has(key) || stalledPairs.has(key)) {
+  if (stalledPairs.has(key)) {
+    recheckStalled(translatorApi, key, source, target);
+    return 'unavailable';
+  }
+  if (hungPairs.has(key)) {
     return 'unavailable';
   }
   try {
@@ -149,6 +161,30 @@ async function support(source: Language, target: Language): Promise<TranslationS
   } catch {
     return 'unavailable';
   }
+}
+
+/**
+ * A stalled pair asks Chrome again in the background each time it is consulted: if the model became available another
+ * way (another tab, Chrome finishing on its own while this page's create() stays wedged), native wins again. Only
+ * 'available' counts: 'downloading' may be the same stuck download.
+ */
+function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: Language, target: Language): void {
+  const last = lastStalledRecheck.get(key);
+  if (stalledRechecks.has(key) || (last !== undefined && Date.now() - last < NATIVE_STALL_RECHECK_MS)) {
+    return;
+  }
+  stalledRechecks.add(key);
+  lastStalledRecheck.set(key, Date.now());
+  void withNativeTimeout(translatorApi.availability({ sourceLanguage: source, targetLanguage: target }))
+    .then(
+      (result) => {
+        if (result === 'available' && stalledPairs.delete(key)) {
+          notifyRetry();
+        }
+      },
+      () => undefined,
+    )
+    .finally(() => stalledRechecks.delete(key));
 }
 
 /** User rule: Bergamot only when the device cannot use the Translator API, so a slow answer is not final. */
@@ -213,20 +249,22 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
   };
   const handler = () => {
     unlisten();
-    for (const pair of pairs) {
-      const [source, target] = pair.split('-') as [Language, Language];
-      void support(source, target).then((availability) => {
+    // In order, one after the other: the gesture unlocks a single create(), and it goes to the first pair that needs it.
+    void (async () => {
+      for (const pair of pairs) {
+        const [source, target] = pair.split('-') as [Language, Language];
+        const availability = await support(source, target);
         // 'downloading' too: a download started by an earlier page may be stuck, and create() attaches our monitor.
         if (availability === 'downloadable' || availability === 'downloading') {
           // create() can reject when the gesture's activation was already gone: wait for the next interaction.
-          return nativeEngine.prepare(source, target).catch(() => {
+          void nativeEngine.prepare(source, target).catch(() => {
             if (!disposed) {
               listen();
             }
           });
         }
-      });
-    }
+      }
+    })();
   };
   listen();
   return () => {
@@ -239,6 +277,8 @@ export function resetNativeEngineForTests(): void {
   translators.clear();
   hungPairs.clear();
   stalledPairs.clear();
+  stalledRechecks.clear();
+  lastStalledRecheck.clear();
   progressListeners.clear();
   retryListeners.clear();
 }

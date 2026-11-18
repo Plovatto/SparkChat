@@ -2,7 +2,7 @@ import { appI18n } from '@lib/i18n/app-i18n';
 import type { Language } from '@lib/i18n/language';
 import { detectLanguage } from './detection';
 import { nativeEngine } from './engines/native-engine';
-import { invalidateEngineRoutes, resolveEngine } from './router';
+import { invalidateEngineRoutes, resolveEngine, type EngineRoute } from './router';
 import { hasTranslatableText, translatePreservingSegments } from './segments';
 import {
   captureTranslationEpoch,
@@ -183,6 +183,27 @@ async function run(job: Job): Promise<IncomingResult> {
   if (!route) {
     return NONE;
   }
+  const result = await runOnRoute(job, source, route);
+  if (result !== FAILED) {
+    return result;
+  }
+  // A failure can be the engine giving the pair up (a native download that stalled, Chrome refusing one more
+  // translator): ask again, and if another engine took over, use it now. An uncached none would leave the message
+  // untranslated, since it stops listening for invalidations.
+  invalidateEngineRoutes();
+  const next = await resolveEngine(source, request.target);
+  if (!next || next.engine === route.engine) {
+    return NONE;
+  }
+  const retried = await runOnRoute(job, source, next);
+  return retried === FAILED ? NONE : retried;
+}
+
+/** Marks a translate call that threw, so run() can retry on another engine. */
+const FAILED = { status: 'none' } as const satisfies IncomingResult;
+
+async function runOnRoute(job: Job, source: Language, route: EngineRoute): Promise<IncomingResult> {
+  const { request } = job;
   const { engine, support } = route;
   if (support === 'downloadable' || support === 'downloading') {
     watchProgress(engine);
@@ -203,7 +224,7 @@ async function run(job: Job): Promise<IncomingResult> {
     );
     return rememberFor(job, { status: 'translated', text, sourceLanguage: source });
   } catch {
-    return NONE;
+    return FAILED;
   }
 }
 

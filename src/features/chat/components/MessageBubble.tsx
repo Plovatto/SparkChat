@@ -188,7 +188,15 @@ export const MessageBubble = memo(function MessageBubble({
     <TranslationBadge result={captionTranslation.result} showingOriginal={captionTranslation.showingOriginal} onToggle={captionTranslation.toggleOriginal} bubble={bubbleStyle} />
   );
   // One badge per bubble, in the bottom row next to the time: text messages translate the content, media the caption.
-  const metaBadge = message.type === 'text' ? contentBadge : caption ? captionBadge : null;
+  // Only when there is something to show: an empty slot would widen short bubbles by the row's gap.
+  const metaBadge =
+    message.type === 'text'
+      ? contentTranslation.result.status !== 'none'
+        ? contentBadge
+        : null
+      : caption && captionTranslation.result.status !== 'none'
+        ? captionBadge
+        : null;
   const textAccentColor = bubbleStyle.accentColor;
 
   const handleRetry = () => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NATIVE_API_TIMEOUT_MS, NATIVE_DOWNLOAD_STALL_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
+import { NATIVE_API_TIMEOUT_MS, NATIVE_DOWNLOAD_STALL_MS, NATIVE_STALL_RECHECK_MS, armNativeOnFirstInteraction, nativeEngine, resetNativeEngineForTests } from './native-engine';
 
 type Availability = 'unavailable' | 'downloadable' | 'downloading' | 'available';
 
@@ -153,6 +153,22 @@ describe('armNativeOnFirstInteraction', () => {
     fakeWindow.dispatch('pointerdown');
     await flush();
     expect(fake.createCalls).toBe(1);
+  });
+
+  it('creates the pairs in the given order even when the first availability answers last', async () => {
+    const order: string[] = [];
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: ({ sourceLanguage }: { sourceLanguage: string }) =>
+        new Promise((resolve) => setTimeout(() => resolve('downloadable'), sourceLanguage === 'pt' ? 5 : 0)),
+      create: ({ sourceLanguage, targetLanguage }: { sourceLanguage: string; targetLanguage: string }) => {
+        order.push(`${sourceLanguage}-${targetLanguage}`);
+        return Promise.resolve({ translate: (text: string) => Promise.resolve(text) });
+      },
+    };
+    armNativeOnFirstInteraction(['pt-en', 'en-pt']);
+    fakeWindow.dispatch('pointerdown');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(order).toEqual(['pt-en', 'en-pt']);
   });
 
   it('skips pairs that are not downloadable', async () => {
@@ -339,9 +355,37 @@ describe('nativeEngine stalled download', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it('an available pair creates without arming a stall timer', async () => {
+  it('an available pair leaves no stall timer once created', async () => {
     installFakeTranslator({ availability: 'available' });
     await nativeEngine.prepare('en', 'pt');
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('a stalled pair whose model becomes available another way goes back to native', async () => {
+    let state = 'downloadable';
+    (globalThis as Record<string, unknown>).Translator = {
+      availability: vi.fn(() => Promise.resolve(state)),
+      create: vi.fn(() => new Promise<never>(() => undefined)),
+    };
+    const retry = vi.fn();
+    nativeEngine.onRetryAvailable!(retry);
+    void nativeEngine.prepare('en', 'pt').catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(retry).toHaveBeenCalledTimes(1);
+    // Still downloading elsewhere: stays on the fallback.
+    state = 'downloading';
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    // Another tab finished the download: checks are bounded, so only the next one after the window brings native back.
+    state = 'available';
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(NATIVE_STALL_RECHECK_MS);
+    expect(await nativeEngine.support('en', 'pt')).toBe('unavailable');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(retry).toHaveBeenCalledTimes(2);
+    expect(await nativeEngine.support('en', 'pt')).toBe('available');
   });
 });
