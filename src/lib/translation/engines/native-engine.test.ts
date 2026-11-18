@@ -532,6 +532,34 @@ describe('nativeEngine stall memory across sessions', () => {
     dispose();
   });
 
+  it('a pair that stalls again is not retried on every click and keeps its original expiry', async () => {
+    await stallOnce();
+    const firstExpiry = storage.getItem(NATIVE_STALLED_PAIRS_STORAGE_KEY);
+    await vi.advanceTimersByTimeAsync(60_000);
+    resetNativeEngineForTests();
+    installFakeTranslator({ availability: 'downloadable', hangCreates: true });
+    const dispose = armNativeOnFirstInteraction(['pt-en']);
+    fakeWindow.dispatch('pointerdown');
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(fake.createCalls).toBe(1);
+    expect(fakeWindow.count('pointerdown')).toBe(0);
+    fakeWindow.dispatch('pointerdown');
+    await vi.advanceTimersByTimeAsync(NATIVE_DOWNLOAD_STALL_MS);
+    expect(fake.createCalls).toBe(1);
+    expect(storage.getItem(NATIVE_STALLED_PAIRS_STORAGE_KEY)).toBe(firstExpiry);
+    dispose();
+  });
+
+  it('a create that fails for another reason does not re-arm the interaction', async () => {
+    installFakeTranslator({ availability: 'downloadable', failCreates: 1, failName: 'NotSupportedError' });
+    const dispose = armNativeOnFirstInteraction(['pt-en']);
+    fakeWindow.dispatch('pointerdown');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fake.createCalls).toBe(1);
+    expect(fakeWindow.count('pointerdown')).toBe(0);
+    dispose();
+  });
+
   it('an entry that expires further out than the memory window is ignored', async () => {
     storage.setItem(NATIVE_STALLED_PAIRS_STORAGE_KEY, JSON.stringify({ 'pt-en': Date.now() + NATIVE_STALL_MEMORY_MS * 10 }));
     installFakeTranslator({ availability: 'downloadable' });

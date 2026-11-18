@@ -84,7 +84,10 @@ function writeRememberedStalls(stalls: RememberedStalls): void {
 }
 
 function rememberStall(key: PairKey): void {
-  writeRememberedStalls({ ...readRememberedStalls(), [key]: Date.now() + NATIVE_STALL_MEMORY_MS });
+  const stalls = readRememberedStalls();
+  if (!(key in stalls)) {
+    writeRememberedStalls({ ...stalls, [key]: Date.now() + NATIVE_STALL_MEMORY_MS });
+  }
 }
 
 function clearStall(key: PairKey): boolean {
@@ -325,7 +328,7 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
         if (availability === 'downloadable' || availability === 'downloading') {
           // create() can reject when the gesture's activation was already gone: wait for the next interaction.
           void nativeEngine.prepare(source, target).catch(() => {
-            if (!disposed) {
+            if (!disposed && !stalledPairs.has(pairKey(source, target))) {
               listen();
             }
           });
