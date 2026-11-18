@@ -19,6 +19,7 @@ type ChatType = 'private' | 'group';
 type GroupMode = 'join' | 'create';
 
 const ROOM_CODE_MIN_LENGTH = 6;
+const ROOM_CODE_MAX_LENGTH = 12;
 const GROUP_NAME_MIN_LENGTH = 3;
 
 function OrDivider() {
@@ -250,7 +251,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
                       setError('');
                     }}
                     placeholder={t('newChat.codePlaceholder')}
-                    maxLength={12}
+                    maxLength={ROOM_CODE_MAX_LENGTH}
                     autoFocus={groupMode === 'join'}
                     className="sc-input"
                   />

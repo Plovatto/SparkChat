@@ -136,7 +136,11 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
-  const [pendingRemoval, setPendingRemoval] = useState<RoomParticipant | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{ roomId: string; participant: RoomParticipant } | null>(null);
+  const removalTarget =
+    pendingRemoval && pendingRemoval.roomId === room.id && room.participants.some((participant) => participant.id === pendingRemoval.participant.id)
+      ? pendingRemoval
+      : null;
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
@@ -181,8 +185,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   };
 
   const confirmRemoveMember = () => {
-    if (pendingRemoval) {
-      socket?.emit('group:remove-member', { roomId: room.id, userId: pendingRemoval.id });
+    if (removalTarget) {
+      socket?.emit('group:remove-member', { roomId: removalTarget.roomId, userId: removalTarget.participant.id });
     }
   };
 
@@ -200,7 +204,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
+      <Modal isOpen={isOpen} onClose={removalTarget ? () => setPendingRemoval(null) : onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {room.type === 'private' && otherUser && (
             <>
@@ -425,7 +429,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                           )}
 
                           {canManage && (
-                            <ActionIconButton onClick={() => setPendingRemoval(participant)} title={t('roomInfo.remove')} tone="danger">
+                            <ActionIconButton onClick={() => setPendingRemoval({ roomId: room.id, participant })} title={t('roomInfo.remove')} tone="danger">
                               <FaUserMinus size={13} />
                             </ActionIconButton>
                           )}
@@ -465,9 +469,9 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         </div>
       </Modal>
       <ConfirmDialog
-        isOpen={pendingRemoval !== null}
+        isOpen={removalTarget !== null}
         title={t('roomInfo.removeTitle')}
-        message={t('roomInfo.removeConfirm', { name: pendingRemoval?.nickname ?? '' })}
+        message={t('roomInfo.removeConfirm', { name: removalTarget?.participant.nickname ?? '' })}
         confirmLabel={t('roomInfo.remove')}
         onConfirm={confirmRemoveMember}
         onCancel={() => setPendingRemoval(null)}
