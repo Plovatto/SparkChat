@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
 import {
+  shouldAnnounceTranslation,
   resolveDisplayText,
   resolveRevealAction,
   resolveTranslationControl,
@@ -212,5 +213,18 @@ describe('shouldRetryOnInvalidation', () => {
   it('does not retry a translation or a message with no result yet', () => {
     expect(shouldRetryOnInvalidation({ current: { status: 'translated', text: 'oi', sourceLanguage: 'en' }, cached: undefined })).toBe(false);
     expect(shouldRetryOnInvalidation({ current: undefined, cached: undefined })).toBe(false);
+  });
+});
+
+describe('shouldAnnounceTranslation', () => {
+  it('announces a translation the user asked for', () => {
+    expect(shouldAnnounceTranslation({ control: 'translated', result: { status: 'translated', text: 'oi', sourceLanguage: 'en', explicit: true } })).toBe(true);
+  });
+
+  it('stays silent for automatic translations, progress and other states', () => {
+    expect(shouldAnnounceTranslation({ control: 'translated', result: { status: 'translated', text: 'oi', sourceLanguage: 'en' } })).toBe(false);
+    expect(shouldAnnounceTranslation({ control: 'preparing', result: { status: 'preparing', sourceLanguage: 'en' } })).toBe(false);
+    expect(shouldAnnounceTranslation({ control: 'original', result: { status: 'translated', text: 'oi', sourceLanguage: 'en', explicit: true } })).toBe(false);
+    expect(shouldAnnounceTranslation({ control: 'offer', result: { status: 'none' } })).toBe(false);
   });
 });

@@ -123,3 +123,8 @@ export function resolveTranslationControl(params: {
   }
   return isOfferable(assessment) ? 'offer' : 'none';
 }
+
+export function shouldAnnounceTranslation(params: { control: TranslationControl; result: IncomingResult }): boolean {
+  const { control, result } = params;
+  return control === 'translated' && result.status === 'translated' && result.explicit === true;
+}

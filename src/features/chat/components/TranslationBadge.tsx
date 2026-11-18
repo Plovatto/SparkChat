@@ -2,7 +2,7 @@ import type { CSSProperties, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ResolvedBubbleStyle } from '@features/theme';
 import type { IncomingResult } from '@lib/translation/incoming';
-import type { TranslationControl } from '../utils/message-translation';
+import { shouldAnnounceTranslation, type TranslationControl } from '../utils/message-translation';
 
 interface TranslationBadgeProps {
   control: TranslationControl;
@@ -22,7 +22,7 @@ export function TranslationBadge({ control, result, onToggle, onTranslate, bubbl
     result.status === 'translated'
       ? t('chat.translation.translatedFrom', { language: t(`chat.translation.languages.${result.sourceLanguage}`) })
       : '';
-  const announcement = isPreparing ? t('chat.translation.translating') : control === 'translated' ? translatedLabel : '';
+  const announcement = shouldAnnounceTranslation({ control, result }) ? translatedLabel : '';
 
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
