@@ -191,12 +191,6 @@ export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: stri
   }
 }
 
-// A room key that is present but cannot open the room's messages means the locally stored copy is
-// stale or wrong. The authoritative copy lives on the server, sealed to this user's public key, so
-// drop the local one and fetch it again. A whole page of messages fails together, so every caller
-// shares the single in-flight refetch and then retries with the repaired key; once that refetch has
-// happened the room is not fetched again, which keeps a genuinely undecryptable message from
-// turning into a refetch loop.
 export async function refetchRoomKeyAfterDecryptionFailure(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
   const inFlight = pendingRefetches.get(roomId);
   if (inFlight) {
@@ -248,11 +242,6 @@ async function establishPrivateRoomKeyImpl(
     return;
   }
 
-  // Only the client that actively triggered the creation (received 'room:joined' as a direct
-  // response to its own room:create-private call) is allowed to generate a fresh room key — a
-  // private room is only ever "created" once, so this can never race. Any other discovery path
-  // (room:new, rooms:list, or a passive 'room:joined' — which does not happen for private rooms)
-  // only asks for the key instead, exactly like a group member who wasn't the one who made it.
   if (!isActiveCreationEvent) {
     socket.emit('e2e:request-room-key', { roomId: room.id });
     return;

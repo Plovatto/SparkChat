@@ -35,7 +35,6 @@ const failure = (promise: Promise<unknown>) =>
 beforeEach(() => {
   cacheStorage = new FakeCacheStorage();
   (globalThis as Record<string, unknown>).caches = cacheStorage;
-  // By default the host serves the .gz bytes as they are.
   fetchSpy = vi.fn<typeof fetch>(() => Promise.resolve(chunkedResponse(VOCAB_GZ, 8)));
   vi.stubGlobal('fetch', fetchSpy);
 });
@@ -52,7 +51,6 @@ describe('fetchModelFile', () => {
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe(VOCAB_URL);
     expect(init).toMatchObject({ credentials: 'omit' });
-    // no SRI: it hashes the decoded body and breaks on hosts that send Content-Encoding: gzip
     expect(init).not.toHaveProperty('integrity');
     expect(onBytes.mock.calls.length).toBeGreaterThan(1);
     expect(onBytes.mock.calls.reduce((sum, [n]) => sum + n, 0)).toBe(VOCAB.size);
@@ -91,7 +89,6 @@ describe('fetchModelFile', () => {
     });
     fetchSpy.mockResolvedValueOnce(new Response(body, { status: 200 }));
     expect(await failure(fetchModelFile(VOCAB, () => undefined))).toBe('integrity-failed');
-    // aborted well before the end of the body
     expect(pulls * 64).toBeLessThan(oversized.byteLength);
     expect(cacheStorage.putUrls).toEqual([]);
   });
@@ -129,7 +126,6 @@ describe('fetchModelFile', () => {
     fetchSpy.mockClear();
     expect(decode(await fetchModelFile(VOCAB, () => undefined))).toBe(VOCAB_TEXT);
     expect(fetchSpy).toHaveBeenCalledTimes(0);
-    // the cache holds the verified model file and nothing else
     expect(cacheStorage.putUrls).toEqual([VOCAB_URL]);
     expect([...cacheStorage.stores.keys()]).toEqual([TRANSLATION_MODELS_CACHE]);
     expect(decode(cacheStorage.stores.get(TRANSLATION_MODELS_CACHE)!.get(VOCAB_URL)!.slice().buffer)).toBe(VOCAB_TEXT);

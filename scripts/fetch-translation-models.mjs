@@ -1,10 +1,3 @@
-// Fetches the pinned Mozilla pt<->en translation models and copies the Bergamot
-// runtime into public/. Every file is verified by sha256; nothing here is committed.
-// The app's model registry is bundled from the manifest (src/lib/translation/engines/model-registry.ts), so no
-// registry file is written here.
-//
-// `--dev` (predev): a failure is a warning and the script exits 0, so the dev server still starts offline (the
-// Bergamot fallback just won't work). Without it (prebuild, CI) any failure exits 1.
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile, copyFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -54,7 +47,6 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
   for (const entry of Object.values(files)) {
     const name = basename(entry.path);
     const target = join(dir, name);
-    // Existing files are re-verified too (compressed and, after gunzip, raw hashes), so the manifest stays checked.
     const existing = existsSync(target) ? await readFile(target) : null;
     if (!existing || verifyModelFile(existing, entry) !== null) {
       const url = `${manifest.sourceBaseUrl}/${entry.path}`;
@@ -75,7 +67,6 @@ for (const [pair, files] of Object.entries(manifest.pairs)) {
   }
 }
 
-// Left over by earlier versions of this script; nothing reads it.
 await rm(join(modelsDir, 'registry.json'), { force: true });
 
 await mkdir(runtimeDir, { recursive: true });

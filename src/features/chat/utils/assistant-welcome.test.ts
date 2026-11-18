@@ -3,7 +3,6 @@ import enApp from '@/locales/en/app.json';
 import ptApp from '@/locales/pt/app.json';
 import { localizeAssistantWelcome } from './assistant-welcome';
 
-// Literals copied from AI_WELCOME_MESSAGES in API-SparkChat/src/modules/ai/ai.model.ts.
 const PT_WELCOME = 'Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!';
 const EN_WELCOME = "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!";
 

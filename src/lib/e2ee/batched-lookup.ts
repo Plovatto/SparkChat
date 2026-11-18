@@ -11,11 +11,6 @@ interface PendingBatch<TEntry> {
   waiters: Map<string, Waiter<TEntry>[]>;
 }
 
-// The server answers key lookups on a broadcast event that carries no correlation id, so two
-// requests in flight at once would each resolve with whichever response landed first — silently
-// handing a room the sealed key that belonged to another one. Every lookup therefore goes through
-// one queue: pending ids are coalesced into a single request, only one request is on the wire at a
-// time, and each response is redistributed to its waiters strictly by entry id.
 export function createBatchedLookup<TEntry>(
   fetchBatch: BatchFetcher<TEntry>,
   getEntryId: (entry: TEntry) => string,

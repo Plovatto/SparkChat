@@ -10,24 +10,12 @@ export const NATIVE_DOWNLOAD_STALL_MS = 15_000;
 
 export const NATIVE_STALL_MEMORY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * A stalled pair asks Chrome again at most this often. Chrome can answer 'available' and still refuse create()
- * (e.g. "translation service count exceeded"): without a bound, un-stalling and stalling again would loop.
- */
 export const NATIVE_STALL_RECHECK_MS = 30_000;
 
 const INTERACTION_EVENTS = ['pointerdown', 'keydown'] as const;
 
 const translators = new Map<PairKey, Promise<TranslatorInstance>>();
-/**
- * Pairs whose availability check did not answer in time: treated as unavailable until that late answer arrives.
- * If it then says the pair is usable, the pair leaves this set and routes are recomputed (native wins again).
- */
 const hungPairs = new Set<PairKey>();
-/**
- * Pairs whose download stalled or whose create() failed for a reason other than the missing gesture: treated as
- * unavailable (the fallback takes over) until that create() succeeds after all.
- */
 const stalledPairs = new Set<PairKey>();
 const stalledRechecks = new Set<PairKey>();
 const lastStalledRecheck = new Map<PairKey, number>();
@@ -149,7 +137,6 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
     clearTimeout(stallTimer);
     if (!settled) {
       stallTimer = setTimeout(() => {
-        // Whoever waits on this download (a draft translation, prepare) fails now instead of hanging forever.
         if (translators.get(key) === created) {
           translators.delete(key);
         }
@@ -172,7 +159,6 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
     giveUp = reject;
     raw.then(resolve, reject);
   });
-  // Callers handle their own rejection; this only keeps a give-up nobody awaits from being reported as unhandled.
   created.catch(() => undefined);
   armStallTimer();
   translators.set(key, created);
@@ -180,7 +166,6 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
     (instance) => {
       settled = true;
       clearTimeout(stallTimer);
-      // A download that was given up on finished after all: native wins again.
       if (clearStall(key)) {
         if (!translators.has(key)) {
           translators.set(key, Promise.resolve(instance));
@@ -194,7 +179,6 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
       if (translators.get(key) === created) {
         translators.delete(key);
       }
-      // Without a gesture the next interaction retries; any other failure will not fix itself on a click.
       if (!isMissingGesture(error)) {
         markStalled(key);
       }
@@ -230,11 +214,6 @@ async function support(source: Language, target: Language): Promise<TranslationS
   }
 }
 
-/**
- * A stalled pair asks Chrome again in the background each time it is consulted: if the model became available another
- * way (another tab, Chrome finishing on its own while this page's create() stays wedged), native wins again. Only
- * 'available' counts: 'downloading' may be the same stuck download.
- */
 function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: Language, target: Language): void {
   const last = lastStalledRecheck.get(key);
   if (stalledRechecks.has(key) || (last !== undefined && Date.now() - last < NATIVE_STALL_RECHECK_MS)) {
@@ -254,7 +233,6 @@ function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: L
     .finally(() => stalledRechecks.delete(key));
 }
 
-/** User rule: Bergamot only when the device cannot use the Translator API, so a slow answer is not final. */
 function watchLateAvailability(key: PairKey, availability: Promise<TranslationSupport>): void {
   availability.then(
     (late) => {
@@ -290,7 +268,6 @@ export const nativeEngine: TranslationEngine = {
       progressListeners.delete(listener);
     };
   },
-  /** Fires when a pair whose availability check timed out turns out to be usable after all. */
   onRetryAvailable(listener) {
     retryListeners.add(listener);
     return () => {
@@ -316,7 +293,6 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
   };
   const handler = () => {
     unlisten();
-    // In order, one after the other: the gesture unlocks a single create(), and it goes to the first pair that needs it.
     void (async () => {
       for (const pair of pairs) {
         const [source, target] = pair.split('-') as [Language, Language];
@@ -324,9 +300,7 @@ export function armNativeOnFirstInteraction(pairs: PairKey[]): () => void {
         if (disposed) {
           return;
         }
-        // 'downloading' too: a download started by an earlier page may be stuck, and create() attaches our monitor.
         if (availability === 'downloadable' || availability === 'downloading') {
-          // create() can reject when the gesture's activation was already gone: wait for the next interaction.
           void nativeEngine.prepare(source, target).catch(() => {
             if (!disposed && !stalledPairs.has(pairKey(source, target))) {
               listen();

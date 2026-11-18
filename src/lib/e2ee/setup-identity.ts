@@ -107,9 +107,6 @@ async function rewrapIdentityAfterPasswordChangeImpl(
   newPassword: string,
   newRecoveryToken: string,
 ): Promise<void> {
-  // The identity held in memory is the authoritative one — reading only from IndexedDB would miss
-  // it whenever that write failed, and bailing out below would then leave the server holding a
-  // private key still wrapped with the previous password, locking every other device out.
   const active = getCurrentIdentity();
   let cached = active?.userId === userId ? { publicKey: active.publicKey, privateKey: active.privateKey } : await loadPrivateKey(userId);
 

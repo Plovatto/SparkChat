@@ -14,13 +14,11 @@ const PT_WORDS = new Set(
 const EN_WORDS = new Set(
   (
     'the and is are you i to of it that this what with for not have be was will can just yeah thanks ok hello hi ' +
-    // extra chat words so short English messages reach the minimum signal
     'we my at if how they in on good morning still ' +
     'nice one love great sounds see soon cool awesome yes'
   ).split(' '),
 );
 
-// pt-only chat slang is a stronger signal than a generic stopword (e.g. "to" is also English).
 const PT_SLANG = new Set(['vc', 'pra', 'tá', 'tô']);
 const PT_SLANG_WEIGHT = 2;
 const PT_ACCENT = /[ãõçáéíóúâêô]/g;

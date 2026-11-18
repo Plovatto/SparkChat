@@ -171,7 +171,6 @@ describe('translateIncoming', () => {
     download.resolve();
     await flush();
     expect(listener).toHaveBeenCalledTimes(1);
-    // the router memo was invalidated, so the retry translates instead of preparing again
     expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({
       status: 'translated',
       text: 'PT:see you later',
@@ -198,9 +197,7 @@ describe('translateIncoming', () => {
     subscribeIncomingInvalidation(listener);
     expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
     await flush();
-    // the failed download itself notifies once, so waiting messages re-check
     expect(listener).toHaveBeenCalledTimes(1);
-    // during the cooldown prepare rejects at once: that does not notify (it would retry in a loop)
     bergamot.prepare.mockRejectedValue(new Error('download-cooldown'));
     expect(await translateIncoming(req('m3', 'see you later', 'pt'))).toEqual({ status: 'preparing', sourceLanguage: 'en' });
     await flush();
@@ -233,7 +230,6 @@ describe('translateIncoming', () => {
     const listener = vi.fn();
     const unsubscribe = subscribeIncomingInvalidation(listener);
     expect((await translateIncoming(req('p1', 'see you later', 'pt'))).status).toBe('preparing');
-    // a second waiting message does not start a second poll
     expect((await translateIncoming(req('p2', 'good night everyone', 'pt'))).status).toBe('preparing');
     native.support.mockClear();
     await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS);
@@ -243,7 +239,6 @@ describe('translateIncoming', () => {
     await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS);
     expect(native.support).toHaveBeenCalledTimes(2);
     expect(listener).toHaveBeenCalledTimes(1);
-    // settled: no more polling
     await vi.advanceTimersByTimeAsync(NATIVE_AVAILABILITY_POLL_MS * 3);
     expect(native.support).toHaveBeenCalledTimes(2);
     unsubscribe();
@@ -338,7 +333,6 @@ describe('translateIncoming', () => {
   });
 
   it('a native failure that hands the pair to the fallback is retried on the fallback at once', async () => {
-    // The native engine marks the pair unusable when its create() fails (stall, service limit).
     native.translate.mockImplementation(() => {
       native.support.mockResolvedValue('unavailable');
       return Promise.reject(new Error('translate-failed'));
@@ -367,7 +361,6 @@ describe('translateIncoming', () => {
     controller.abort();
     await Promise.all([first, second.catch(() => null)]);
     expect(native.translate).toHaveBeenCalledTimes(1);
-    // dropped requests resolve to an uncached none
     expect(await second).toEqual({ status: 'none' });
     expect(getCachedIncoming('r1', 'b', 'content', 'pt', 'second message here')).toBeUndefined();
   });

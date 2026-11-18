@@ -11,7 +11,6 @@ export function hasText(text: string | null | undefined): text is string {
   return typeof text === 'string' && text.trim() !== '';
 }
 
-/** Only visible messages are translated; `preparing` keeps the request alive until the model is ready. */
 export function shouldRequestTranslation(params: {
   enabled: boolean;
   isVisible: boolean;
@@ -25,7 +24,6 @@ export function shouldRequestTranslation(params: {
   return current === undefined || current.status === 'preparing';
 }
 
-/** A fetched result only counts for the request that produced it; otherwise the synchronous cache read decides. */
 export function selectCurrentResult(params: {
   active: boolean;
   key: string;

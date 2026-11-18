@@ -1,5 +1,3 @@
-// Single source of truth: the pinned manifest the build script verifies the model files against.
-// Bundling it means sizes and sha256 hashes ship inside the app (security rule 5) and no registry is fetched at runtime.
 import manifest from '../../../../scripts/translation-models.manifest.json';
 import type { BergamotModelFile, BergamotModelPart, BergamotRegistry, BergamotRegistryKey } from './model-fetch';
 
@@ -10,7 +8,6 @@ function basename(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
 
-/** Registry with names relative to the models base URL, in the format `scripts/fetch-translation-models.mjs` writes. */
 export const BUNDLED_MODEL_REGISTRY: BergamotRegistry = Object.fromEntries(
   REGISTRY_KEYS.map((key) => [
     key,
@@ -32,7 +29,6 @@ export const BUNDLED_MODEL_REGISTRY: BergamotRegistry = Object.fromEntries(
   ]),
 ) as BergamotRegistry;
 
-/** The bundled registry with every file name resolved to an absolute URL under `baseUrl`. */
 export function modelRegistry(baseUrl: string): BergamotRegistry {
   const resolved = {} as BergamotRegistry;
   for (const key of REGISTRY_KEYS) {
