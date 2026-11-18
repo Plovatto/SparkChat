@@ -348,6 +348,14 @@ describe('translateIncoming', () => {
     expect(bergamotLoader.load).not.toHaveBeenCalled();
   });
 
+  it('a queued request for a message already translated meanwhile reads the cache instead of translating again', async () => {
+    const first = translateIncoming(req('d1', 'see you later', 'pt'));
+    const second = translateIncoming(req('d1', 'see you later', 'pt'));
+    expect(await first).toEqual({ status: 'translated', text: 'PT:see you later', sourceLanguage: 'en' });
+    expect(await second).toEqual({ status: 'translated', text: 'PT:see you later', sourceLanguage: 'en' });
+    expect(native.translate).toHaveBeenCalledTimes(1);
+  });
+
   it('returns none when no engine is available', async () => {
     delete (globalThis as Record<string, unknown>).Translator;
     resetRouterForTests();

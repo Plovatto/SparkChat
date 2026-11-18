@@ -248,6 +248,11 @@ async function pump(): Promise<void> {
         job.resolve(NONE);
         continue;
       }
+      const cachedNow = readTranslation(job.cacheKey);
+      if (cachedNow) {
+        job.resolve(cachedNow);
+        continue;
+      }
       const result = await runWithTimeout(job);
       job.resolve(isTranslationEpochCurrent(job.epoch) ? result : NONE);
     }

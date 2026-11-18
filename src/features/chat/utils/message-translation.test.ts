@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { IncomingResult } from '@lib/translation/incoming';
-import { resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation } from './message-translation';
+import { resolveBadgeState, resolveDisplayText, selectCurrentResult, shouldRequestTranslation, shouldRetryOnInvalidation } from './message-translation';
 
 const translated: IncomingResult = { status: 'translated', text: 'bom dia a todos', sourceLanguage: 'en' };
 const preparing: IncomingResult = { status: 'preparing', sourceLanguage: 'en' };
@@ -52,6 +52,11 @@ describe('selectCurrentResult', () => {
     expect(selectCurrentResult({ active: true, key: 'k2', fetched: { key: 'k1', result: translated }, cached: undefined })).toBeUndefined();
   });
 
+  it('prefers a cached translation over a fetched none for the same request', () => {
+    const cached = { status: 'translated', text: 'oi', sourceLanguage: 'en' } as const;
+    expect(selectCurrentResult({ active: true, key: 'k', fetched: { key: 'k', result: { status: 'none' } }, cached })).toBe(cached);
+  });
+
   it('uses the cache when nothing was fetched yet', () => {
     expect(selectCurrentResult({ active: true, key: 'k', fetched: null, cached: translated })).toBe(translated);
   });
@@ -85,5 +90,24 @@ describe('resolveBadgeState', () => {
 
   it('shows nothing for none', () => {
     expect(resolveBadgeState(none, false)).toBe('none');
+  });
+});
+
+describe('shouldRetryOnInvalidation', () => {
+  it('retries while preparing', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'preparing', sourceLanguage: 'en' }, cached: undefined })).toBe(true);
+  });
+
+  it('retries an uncached none (timeout or transient failure)', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'none' }, cached: undefined })).toBe(true);
+  });
+
+  it('does not retry a definitive none from the cache', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'none' }, cached: { status: 'none' } })).toBe(false);
+  });
+
+  it('does not retry a translation or a message with no result yet', () => {
+    expect(shouldRetryOnInvalidation({ current: { status: 'translated', text: 'oi', sourceLanguage: 'en' }, cached: undefined })).toBe(false);
+    expect(shouldRetryOnInvalidation({ current: undefined, cached: undefined })).toBe(false);
   });
 });
