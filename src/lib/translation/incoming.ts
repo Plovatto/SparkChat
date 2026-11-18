@@ -168,11 +168,12 @@ async function run(job: Job): Promise<IncomingResult> {
   const { request } = job;
   const detected = await detectLanguage(request.text, { allowDownload: request.explicit === true });
   const confident = detected !== null && detected.confidence >= MIN_DETECTION_CONFIDENCE;
-  if (confident && detected.language === request.target) {
+  if (confident && detected.language === request.target && request.explicit !== true) {
     return rememberFor(job, NONE);
   }
-  const source = confident ? detected.language : oppositeLanguage(request.target);
-  const guessed = !confident;
+  const confidentOther = confident && detected.language !== request.target;
+  const source = confidentOther ? detected.language : oppositeLanguage(request.target);
+  const guessed = !confidentOther;
   const route = await resolveEngine(source, request.target);
   if (!route) {
     return NONE;

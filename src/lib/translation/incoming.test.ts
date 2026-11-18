@@ -558,6 +558,37 @@ describe('explicit requests', () => {
     prepareTranslationOnGesture('pt');
     expect(gesture).not.toHaveBeenCalled();
   });
+
+  it('detection confidently in the interface language never vetoes an explicit request', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect(await translateIncoming(explicit('v1', 'vlw', 'en'))).toEqual({
+      status: 'translated',
+      text: 'EN:obrigado',
+      sourceLanguage: 'pt',
+    });
+    expect(native.translate).toHaveBeenCalledWith('obrigado', 'pt', 'en', { priority: 1 });
+  });
+
+  it('detection confidently in the other language is used as the source of an explicit request', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect((await translateIncoming(explicit('v2', 'see you later', 'pt'))).status).toBe('translated');
+    expect(native.translate).toHaveBeenCalledWith('see you later', 'en', 'pt', { priority: 1 });
+  });
+
+  it('an explicit request whose translation equals the original caches none', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    native.translate.mockImplementation((text) => Promise.resolve(text));
+    expect(await translateIncoming(explicit('v3', 'hello team', 'en'))).toEqual({ status: 'none' });
+    expect(getCachedIncoming('r1', 'v3', 'content', 'en', 'hello team')).toEqual({ status: 'none' });
+  });
+
+  it('an automatic request confidently in the interface language still caches none without translating', async () => {
+    detect.mockResolvedValue({ language: 'en', confidence: 0.95 });
+    expect(await translateIncoming(req('v4', 'vlw', 'en'))).toEqual({ status: 'none' });
+    expect(native.translate).not.toHaveBeenCalled();
+    expect(getCachedIncoming('r1', 'v4', 'content', 'en', 'vlw')).toEqual({ status: 'none' });
+  });
+
 });
 
 describe('assessIncoming', () => {
