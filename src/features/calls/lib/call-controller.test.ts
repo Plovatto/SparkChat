@@ -476,6 +476,16 @@ describe('full call between two controllers', () => {
     expect(w.a.socket.sent('call:heartbeat')).toHaveLength(count);
   });
 
+  it('ends the call at once when a signaling message cannot be sealed', async () => {
+    const w = await world();
+    await connectCall(w);
+
+    w.a.peers[0]!.options.sendSignal('offer', { description: { type: 'offer', sdp: 'a'.repeat(20000) } });
+    await settle();
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed', detail: 'signal-failed' });
+  });
+
   it('toggles mute on the peer session', async () => {
     const w = await world();
     await connectCall(w);

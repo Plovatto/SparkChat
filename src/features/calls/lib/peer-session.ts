@@ -150,7 +150,7 @@ export class PeerSession {
   private dtlsChecked = false;
   private watchedTransport: RTCDtlsTransport | null = null;
   private verified = false;
-  private pendingRemoteStream: MediaStream | null = null;
+  private pendingRemoteStreams = new Map<string, MediaStream>();
   private dtlsTimer: ReturnType<typeof setTimeout> | null = null;
   private remoteFingerprints: string[] = [];
   private lastRestartAt = -Infinity;
@@ -207,12 +207,9 @@ export class PeerSession {
       return;
     }
     this.openControlChannel();
-    const stream = this.options.localStream;
-    const audioTrack = stream?.getAudioTracks()[0];
-    const videoTrack = stream?.getVideoTracks()[0];
-    const init: RTCRtpTransceiverInit = { direction: 'sendrecv', ...(stream ? { streams: [stream] } : {}) };
-    this.connection.addTransceiver(audioTrack ?? 'audio', init);
-    this.connection.addTransceiver(videoTrack ?? 'video', init);
+    const init: RTCRtpTransceiverInit = { direction: 'sendrecv' };
+    this.connection.addTransceiver('audio', init);
+    this.connection.addTransceiver('video', init);
   }
 
   receiveSignal(type: SignalType, payload: Record<string, unknown>): Promise<void> {
@@ -264,21 +261,30 @@ export class PeerSession {
       if (this.polite && !this.control) {
         this.openControlChannel();
       }
-      this.attachLocalTracks();
+      for (const transceiver of connection.getTransceivers()) {
+        transceiver.direction = 'sendrecv';
+      }
       await connection.setLocalDescription();
       this.sendDescription('answer');
     }
     this.verifyDtls();
   }
 
-  private attachLocalTracks(): void {
-    if (this.localAttached || !this.options.localStream) {
+  private async attachLocalTracks(): Promise<void> {
+    const stream = this.options.localStream;
+    if (this.localAttached || !stream) {
       return;
     }
     this.localAttached = true;
-    for (const track of this.options.localStream.getTracks()) {
-      this.connection.addTrack(track, this.options.localStream);
+    for (const track of stream.getTracks()) {
+      const transceiver = this.connection.getTransceivers().find((candidate) => (candidate.receiver.track?.kind ?? candidate.sender.track?.kind) === track.kind);
+      try {
+        await transceiver?.sender.replaceTrack(track);
+      } catch {
+        continue;
+      }
     }
+    await this.applyCaps();
   }
 
   private async negotiate(): Promise<void> {
@@ -388,7 +394,7 @@ export class PeerSession {
       this.options.onRemoteStream(stream);
       return;
     }
-    this.pendingRemoteStream = stream;
+    this.pendingRemoteStreams.set(stream.id || 'fallback', stream);
   }
 
   private handleIceState(): void {
@@ -404,7 +410,9 @@ export class PeerSession {
         clearTimeout(this.connectTimer);
         this.connectTimer = null;
       }
-      this.options.onConnection('connected');
+      if (this.verified) {
+        this.options.onConnection('connected');
+      }
       if (first && !this.verified && this.dtlsTimer === null) {
         this.dtlsTimer = setTimeout(() => {
           this.dtlsTimer = null;
@@ -535,16 +543,24 @@ export class PeerSession {
       clearTimeout(this.dtlsTimer);
       this.dtlsTimer = null;
     }
-    const pending = this.pendingRemoteStream;
-    this.pendingRemoteStream = null;
-    if (pending) {
-      this.options.onRemoteStream(pending);
+    const pending = Array.from(this.pendingRemoteStreams.values());
+    this.pendingRemoteStreams.clear();
+    for (const stream of pending) {
+      this.options.onRemoteStream(stream);
+    }
+    void this.attachLocalTracks();
+    const state = this.connection.iceConnectionState;
+    if (state === 'connected' || state === 'completed') {
+      this.options.onConnection('connected');
     }
   }
 
   private openControlChannel(): void {
     const channel = this.connection.createDataChannel(CONTROL_CHANNEL_LABEL, { negotiated: true, id: CONTROL_CHANNEL_ID });
     channel.onmessage = (event) => {
+      if (!this.verified) {
+        return;
+      }
       const message = parseControlMessage(event.data);
       if (message) {
         this.options.onControl(message);
@@ -571,7 +587,7 @@ export class PeerSession {
 
   async setVideoTrack(track: MediaStreamTrack | null): Promise<void> {
     const transceiver = this.videoTransceiver();
-    if (!transceiver) {
+    if (!transceiver || !this.verified) {
       return;
     }
     if (track && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {
@@ -583,6 +599,9 @@ export class PeerSession {
   }
 
   async setAudioTrack(track: MediaStreamTrack): Promise<void> {
+    if (!this.verified) {
+      return;
+    }
     await this.audioSender()?.replaceTrack(track);
   }
 
@@ -708,7 +727,7 @@ export class PeerSession {
     this.connectTimer = null;
     this.refreshTimer = null;
     this.dtlsTimer = null;
-    this.pendingRemoteStream = null;
+    this.pendingRemoteStreams.clear();
     this.pendingCandidates = [];
     this.connection.onicecandidate = null;
     this.connection.onnegotiationneeded = null;

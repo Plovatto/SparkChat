@@ -255,6 +255,13 @@ function candidatePayload(candidate: string) {
   return { candidate: { candidate, sdpMid: '0', sdpMLineIndex: 0 } };
 }
 
+async function verify(h: Harness): Promise<void> {
+  await h.session.receiveSignal('answer', remoteDescription('answer'));
+  h.connection.setIce('connected');
+  h.connection.setDtls('connected');
+  await settle();
+}
+
 async function settle(): Promise<void> {
   await vi.advanceTimersByTimeAsync(0);
 }
@@ -394,6 +401,13 @@ describe('callee negotiation', () => {
     expect(h.signals.map((signal) => signal.type)).toEqual(['answer']);
     expect(h.signals[0]?.payload.fingerprints).toEqual([`sha-256 ${LOCAL_FP}`]);
     expect(h.connection.channels).toHaveLength(1);
+    expect(h.connection.transceivers.every((transceiver) => transceiver.direction === 'sendrecv')).toBe(true);
+    expect(h.connection.transceivers.every((transceiver) => transceiver.sender.track === null)).toBe(true);
+
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
     expect(h.connection.transceivers.every((transceiver) => transceiver.sender.track !== null)).toBe(true);
   });
 
@@ -699,6 +713,53 @@ describe('dtls fail closed', () => {
   });
 });
 
+describe('privacy before verification', () => {
+  it('sends no local media and reports no connection until the certificate is verified', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await h.session.receiveSignal('answer', remoteDescription('answer'));
+
+    h.connection.setIce('connected');
+    await settle();
+    expect(h.statuses).toEqual([]);
+    expect(h.connection.transceivers.every((transceiver) => transceiver.sender.track === null)).toBe(true);
+
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.statuses).toEqual(['connected']);
+    expect(h.connection.transceivers.every((transceiver) => transceiver.sender.track !== null)).toBe(true);
+  });
+
+  it('never attaches local media when verification fails', async () => {
+    const h = build('caller', {}, 'DD:DD:DD');
+    h.session.start();
+    await settle();
+    await h.session.receiveSignal('answer', remoteDescription('answer'));
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.statuses).toEqual([]);
+    expect(h.connection.transceivers.every((transceiver) => transceiver.sender.track === null)).toBe(true);
+  });
+
+  it('keeps every remote stream received before verification and delivers them all', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    const first = { id: 'one' } as unknown as MediaStream;
+    const second = { id: 'two' } as unknown as MediaStream;
+    h.connection.ontrack?.({ streams: [first], track: {} });
+    h.connection.ontrack?.({ streams: [second], track: {} });
+
+    await verify(h);
+
+    expect(h.streams).toEqual([first, second]);
+  });
+});
+
 describe('control channel', () => {
   it('delivers valid messages, ignores invalid ones and sends only when open', async () => {
     const h = build('caller');
@@ -706,6 +767,9 @@ describe('control channel', () => {
     await settle();
     const channel = h.connection.channels[0]!;
 
+    channel.onmessage?.({ data: '{"t":"hangup"}' });
+    expect(h.controls).toEqual([]);
+    await verify(h);
     channel.onmessage?.({ data: '{"t":"hangup"}' });
     channel.onmessage?.({ data: 'junk' });
     expect(h.controls).toEqual([{ t: 'hangup' }]);
@@ -734,8 +798,7 @@ describe('bitrate caps and degrade', () => {
     const h = build('caller', options);
     h.session.start();
     await settle();
-    h.connection.setIce('connected');
-    await settle();
+    await verify(h);
     return h;
   }
 

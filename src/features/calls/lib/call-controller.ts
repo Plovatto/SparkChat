@@ -551,7 +551,8 @@ export class CallController {
 
   async toggleCamera(): Promise<void> {
     const session = this.session;
-    if (!session?.media || !session.peerSession || !hasCallMedia(this.machine.getState())) {
+    const phase = this.machine.getState().phase;
+    if (!session?.media || !session.peerSession || (phase !== 'active' && phase !== 'reconnecting')) {
       return;
     }
     const stream = session.media.stream;
@@ -678,7 +679,9 @@ export class CallController {
           this.deps.socket.emit('call:signal', { callId: session.callId, to: session.peerId, envelope });
         }
       } catch {
-        return;
+        if (this.session === session) {
+          this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'signal-failed' });
+        }
       }
     });
   }
