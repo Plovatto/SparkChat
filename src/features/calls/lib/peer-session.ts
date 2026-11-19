@@ -529,7 +529,9 @@ export class PeerSession {
     const expected = this.remoteFingerprints.filter((fingerprint) => fingerprint.startsWith('sha-256 '));
     if (typeof transport.getRemoteCertificates !== 'function') {
       const inRemote = extractSdpFingerprints(this.connection.remoteDescription?.sdp ?? '');
-      if (expected.length > 0 && expected.every((fingerprint) => inRemote.includes(fingerprint))) {
+      const authenticated = new Set(this.remoteFingerprints);
+      const allAuthenticated = inRemote.length > 0 && inRemote.every((fingerprint) => authenticated.has(fingerprint));
+      if (expected.length > 0 && allAuthenticated && expected.every((fingerprint) => inRemote.includes(fingerprint))) {
         this.markVerified();
       } else {
         this.fatal('fingerprint-mismatch');

@@ -644,6 +644,17 @@ describe('dtls fingerprint check', () => {
     expect(h.fatals).toEqual(['fingerprint-mismatch']);
   });
 
+  it('rejects a remote description that carries an extra fingerprint nobody authenticated', async () => {
+    const h = await negotiated();
+    (h.connection.transport as { getRemoteCertificates?: unknown }).getRemoteCertificates = undefined;
+    h.connection.remoteDescription = { type: 'answer', sdp: ['v=0', 'a=fingerprint:sha-256 ' + REMOTE_FP, 'a=fingerprint:sha-256 EE:EE:EE', ''].join(String.fromCharCode(13, 10)) };
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
   it('also verifies when the connection state becomes connected', async () => {
     const h = await negotiated('DD:DD:DD');
     h.connection.transport.state = 'connected';
