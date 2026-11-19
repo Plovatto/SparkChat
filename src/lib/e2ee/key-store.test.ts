@@ -156,4 +156,37 @@ describe('key store wrapping', () => {
     expect(await rawAll('wrapping_key')).toHaveLength(1);
     expect(await (await freshModule()).loadRoomKeyGenerations('room')).toHaveLength(5);
   });
+
+  it('rejects plaintext records written after the migration ran', async () => {
+    const store = await freshModule();
+    expect(await store.loadPrivateKey('ana')).toBeNull();
+    await rawPut('identity', { userId: 'ana', publicKey: 'pub-ana', privateKey: new Uint8Array(32).fill(7) }, 'current');
+    await rawPut('room_keys', { roomId: 'room', keyId: 'k1', epoch: 1, key: new Uint8Array(32).fill(9) });
+
+    expect(await store.loadPrivateKey('ana')).toBeNull();
+    expect(await store.loadRoomKeyGenerations('room')).toEqual([]);
+  });
+
+  it('binds the room type and the history flag of a wrapped room key', async () => {
+    const store = await freshModule();
+    await store.saveRoomKeyGeneration({ roomId: 'room', keyId: 'k1', epoch: 1, key: new Uint8Array(32).fill(5), historyOnly: true, roomType: 'group' });
+    const [record] = (await rawAll('room_keys')) as Record<string, unknown>[];
+    const { historyOnly: _historyOnly, ...promoted } = record as Record<string, unknown>;
+    await rawPut('room_keys', promoted);
+    expect(await store.loadRoomKeyGenerations('room')).toEqual([]);
+
+    await rawPut('room_keys', { ...record, roomType: 'private' });
+    expect(await store.loadRoomKeyGenerations('room')).toEqual([]);
+
+    await rawPut('room_keys', record);
+    expect((await store.loadRoomKeyGenerations('room'))[0]).toMatchObject({ historyOnly: true, roomType: 'group' });
+  });
+
+  it('never lets the migration overwrite an identity saved while it runs', async () => {
+    await seedLegacyDatabase();
+    const store = await freshModule();
+    await Promise.all([store.loadPrivateKey('ana'), store.savePrivateKey('ana', 'pub-ana', new Uint8Array(32).fill(1))]);
+
+    expect((await (await freshModule()).loadPrivateKey('ana'))?.privateKey).toEqual(new Uint8Array(32).fill(1));
+  });
 });

@@ -220,8 +220,14 @@ function identityAssociatedData(userId: string, publicKey: string): Uint8Array<A
   return wrapAssociatedData(IDENTITY_WRAP_CONTEXT, [userId, publicKey]);
 }
 
-function roomKeyAssociatedData(roomId: string, keyId: string, epoch: number): Uint8Array<ArrayBuffer> {
-  return wrapAssociatedData(ROOM_KEY_WRAP_CONTEXT, [roomId, keyId, String(epoch)]);
+function roomKeyAssociatedData(
+  roomId: string,
+  keyId: string,
+  epoch: number,
+  roomType: 'private' | 'group' | undefined,
+  historyOnly: boolean,
+): Uint8Array<ArrayBuffer> {
+  return wrapAssociatedData(ROOM_KEY_WRAP_CONTEXT, [roomId, keyId, String(epoch), roomType ?? '', historyOnly ? 'history' : 'current']);
 }
 
 async function wrapIdentity(userId: string, publicKey: string, privateKey: Uint8Array): Promise<WrappedStoredIdentity> {
@@ -233,7 +239,10 @@ async function wrapRoomKey(generation: StoredRoomKeyGeneration): Promise<Wrapped
     roomId: generation.roomId,
     keyId: generation.keyId,
     epoch: generation.epoch,
-    wrappedKey: await wrapSecret(generation.key, roomKeyAssociatedData(generation.roomId, generation.keyId, generation.epoch)),
+    wrappedKey: await wrapSecret(
+      generation.key,
+      roomKeyAssociatedData(generation.roomId, generation.keyId, generation.epoch, generation.roomType, generation.historyOnly === true),
+    ),
     ...(generation.roomType ? { roomType: generation.roomType } : {}),
     ...(typeof generation.encryptedRoster === 'string' ? { encryptedRoster: generation.encryptedRoster } : {}),
     ...(generation.historyOnly ? { historyOnly: true } : {}),
@@ -279,6 +288,7 @@ async function migratedDb<T>(run: (db: IDBDatabase) => Promise<T>): Promise<T> {
 
 export async function savePrivateKey(userId: string, publicKey: string, privateKey: Uint8Array): Promise<void> {
   try {
+    await migrateLegacySecrets().catch(() => undefined);
     const wrapped = await wrapIdentity(userId, publicKey, privateKey);
     await withDb((db) => writeTransaction(db, IDENTITY_STORE_NAME, (store) => store.put(wrapped, RECORD_KEY)));
   } catch {
@@ -292,10 +302,7 @@ export async function loadPrivateKey(userId: string): Promise<{ publicKey: strin
     if (!stored || stored.userId !== userId) {
       return null;
     }
-    if (isLegacyIdentity(stored)) {
-      return { publicKey: stored.publicKey, privateKey: stored.privateKey };
-    }
-    if (!isWrappedSecret(stored.wrappedPrivateKey)) {
+    if (isLegacyIdentity(stored) || !isWrappedSecret(stored.wrappedPrivateKey)) {
       return null;
     }
     const privateKey = await unwrapSecret(stored.wrappedPrivateKey, identityAssociatedData(stored.userId, stored.publicKey));
@@ -325,6 +332,7 @@ export async function clearWrappingKey(): Promise<void> {
 
 export async function saveRoomKeyGeneration(generation: StoredRoomKeyGeneration): Promise<void> {
   try {
+    await migrateLegacySecrets().catch(() => undefined);
     const wrapped = await wrapRoomKey(generation);
     await withDb((db) => writeTransaction(db, ROOM_KEYS_STORE_NAME, (store) => store.put(wrapped)));
   } catch {
@@ -333,13 +341,13 @@ export async function saveRoomKeyGeneration(generation: StoredRoomKeyGeneration)
 }
 
 async function unwrapRoomKeyRecord(record: RoomKeyRecord): Promise<StoredRoomKeyGeneration | null> {
-  if (isLegacyRoomKey(record)) {
-    return record;
-  }
-  if (!isWrappedSecret(record.wrappedKey)) {
+  if (isLegacyRoomKey(record) || !isWrappedSecret(record.wrappedKey)) {
     return null;
   }
-  const key = await unwrapSecret(record.wrappedKey, roomKeyAssociatedData(record.roomId, record.keyId, record.epoch));
+  const key = await unwrapSecret(
+    record.wrappedKey,
+    roomKeyAssociatedData(record.roomId, record.keyId, record.epoch, record.roomType, record.historyOnly === true),
+  );
   if (!key) {
     return null;
   }
