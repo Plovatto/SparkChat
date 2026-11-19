@@ -520,6 +520,10 @@ export class PeerSession {
     await this.applyCaps();
   }
 
+  async setAudioTrack(track: MediaStreamTrack): Promise<void> {
+    await this.audioSender()?.replaceTrack(track);
+  }
+
   private videoTransceiver(): RTCRtpTransceiver | undefined {
     return this.connection.getTransceivers().find((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === 'video');
   }
