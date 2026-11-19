@@ -29,7 +29,9 @@ import {
 } from '../state/call-machine';
 import { nextInstability, readQuality, STABLE, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
-import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh } from './peer-session';
+import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, ScreenInfo } from './peer-session';
+import type { ShareAudio } from './share-audio';
+import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
@@ -72,6 +74,10 @@ export interface CallSnapshot {
   localScreenStream: MediaStream | null;
   remoteScreenOn: boolean;
   remoteScreenStream: MediaStream | null;
+  remoteScreenSurface: ShareSurfaceKind | null;
+  remoteScreenLabel: string | null;
+  shareAudio: boolean;
+  shareVolume: number;
   unstable: boolean;
   quality: QualityBars | null;
   degrade: DegradeStep | null;
@@ -91,7 +97,8 @@ export interface PeerSessionLike {
   setVideoTrack: (track: MediaStreamTrack | null) => Promise<void>;
   setAudioTrack: (track: MediaStreamTrack) => Promise<void>;
   canShareScreen: () => boolean;
-  setScreenTracks: (video: MediaStreamTrack | null, audio?: MediaStreamTrack | null) => Promise<boolean>;
+  setScreenTracks: (video: MediaStreamTrack | null, audio?: MediaStreamTrack | null, info?: ScreenInfo | null) => Promise<boolean>;
+  updateScreenInfo: (info: ScreenInfo) => boolean;
   setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
   getStats: () => Promise<RTCStatsReport>;
@@ -133,6 +140,9 @@ export interface CallControllerDeps {
   acquireMedia: (kind: CallKind) => Promise<LocalMedia>;
   acquireCamera: () => Promise<MediaStreamTrack | null>;
   acquireScreen: () => Promise<MediaStream | null>;
+  createShareAudio: (track: MediaStreamTrack, volume: number) => ShareAudio;
+  getShareVolume: () => number;
+  saveShareVolume: (volume: number) => number;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
   isMobile: () => boolean;
@@ -165,6 +175,8 @@ interface Session {
   statsSample: QualitySample | null;
   screen: MediaStream | null;
   screenPending: boolean;
+  shareAudio: ShareAudio | null;
+  screenInfo: ScreenInfo | null;
   instability: InstabilityState;
 }
 
@@ -172,6 +184,17 @@ interface PendingIce {
   resolve: (result: CallIceServersResult | null) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+}
+
+export const SURFACE_WATCH_MS = 2_000;
+
+function toScreenInfo(stream: MediaStream): ScreenInfo | null {
+  try {
+    const surface = describeShareSurface(stream);
+    return surface ? { surface: surface.kind, label: surface.label } : null;
+  } catch {
+    return null;
+  }
 }
 
 export function sanitizeEndReason(reason: unknown): CallEndReason {
@@ -208,6 +231,10 @@ export function initialSnapshot(): CallSnapshot {
     localScreenStream: null,
     remoteScreenOn: false,
     remoteScreenStream: null,
+    remoteScreenSurface: null,
+    remoteScreenLabel: null,
+    shareAudio: false,
+    shareVolume: 1,
     unstable: false,
     quality: null,
     degrade: null,
@@ -231,6 +258,7 @@ export class CallController {
   private preparing = false;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
+  private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private disposed = false;
 
@@ -362,6 +390,8 @@ export class CallController {
         statsSample: null,
         screen: null,
         screenPending: false,
+        shareAudio: null,
+        screenInfo: null,
         instability: STABLE,
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
@@ -450,6 +480,8 @@ export class CallController {
         statsSample: null,
         screen: null,
         screenPending: false,
+        shareAudio: null,
+        screenInfo: null,
         instability: STABLE,
       };
       const handedOver = media;
@@ -639,8 +671,13 @@ export class CallController {
       this.deps.stopMedia(stream);
       return;
     }
-    const ok = await peer.setScreenTracks(video, stream.getAudioTracks()[0] ?? null);
+    const rawAudio = stream.getAudioTracks()[0] ?? null;
+    const volume = this.deps.getShareVolume();
+    const shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
+    const info = toScreenInfo(stream);
+    const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info);
     if (!ok || this.session !== session || !this.isConnected()) {
+      shareAudio?.stop();
       this.deps.stopMedia(stream);
       if (ok) {
         await peer.setScreenTracks(null);
@@ -650,12 +687,16 @@ export class CallController {
       return;
     }
     if (this.getSnapshot().degrade === 'audio-only-relay') {
+      shareAudio?.stop();
       this.deps.stopMedia(stream);
       await peer.setScreenTracks(null);
       this.update({ notice: { kind: 'screen-degraded' } });
       return;
     }
     session.screen = stream;
+    session.shareAudio = shareAudio;
+    session.screenInfo = info;
+    this.startSurfaceWatch(session);
     const shared = stream;
     video.addEventListener(
       'ended',
@@ -666,7 +707,45 @@ export class CallController {
       },
       { once: true },
     );
-    this.update({ screenSharing: true, localScreenStream: stream });
+    this.update({ screenSharing: true, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume });
+  }
+
+  setShareVolume(volume: number): void {
+    const saved = this.deps.saveShareVolume(volume);
+    this.session?.shareAudio?.setVolume(saved);
+    this.update({ shareVolume: saved });
+  }
+
+  private startSurfaceWatch(session: Session): void {
+    this.stopSurfaceWatch();
+    this.surfaceTimer = setInterval(() => {
+      if (this.session !== session || !session.screen) {
+        this.stopSurfaceWatch();
+        return;
+      }
+      const info = toScreenInfo(session.screen);
+      if (info && (info.surface !== session.screenInfo?.surface || info.label !== session.screenInfo.label)) {
+        session.screenInfo = info;
+        session.peerSession?.updateScreenInfo(info);
+      }
+    }, SURFACE_WATCH_MS);
+  }
+
+  private stopSurfaceWatch(): void {
+    if (this.surfaceTimer !== null) {
+      clearInterval(this.surfaceTimer);
+      this.surfaceTimer = null;
+    }
+  }
+
+  private releaseScreen(session: Session): void {
+    const stream = session.screen;
+    session.screen = null;
+    session.screenInfo = null;
+    session.shareAudio?.stop();
+    session.shareAudio = null;
+    this.stopSurfaceWatch();
+    this.deps.stopMedia(stream);
   }
 
   async stopScreenShare(): Promise<void> {
@@ -675,9 +754,8 @@ export class CallController {
     if (!session || !stream) {
       return;
     }
-    session.screen = null;
-    this.deps.stopMedia(stream);
-    this.update({ screenSharing: false, localScreenStream: null });
+    this.releaseScreen(session);
+    this.update({ screenSharing: false, localScreenStream: null, shareAudio: false });
     await session.peerSession?.setScreenTracks(null);
   }
 
@@ -1086,7 +1164,7 @@ export class CallController {
     } else if (message.t === 'mute') {
       this.update({ remoteMuted: message.on });
     } else if (message.t === 'screen') {
-      this.update({ remoteScreenOn: message.on });
+      this.update({ remoteScreenOn: message.on, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
     } else if (message.t === 'caps') {
       this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
     } else {
@@ -1100,10 +1178,8 @@ export class CallController {
     }
     this.update({ degrade: step });
     if (step === 'audio-only-relay' && session.screen) {
-      const stream = session.screen;
-      session.screen = null;
-      this.deps.stopMedia(stream);
-      this.update({ screenSharing: false, localScreenStream: null, notice: { kind: 'screen-degraded' } });
+      this.releaseScreen(session);
+      this.update({ screenSharing: false, localScreenStream: null, shareAudio: false, notice: { kind: 'screen-degraded' } });
     }
   }
 
@@ -1172,6 +1248,9 @@ export class CallController {
         localScreenStream: null,
         remoteScreenOn: false,
         remoteScreenStream: null,
+        remoteScreenSurface: null,
+        remoteScreenLabel: null,
+        shareAudio: false,
         unstable: false,
         quality: null,
         degrade: null,
@@ -1219,12 +1298,11 @@ export class CallController {
         zeroEphemeralKeyPair(session.ownEk);
       }
       this.deps.stopMedia(session.media?.stream ?? null);
-      this.deps.stopMedia(session.screen);
-      session.screen = null;
+      this.releaseScreen(session);
       this.deps.tabs.announceReleased(session.callId);
     }
     this.deps.tabs.releaseCall();
-    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, unstable: false });
+    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, shareAudio: false, unstable: false });
   }
 
   dismissEnded(): void {
@@ -1249,7 +1327,9 @@ export class CallController {
       zeroEphemeralKeyPair(this.session.ownEk);
     }
     this.deps.stopMedia(this.session?.media?.stream ?? null);
-    this.deps.stopMedia(this.session?.screen ?? null);
+    if (this.session) {
+      this.releaseScreen(this.session);
+    }
     this.deps.stopRingtone();
     this.deps.tabs.releaseRingtone();
     this.deps.tabs.releaseCall();

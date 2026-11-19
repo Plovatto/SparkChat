@@ -18,6 +18,8 @@ import {
   extractSdpFingerprints,
   parseControlMessage,
   preferredAudioCodecs,
+  sanitizeScreenLabel,
+  screenControl,
   screenAudioCodecs,
   screenVideoCodecs,
   senderParameters,
@@ -1330,5 +1332,52 @@ describe('screen share capabilities', () => {
     await verify(h);
 
     expect(h.session.canShareScreen()).toBe(false);
+  });
+});
+
+describe('screen share info', () => {
+  it('accepts the old screen message shape and the new one with surface and label', () => {
+    expect(parseControlMessage('{"t":"screen","on":true}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":true,"surface":"window","label":"Docs"}')).toEqual({ t: 'screen', on: true, surface: 'window', label: 'Docs' });
+  });
+
+  it('drops invalid surfaces, non string labels and info on stop', () => {
+    expect(parseControlMessage('{"t":"screen","on":true,"surface":"desk","label":5}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":false,"surface":"window","label":"x"}')).toEqual({ t: 'screen', on: false });
+  });
+
+  it('strips control and bidi characters and caps the label at 80 characters', () => {
+    expect(sanitizeScreenLabel('  a\u0000b\u202ec\n ')).toBe('abc');
+    expect(sanitizeScreenLabel('x'.repeat(200))).toHaveLength(80);
+    expect(sanitizeScreenLabel('\u0007')).toBeNull();
+    expect(sanitizeScreenLabel({})).toBeNull();
+    expect(parseControlMessage(JSON.stringify({ t: 'screen', on: true, label: '<b>' + 'y'.repeat(120) }))).toMatchObject({ label: '<b>' + 'y'.repeat(77) });
+  });
+
+  it('builds messages that always fit the control size limit', () => {
+    const message = screenControl(true, { surface: 'browser', label: '"\\'.repeat(60) });
+    expect(JSON.stringify(message).length).toBeLessThanOrEqual(256);
+    expect(parseControlMessage(JSON.stringify(message))).toEqual(message);
+    expect(screenControl(false, { surface: 'browser', label: 'x' })).toEqual({ t: 'screen', on: false });
+    expect(screenControl(true, { surface: 'monitor', label: null })).toEqual({ t: 'screen', on: true, surface: 'monitor' });
+  });
+
+  it('sends the surface with the start message and re-sends it only while sharing', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"caps","screen":true}' });
+    const channel = h.connection.channels[0]!;
+
+    expect(h.session.updateScreenInfo({ surface: 'window', label: 'A' })).toBe(false);
+    await h.session.setScreenTracks({ kind: 'video', contentHint: '' } as unknown as MediaStreamTrack, null, { surface: 'browser', label: 'Tab' });
+    expect(channel.sent.at(-1)).toBe('{"t":"screen","on":true,"surface":"browser","label":"Tab"}');
+
+    expect(h.session.updateScreenInfo({ surface: 'window', label: 'Editor' })).toBe(true);
+    expect(channel.sent.at(-1)).toBe('{"t":"screen","on":true,"surface":"window","label":"Editor"}');
+
+    await h.session.setScreenTracks(null);
+    expect(channel.sent.at(-1)).toBe('{"t":"screen","on":false}');
   });
 });

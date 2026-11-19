@@ -3,6 +3,7 @@ import { getItem, setItem } from '@lib/storage';
 
 const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
+const SHARE_VOLUME_KEY = 'chatCallShareVolume';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -85,4 +86,15 @@ export function subscribeAudioProcessing(listener: Listener): () => void {
 export function useAudioProcessing(): [AudioProcessing, (patch: Partial<AudioProcessing>) => void] {
   const value = useSyncExternalStore(subscribeAudioProcessing, getAudioProcessing, () => DEFAULT_AUDIO_PROCESSING);
   return [value, setAudioProcessing];
+}
+
+export function getShareVolume(): number {
+  const stored = getItem<unknown>(SHARE_VOLUME_KEY);
+  return typeof stored === 'number' && Number.isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 1;
+}
+
+export function setShareVolume(value: number): number {
+  const next = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  setItem(SHARE_VOLUME_KEY, next);
+  return next;
 }

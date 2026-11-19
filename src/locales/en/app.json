@@ -749,7 +749,15 @@
         "window": "A window",
         "monitor": "Your entire screen",
         "unknown": "Your screen"
-      }
+      },
+      "peerTitle": "{{name}} is sharing",
+      "peerSurface": {
+        "browser": "A browser tab",
+        "window": "A window",
+        "monitor": "The entire screen",
+        "unknown": "The screen"
+      },
+      "volume": "Shared audio volume"
     },
     "unstable": "Unstable connection",
     "you": "You",

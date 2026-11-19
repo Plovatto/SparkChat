@@ -10,9 +10,10 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, getShareVolume, setAudioProcessing, setShareVolume, type AudioProcessing } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
+import { createShareAudio } from './lib/share-audio';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
@@ -55,6 +56,9 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       acquireMedia: (kind) => acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: preferredAudioRef.current, videoInputId: preferredVideoRef.current }),
       acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
       acquireScreen: () => acquireScreenShare(),
+      createShareAudio: (track, volume) => createShareAudio(track, volume),
+      getShareVolume,
+      saveShareVolume: setShareVolume,
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
       isMobile: isMobileDevice,
@@ -141,6 +145,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     toggleMute: () => controller?.toggleMute(),
     toggleCamera: () => void controller?.toggleCamera(),
     toggleScreenShare: () => void controller?.toggleScreenShare(),
+    setShareVolume: (volume) => controller?.setShareVolume(volume),
     canShareScreen: screenShareSupported,
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),

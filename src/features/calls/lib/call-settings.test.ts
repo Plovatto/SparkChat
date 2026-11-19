@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing } from './call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, getShareVolume, setAudioProcessing, setShareVolume } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -63,5 +63,17 @@ describe('legacy protect my IP setting', () => {
     });
 
     expect(() => clearLegacyCallSettings()).not.toThrow();
+  });
+});
+
+describe('shared audio volume', () => {
+  it('defaults to 100% and remembers the last value clamped to 0-100%', () => {
+    expect(getShareVolume()).toBe(1);
+    expect(setShareVolume(0.4)).toBe(0.4);
+    expect(getShareVolume()).toBe(0.4);
+    expect(setShareVolume(3)).toBe(1);
+    expect(setShareVolume(-1)).toBe(0);
+    localStorage.setItem('chatCallShareVolume', '"loud"');
+    expect(getShareVolume()).toBe(1);
   });
 });

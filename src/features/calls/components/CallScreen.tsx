@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCompress, FaCompressAlt, FaExpand, FaMicrophoneSlash, FaWifi } from 'react-icons/fa';
+import { FaCompress, FaCompressAlt, FaExpand, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } from 'react-icons/fa';
 import { MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
@@ -61,6 +61,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const [needsTap, setNeedsTap] = useState(false);
+  const [showShareVolume, setShowShareVolume] = useState(false);
   const desktop = useMediaQuery('(min-width: 768px) and (pointer: fine)');
   const peer = call.peerDisplay(state.peerId);
   const peerName = peer?.name ?? '';
@@ -154,6 +155,8 @@ export function CallScreen({ videoRef }: CallScreenProps) {
     : { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'cover' as const, display: showRemoteVideo ? 'block' : 'none' };
 
   const shareSurface = snapshot.screenSharing ? describeShareSurface(snapshot.localScreenStream) : null;
+  const sharePercent = Math.round(snapshot.shareVolume * 100);
+  const peerSurfaceText = `${t(`calls.share.peerSurface.${snapshot.remoteScreenSurface ?? 'unknown'}`)}${snapshot.remoteScreenLabel ? ` · ${snapshot.remoteScreenLabel}` : ''}`;
 
   const remoteVideo = <video ref={videoRef} autoPlay playsInline style={remoteVideoStyle} />;
 
@@ -202,17 +205,47 @@ export function CallScreen({ videoRef }: CallScreenProps) {
               {shareSurface?.label ? ` · ${shareSurface.label}` : ''}
             </span>
           </span>
+          {snapshot.shareAudio && (
+            <button
+              type="button"
+              className="sc-call-share-banner__volume-btn"
+              onClick={() => setShowShareVolume((value) => !value)}
+              title={t('calls.share.volume')}
+              aria-label={t('calls.share.volume')}
+              aria-expanded={showShareVolume}
+            >
+              {sharePercent === 0 ? <FaVolumeMute size={15} /> : <FaVolumeUp size={15} />}
+            </button>
+          )}
           <button type="button" className="sc-call-pill-btn" onClick={() => void call.toggleScreenShare()}>
             {t('calls.share.stopShort')}
           </button>
+          {snapshot.shareAudio && showShareVolume && (
+            <label className="sc-call-share-volume">
+              <span className="sc-call-share-volume__label">{t('calls.share.volume')}</span>
+              <span className="sc-call-share-volume__row">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={sharePercent}
+                  onChange={(event) => call.setShareVolume(Number(event.target.value) / 100)}
+                  aria-valuetext={`${sharePercent}%`}
+                />
+                <span className="sc-call-share-volume__value">{sharePercent}%</span>
+              </span>
+            </label>
+          )}
         </div>
       )}
 
       {remoteSharing ? (
         <div ref={stageRef} className="sc-call-stage">
           <video ref={screenRef} autoPlay playsInline className="sc-call-stage__video" aria-label={t('calls.share.remote', { name: peerName })} />
-          <span className="sc-call-chip sc-call-stage__label">
-            <span>{t('calls.share.remote', { name: peerName })}</span>
+          <span className="sc-call-stage__label">
+            <span className="sc-call-stage__label-title">{t('calls.share.peerTitle', { name: peerName })}</span>
+            <span className="sc-call-stage__label-detail">{peerSurfaceText}</span>
           </span>
           {desktop && fullscreen.supported && (
             <button

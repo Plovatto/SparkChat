@@ -1,8 +1,53 @@
 import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
+import type { ShareSurfaceKind } from './share-surface';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | { t: 'screen'; on: boolean } | { t: 'caps'; screen: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean };
+
+export interface ScreenInfo {
+  surface: ShareSurfaceKind;
+  label: string | null;
+}
+
+export interface ScreenControl {
+  t: 'screen';
+  on: boolean;
+  surface?: ShareSurfaceKind;
+  label?: string;
+}
+
+export const MAX_SCREEN_LABEL_LENGTH = 80;
+const SURFACES: ReadonlySet<string> = new Set(['browser', 'window', 'monitor', 'unknown']);
+function isUnsafeChar(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029 || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
+}
+
+export function sanitizeScreenLabel(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const visible = Array.from(value).filter((char) => !isUnsafeChar(char)).join('').trim();
+  const clean = Array.from(visible).slice(0, MAX_SCREEN_LABEL_LENGTH).join('').trim();
+  return clean === '' ? null : clean;
+}
+
+export function screenControl(on: boolean, info: ScreenInfo | null = null): ScreenControl {
+  const message: ScreenControl = { t: 'screen', on };
+  if (!on || !info) {
+    return message;
+  }
+  message.surface = SURFACES.has(info.surface) ? info.surface : 'unknown';
+  let label = sanitizeScreenLabel(info.label);
+  while (label && JSON.stringify({ ...message, label }).length > MAX_CONTROL_LENGTH) {
+    label = sanitizeScreenLabel(Array.from(label).slice(0, -8).join(''));
+  }
+  if (label) {
+    message.label = label;
+  }
+  return message;
+}
 
 export type ConnectionStatus = 'connected' | 'interrupted';
 
@@ -146,7 +191,18 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     if (message.t === 'caps' && typeof message.screen === 'boolean') {
       return { t: 'caps', screen: message.screen };
     }
-    if ((message.t === 'mute' || message.t === 'camera' || message.t === 'screen') && typeof message.on === 'boolean') {
+    if (message.t === 'screen' && typeof message.on === 'boolean') {
+      const screen: ScreenControl = { t: 'screen', on: message.on };
+      if (message.on && typeof message.surface === 'string' && SURFACES.has(message.surface)) {
+        screen.surface = message.surface as ShareSurfaceKind;
+      }
+      const label = message.on ? sanitizeScreenLabel(message.label) : null;
+      if (label) {
+        screen.label = label;
+      }
+      return screen;
+    }
+    if ((message.t === 'mute' || message.t === 'camera') && typeof message.on === 'boolean') {
       return { t: message.t, on: message.on };
     }
     return null;
@@ -752,7 +808,14 @@ export class PeerSession {
     return this.verified && !this.closed && this.peerScreenCaps && this.screenTransceiver() !== undefined;
   }
 
-  async setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null): Promise<boolean> {
+  updateScreenInfo(info: ScreenInfo): boolean {
+    if (!this.screenTransceiver()?.sender.track) {
+      return false;
+    }
+    return this.sendControl(screenControl(true, info));
+  }
+
+  async setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null, info: ScreenInfo | null = null): Promise<boolean> {
     const transceiver = this.screenTransceiver();
     if (!transceiver || !this.verified || this.closed) {
       return false;
@@ -778,7 +841,7 @@ export class PeerSession {
       this.sendControl({ t: 'screen', on: false });
       return false;
     }
-    this.sendControl({ t: 'screen', on: video !== null });
+    this.sendControl(screenControl(video !== null, info));
     await this.applyCaps();
     return true;
   }

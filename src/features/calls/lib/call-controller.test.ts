@@ -109,9 +109,15 @@ class FakePeer implements PeerSessionLike {
   canShareScreen(): boolean {
     return this.shareable;
   }
-  setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null): Promise<boolean> {
+  screenInfos: unknown[] = [];
+  setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null, info: unknown = null): Promise<boolean> {
     this.screenTracks.push({ video, audio });
+    this.screenInfos.push(info);
     return Promise.resolve(this.screenResult);
+  }
+  updateScreenInfo(info: unknown): boolean {
+    this.screenInfos.push(info);
+    return true;
   }
   setNetworkUnstable(unstable: boolean): Promise<void> {
     this.unstableCalls.push(unstable);
@@ -174,6 +180,9 @@ function makeNode(self: Party, resolve: (userId: string) => Promise<ResolvedPeer
       }),
     acquireCamera: () => Promise.resolve(null),
     acquireScreen: () => Promise.resolve(null),
+    createShareAudio: (track) => ({ track, controllable: false, setVolume: () => undefined, stop: () => undefined }),
+    getShareVolume: () => 1,
+    saveShareVolume: (volume) => volume,
     stopMedia: () => {
       node.stopped += 1;
     },
@@ -1184,5 +1193,90 @@ describe('screen share review fixes', () => {
     expect(share.video.stopped).toBe(true);
     expect(peer.screenTracks.at(-1)).toEqual({ video: null, audio: null });
     expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, localScreenStream: null, notice: { kind: 'screen-degraded' } });
+  });
+});
+
+describe('screen share info and volume', () => {
+  function surfaceStream(surface: string, label: string, withAudio = true) {
+    const share = screenStream(withAudio);
+    let current = { surface, label };
+    Object.defineProperty(share.video, 'getSettings', { value: () => ({ displaySurface: current.surface }) });
+    Object.defineProperty(share.video, 'label', { get: () => current.label });
+    return { ...share, switchTo: (next: { surface: string; label: string }) => { current = next; } };
+  }
+
+  it('sends the surface, routes the share audio through the volume control and re-sends on surface switches', async () => {
+    const share = surfaceStream('browser', 'Docs');
+    const gains: number[] = [];
+    let stopped = 0;
+    const mixed = { kind: 'audio' } as unknown as MediaStreamTrack;
+    const w = await world({
+      alice: {
+        acquireScreen: () => Promise.resolve(share.stream),
+        getShareVolume: () => 0.5,
+        saveShareVolume: (volume) => volume,
+        createShareAudio: (_track, volume) => {
+          gains.push(volume);
+          return { track: mixed, controllable: true, setVolume: (next) => gains.push(next), stop: () => void (stopped += 1) };
+        },
+      },
+    });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenTracks[0]).toEqual({ video: share.video, audio: mixed });
+    expect(peer.screenInfos[0]).toEqual({ surface: 'browser', label: 'Docs' });
+    expect(w.a.controller.getSnapshot()).toMatchObject({ shareAudio: true, shareVolume: 0.5 });
+
+    w.a.controller.setShareVolume(0.2);
+    expect(gains).toEqual([0.5, 0.2]);
+    expect(w.a.controller.getSnapshot().shareVolume).toBe(0.2);
+
+    share.switchTo({ surface: 'window', label: 'Editor' });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(peer.screenInfos.at(-1)).toEqual({ surface: 'window', label: 'Editor' });
+    const sent = peer.screenInfos.length;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(peer.screenInfos).toHaveLength(sent);
+
+    await w.a.controller.toggleScreenShare();
+    expect(stopped).toBe(1);
+    expect(w.a.controller.getSnapshot().shareAudio).toBe(false);
+  });
+
+  it('hides the volume control when the share has no audio and stops the mixer on hang up', async () => {
+    const silent = surfaceStream('monitor', '', false);
+    let created = 0;
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(silent.stream), createShareAudio: (track) => { created += 1; return { track, controllable: true, setVolume: () => undefined, stop: () => undefined }; } } });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+    expect(created).toBe(0);
+    expect(w.a.controller.getSnapshot().shareAudio).toBe(false);
+
+    const loud = surfaceStream('browser', 'Video');
+    let stopped = 0;
+    const other = await world({ alice: { acquireScreen: () => Promise.resolve(loud.stream), createShareAudio: (track) => ({ track, controllable: true, setVolume: () => undefined, stop: () => void (stopped += 1) }) } });
+    await connectCall(other);
+    other.a.peers[0]!.options.onConnection('connected');
+    await other.a.controller.toggleScreenShare();
+    other.a.controller.hangup();
+    await settle();
+    expect(stopped).toBe(1);
+  });
+
+  it('shows the peer surface and label and clears them when the share stops', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+
+    peer.options.onControl({ t: 'screen', on: true, surface: 'window', label: 'Slides' });
+    expect(w.a.controller.getSnapshot()).toMatchObject({ remoteScreenOn: true, remoteScreenSurface: 'window', remoteScreenLabel: 'Slides' });
+
+    peer.options.onControl({ t: 'screen', on: false });
+    expect(w.a.controller.getSnapshot()).toMatchObject({ remoteScreenOn: false, remoteScreenSurface: null, remoteScreenLabel: null });
   });
 });

@@ -24,6 +24,7 @@ export interface CallApi {
   toggleMute: () => void;
   toggleCamera: () => void;
   toggleScreenShare: () => void;
+  setShareVolume: (volume: number) => void;
   canShareScreen: boolean;
   dismissNotice: () => void;
   dismissEnded: () => void;
