@@ -61,7 +61,8 @@
       "invalidMedia": "Invalid media content.",
       "blocked": "You can't send messages in this conversation because of a block.",
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
-      "staleRoomKey": "The conversation encryption key changed. Please try sending again."
+      "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
+      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
