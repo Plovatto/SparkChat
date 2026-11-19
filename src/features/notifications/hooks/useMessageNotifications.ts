@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSocket, type MessageView, type RoomSummary } from '@lib/socket';
 import { buildNotificationContent } from '../utils/build-notification-content';
 import { playNotificationSound } from '../utils/play-notification-sound';
+import { showPageNotification } from '../utils/show-page-notification';
 
 export function useMessageNotifications(
   rooms: RoomSummary[],
@@ -61,12 +62,7 @@ export function useMessageNotifications(
           silent: true,
           ...(image ? { image } : {}),
         };
-        const notification = new Notification(title, options);
-        notification.onclick = () => {
-          window.focus();
-          onNotificationClick(message.roomId);
-          notification.close();
-        };
+        showPageNotification(title, options, message.roomId, () => onNotificationClick(message.roomId));
       });
     };
 
