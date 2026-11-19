@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react';
-import { FaArrowLeft, FaCheck, FaComments, FaLink, FaUser } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser, FaVideo } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
+import { useOptionalCall } from '@features/calls';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { shareLinkNatively } from '@lib/share-link';
@@ -29,6 +30,9 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const roomName = getRoomDisplayName(room, currentUserId);
   const statusText = isAssistantRoom(room) ? t('chat.assistantStatus') : otherUser?.statusText;
   const invite = useGroupInviteLink(room);
+  const call = useOptionalCall();
+  const canCall = call !== null && call.canCall(room);
+  const callBusy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
 
   const shareInviteLink = () => {
     void invite.createLink().then((link) => {
@@ -177,14 +181,40 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
         </div>
       </div>
 
-      <button
-        onClick={onOpenInfo}
-        title={room.type === 'private' ? t('chat.header.viewProfile') : t('chat.header.viewGroup')}
-        className="sc-icon-btn sc-icon-btn--header"
-        style={{ width: '38px', height: '38px' }}
-      >
-        {room.type === 'private' ? <FaUser size={15} /> : <FaComments size={15} />}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {canCall && call && (
+          <>
+            <button
+              onClick={() => call.startCall(room, 'voice')}
+              disabled={callBusy}
+              title={t('chat.header.voiceCall')}
+              aria-label={t('chat.header.voiceCall')}
+              className="sc-icon-btn sc-icon-btn--header"
+              style={{ width: '38px', height: '38px' }}
+            >
+              <FaPhone size={15} />
+            </button>
+            <button
+              onClick={() => call.startCall(room, 'video')}
+              disabled={callBusy}
+              title={t('chat.header.videoCall')}
+              aria-label={t('chat.header.videoCall')}
+              className="sc-icon-btn sc-icon-btn--header"
+              style={{ width: '38px', height: '38px' }}
+            >
+              <FaVideo size={15} />
+            </button>
+          </>
+        )}
+        <button
+          onClick={onOpenInfo}
+          title={room.type === 'private' ? t('chat.header.viewProfile') : t('chat.header.viewGroup')}
+          className="sc-icon-btn sc-icon-btn--header"
+          style={{ width: '38px', height: '38px' }}
+        >
+          {room.type === 'private' ? <FaUser size={15} /> : <FaComments size={15} />}
+        </button>
+      </div>
     </div>
   );
 }

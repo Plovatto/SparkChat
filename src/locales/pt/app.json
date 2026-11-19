@@ -130,6 +130,17 @@
       "nameRequired": "A nova chave do grupo precisa incluir o nome do grupo criptografado.",
       "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente.",
       "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo."
+    },
+    "call": {
+      "disabled": "As chamadas estão desativadas.",
+      "notAllowed": "Você não pode ligar para este contato.",
+      "alreadyInCall": "Você já está em uma chamada.",
+      "peerBusy": "O contato está ocupado.",
+      "rateLimited": "Muitas tentativas de chamada. Aguarde um instante.",
+      "notFound": "Chamada não encontrada.",
+      "invalidState": "Esta ação não é possível agora na chamada.",
+      "signalTooLarge": "Mensagem da chamada grande demais.",
+      "relayUnavailable": "A retransmissão está indisponível."
     }
   },
   "systemEvents": {
@@ -146,6 +157,10 @@
       "dailyLimitReached": "Você atingiu o limite diário de mensagens com a IA. Tente novamente amanhã.",
       "encryptionUnavailable": "Não foi possível preparar a conversa criptografada. Tente enviar a mensagem novamente em instantes.",
       "replyFailed": "Não consegui responder agora. Tente novamente em instantes."
+    },
+    "call": {
+      "ended": "Chamada de {{kind}} encerrada · {{duration}}",
+      "missed": "Chamada de {{kind}} perdida"
     }
   },
   "auth": {
@@ -257,7 +272,9 @@
       "copyInvite": "Copiar link de convite",
       "inviteUnavailable": "O link de convite ainda não está disponível.",
       "viewProfile": "Ver perfil",
-      "viewGroup": "Ver informações do grupo"
+      "viewGroup": "Ver informações do grupo",
+      "voiceCall": "Ligação de voz",
+      "videoCall": "Chamada de vídeo"
     },
     "input": {
       "attachments_one": "Anexo pendente",
@@ -553,7 +570,8 @@
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
     "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
-    "confirmRegenerate": "Gerar novo arquivo"
+    "confirmRegenerate": "Gerar novo arquivo",
+    "callProtectIp": "Proteger meu IP nas chamadas"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
@@ -598,5 +616,83 @@
     "Game": "Videogame",
     "Music": "Música",
     "Art": "Arte"
+  },
+  "calls": {
+    "kind": {
+      "voice": "voz",
+      "video": "vídeo"
+    },
+    "start": {
+      "voice": "Ligação de voz",
+      "video": "Chamada de vídeo"
+    },
+    "incoming": {
+      "voice": "Chamada de voz recebida",
+      "video": "Chamada de vídeo recebida"
+    },
+    "answer": "Atender",
+    "decline": "Recusar",
+    "silence": "Silenciar toque",
+    "hangup": "Desligar",
+    "mute": "Silenciar microfone",
+    "unmute": "Ativar microfone",
+    "cameraOn": "Ligar câmera",
+    "cameraOff": "Desligar câmera",
+    "devices": "Dispositivos",
+    "minimize": "Minimizar",
+    "expand": "Voltar para a chamada",
+    "microphone": "Microfone",
+    "camera": "Câmera",
+    "speaker": "Saída de áudio",
+    "defaultDevice": "Padrão",
+    "tapToResume": "Toque para ativar o áudio",
+    "verified": "Verificado",
+    "notVerified": "Não verificado",
+    "verifyShortcut": "Ver código de segurança",
+    "quality": "Qualidade da conexão: {{bars}} de 3",
+    "remoteMuted": "Microfone desligado",
+    "remoteCameraOff": "Câmera desligada",
+    "cameraFailed": "Não foi possível usar a câmera. Seguindo só com áudio.",
+    "relayDegraded": "Vídeo desligado para economizar dados da conexão protegida.",
+    "videoDegraded": "Qualidade de vídeo reduzida.",
+    "otherTab": "Chamada em outra aba",
+    "otherTabHint": "Use a aba onde a chamada está ocorrendo.",
+    "status": {
+      "calling": "Chamando…",
+      "ringing": "Tocando…",
+      "connecting": "Conectando…",
+      "reconnecting": "Reconectando…",
+      "ended": "Chamada encerrada"
+    },
+    "ended": {
+      "completed": "Chamada encerrada",
+      "missed": "Sem resposta",
+      "declined": "Chamada recusada",
+      "cancelled": "Chamada cancelada",
+      "busy": "Ocupado",
+      "failed": "Não foi possível conectar",
+      "connection-lost": "Conexão perdida",
+      "answered-elsewhere": "Atendida em outro dispositivo"
+    },
+    "detail": {
+      "fingerprint-mismatch": "A verificação de segurança da chamada falhou. A chamada foi encerrada.",
+      "invalid-accept": "A resposta da chamada não pôde ser verificada.",
+      "relay-unavailable": "A retransmissão está indisponível e a opção Proteger meu IP está ligada.",
+      "connect-timeout": "A conexão demorou demais.",
+      "signal-failed": "Não foi possível enviar a sinalização da chamada.",
+      "media-attach-failed": "Não foi possível enviar seu áudio ou vídeo na chamada."
+    },
+    "notice": {
+      "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
+      "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
+      "unverifiable": "Não foi possível verificar este contato para chamadas.",
+      "relay-unavailable": "A retransmissão está indisponível. Desligue Proteger meu IP ou tente mais tarde.",
+      "other-tab": "Já existe uma chamada em outra aba.",
+      "disabled": "As chamadas estão indisponíveis no momento.",
+      "interrupted": "Uma chamada anterior foi interrompida.",
+      "server-error": "Não foi possível completar a chamada."
+    },
+    "callBack": "Ligar de volta",
+    "close": "Fechar"
   }
 }

@@ -28,6 +28,7 @@ import {
   useSoundPreference,
   useUnreadBadge,
 } from '@features/notifications';
+import { CallProvider } from '@features/calls';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -439,7 +440,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   if (!isLoaded) {
     return (
-      <Container fluid className="chat-shell-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <Container fluid className="chat-shell-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="text-center sc-anim-fade-in">
           <div
             className="loading-spinner"
@@ -461,6 +462,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   }
 
   return (
+    <CallProvider rooms={rooms}>
     <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {!connected && (
@@ -546,5 +548,6 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
         onCancel={dismissDeepLink}
       />
     </Container>
+    </CallProvider>
   );
 }

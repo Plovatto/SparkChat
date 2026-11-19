@@ -18,6 +18,25 @@ interface SystemMessageLike {
 const MARK = '\u0001';
 const MARKED_NAME = new RegExp(`${MARK}(\\w+)${MARK}`);
 
+export function formatCallDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+}
+
+function callVariables(event: SystemEvent): Record<string, string> {
+  if (!event.type.startsWith('call.')) {
+    return {};
+  }
+  const kind = event.params.kind === 'video' ? 'video' : 'voice';
+  const raw = event.params.durationSec ?? event.params.duration;
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : 0;
+  const duration = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+  return { kind: translate(`calls.kind.${kind}`), duration: formatCallDuration(duration) };
+}
+
 function resolveName(value: unknown, selfNickname: string | undefined, atStart: boolean): string {
   if (typeof value !== 'string' || value.trim() === '') {
     return translate('common.someone');
@@ -36,7 +55,7 @@ export function systemEventSegments(event: SystemEvent, selfNickname?: string): 
 
   const targetIsSelf = Boolean(selfNickname) && event.params.target === selfNickname;
   const key = targetIsSelf && hasTranslation(`${baseKey}_you`) ? `${baseKey}_you` : baseKey;
-  const marked = translate(key, { actor: `${MARK}actor${MARK}`, target: `${MARK}target${MARK}` });
+  const marked = translate(key, { ...callVariables(event), actor: `${MARK}actor${MARK}`, target: `${MARK}target${MARK}` });
   const pieces = marked.split(MARKED_NAME);
 
   return pieces.flatMap((piece, index): SystemTextSegment[] => {

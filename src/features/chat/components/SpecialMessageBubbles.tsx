@@ -1,5 +1,6 @@
 import { FaBan, FaExclamationCircle } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { useOptionalCall } from '@features/calls';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { formatTime, systemMessageSegments, systemMessageText } from '@lib/format';
 import type { EntrancePhase } from '@features/motion';
@@ -100,9 +101,13 @@ interface SystemMessageBubbleProps {
 }
 
 export function SystemMessageBubble({ message, currentNickname, entrancePhase }: SystemMessageBubbleProps) {
-  useTranslation();
+  const { t } = useTranslation();
   const { theme } = useTheme();
+  const call = useOptionalCall();
   const segments = systemMessageSegments(message, currentNickname);
+  const isCallEvent = message.systemEvent?.type === 'call.ended' || message.systemEvent?.type === 'call.missed';
+  const callKind = message.systemEvent?.params.kind === 'video' ? 'video' : 'voice';
+  const canCallBack = isCallEvent && call !== null && call.snapshot.enabled && call.snapshot.state.phase === 'idle';
 
   return (
     <div
@@ -138,6 +143,11 @@ export function SystemMessageBubble({ message, currentNickname, entrancePhase }:
         <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '4px' }}>
           {formatTime(message.timestamp)}
         </span>
+        {canCallBack && call && (
+          <button type="button" className="sc-btn sc-btn--text" style={{ fontSize: '0.8rem', marginTop: '4px' }} onClick={() => call.startCallInRoom(message.roomId, callKind)}>
+            {t('calls.callBack')}
+          </button>
+        )}
       </div>
     </div>
   );
