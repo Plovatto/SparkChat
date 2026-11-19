@@ -23,6 +23,7 @@ interface DevicePickerProps {
   onAudioOutput: (deviceId: string) => void;
   onClose: (restoreFocus: boolean) => void;
   maxHeight?: number | undefined;
+  bottom?: number | undefined;
   trigger?: RefObject<HTMLElement | null>;
 }
 
@@ -45,27 +46,12 @@ function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel,
   const known = value === '' || list.some((device) => device.deviceId === value);
 
   return (
-    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-      <span
-        aria-hidden="true"
-        style={{
-          width: '32px',
-          height: '32px',
-          borderRadius: '50%',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginTop: '27px',
-          background: theme.surfaceSunken,
-          color: theme.accentText,
-        }}
-      >
-        {icon}
-      </span>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', lineHeight: '18px', flex: 1, minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '18px', minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
         {label}
         <span style={{ position: 'relative', display: 'block' }}>
+          <span aria-hidden="true" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', pointerEvents: 'none', color: theme.accentText }}>
+            {icon}
+          </span>
           <select
             value={known ? value : ''}
             disabled={empty}
@@ -78,8 +64,8 @@ function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel,
               color: theme.textPrimary,
               border: `1px solid ${theme.border}`,
               borderRadius: '10px',
-              height: '40px',
-              padding: '0 34px 0 12px',
+              height: '42px',
+              padding: '0 34px 0 40px',
               fontSize: '0.9rem',
               fontWeight: 500,
               cursor: empty ? 'not-allowed' : 'pointer',
@@ -104,7 +90,6 @@ function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel,
         </span>
         {hint && <span style={{ fontSize: '0.72rem', fontWeight: 400, color: theme.textSecondary, lineHeight: 1.3 }}>{hint}</span>}
       </label>
-    </div>
   );
 }
 
@@ -133,7 +118,7 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
   );
 }
 
-export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, trigger }: DevicePickerProps) {
+export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger }: DevicePickerProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const call = useCall();
@@ -189,8 +174,13 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
   );
 
   return (
-    <div ref={panelRef} role="dialog" aria-labelledby={titleId} className="sc-call-panel" style={maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : undefined}>
-      <span className="sc-call-panel__handle" aria-hidden="true" />
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-labelledby={titleId}
+      className="sc-call-panel"
+      style={{ ...(maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : {}), ...(bottom !== undefined ? { bottom: `${bottom}px` } : {}) }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px 10px' }}>
         <strong id={titleId} style={{ fontSize: '1rem' }}>
           {t('calls.settings')}

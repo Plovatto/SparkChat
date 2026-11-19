@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompress, FaCompressAlt, FaExpand, FaMicrophoneSlash, FaWifi } from 'react-icons/fa';
-import { MdPictureInPictureAlt } from 'react-icons/md';
+import { MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -9,6 +9,7 @@ import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
 import { pipMode } from '../lib/picture-in-picture';
+import { describeShareSurface } from '../lib/share-surface';
 import { CallControls } from './CallControls';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
@@ -57,7 +58,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const { state } = snapshot;
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
-  const previewRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const [needsTap, setNeedsTap] = useState(false);
@@ -100,7 +100,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
 
   useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
   useStreamOn(screenRef, remoteSharing ? snapshot.remoteScreenStream : null);
-  useStreamOn(previewRef, snapshot.screenSharing ? snapshot.localScreenStream : null);
 
   const chooseOutput = (deviceId: string) => {
     for (const element of [videoRef.current, screenRef.current]) {
@@ -154,6 +153,8 @@ export function CallScreen({ videoRef }: CallScreenProps) {
     ? { width: '100%', height: '100%', objectFit: 'cover' as const, display: remoteCamera ? 'block' : 'none' }
     : { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'cover' as const, display: showRemoteVideo ? 'block' : 'none' };
 
+  const shareSurface = snapshot.screenSharing ? describeShareSurface(snapshot.localScreenStream) : null;
+
   const remoteVideo = <video ref={videoRef} autoPlay playsInline style={remoteVideoStyle} />;
 
   return (
@@ -191,10 +192,15 @@ export function CallScreen({ videoRef }: CallScreenProps) {
 
       {snapshot.screenSharing && (
         <div className="sc-call-share-banner" role="status">
-          <video ref={previewRef} autoPlay playsInline muted className="sc-call-share-banner__preview" aria-label={t('calls.share.preview')} />
+          <span className="sc-call-share-banner__icon" aria-hidden="true">
+            <MdScreenShare size={18} />
+          </span>
           <span className="sc-call-share-banner__text">
-            <span className="sc-call-share-banner__dot" aria-hidden="true" />
-            <span>{t('calls.share.banner')}</span>
+            <strong>{t('calls.share.title')}</strong>
+            <span className="sc-call-share-banner__detail">
+              {t(`calls.share.surface.${shareSurface?.kind ?? 'unknown'}`)}
+              {shareSurface?.label ? ` · ${shareSurface.label}` : ''}
+            </span>
           </span>
           <button type="button" className="sc-call-pill-btn" onClick={() => void call.toggleScreenShare()}>
             {t('calls.share.stopShort')}

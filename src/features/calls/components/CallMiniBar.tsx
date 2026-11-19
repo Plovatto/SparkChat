@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaExpandAlt, FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
+import { FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
@@ -64,7 +64,13 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   return (
     <div
       role="status"
+      onClick={(event) => {
+        if (!(event.target instanceof Element) || event.target.closest('[data-bar-action]') === null) {
+          call.setMinimized(false);
+        }
+      }}
       style={{
+        cursor: 'pointer',
         ...(attached ? { position: 'relative', zIndex: 3, flexShrink: 0 } : { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1060 }),
         display: 'flex',
         alignItems: 'center',
@@ -81,17 +87,16 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
     >
       <button
         type="button"
-        onClick={() => call.setMinimized(false)}
         aria-label={t('calls.expand')}
         title={t('calls.expand')}
         style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: barColor, cursor: 'pointer', padding: attached ? '0' : '6px 4px', textAlign: 'left', fontWeight: 600, lineHeight: 1 }}
       >
-        <FaExpandAlt size={16} style={{ flexShrink: 0 }} />
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{peer?.name ?? ''}</span>
         <span style={{ flexShrink: 0, whiteSpace: 'nowrap', opacity: 0.9, fontVariantNumeric: 'tabular-nums', fontSize: '0.9rem' }}>{label}</span>
       </button>
       <button
         type="button"
+        data-bar-action=""
         onClick={call.toggleMute}
         aria-label={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
         title={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
@@ -100,7 +105,7 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
       >
         {snapshot.muted ? <FaMicrophoneSlash size={17} /> : <FaMicrophone size={17} />}
       </button>
-      <button type="button" onClick={call.hangup} aria-label={t('calls.hangup')} title={t('calls.hangup')} style={{ ...round, background: theme.danger, color: '#ffffff' }}>
+      <button type="button" data-bar-action="" onClick={call.hangup} aria-label={t('calls.hangup')} title={t('calls.hangup')} style={{ ...round, background: theme.danger, color: '#ffffff' }}>
         <MdCallEnd size={24} />
       </button>
     </div>

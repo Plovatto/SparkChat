@@ -743,7 +743,13 @@
       "fullscreen": "Tela cheia",
       "exitFullscreen": "Sair da tela cheia",
       "unavailable": "Compartilhamento de tela indisponível nesta chamada",
-      "preview": "Prévia do que você está compartilhando"
+      "title": "Você está compartilhando",
+      "surface": {
+        "browser": "Uma aba do navegador",
+        "window": "Uma janela",
+        "monitor": "Sua tela inteira",
+        "unknown": "Sua tela"
+      }
     },
     "unstable": "Conexão instável",
     "you": "Você",

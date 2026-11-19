@@ -743,7 +743,13 @@
       "fullscreen": "Full screen",
       "exitFullscreen": "Exit full screen",
       "unavailable": "Screen sharing is unavailable in this call",
-      "preview": "Preview of what you are sharing"
+      "title": "You are sharing",
+      "surface": {
+        "browser": "A browser tab",
+        "window": "A window",
+        "monitor": "Your entire screen",
+        "unknown": "Your screen"
+      }
     },
     "unstable": "Unstable connection",
     "you": "You",

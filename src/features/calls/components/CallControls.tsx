@@ -12,7 +12,9 @@ interface CallControlsProps {
   infoRef?: RefObject<HTMLElement | null>;
 }
 
-const PANEL_GAP_PX = 24;
+const PANEL_GAP_PX = 32;
+const SHEET_TOP_PX = 76;
+const SHEET_GAP_PX = 12;
 const MIN_PANEL_HEIGHT_PX = 220;
 
 export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallControlsProps) {
@@ -20,6 +22,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
   const call = useCall();
   const [showDevices, setShowDevices] = useState(false);
   const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined);
+  const [panelBottom, setPanelBottom] = useState<number | undefined>(undefined);
   const [selected, setSelected] = useState<DeviceSelection>({ audioInput: '', videoInput: '', audioOutput: '' });
   const settingsRef = useRef<HTMLButtonElement>(null);
   const popover = useMediaQuery('(min-width: 600px)');
@@ -31,8 +34,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
   const shareLabel = snapshot.screenSharing ? t('calls.share.stop') : shareBlocked ? t('calls.share.unavailable') : t('calls.share.start');
 
   useLayoutEffect(() => {
-    if (!showDevices || !popover) {
+    if (!showDevices) {
       setPanelHeight(undefined);
+      setPanelBottom(undefined);
       return;
     }
     const measure = () => {
@@ -40,8 +44,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
       if (!button) {
         return;
       }
-      const top = infoRef?.current?.getBoundingClientRect().bottom ?? 84;
+      const top = popover ? (infoRef?.current?.getBoundingClientRect().bottom ?? 84) : SHEET_TOP_PX;
       setPanelHeight(Math.max(MIN_PANEL_HEIGHT_PX, Math.floor(button.top - top - PANEL_GAP_PX)));
+      setPanelBottom(popover ? undefined : Math.ceil(window.innerHeight - button.top + SHEET_GAP_PX));
     };
     measure();
     window.addEventListener('resize', measure);
@@ -79,7 +84,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
           <FaDesktop size={19} />
         </button>
       )}
-      <span style={{ position: 'relative', display: 'inline-flex' }}>
+      <span style={{ display: 'inline-flex' }}>
         <button
           ref={settingsRef}
           type="button"
@@ -99,6 +104,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
             supportsOutput={supportsOutput}
             selected={selected}
             maxHeight={panelHeight}
+            bottom={panelBottom}
             trigger={settingsRef}
             onAudioInput={(deviceId) => {
               setSelected((current) => ({ ...current, audioInput: deviceId }));
