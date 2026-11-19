@@ -8,6 +8,7 @@ const identityState = vi.hoisted(() => ({
 }));
 
 const trackRoom = vi.hoisted(() => vi.fn());
+const decryptMessageViewSpy = vi.hoisted(() => vi.fn((first: unknown) => Promise.resolve(first)));
 const ensureSigningKeyPublished = vi.hoisted(() => vi.fn());
 const roomKeyHandlers = vi.hoisted(() => ({
   handleRoomKeyPush: vi.fn(),
@@ -25,7 +26,7 @@ const roomKeyHandlers = vi.hoisted(() => ({
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 
 vi.mock('@lib/e2ee', () => ({
-  decryptMessageView: (message: unknown) => Promise.resolve(message),
+  decryptMessageView: decryptMessageViewSpy,
   decryptMessageViews: (messages: unknown) => Promise.resolve(messages),
   decryptRoomSummaries: (rooms: unknown) => Promise.resolve(rooms),
   decryptRoomSummary: (room: unknown) => Promise.resolve(room),
@@ -40,7 +41,7 @@ vi.mock('@lib/e2ee', () => ({
   MissingRoomKeyError: class extends Error {},
 }));
 
-const { wrapSocketWithE2e } = await import('./e2e-socket');
+const { markPreviewOnlyHandler, wrapSocketWithE2e } = await import('./e2e-socket');
 
 type Handler = (payload: unknown) => void;
 
@@ -377,5 +378,23 @@ describe('wrapSocketWithE2e group names', () => {
     receive('room:name-updated', payload);
 
     expect(roomKeyHandlers.handleRoomNameUpdated).toHaveBeenCalledWith(socket, payload);
+  });
+});
+
+describe('wrapSocketWithE2e preview only handlers', () => {
+  it('asks to skip gif media only for handlers that just show a label', async () => {
+    decryptMessageViewSpy.mockClear();
+    const { socket, receive } = createFakeSocket();
+    const wrapped = wrapSocketWithE2e(socket);
+    const bubble = vi.fn();
+    const preview = markPreviewOnlyHandler(vi.fn());
+    wrapped.on('message:new', bubble);
+    wrapped.on('message:new', preview);
+
+    receive('message:new', { id: 'm1' });
+    await vi.waitFor(() => expect(preview).toHaveBeenCalled());
+
+    expect(decryptMessageViewSpy).toHaveBeenCalledTimes(2);
+    expect(decryptMessageViewSpy.mock.calls.map((call) => (call as unknown[])[2])).toEqual([{ deferGifMedia: false }, { deferGifMedia: true }]);
   });
 });

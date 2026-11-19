@@ -34,7 +34,7 @@ function jumpToMessage(messageId: string): void {
 export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentUserId }: MessageReplyQuoteProps) {
   const { t } = useTranslation();
   const isDeleted = replyTo.deleted === true;
-  const isReplyToImage = !isDeleted && replyTo.type === 'image';
+  const isReplyToImage = !isDeleted && replyTo.type === 'image' && !isGifMimeType(replyTo.fileMeta?.mimeType);
   const isReplyToVideo = !isDeleted && replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
   const hasThumbnail = isReplyToImage || isReplyToVideo;
   const replyVideoThumbnail = useReplyVideoThumbnail(isReplyToVideo, replyTo.content);

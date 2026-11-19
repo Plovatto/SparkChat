@@ -304,7 +304,7 @@ async function decryptReplySnapshot(
   const source = { messageId: reply.id, senderId: reply.sender.id };
   const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId, source);
   const [content, caption] = await Promise.all([
-    resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
+    isGifImage(reply.type, fileMeta) ? Promise.resolve(reply.content) : resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
     decryptCaptionIfNeeded(socket, reply.caption, roomId, source),
   ]);
   return { ...reply, content, caption, fileMeta };
@@ -338,11 +338,20 @@ export function hasUnencryptedFields(message: MessageView): boolean {
   return contentIsPlain || isPlaintextField(message.caption) || fileMetaIsPlain || linkPreviewIsPlain;
 }
 
-export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
+export interface DecryptMessageViewOptions {
+  deferGifMedia?: boolean;
+}
+
+function isGifImage(type: MessageType, fileMeta: MessageFileMeta | null): boolean {
+  return type === 'image' && isGifMimeType(fileMeta?.mimeType);
+}
+
+export async function decryptMessageView(socket: AppSocket, message: MessageView, options: DecryptMessageViewOptions = {}): Promise<MessageView> {
   const unencrypted = hasUnencryptedFields(message);
   const source = { messageId: message.id, senderId: message.sender.id };
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
-  const deferOriginal = message.type === 'image' && Boolean(fileMeta?.thumbnailUrl);
+  const deferOriginal =
+    message.type === 'image' && (Boolean(fileMeta?.thumbnailUrl) || (options.deferGifMedia === true && isGifImage(message.type, fileMeta)));
   const [content, replyTo, caption, linkPreview] = await Promise.all([
     deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta, source),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
@@ -368,7 +377,7 @@ async function withDecryptedName(socket: AppSocket, room: RoomSummary): Promise<
 export async function decryptRoomSummary(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
   const [named, lastMessage] = await Promise.all([
     withDecryptedName(socket, room),
-    room.lastMessage ? decryptMessageView(socket, room.lastMessage) : Promise.resolve(null),
+    room.lastMessage ? decryptMessageView(socket, room.lastMessage, { deferGifMedia: true }) : Promise.resolve(null),
   ]);
   return { ...named, lastMessage };
 }

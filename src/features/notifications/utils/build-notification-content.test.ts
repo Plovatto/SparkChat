@@ -74,6 +74,7 @@ describe('buildNotificationContent', () => {
       { hideContent: false },
     );
     expect(gif.body).toBe('notifications.sentGif');
+    expect(gif.image).toBeUndefined();
 
     const plain = await buildNotificationContent(
       message({ type: 'image', content: 'blob:https://app/img', fileMeta: { name: 'a.webp', mimeType: 'image/webp', size: 10 } }),

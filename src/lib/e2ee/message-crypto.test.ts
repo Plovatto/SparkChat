@@ -6,7 +6,7 @@ import { sealAttachment, type AttachmentBinding } from './attachment-crypto';
 import { sealAuthenticatedField } from './authenticated-field';
 import { setCurrentIdentity } from './current-identity';
 import { clearDecryptedMediaCache, isExpiredMediaUrl } from './media-cache';
-import { decryptMediaContentIfNeeded, decryptMessageView, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
+import { decryptMediaContentIfNeeded, decryptMessageView, decryptRoomSummary, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
 import { MissingRoomKeyError } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
@@ -811,5 +811,83 @@ describe('decryptMediaContentIfNeeded for gifs', () => {
     fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status: 404 })));
     await decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp'));
     expect(isExpiredMediaUrl(GIF_URL)).toBe(false);
+  });
+});
+
+describe('gif label previews without media downloads', () => {
+  const GIF_URL = 'https://cdn.test/uploads/gifs/payload.bin?e2e=1';
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(async () => {
+    roomKeys.clear();
+    addGeneration(ROOM_ID);
+    const padded = await padGif(new Blob([new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])], { type: 'image/gif' }));
+    const sealed = await sealAttachment(padded, { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'content' });
+    const ciphertext = await sealed.ciphertext.arrayBuffer();
+    gifKey = sealed.key;
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(ciphertext.slice(0))));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://app.test/gif');
+  });
+
+  afterEach(() => {
+    clearDecryptedMediaCache();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  let gifKey = '';
+
+  async function encryptedGifView(): Promise<MessageView> {
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      type: 'image',
+      content: GIF_URL,
+      messageId: MESSAGE_ID,
+      fileMeta: { name: 'gif.gif', mimeType: 'image/gif; sparkchat-gif=1', size: 262144, key: gifKey },
+    });
+    return toMessageView({ id: MESSAGE_ID, type: 'image', content: encrypted.content, fileMeta: encrypted.fileMeta ?? null });
+  }
+
+  it('still decrypts the full gif for the message bubble', async () => {
+    const decrypted = await decryptMessageView(socket, await encryptedGifView());
+
+    expect(decrypted.content).toBe('blob:https://app.test/gif');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the gif marker but skips the download when only a label is needed', async () => {
+    const decrypted = await decryptMessageView(socket, await encryptedGifView(), { deferGifMedia: true });
+
+    expect(decrypted.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(decrypted.content).toBe(GIF_URL);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not download a gif that is the last message of a room', async () => {
+    const lastMessage = await encryptedGifView();
+    const room = { id: ROOM_ID, type: 'private', participants: [], lastMessage } as unknown as Parameters<typeof decryptRoomSummary>[1];
+
+    const decrypted = await decryptRoomSummary(socket, room);
+
+    expect(decrypted.lastMessage?.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not download a gif quoted in a reply', async () => {
+    const quoted = await encryptedGifView();
+    const reply = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'text', content: 'haha', messageId: OTHER_MESSAGE_ID });
+    const view = toMessageView({
+      id: OTHER_MESSAGE_ID,
+      content: reply.content,
+      replyTo: { id: MESSAGE_ID, sender: quoted.sender, content: quoted.content, type: 'image', fileMeta: quoted.fileMeta, caption: null, duration: null },
+    });
+
+    const decrypted = await decryptMessageView(socket, view);
+
+    expect(decrypted.content).toBe('haha');
+    expect(decrypted.replyTo?.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

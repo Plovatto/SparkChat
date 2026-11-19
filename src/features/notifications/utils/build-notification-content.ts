@@ -76,7 +76,8 @@ export async function buildNotificationContent(
   }
 
   const preview = getMessagePreview(message);
-  const image = message.type === 'image' && !message.deletedForEveryone ? message.content : undefined;
+  const image =
+    message.type === 'image' && !message.deletedForEveryone && !isGifMimeType(message.fileMeta?.mimeType) ? message.content : undefined;
 
   if (room.type === 'group') {
     return {
