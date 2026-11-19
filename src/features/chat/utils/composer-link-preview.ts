@@ -1,5 +1,5 @@
 import type { SessionAuth } from '@lib/api/session-auth';
-import type { MessageLinkPreview } from '@lib/socket';
+import type { MessageFileMeta, MessageLinkPreview } from '@lib/socket';
 
 export interface ComposerLinkPreview {
   preview: MessageLinkPreview;
@@ -37,10 +37,24 @@ export async function loadComposerLinkPreview(
   };
 }
 
+export interface OutgoingLinkPreview {
+  linkPreview: MessageLinkPreview;
+  fileMeta?: MessageFileMeta;
+}
+
+export const LINK_PREVIEW_FILE_NAME = 'link-preview';
+
 export async function finalizeComposerLinkPreview(
   composer: ComposerLinkPreview,
-  uploadImage: (image: Blob) => Promise<string>,
-): Promise<MessageLinkPreview> {
-  const imageUrl = composer.image ? await uploadImage(composer.image).catch(() => null) : null;
-  return { ...composer.preview, imageUrl };
+  uploadImage: (image: Blob) => Promise<{ url: string; key: string }>,
+): Promise<OutgoingLinkPreview> {
+  const image = composer.image;
+  const uploaded = image && image.size > 0 ? await uploadImage(image).catch(() => null) : null;
+  if (!image || !uploaded) {
+    return { linkPreview: { ...composer.preview, imageUrl: null } };
+  }
+  return {
+    linkPreview: { ...composer.preview, imageUrl: uploaded.url },
+    fileMeta: { name: LINK_PREVIEW_FILE_NAME, mimeType: image.type || 'image/webp', size: image.size, previewKey: uploaded.key },
+  };
 }

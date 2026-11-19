@@ -7,7 +7,7 @@ import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadMessageMedia } from '@lib/e2ee';
-import { useSocket, type MessageFileMeta } from '@lib/socket';
+import type { MessageFileMeta } from '@lib/socket';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import {
   MEDIA_VIEWER_BACKDROP_STYLE,
@@ -23,26 +23,26 @@ interface VideoPreviewModalProps {
   url: string;
   fileName: string;
   roomId?: string;
+  messageId?: string;
   fileMeta?: MessageFileMeta | null;
 }
 
-export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, fileMeta }: VideoPreviewModalProps) {
+export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, messageId, fileMeta }: VideoPreviewModalProps) {
   const { t } = useTranslation();
-  const { socket } = useSocket();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
-  const lastSourceRef = useRef({ url, fileName, roomId, fileMeta });
+  const lastSourceRef = useRef({ url, fileName, roomId, messageId, fileMeta });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
   if (isOpen && url) {
-    lastSourceRef.current = { url, fileName, roomId, fileMeta };
+    lastSourceRef.current = { url, fileName, roomId, messageId, fileMeta };
   }
 
   if (!isPresent) {
     return null;
   }
 
-  const source = isOpen && url ? { url, fileName, roomId, fileMeta } : lastSourceRef.current;
+  const source = isOpen && url ? { url, fileName, roomId, messageId, fileMeta } : lastSourceRef.current;
   const chromeClassName = isExiting ? 'sc-anim-fade-out' : 'sc-anim-media-chrome-in';
 
   return createPortal(
@@ -80,9 +80,10 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, file
         >
           <OverlayIconButton
             onClick={() =>
-              void downloadMessageMedia(socket, {
+              void downloadMessageMedia({
                 content: source.url,
                 roomId: source.roomId,
+                messageId: source.messageId,
                 fileMeta: source.fileMeta,
                 fileName: source.fileName,
                 messageType: 'file',

@@ -40,6 +40,7 @@ export interface SendMessageInput {
   mentionedUserIds?: string[];
   caption?: string;
   linkPreview?: MessageLinkPreview;
+  messageId?: string;
 }
 
 export interface RoomMessagesState {
@@ -398,6 +399,7 @@ export function useRoomMessages(
         caption: input.caption ?? null,
         linkPreview: input.linkPreview ?? null,
         clientTempId,
+        ...(input.messageId ? { messageId: input.messageId } : {}),
         pending: true,
       };
 
@@ -413,6 +415,7 @@ export function useRoomMessages(
         duration: input.duration,
         replyToMessageId: input.replyTo?.id,
         clientTempId,
+        messageId: input.messageId,
         fileMeta: input.fileMeta,
         mentionedUserIds: input.mentionedUserIds,
         caption: input.caption,
@@ -444,6 +447,7 @@ export function useRoomMessages(
         duration: target.duration ?? undefined,
         replyToMessageId: target.replyTo?.id,
         clientTempId,
+        messageId: target.messageId,
         fileMeta: target.fileMeta ?? undefined,
         mentionedUserIds: target.mentionedUserIds.length > 0 ? target.mentionedUserIds : undefined,
         caption: target.caption ?? undefined,

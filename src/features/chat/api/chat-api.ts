@@ -1,22 +1,28 @@
 import { env } from '@config/env';
 import { ApiError, toApiError } from '@lib/api/api-error';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
-import { encryptAttachment } from '@lib/e2ee';
+import { sealAttachment, type AttachmentBinding } from '@lib/e2ee';
 import { buildImageVariants } from '@lib/media/image-compression';
 
-export interface UploadedMedia {
+export interface SealedUpload {
   url: string;
+  key: string;
+}
+
+export interface UploadedMedia extends SealedUpload {
   mimeType: string;
 }
 
 export interface UploadedImage extends UploadedMedia {
   thumbnailUrl?: string;
+  thumbnailKey?: string;
 }
 
 export interface UploadedFile extends UploadedMedia {
   name: string;
   size: number;
   thumbnailUrl?: string;
+  thumbnailKey?: string;
 }
 
 type UploadKind = 'image' | 'audio' | 'file';
@@ -77,8 +83,13 @@ function assertAllowedType(kind: UploadKind, mimeType: string, name?: string): v
   }
 }
 
-async function uploadEncryptedAttachment(kind: UploadKind, content: Blob, auth: SessionAuth, roomId: string): Promise<string> {
-  const ciphertext = await encryptAttachment(roomId, content);
+export interface AttachmentTarget {
+  roomId: string;
+  messageId: string;
+}
+
+async function uploadEncryptedAttachment(kind: UploadKind, content: Blob, auth: SessionAuth, binding: AttachmentBinding): Promise<SealedUpload> {
+  const { ciphertext, key } = await sealAttachment(content, binding);
   const uploadFile = new File([ciphertext], ENCRYPTED_UPLOAD_FILENAME, { type: ENCRYPTED_UPLOAD_MIME_TYPE });
 
   const formData = new FormData();
@@ -97,34 +108,39 @@ async function uploadEncryptedAttachment(kind: UploadKind, content: Blob, auth: 
     throw toApiError(data, FALLBACK_ERROR_KEY[kind]);
   }
 
-  return data.url;
+  return { url: data.url, key };
 }
 
-export async function uploadChatImage(file: File, auth: SessionAuth, roomId: string): Promise<UploadedImage> {
+export async function uploadChatImage(file: File, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedImage> {
   const { original, thumbnail } = await buildImageVariants(file);
   const mimeType = original === file ? file.type : original.type;
   assertAllowedType('image', mimeType);
 
-  const [url, thumbnailUrl] = await Promise.all([
-    uploadEncryptedAttachment('image', original, auth, roomId),
-    thumbnail ? uploadEncryptedAttachment('image', thumbnail, auth, roomId) : Promise.resolve(undefined),
+  const [content, preview] = await Promise.all([
+    uploadEncryptedAttachment('image', original, auth, { ...target, slot: 'content' }),
+    thumbnail ? uploadEncryptedAttachment('image', thumbnail, auth, { ...target, slot: 'thumbnail' }) : Promise.resolve(undefined),
   ]);
 
-  return { url, mimeType, thumbnailUrl };
+  return {
+    url: content.url,
+    key: content.key,
+    mimeType,
+    ...(preview ? { thumbnailUrl: preview.url, thumbnailKey: preview.key } : {}),
+  };
 }
 
-export async function uploadChatAudio(blob: Blob, mimeType: string, auth: SessionAuth, roomId: string): Promise<UploadedMedia> {
+export async function uploadChatAudio(blob: Blob, mimeType: string, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedMedia> {
   assertAllowedType('audio', mimeType);
-  const url = await uploadEncryptedAttachment('audio', blob, auth, roomId);
-  return { url, mimeType };
+  const { url, key } = await uploadEncryptedAttachment('audio', blob, auth, { ...target, slot: 'content' });
+  return { url, key, mimeType };
 }
 
-export async function uploadChatFile(file: File, auth: SessionAuth, roomId: string): Promise<UploadedFile> {
+export async function uploadChatFile(file: File, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedFile> {
   assertAllowedType('file', file.type, file.name);
-  const url = await uploadEncryptedAttachment('file', file, auth, roomId);
-  return { url, name: file.name, mimeType: file.type, size: file.size };
+  const { url, key } = await uploadEncryptedAttachment('file', file, auth, { ...target, slot: 'content' });
+  return { url, key, name: file.name, mimeType: file.type, size: file.size };
 }
 
-export function uploadLinkPreviewImage(image: Blob, auth: SessionAuth, roomId: string): Promise<string> {
-  return uploadEncryptedAttachment('image', image, auth, roomId);
+export function uploadLinkPreviewImage(image: Blob, auth: SessionAuth, target: AttachmentTarget): Promise<SealedUpload> {
+  return uploadEncryptedAttachment('image', image, auth, { ...target, slot: 'preview' });
 }

@@ -154,9 +154,10 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   const handleSelectMedia = (message: MessageView) => {
     if (message.type === 'file' && !message.fileMeta?.mimeType.startsWith('video/') && message.fileMeta?.mimeType !== 'application/pdf') {
-      void downloadMessageMedia(socket, {
+      void downloadMessageMedia({
         content: message.content,
         roomId: room.id,
+        messageId: message.id,
         fileMeta: message.fileMeta,
         fileName: message.fileMeta?.name ?? t('chat.message.defaultFileName'),
         messageType: message.type,
@@ -494,6 +495,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         isOpen={selectedMedia?.type === 'image'}
         images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
         roomId={room.id}
+        messageIds={selectedMedia?.type === 'image' ? [selectedMedia.id] : []}
         fileMetas={selectedMedia?.type === 'image' ? [selectedMedia.fileMeta] : []}
         onClose={() => setSelectedMedia(null)}
       />
@@ -503,6 +505,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         url={isSelectedMediaVideo ? (selectedMedia?.content ?? '') : ''}
         fileName={selectedMedia?.fileMeta?.name ?? t('chat.message.defaultVideoName')}
         roomId={room.id}
+        messageId={selectedMedia?.id}
         fileMeta={selectedMedia?.fileMeta}
       />
       <PdfPreviewModal

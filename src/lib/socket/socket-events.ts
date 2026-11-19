@@ -88,6 +88,9 @@ export interface MessageFileMeta {
   mimeType: string;
   size: number;
   thumbnailUrl?: string;
+  key?: string;
+  thumbnailKey?: string;
+  previewKey?: string;
 }
 
 export interface MessageLinkPreview {

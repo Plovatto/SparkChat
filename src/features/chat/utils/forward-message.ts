@@ -4,7 +4,7 @@ import { decryptMediaContentIfNeeded, ensureRoomKeyForSending, isEncryptedMediaU
 import { isStorageMediaUrl } from '@lib/media/media-origin';
 import type { AppSocket, MessageFileMeta, MessageView, SocketErrorPayload } from '@lib/socket';
 import type { ClientToServerEvents } from '@lib/socket/socket-events';
-import { uploadChatAudio, uploadChatFile, uploadChatImage } from '../api/chat-api';
+import { uploadChatAudio, uploadChatFile, uploadChatImage, type AttachmentTarget } from '../api/chat-api';
 import type { ChatMessage } from '../types';
 import { toLocalMediaUrl } from './safe-media-url';
 
@@ -12,8 +12,13 @@ const DELIVERY_TIMEOUT_MS = 15000;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
-async function loadPlainAttachment(socket: AppSocket, message: ChatMessage): Promise<Blob> {
-  const url = await decryptMediaContentIfNeeded(socket, message.content, message.roomId, message.fileMeta, message.type);
+async function loadPlainAttachment(message: ChatMessage): Promise<Blob> {
+  const url = await decryptMediaContentIfNeeded(message.content, {
+    roomId: message.roomId,
+    messageId: message.id,
+    fileMeta: message.fileMeta,
+    messageType: message.type,
+  });
   if (isEncryptedMediaUrl(url)) {
     throw new Error('Attachment could not be decrypted');
   }
@@ -27,24 +32,33 @@ async function loadPlainAttachment(socket: AppSocket, message: ChatMessage): Pro
   return response.blob();
 }
 
-async function reuploadAttachment(message: ChatMessage, blob: Blob, auth: SessionAuth, targetRoomId: string): Promise<{ url: string; fileMeta: MessageFileMeta }> {
+async function reuploadAttachment(message: ChatMessage, blob: Blob, auth: SessionAuth, target: AttachmentTarget): Promise<{ url: string; fileMeta: MessageFileMeta }> {
   const mimeType = message.fileMeta?.mimeType || blob.type || 'application/octet-stream';
   const name = message.fileMeta?.name ?? 'attachment';
 
   if (message.type === 'image') {
     const file = new File([blob], name, { type: mimeType });
-    const uploaded = await uploadChatImage(file, auth, targetRoomId);
-    return { url: uploaded.url, fileMeta: { name, mimeType: uploaded.mimeType, size: file.size, thumbnailUrl: uploaded.thumbnailUrl } };
+    const uploaded = await uploadChatImage(file, auth, target);
+    return {
+      url: uploaded.url,
+      fileMeta: {
+        name,
+        mimeType: uploaded.mimeType,
+        size: file.size,
+        key: uploaded.key,
+        ...(uploaded.thumbnailUrl && uploaded.thumbnailKey ? { thumbnailUrl: uploaded.thumbnailUrl, thumbnailKey: uploaded.thumbnailKey } : {}),
+      },
+    };
   }
 
   if (message.type === 'audio') {
-    const uploaded = await uploadChatAudio(blob, mimeType, auth, targetRoomId);
-    return { url: uploaded.url, fileMeta: { name, mimeType, size: blob.size } };
+    const uploaded = await uploadChatAudio(blob, mimeType, auth, target);
+    return { url: uploaded.url, fileMeta: { name, mimeType, size: blob.size, key: uploaded.key } };
   }
 
   const file = new File([blob], name, { type: mimeType });
-  const uploaded = await uploadChatFile(file, auth, targetRoomId);
-  return { url: uploaded.url, fileMeta: { name, mimeType, size: file.size } };
+  const uploaded = await uploadChatFile(file, auth, target);
+  return { url: uploaded.url, fileMeta: { name, mimeType, size: file.size, key: uploaded.key } };
 }
 
 function sendAndConfirm(socket: AppSocket, payload: Omit<OutgoingMessage, 'clientTempId'>): Promise<void> {
@@ -87,10 +101,12 @@ export async function forwardMessage(socket: AppSocket, auth: SessionAuth, messa
     return;
   }
 
-  const blob = await loadPlainAttachment(socket, message);
-  const { url, fileMeta } = await reuploadAttachment(message, blob, auth, targetRoomId);
+  const blob = await loadPlainAttachment(message);
+  const messageId = crypto.randomUUID();
+  const { url, fileMeta } = await reuploadAttachment(message, blob, auth, { roomId: targetRoomId, messageId });
 
   await sendAndConfirm(socket, {
+    messageId,
     roomId: targetRoomId,
     content: url,
     type: message.type,

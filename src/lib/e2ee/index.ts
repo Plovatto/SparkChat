@@ -69,6 +69,7 @@ export {
   decryptRoomSummary,
   encryptOutgoingMessage,
   isEncryptedMediaUrl,
+  type EncryptedMediaSource,
 } from './message-crypto';
-export { encryptAttachment } from './attachment-crypto';
+export { sealAttachment, type AttachmentBinding, type AttachmentSlot, type SealedAttachment } from './attachment-crypto';
 export { downloadMessageMedia, resolveDownloadableMediaUrl, UndecryptableMediaError, type MessageMediaDownload } from './media-download';
