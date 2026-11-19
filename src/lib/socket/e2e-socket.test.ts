@@ -13,6 +13,7 @@ const roomKeyHandlers = vi.hoisted(() => ({
   handleRoomKeyPush: vi.fn(),
   handleRoomKeyRejected: vi.fn(),
   handleRotationRequired: vi.fn(),
+  handleRoomNameUpdated: vi.fn(),
   handleGroupUserJoined: vi.fn(),
   handleKeyRequest: vi.fn(),
   updateRoomParticipants: vi.fn(),
@@ -319,5 +320,62 @@ describe('wrapSocketWithE2e room key events', () => {
       receive('error', { message: 'x' });
       expect(appErrors).toHaveLength(0);
     });
+  });
+});
+
+describe('wrapSocketWithE2e group names', () => {
+  const groupRoom = {
+    id: 'group-1',
+    type: 'group',
+    creatorId: 'me',
+    currentEpoch: 0,
+    participants: [{ id: 'me', nickname: 'Me' }],
+  } as unknown as RoomSummary;
+
+  beforeEach(() => {
+    identityState.current = null;
+    identityState.listeners.clear();
+    trackRoom.mockClear();
+    roomKeyHandlers.handleRoomNameUpdated.mockClear();
+  });
+
+  it('never sends the plaintext group name and hands it to the first generation of the created group', () => {
+    setIdentity('me');
+    const { socket, receive } = createFakeSocket();
+    const { emit } = socket as unknown as { emit: ReturnType<typeof vi.fn> };
+    wrapSocketWithE2e(socket);
+
+    socket.emit('room:create-group', { roomName: '  Weekend trip ' });
+
+    expect(emit).toHaveBeenCalledWith('room:create-group', {});
+    expect(JSON.stringify(emit.mock.calls)).not.toContain('Weekend');
+
+    receive('room:created', { room: groupRoom, messages: [] });
+    receive('room:created', { room: { ...groupRoom, id: 'group-2' }, messages: [] });
+
+    expect(trackRoom).toHaveBeenNthCalledWith(1, socket, groupRoom, { activeCreation: false, groupName: 'Weekend trip' });
+    expect(trackRoom).toHaveBeenNthCalledWith(2, socket, { ...groupRoom, id: 'group-2' }, { activeCreation: false });
+  });
+
+  it('does not give the pending name to a group created by someone else', () => {
+    setIdentity('me');
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+    socket.emit('room:create-group', { roomName: 'Mine' });
+
+    const foreign = { ...groupRoom, id: 'group-3', creatorId: 'other' } as unknown as RoomSummary;
+    receive('room:created', { room: foreign, messages: [] });
+
+    expect(trackRoom).toHaveBeenCalledWith(socket, foreign, { activeCreation: false });
+  });
+
+  it('forwards encrypted name updates to the room key layer', () => {
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+    const payload = { roomId: 'group-1', encryptedName: 'e2e:v2:x', keyId: 'k' };
+
+    receive('room:name-updated', payload);
+
+    expect(roomKeyHandlers.handleRoomNameUpdated).toHaveBeenCalledWith(socket, payload);
   });
 });

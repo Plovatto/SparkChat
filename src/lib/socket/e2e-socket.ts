@@ -13,6 +13,7 @@ import {
   handleRoomInviteResetRejected,
   handleRoomInviteUpdated,
   handleRoomKeyRejected,
+  handleRoomNameUpdated,
   handleRotationRequired,
   MissingRoomKeyError,
   recoverFromStaleRoomKey,
@@ -61,22 +62,24 @@ const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated
 interface DeferredRoomEvent {
   room: RoomSummary;
   event: string;
+  groupName?: string;
 }
 
 type DeferredRoomEvents = Map<string, DeferredRoomEvent>;
 
-function deferRoomEvent(deferred: DeferredRoomEvents, room: RoomSummary, event: string): void {
+function deferRoomEvent(deferred: DeferredRoomEvents, room: RoomSummary, event: string, groupName: string | undefined): void {
   const previous = deferred.get(room.id);
   const keepsActiveCreation = previous?.event === 'room:joined' && event !== 'room:joined';
-  deferred.set(room.id, { room, event: keepsActiveCreation ? previous.event : event });
+  const name = groupName ?? previous?.groupName;
+  deferred.set(room.id, { room, event: keepsActiveCreation ? previous.event : event, ...(name ? { groupName: name } : {}) });
 }
 
-function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string, deferred: DeferredRoomEvents): void {
+function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string, deferred: DeferredRoomEvents, groupName?: string): void {
   if (!getCurrentIdentity()) {
-    deferRoomEvent(deferred, room, event);
+    deferRoomEvent(deferred, room, event, groupName);
     return;
   }
-  void trackRoom(socket, room, { activeCreation: event === 'room:joined' });
+  void trackRoom(socket, room, { activeCreation: event === 'room:joined', ...(groupName ? { groupName } : {}) });
 }
 
 async function transformPayload(socket: AppSocket, event: string, payload: unknown): Promise<unknown> {
@@ -136,6 +139,17 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   let dispatchQueue: Promise<void> = Promise.resolve();
 
   const pendingSends = new Map<string, PendingSend>();
+  let pendingGroupName: string | null = null;
+
+  const takeCreatedGroupName = (room: RoomSummary): string | undefined => {
+    const identity = getCurrentIdentity();
+    if (room.type !== 'group' || (room.currentEpoch ?? 0) !== 0 || (identity && room.creatorId !== identity.userId)) {
+      return undefined;
+    }
+    const name = pendingGroupName ?? undefined;
+    pendingGroupName = null;
+    return name;
+  };
   const staleRetryDecisions = new WeakMap<object, boolean>();
 
   const sendEncrypted = (payload: OutgoingMessage, staleKeyId: string | null) => {
@@ -225,6 +239,11 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       sendEncrypted(args[0] as OutgoingMessage, null);
       return socket;
     }
+    if (event === 'room:create-group') {
+      const roomName = (args[0] as { roomName?: unknown } | undefined)?.roomName;
+      pendingGroupName = typeof roomName === 'string' && roomName.trim().length > 0 ? roomName.trim() : null;
+      return originalEmit(event, {});
+    }
     return originalEmit(event, ...args);
   };
 
@@ -237,8 +256,8 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     void ensureSigningKeyPublished(socket);
     const pending = Array.from(deferredRoomEvents.values());
     deferredRoomEvents.clear();
-    for (const { room, event } of pending) {
-      maybeEstablishRoomKey(socket, room, event, deferredRoomEvents);
+    for (const { room, event, groupName } of pending) {
+      maybeEstablishRoomKey(socket, room, event, deferredRoomEvents, groupName);
     }
   });
 
@@ -251,11 +270,12 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   closable.close = () => {
     unsubscribeIdentity();
     deferredRoomEvents.clear();
+    pendingGroupName = null;
     return originalClose();
   };
 
   originalOn('room:created', (payload: { room: RoomSummary; messages: MessageView[] }) => {
-    maybeEstablishRoomKey(socket, payload.room, 'room:created', deferredRoomEvents);
+    maybeEstablishRoomKey(socket, payload.room, 'room:created', deferredRoomEvents, takeCreatedGroupName(payload.room));
   });
   originalOn('room:joined', (payload: { room: RoomSummary; messages: MessageView[] }) => {
     maybeEstablishRoomKey(socket, payload.room, 'room:joined', deferredRoomEvents);
@@ -291,6 +311,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string | null }) => {
     void handleKeyRequest(socket, payload);
+  });
+
+  originalOn('room:name-updated', (payload: { roomId: string; encryptedName: string; keyId: string }) => {
+    void handleRoomNameUpdated(socket, payload);
   });
 
   originalOn('room:invite-updated', (payload: { roomId: string; invite: unknown; roster?: unknown }) => {
