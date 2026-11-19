@@ -1,8 +1,10 @@
 import type { MouseEvent } from 'react';
 import { FaImage, FaPlay } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { MdGif } from 'react-icons/md';
 import { withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { formatAudioTime, getDisplayName } from '@lib/format';
+import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageReplySnapshot, MessageType } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
@@ -104,6 +106,11 @@ export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentU
         {isDeleted ? (
           <div style={{ ...secondaryLineStyle, fontStyle: 'italic' }}>
             <span>{t('chat.deleted')}</span>
+          </div>
+        ) : replyTo.type === 'image' && isGifMimeType(replyTo.fileMeta?.mimeType) ? (
+          <div style={secondaryLineStyle}>
+            <MdGif size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
+            <span>{t('chat.message.gif')}</span>
           </div>
         ) : replyTo.type === 'image' ? (
           <div style={secondaryLineStyle}>

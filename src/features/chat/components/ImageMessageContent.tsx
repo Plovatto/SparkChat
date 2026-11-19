@@ -1,6 +1,9 @@
 import { useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MdGif } from 'react-icons/md';
 import { useTheme } from '@features/theme';
+import { isExpiredMediaUrl } from '@lib/e2ee';
+import { isGifMimeType } from '@lib/media/media-type';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
@@ -10,16 +13,56 @@ interface ImageMessageContentProps {
   message: ChatMessage;
 }
 
+export function GifExpiredBlock() {
+  const { t } = useTranslation();
+  const { theme } = useTheme();
+
+  return (
+    <div style={{ padding: '0 10px' }}>
+      <div
+        data-testid="gif-expired"
+        role="note"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          width: '220px',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          padding: '12px 14px',
+          borderRadius: '16px',
+          border: `1px dashed ${theme.border}`,
+          background: theme.surfaceSunken,
+          color: theme.textSecondary,
+        }}
+      >
+        <MdGif size={28} aria-hidden="true" style={{ flexShrink: 0, color: theme.textMuted }} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <span style={{ fontWeight: 700, fontSize: '0.88rem', color: theme.textPrimary }}>{t('chat.message.gifExpired')}</span>
+          <span style={{ fontSize: '0.74rem', lineHeight: 1.35 }}>{t('chat.message.gifExpiredHint')}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ImageMessageContent({ message }: ImageMessageContentProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [displayHeight, setDisplayHeight] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const isGif = isGifMimeType(message.fileMeta?.mimeType);
+  const localSource = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
+
+  if (isGif && !localSource && isExpiredMediaUrl(message.content)) {
+    return <GifExpiredBlock />;
+  }
 
   return (
     <>
       <div
+        data-testid={isGif ? 'gif-message' : undefined}
         style={{
           position: 'relative',
           padding: '0 10px',
@@ -44,8 +87,8 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
           />
         )}
         <img
-          src={toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content)}
-          alt={t('chat.message.sentImage')}
+          src={localSource}
+          alt={isGif ? t('chat.message.sentGif') : t('chat.message.sentImage')}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;
             setDisplayHeight(fitAttachmentHeight(naturalWidth, naturalHeight));
