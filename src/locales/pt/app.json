@@ -52,7 +52,8 @@
       "promoteRequiresAdmin": "Apenas administradores podem promover outros membros.",
       "removeRequiresAdmin": "Apenas administradores podem remover membros.",
       "cannotRemoveSelf": "Use a opção de sair do grupo para se remover.",
-      "notMember": "Usuário não faz parte do grupo."
+      "notMember": "Usuário não faz parte do grupo.",
+      "groupFull": "Este grupo atingiu o limite de membros."
     },
     "message": {
       "notFound": "Mensagem não encontrada.",

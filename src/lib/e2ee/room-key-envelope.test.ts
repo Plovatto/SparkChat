@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  generateRoomKeyId,
+  deriveRoomKeyId,
   openRoomKeyEnvelope,
   RoomKeyEnvelopeError,
   sealRoomKeyEnvelope,
@@ -40,7 +40,7 @@ let keyId: string;
 beforeAll(async () => {
   [alice, bob, mallory] = await Promise.all([createParty('alice'), createParty('bob'), createParty('mallory')]);
   roomKey = crypto.getRandomValues(new Uint8Array(32));
-  keyId = await generateRoomKeyId();
+  keyId = await deriveRoomKeyId(roomKey);
 });
 
 function sealFromAliceToBob(overrides: Partial<Parameters<typeof sealRoomKeyEnvelope>[0]> = {}): Promise<string> {
@@ -94,11 +94,25 @@ function mutate(sealed: string, changes: Record<string, unknown>): string {
 }
 
 describe('room key envelope v2', () => {
-  it('generates 16 byte key ids encoded as base64url without padding', async () => {
+  it('derives the key id from the room key as a 16 byte base64url commitment', async () => {
     const sodium = await getSodium();
-    const generated = await generateRoomKeyId();
-    expect(generated).toMatch(/^[A-Za-z0-9_-]{22}$/);
-    expect(sodium.from_base64(generated, sodium.base64_variants.URLSAFE_NO_PADDING)).toHaveLength(16);
+    const derived = await deriveRoomKeyId(roomKey);
+    const expected = sodium.crypto_generichash(32, sodium.from_string('sparkchat:key-id:v1'), roomKey).subarray(0, 16);
+    expect(derived).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(Array.from(sodium.from_base64(derived, sodium.base64_variants.URLSAFE_NO_PADDING))).toEqual(Array.from(expected));
+    expect(await deriveRoomKeyId(roomKey)).toBe(derived);
+    expect(await deriveRoomKeyId(crypto.getRandomValues(new Uint8Array(32)))).not.toBe(derived);
+  });
+
+  it('rejects a validly signed envelope whose key id does not commit to the sealed key', async () => {
+    const otherKeyId = await deriveRoomKeyId(crypto.getRandomValues(new Uint8Array(32)));
+    expect(await rejectionOf(await sealFromAliceToBob({ keyId: otherKeyId }), bobExpects())).toBe('key-mismatch');
+  });
+
+  it('asks the membership rule about the envelope epoch', async () => {
+    const isMember = (_userId: string, epoch: number) => epoch === 3;
+    expect(await rejectionOf(await sealFromAliceToBob(), bobExpects({ isMember }))).toBeNull();
+    expect(await rejectionOf(await sealFromAliceToBob({ epoch: 4 }), bobExpects({ isMember }))).toBe('non-member-sender');
   });
 
   it('has the exact v2 shape and a sender-identified box', async () => {
@@ -136,7 +150,7 @@ describe('room key envelope v2', () => {
     const sealed = await sealFromAliceToBob();
     const other = JSON.parse(await sealFromAliceToBob()) as Record<string, unknown>;
     expect(await rejectionOf(mutate(sealed, { epoch: 4 }), bobExpects())).toBe('bad-signature');
-    expect(await rejectionOf(mutate(sealed, { keyId: await generateRoomKeyId() }), bobExpects())).toBe('bad-signature');
+    expect(await rejectionOf(mutate(sealed, { keyId: await deriveRoomKeyId(crypto.getRandomValues(new Uint8Array(32))) }), bobExpects())).toBe('bad-signature');
     expect(await rejectionOf(mutate(sealed, { box: other.box }), bobExpects())).toBe('bad-signature');
   });
 

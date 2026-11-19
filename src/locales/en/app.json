@@ -52,7 +52,8 @@
       "promoteRequiresAdmin": "Only admins can promote other members.",
       "removeRequiresAdmin": "Only admins can remove members.",
       "cannotRemoveSelf": "Use the leave group option to remove yourself.",
-      "notMember": "This user isn't a member of the group."
+      "notMember": "This user isn't a member of the group.",
+      "groupFull": "This group has reached its member limit."
     },
     "message": {
       "notFound": "Message not found.",

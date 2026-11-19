@@ -139,13 +139,15 @@ class FakeServer {
     this.sockets.get(userId)?.receive(event, payload);
   }
 
+  readonly nicknames = new Map<string, string>();
+
   summary(roomId: string): RoomSummary {
     const room = this.rooms.get(roomId) as ServerRoom;
     return {
       id: room.id,
       type: room.type,
       creatorId: room.creatorId,
-      participants: room.members.map((id) => ({ id, nickname: id })),
+      participants: room.members.map((id) => ({ id, nickname: this.nicknames.get(id) ?? id })),
       currentEpoch: room.currentEpoch,
       currentKeyId: room.currentKeyId,
       rotationRequiredEpoch: room.rotationRequired,
@@ -339,6 +341,37 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+async function forgeEnvelope(
+  from: Client,
+  to: { userId: string; publicKey: string },
+  fields: { roomId: string; epoch: number; keyId?: string },
+): Promise<SealedRoomKeyEntry> {
+  const envelope = await import('./room-key-envelope');
+  const signing = await import('./signing');
+  const pair = await signing.deriveSigningKeyPair(from.privateKey);
+  const roomKey = crypto.getRandomValues(new Uint8Array(32));
+  const keyId = fields.keyId ?? (await envelope.deriveRoomKeyId(roomKey));
+  const sealedKey = await envelope.sealRoomKeyEnvelope({
+    roomKey,
+    roomId: fields.roomId,
+    keyId,
+    epoch: fields.epoch,
+    senderId: from.userId,
+    senderPrivateKey: from.privateKey,
+    senderSigningPrivateKey: pair.privateKey,
+    recipientId: to.userId,
+    recipientPublicKey: to.publicKey,
+  });
+  return { roomId: fields.roomId, keyId, epoch: fields.epoch, senderId: from.userId, sealedKey };
+}
+
+function discardReasons(): string[] {
+  return warn.mock.calls
+    .filter((call) => call[0] === '[e2e] discarded room key envelope')
+    .map((call) => (call[1] as { reason: string }).reason);
+}
+
 
 describe('generation 1', () => {
   it('is published once by the active creator of a private room and adopted by both members', async () => {
@@ -549,35 +582,6 @@ describe('envelope acceptance', () => {
     await Promise.all([track(ana, 'dm', true), track(bia, 'dm')]);
     await settle();
     return { ana, bia };
-  }
-
-  async function forgeEnvelope(
-    from: Client,
-    to: { userId: string; publicKey: string },
-    fields: { roomId: string; epoch: number; keyId?: string },
-  ): Promise<SealedRoomKeyEntry> {
-    const envelope = await import('./room-key-envelope');
-    const signing = await import('./signing');
-    const pair = await signing.deriveSigningKeyPair(from.privateKey);
-    const keyId = fields.keyId ?? (await envelope.generateRoomKeyId());
-    const sealedKey = await envelope.sealRoomKeyEnvelope({
-      roomKey: crypto.getRandomValues(new Uint8Array(32)),
-      roomId: fields.roomId,
-      keyId,
-      epoch: fields.epoch,
-      senderId: from.userId,
-      senderPrivateKey: from.privateKey,
-      senderSigningPrivateKey: pair.privateKey,
-      recipientId: to.userId,
-      recipientPublicKey: to.publicKey,
-    });
-    return { roomId: fields.roomId, keyId, epoch: fields.epoch, senderId: from.userId, sealedKey };
-  }
-
-  function discardReasons(): string[] {
-    return warn.mock.calls
-      .filter((call) => call[0] === '[e2e] discarded room key envelope')
-      .map((call) => (call[1] as { reason: string }).reason);
   }
 
   it('discards a validly signed envelope from someone who is not a member', async () => {
@@ -816,5 +820,135 @@ describe('server feedback', () => {
 
     const shares = ana.socket.emittedOf('e2e:share-room-key') as { keys: unknown[] }[];
     expect(shares.map((share) => share.keys.length)).toEqual([150, 1]);
+  });
+});
+
+async function rekey(userId: string): Promise<void> {
+  const sodium = await (await import('./sodium')).getSodium();
+  const signing = await import('./signing');
+  const pair = sodium.crypto_box_keypair();
+  const publicKey = sodium.to_base64(pair.publicKey);
+  server.directory.set(userId, { userId, publicKey, ...(await signing.buildSigningProof(userId, publicKey, pair.privateKey)) });
+}
+
+describe('review hardening', () => {
+  async function groupAtEpochOne(creatorId: string, memberIds: string[]): Promise<Client[]> {
+    const clients: Client[] = [];
+    for (const id of memberIds) {
+      clients.push(await loadClient(id));
+    }
+    createRoom('group', 'group', creatorId, memberIds);
+    await Promise.all(clients.map((client) => track(client, 'group')));
+    await settle();
+    return clients;
+  }
+
+  it('rejects the next epoch injected by a removed member', async () => {
+    const [, bia, caio] = await groupAtEpochOne('ana', ['ana', 'bia', 'caio']);
+    if (!bia || !caio) {
+      throw new Error('clients missing');
+    }
+    const room = server.rooms.get('group') as ServerRoom;
+    room.members = ['ana', 'bia'];
+    bia.roomKeys.updateRoomParticipants('group', room.members.map((id) => ({ id, nickname: id })) as never);
+
+    await bia.roomKeys.handleRoomKeyPush(bia.socket.asAppSocket(), await forgeEnvelope(caio, bia, { roomId: 'group', epoch: 2 }));
+
+    expect(bia.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+    expect(discardReasons()).toContain('non-member-sender');
+  });
+
+  it('accepts a historical generation from a former member on a fresh device', async () => {
+    const [caio, , bia] = await groupAtEpochOne('caio', ['caio', 'ana', 'bia']);
+    if (!caio || !bia) {
+      throw new Error('clients missing');
+    }
+    const firstKeyId = caio.roomKeys.getCurrentRoomKey('group')?.keyId as string;
+    const fromFormerMember = await sendText(caio, 'group', 'sent before leaving');
+    server.requireRotation('group', 'caio');
+    await settle();
+
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+
+    expect(await fresh.roomKeys.ensureRoomKeyGeneration(fresh.socket.asAppSocket(), 'group', firstKeyId)).not.toBeNull();
+    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
+    expect(await readText(fresh, fromFormerMember)).toBe('sent before leaving');
+  });
+
+  it('rejects a different key shared to a newcomer under the current key id', async () => {
+    const [, bia] = await groupAtEpochOne('ana', ['ana', 'bia']);
+    if (!bia) {
+      throw new Error('client missing');
+    }
+    const room = server.rooms.get('group') as ServerRoom;
+    const davi = await loadClient('davi');
+    room.members.push('davi');
+    server.sockets.delete('ana');
+    server.sockets.delete('bia');
+    await track(davi, 'group');
+
+    const forged = await forgeEnvelope(bia, davi, { roomId: 'group', epoch: 1, keyId: room.currentKeyId as string });
+    await davi.roomKeys.handleRoomKeyPush(davi.socket.asAppSocket(), forged);
+
+    expect(davi.roomKeys.getCurrentRoomKey('group')).toBeNull();
+    expect(discardReasons()).toContain('key-mismatch');
+  });
+
+  async function rotationAfterKeyChange(otherId: string, type: 'private' | 'group', nickname?: string): Promise<number> {
+    const ana = await loadClient('ana');
+    await loadClient(otherId);
+    if (nickname) {
+      server.nicknames.set(otherId, nickname);
+    }
+    createRoom('room', type, 'ana', ['ana', otherId]);
+    await track(ana, 'room', true);
+    await settle();
+    expect(server.rooms.get('room')?.currentEpoch).toBe(1);
+
+    await rekey(otherId);
+    server.requireRotation('room');
+    await settle();
+    return (ana.socket.emittedOf('e2e:publish-room-key') as { epoch: number }[]).filter((batch) => batch.epoch === 2).length;
+  }
+
+  it('still seals to the server-managed assistant by its fixed id in a private room', async () => {
+    expect(await rotationAfterKeyChange('spark-ai', 'private')).toBe(1);
+  });
+
+  it('never treats a member as the assistant because of its nickname', async () => {
+    expect(await rotationAfterKeyChange('impostor', 'private', 'SparkAI')).toBe(0);
+  });
+
+  it('never treats the assistant id as server-managed in a group', async () => {
+    expect(await rotationAfterKeyChange('spark-ai', 'group', 'SparkAI')).toBe(0);
+  });
+
+  async function queuedRoomKey(junk: (index: number) => SealedRoomKeyEntry, count: number): Promise<RoomKeysNamespace.RoomKeyGeneration | null> {
+    const ana = await loadClient('ana');
+    const bia = await loadClient('bia');
+    createRoom('dm', 'private', 'ana', ['ana', 'bia']);
+    await track(ana, 'dm');
+    await bia.roomKeys.handleRoomKeyPush(bia.socket.asAppSocket(), await forgeEnvelope(ana, bia, { roomId: 'dm', epoch: 1 }));
+    for (let index = 0; index < count; index += 1) {
+      await bia.roomKeys.handleRoomKeyPush(bia.socket.asAppSocket(), junk(index));
+    }
+    await track(bia, 'dm');
+    return bia.roomKeys.getCurrentRoomKey('dm');
+  }
+
+  const junkFor = (roomId: string) => ({ roomId, keyId: 'A'.repeat(22), epoch: 1, senderId: 'ana', sealedKey: 'junk' });
+
+  it('keeps a queued envelope while the per-room queue has room', async () => {
+    expect(await queuedRoomKey(() => junkFor('dm'), 49)).not.toBeNull();
+  });
+
+  it('drops the oldest queued envelope of a room past the per-room cap', async () => {
+    expect(await queuedRoomKey(() => junkFor('dm'), 50)).toBeNull();
+  });
+
+  it('drops the oldest queued envelope past the total cap', async () => {
+    expect(await queuedRoomKey((index) => junkFor(`room-${index}`), 500)).toBeNull();
   });
 });

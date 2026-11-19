@@ -5,6 +5,8 @@ export const ROOM_KEY_ID_BYTES = 16;
 export const ROOM_KEY_BYTES = 32;
 
 const HEADER_CONTEXT = 'sparkchat:room-key:v2';
+const KEY_ID_CONTEXT = 'sparkchat:key-id:v1';
+const KEY_ID_HASH_BYTES = 32;
 const KEY_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 
 export interface RoomKeyEnvelope {
@@ -41,7 +43,7 @@ export interface OpenRoomKeyExpectations {
   recipientId: string;
   recipientPublicKey: string;
   recipientPrivateKey: Uint8Array;
-  isMember: (userId: string) => boolean;
+  isMember: (userId: string, epoch: number) => boolean;
   resolveSender: (userId: string) => Promise<EnvelopeSender | null>;
 }
 
@@ -60,7 +62,8 @@ export type EnvelopeRejection =
   | 'non-member-sender'
   | 'unpinned-sender'
   | 'bad-signature'
-  | 'bad-box';
+  | 'bad-box'
+  | 'key-mismatch';
 
 export class RoomKeyEnvelopeError extends Error {
   readonly reason: EnvelopeRejection;
@@ -80,9 +83,10 @@ export function isValidEpoch(epoch: unknown): epoch is number {
   return typeof epoch === 'number' && Number.isSafeInteger(epoch) && epoch >= 1;
 }
 
-export async function generateRoomKeyId(): Promise<string> {
+export async function deriveRoomKeyId(roomKey: Uint8Array): Promise<string> {
   const sodium = await getSodium();
-  return sodium.to_base64(sodium.randombytes_buf(ROOM_KEY_ID_BYTES), sodium.base64_variants.URLSAFE_NO_PADDING);
+  const digest = sodium.crypto_generichash(KEY_ID_HASH_BYTES, sodium.from_string(KEY_ID_CONTEXT), roomKey);
+  return sodium.to_base64(digest.subarray(0, ROOM_KEY_ID_BYTES), sodium.base64_variants.URLSAFE_NO_PADDING);
 }
 
 function headerBytes(envelope: Omit<RoomKeyEnvelope, 'v' | 'sig'>, recipientPublicKey: string): Uint8Array {
@@ -162,7 +166,7 @@ export async function openRoomKeyEnvelope(sealed: string, expected: OpenRoomKeyE
   if (envelope.recipientId !== expected.recipientId) {
     throw new RoomKeyEnvelopeError('wrong-recipient');
   }
-  if (!expected.isMember(envelope.senderId)) {
+  if (!expected.isMember(envelope.senderId, envelope.epoch)) {
     throw new RoomKeyEnvelopeError('non-member-sender');
   }
   const sender = await expected.resolveSender(envelope.senderId);
@@ -188,6 +192,10 @@ export async function openRoomKeyEnvelope(sealed: string, expected: OpenRoomKeyE
   }
   if (roomKey.length !== ROOM_KEY_BYTES) {
     throw new RoomKeyEnvelopeError('bad-box');
+  }
+  if ((await deriveRoomKeyId(roomKey)) !== envelope.keyId) {
+    roomKey.fill(0);
+    throw new RoomKeyEnvelopeError('key-mismatch');
   }
 
   return { roomId: envelope.roomId, keyId: envelope.keyId, epoch: envelope.epoch, senderId: envelope.senderId, roomKey };

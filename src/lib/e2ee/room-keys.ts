@@ -1,13 +1,13 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
-import { ASSISTANT_NICKNAME } from './assistant';
+import { ASSISTANT_USER_ID } from './assistant';
 import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
 import { getCurrentIdentity, type CurrentIdentity } from './current-identity';
 import { clearRoomKeyStore, loadRoomKeyGenerations, saveRoomKeyGeneration } from './key-store';
 import { clearDecryptedMediaCache } from './media-cache';
 import {
-  generateRoomKeyId,
+  deriveRoomKeyId,
   openRoomKeyEnvelope,
   ROOM_KEY_BYTES,
   RoomKeyEnvelopeError,
@@ -28,8 +28,6 @@ interface RoomView {
   type: RoomType | null;
   creatorId: string | null;
   members: Set<string>;
-  everMembers: Set<string>;
-  assistantIds: Set<string>;
   currentEpoch: number;
   rotationRequiredEpoch: number | null;
 }
@@ -56,7 +54,9 @@ const persistedLoads = new Map<string, Promise<void>>();
 const pendingSyncs = new Map<string, Promise<void>>();
 const missingGenerations = new Map<string, number>();
 const pendingPublishes = new Map<string, PendingPublish>();
-const queuedEnvelopes = new Map<string, SealedRoomKeyEntry[]>();
+const MAX_QUEUED_ENVELOPES_PER_ROOM = 50;
+const MAX_QUEUED_ENVELOPES = 500;
+let queuedEnvelopes: SealedRoomKeyEntry[] = [];
 const ownSigningPublicKeys = new WeakMap<Uint8Array, string>();
 
 function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
@@ -269,6 +269,35 @@ function loadPersistedGenerations(roomId: string): Promise<void> {
   return load;
 }
 
+function queueEnvelope(entry: SealedRoomKeyEntry): void {
+  const sameRoom = queuedEnvelopes.filter((queued) => queued.roomId === entry.roomId);
+  if (sameRoom.length >= MAX_QUEUED_ENVELOPES_PER_ROOM) {
+    const oldest = sameRoom[0];
+    queuedEnvelopes = queuedEnvelopes.filter((queued) => queued !== oldest);
+  }
+  if (queuedEnvelopes.length >= MAX_QUEUED_ENVELOPES) {
+    queuedEnvelopes = queuedEnvelopes.slice(queuedEnvelopes.length - MAX_QUEUED_ENVELOPES + 1);
+  }
+  queuedEnvelopes.push(entry);
+}
+
+function takeQueuedEnvelopes(roomId: string): SealedRoomKeyEntry[] {
+  const taken = queuedEnvelopes.filter((queued) => queued.roomId === roomId);
+  if (taken.length > 0) {
+    queuedEnvelopes = queuedEnvelopes.filter((queued) => queued.roomId !== roomId);
+  }
+  return taken;
+}
+
+function isEnvelopeSenderAllowed(roomId: string, view: RoomView, userId: string, epoch: number): boolean {
+  const highestKnownEpoch = Math.max(view.currentEpoch, latestGeneration(roomId)?.epoch ?? 0);
+  return epoch < highestKnownEpoch || view.members.has(userId);
+}
+
+function isServerManaged(view: RoomView, userId: string): boolean {
+  return view.type === 'private' && userId === ASSISTANT_USER_ID;
+}
+
 async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Promise<boolean> {
   const identity = getCurrentIdentity();
   if (!identity) {
@@ -276,9 +305,7 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
   }
   const view = roomViews.get(entry.roomId);
   if (!view) {
-    const queue = queuedEnvelopes.get(entry.roomId) ?? [];
-    queue.push(entry);
-    queuedEnvelopes.set(entry.roomId, queue);
+    queueEnvelope(entry);
     return false;
   }
   if (generationsByRoom.get(entry.roomId)?.has(entry.keyId)) {
@@ -291,7 +318,7 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
       recipientId: identity.userId,
       recipientPublicKey: identity.publicKey,
       recipientPrivateKey: identity.privateKey,
-      isMember: (userId) => view.everMembers.has(userId),
+      isMember: (userId, epoch) => isEnvelopeSenderAllowed(entry.roomId, view, userId, epoch),
       resolveSender: (userId) => resolveEnvelopeSender(socket, identity, userId),
     });
     if (opened.keyId !== entry.keyId || opened.epoch !== entry.epoch || opened.senderId !== entry.senderId) {
@@ -431,7 +458,7 @@ async function sealFor(
     recipientIds.map((userId) =>
       userId === identity.userId
         ? Promise.resolve(identity.publicKey)
-        : lookupUsableContactKey(socket, userId, view.assistantIds.has(userId)),
+        : lookupUsableContactKey(socket, userId, isServerManaged(view, userId)),
     ),
   );
   if (publicKeys.some((publicKey) => publicKey === null)) {
@@ -470,11 +497,8 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
   pendingPublishes.set(roomId, { epoch, startedAt: Date.now() });
 
   const sodium = await getSodium();
-  const generation: RoomKeyGeneration = {
-    keyId: await generateRoomKeyId(),
-    epoch,
-    key: sodium.randombytes_buf(ROOM_KEY_BYTES),
-  };
+  const key = sodium.randombytes_buf(ROOM_KEY_BYTES);
+  const generation: RoomKeyGeneration = { keyId: await deriveRoomKeyId(key), epoch, key };
   const recipients = Array.from(view.members);
   if (recipients.length > MAX_ROOM_KEY_BATCH) {
     console.warn('[e2e] room has more members than a room key batch can hold', { roomId, epoch });
@@ -557,8 +581,6 @@ function viewFor(roomId: string): RoomView {
       type: null,
       creatorId: null,
       members: new Set(),
-      everMembers: new Set(),
-      assistantIds: new Set(),
       currentEpoch: 0,
       rotationRequiredEpoch: null,
     };
@@ -567,15 +589,9 @@ function viewFor(roomId: string): RoomView {
   return view;
 }
 
-function applyParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id' | 'nickname'>[]): string[] {
+function applyParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id'>[]): string[] {
   const added = participants.filter((participant) => !view.members.has(participant.id)).map((participant) => participant.id);
   view.members = new Set(participants.map((participant) => participant.id));
-  for (const participant of participants) {
-    view.everMembers.add(participant.id);
-    if (participant.nickname === ASSISTANT_NICKNAME) {
-      view.assistantIds.add(participant.id);
-    }
-  }
   return added;
 }
 
@@ -626,9 +642,8 @@ async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: Trac
     return;
   }
 
-  const queued = queuedEnvelopes.get(room.id);
-  if (queued) {
-    queuedEnvelopes.delete(room.id);
+  const queued = takeQueuedEnvelopes(room.id);
+  if (queued.length > 0) {
     await acceptEnvelopes(socket, queued);
   }
 
@@ -755,7 +770,7 @@ async function clearRoomKeysImpl(): Promise<void> {
   pendingSyncs.clear();
   missingGenerations.clear();
   pendingPublishes.clear();
-  queuedEnvelopes.clear();
+  queuedEnvelopes = [];
   clearDecryptedMediaCache();
   await clearRoomKeyStore();
 }
