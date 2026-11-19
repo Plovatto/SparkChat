@@ -1,7 +1,7 @@
-export type CallPhase = 'idle' | 'outgoing-ringing' | 'incoming-ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
 import type { CallKind, CallRole } from '@lib/e2ee/call-crypto';
 
 export type { CallKind, CallRole };
+export type CallPhase = 'idle' | 'outgoing-ringing' | 'incoming-ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
 export type CallEndReason =
   | 'completed'
   | 'missed'
