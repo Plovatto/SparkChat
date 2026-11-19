@@ -4,7 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import { acceptContactKeyChange, getContactTrust, getCurrentIdentity, subscribeContactTrust } from '@lib/e2ee';
+import {
+  acceptContactKeyChange,
+  getContactTrust,
+  getCurrentIdentity,
+  isRotationBlockedBy,
+  subscribeContactTrust,
+  subscribeRotationBlocks,
+} from '@lib/e2ee';
 import type { RoomSummary } from '@lib/socket';
 import { useContactTrust } from '../hooks/useContactTrust';
 import { isAssistantRoom } from '../utils/assistant';
@@ -13,6 +20,15 @@ import { SafetyNumberDialog } from './SafetyNumberDialog';
 interface ContactKeyBannerProps {
   room: RoomSummary;
   currentUserId: string | undefined;
+}
+
+function subscribeKeyChanges(onChange: () => void): () => void {
+  const stopTrust = subscribeContactTrust(onChange);
+  const stopBlocks = subscribeRotationBlocks(onChange);
+  return () => {
+    stopTrust();
+    stopBlocks();
+  };
 }
 
 const STATUS_LABEL_KEYS = {
@@ -28,15 +44,21 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
   const [blockingDismissed, setBlockingDismissed] = useState(false);
   const isPrivate = room.type === 'private' && !isAssistantRoom(room);
   const isGroup = room.type === 'group';
-  const findChangedMember = useCallback(
-    () =>
-      isGroup
-        ? (room.participants.find((participant) => participant.id !== currentUserId && getContactTrust(participant.id)?.status === 'changed')?.id ??
-          null)
-        : null,
-    [isGroup, room.participants, currentUserId],
+  const findChangedMember = useCallback(() => {
+    if (!isGroup) {
+      return null;
+    }
+    const changed = room.participants.filter(
+      (participant) => participant.id !== currentUserId && getContactTrust(participant.id)?.status === 'changed',
+    );
+    return (changed.find((participant) => isRotationBlockedBy(room.id, participant.id)) ?? changed[0])?.id ?? null;
+  }, [isGroup, room.id, room.participants, currentUserId]);
+  const changedMemberId = useSyncExternalStore(subscribeKeyChanges, findChangedMember, () => null);
+  const isBlockingRotation = useSyncExternalStore(
+    subscribeKeyChanges,
+    () => (changedMemberId ? isRotationBlockedBy(room.id, changedMemberId) : false),
+    () => false,
   );
-  const changedMemberId = useSyncExternalStore(subscribeContactTrust, findChangedMember, () => null);
   const other = isPrivate
     ? getOtherParticipant(room, currentUserId)
     : room.participants.find((participant) => participant.id === changedMemberId);
@@ -81,6 +103,7 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
             {invalid
               ? t('chat.keyTrust.invalidWarning', { name: other.nickname })
               : t(wasVerified ? 'chat.keyTrust.changedVerifiedWarning' : 'chat.keyTrust.changedWarning', { name: other.nickname })}
+            {!invalid && isGroup && isBlockingRotation && <> {t('chat.keyTrust.rotationBlocked', { name: other.nickname })}</>}
           </span>
           {!invalid && (
             <button type="button" onClick={() => setDialogOpen(true)} style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
