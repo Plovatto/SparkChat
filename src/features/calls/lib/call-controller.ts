@@ -27,7 +27,7 @@ import {
   type CallMachine,
   type CallState,
 } from '../state/call-machine';
-import { readQuality, STATS_INTERVAL_MS, type QualityBars, type QualitySample } from './call-stats';
+import { nextInstability, readQuality, STABLE, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
 import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh } from './peer-session';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
@@ -50,7 +50,9 @@ export type CallNoticeKind =
   | 'other-tab'
   | 'disabled'
   | 'interrupted'
-  | 'server-error';
+  | 'server-error'
+  | 'screen-degraded'
+  | 'screen-failed';
 
 export interface CallNotice {
   kind: CallNoticeKind;
@@ -65,6 +67,12 @@ export interface CallSnapshot {
   cameraFailed: boolean;
   remoteMuted: boolean;
   remoteCameraOn: boolean;
+  screenSharing: boolean;
+  canShareScreen: boolean;
+  localScreenStream: MediaStream | null;
+  remoteScreenOn: boolean;
+  remoteScreenStream: MediaStream | null;
+  unstable: boolean;
   quality: QualityBars | null;
   degrade: DegradeStep | null;
   notice: CallNotice | null;
@@ -82,6 +90,9 @@ export interface PeerSessionLike {
   setMuted: (muted: boolean) => void;
   setVideoTrack: (track: MediaStreamTrack | null) => Promise<void>;
   setAudioTrack: (track: MediaStreamTrack) => Promise<void>;
+  canShareScreen: () => boolean;
+  setScreenTracks: (video: MediaStreamTrack | null, audio?: MediaStreamTrack | null) => Promise<boolean>;
+  setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
   getStats: () => Promise<RTCStatsReport>;
   close: () => void;
@@ -99,6 +110,7 @@ export interface PeerSessionFactoryOptions {
   onConnection: (status: ConnectionStatus) => void;
   onFatal: (detail: string) => void;
   onRemoteStream: (stream: MediaStream) => void;
+  onRemoteScreen: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade: (step: DegradeStep | null) => void;
 }
@@ -120,6 +132,7 @@ export interface CallControllerDeps {
   tabs: TabOwnership;
   acquireMedia: (kind: CallKind) => Promise<LocalMedia>;
   acquireCamera: () => Promise<MediaStreamTrack | null>;
+  acquireScreen: () => Promise<MediaStream | null>;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
   isMobile: () => boolean;
@@ -150,6 +163,9 @@ interface Session {
   acceptConfirmed: boolean;
   acceptWaiters: Array<() => void>;
   statsSample: QualitySample | null;
+  screen: MediaStream | null;
+  screenPending: boolean;
+  instability: InstabilityState;
 }
 
 interface PendingIce {
@@ -187,6 +203,12 @@ export function initialSnapshot(): CallSnapshot {
     cameraFailed: false,
     remoteMuted: false,
     remoteCameraOn: false,
+    screenSharing: false,
+    canShareScreen: false,
+    localScreenStream: null,
+    remoteScreenOn: false,
+    remoteScreenStream: null,
+    unstable: false,
     quality: null,
     degrade: null,
     notice: null,
@@ -338,6 +360,9 @@ export class CallController {
         acceptConfirmed: false,
         acceptWaiters: [],
         statsSample: null,
+        screen: null,
+        screenPending: false,
+        instability: STABLE,
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
     } catch {
@@ -423,6 +448,9 @@ export class CallController {
         acceptConfirmed: false,
         acceptWaiters: [],
         statsSample: null,
+        screen: null,
+        screenPending: false,
+        instability: STABLE,
       };
       const handedOver = media;
       media = null;
@@ -580,6 +608,76 @@ export class CallController {
     stream.addTrack(track);
     await session.peerSession.setVideoTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+  }
+
+  async toggleScreenShare(): Promise<void> {
+    if (this.session?.screen) {
+      await this.stopScreenShare();
+      return;
+    }
+    await this.startScreenShare();
+  }
+
+  private async startScreenShare(): Promise<void> {
+    const session = this.session;
+    const peer = session?.peerSession;
+    if (!session || !peer || session.screen || session.screenPending || !this.isConnected() || !peer.canShareScreen()) {
+      return;
+    }
+    if (this.snapshot.degrade === 'audio-only-relay') {
+      this.update({ notice: { kind: 'screen-degraded' } });
+      return;
+    }
+    session.screenPending = true;
+    const stream = await this.deps.acquireScreen().catch(() => null);
+    session.screenPending = false;
+    if (!stream) {
+      return;
+    }
+    const video = stream.getVideoTracks()[0];
+    if (!video || this.session !== session || !this.isConnected()) {
+      this.deps.stopMedia(stream);
+      return;
+    }
+    const ok = await peer.setScreenTracks(video, stream.getAudioTracks()[0] ?? null);
+    if (!ok || this.session !== session || !this.isConnected()) {
+      this.deps.stopMedia(stream);
+      if (ok) {
+        await peer.setScreenTracks(null);
+      } else if (this.session === session) {
+        this.update({ notice: { kind: this.getSnapshot().degrade === 'audio-only-relay' ? 'screen-degraded' : 'screen-failed' } });
+      }
+      return;
+    }
+    session.screen = stream;
+    const shared = stream;
+    video.addEventListener(
+      'ended',
+      () => {
+        if (this.session === session && session.screen === shared) {
+          void this.stopScreenShare();
+        }
+      },
+      { once: true },
+    );
+    this.update({ screenSharing: true, localScreenStream: stream });
+  }
+
+  async stopScreenShare(): Promise<void> {
+    const session = this.session;
+    const stream = session?.screen;
+    if (!session || !stream) {
+      return;
+    }
+    session.screen = null;
+    this.deps.stopMedia(stream);
+    this.update({ screenSharing: false, localScreenStream: null });
+    await session.peerSession?.setScreenTracks(null);
+  }
+
+  private isConnected(): boolean {
+    const phase = this.machine.getState().phase;
+    return phase === 'active' || phase === 'reconnecting';
   }
 
   async replaceAudioInput(track: MediaStreamTrack): Promise<void> {
@@ -941,11 +1039,25 @@ export class CallController {
           return null;
         }
       },
-      onConnection: (status) => this.machine.dispatch({ type: 'media', callId: session.callId, status, at: this.deps.now() }),
+      onConnection: (status) => {
+        this.machine.dispatch({ type: 'media', callId: session.callId, status, at: this.deps.now() });
+        if (status === 'connected' && this.session === session && session.peerSession) {
+          this.update({ canShareScreen: session.peerSession.canShareScreen() });
+        }
+      },
       onFatal: (detail) => this.machine.dispatch({ type: 'failure', callId: session.callId, detail }),
-      onRemoteStream: (stream) => this.update({ remoteStream: stream }),
+      onRemoteStream: (stream) => {
+        if (this.session === session) {
+          this.update({ remoteStream: stream });
+        }
+      },
+      onRemoteScreen: (stream) => {
+        if (this.session === session) {
+          this.update({ remoteScreenStream: stream });
+        }
+      },
       onControl: (message) => this.handleControl(session, message),
-      onDegrade: (step) => this.update({ degrade: step }),
+      onDegrade: (step) => this.handleDegrade(session, step),
     });
     session.peerSession = peerSession;
     peerSession.start();
@@ -967,8 +1079,23 @@ export class CallController {
       this.machine.dispatch({ type: 'hangup-local', callId: session.callId });
     } else if (message.t === 'mute') {
       this.update({ remoteMuted: message.on });
+    } else if (message.t === 'screen') {
+      this.update({ remoteScreenOn: message.on });
     } else {
       this.update({ remoteCameraOn: message.on });
+    }
+  }
+
+  private handleDegrade(session: Session, step: DegradeStep | null): void {
+    if (this.session !== session) {
+      return;
+    }
+    this.update({ degrade: step });
+    if (step === 'audio-only-relay' && session.screen) {
+      const stream = session.screen;
+      session.screen = null;
+      this.deps.stopMedia(stream);
+      this.update({ screenSharing: false, localScreenStream: null, notice: { kind: 'screen-degraded' } });
     }
   }
 
@@ -996,8 +1123,15 @@ export class CallController {
         .then((report) => {
           const reading = readQuality(report, session.statsSample);
           session.statsSample = reading.sample;
-          if (this.session === session) {
-            this.update({ quality: reading.bars });
+          if (this.session !== session) {
+            return;
+          }
+          const wasUnstable = session.instability.unstable;
+          session.instability = nextInstability(session.instability, Math.max(reading.lossRatio, reading.outboundLoss), this.deps.now());
+          const unstable = session.instability.unstable;
+          this.update({ quality: reading.bars, unstable });
+          if (unstable !== wasUnstable) {
+            void peer.setNetworkUnstable(unstable);
           }
         })
         .catch(() => undefined);
@@ -1019,7 +1153,24 @@ export class CallController {
       patch.durationSeconds = state.connectedAt === null ? null : Math.max(0, Math.round((this.deps.now() - state.connectedAt) / 1000));
       this.teardown(state);
     } else if (state.phase === 'idle') {
-      Object.assign(patch, { muted: false, cameraOn: false, cameraFailed: false, remoteMuted: false, remoteCameraOn: false, quality: null, degrade: null, localStream: null, remoteStream: null, durationSeconds: null });
+      Object.assign(patch, {
+        muted: false,
+        cameraOn: false,
+        cameraFailed: false,
+        remoteMuted: false,
+        remoteCameraOn: false,
+        screenSharing: false,
+        canShareScreen: false,
+        localScreenStream: null,
+        remoteScreenOn: false,
+        remoteScreenStream: null,
+        unstable: false,
+        quality: null,
+        degrade: null,
+        localStream: null,
+        remoteStream: null,
+        durationSeconds: null,
+      });
     }
     if (state.phase === 'outgoing-ringing' && previous !== 'outgoing-ringing') {
       void this.deps.tabs.claimRingtone().then((claimed) => {
@@ -1060,10 +1211,12 @@ export class CallController {
         zeroEphemeralKeyPair(session.ownEk);
       }
       this.deps.stopMedia(session.media?.stream ?? null);
+      this.deps.stopMedia(session.screen);
+      session.screen = null;
       this.deps.tabs.announceReleased(session.callId);
     }
     this.deps.tabs.releaseCall();
-    this.update({ localStream: null, remoteStream: null, quality: null });
+    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, unstable: false });
   }
 
   dismissEnded(): void {
@@ -1088,6 +1241,7 @@ export class CallController {
       zeroEphemeralKeyPair(this.session.ownEk);
     }
     this.deps.stopMedia(this.session?.media?.stream ?? null);
+    this.deps.stopMedia(this.session?.screen ?? null);
     this.deps.stopRingtone();
     this.deps.tabs.releaseRingtone();
     this.deps.tabs.releaseCall();

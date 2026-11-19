@@ -1016,7 +1016,7 @@ const VIDEO_CODECS = [
 ];
 
 function capabilities(kind: 'audio' | 'video'): RTCRtpCodec[] {
-  return (kind === 'audio' ? AUDIO_CODECS : VIDEO_CODECS) as RTCRtpCodec[];
+  return (kind === 'audio' ? AUDIO_CODECS : VIDEO_CODECS);
 }
 
 function track(kind: string) {
@@ -1051,7 +1051,7 @@ describe('codec preferences', () => {
   });
 
   it('applies the preferences on the caller transceivers before the offer', async () => {
-    const h = build('caller', { deps: { codecCapabilities: capabilities } as never });
+    const h = build('caller', { deps: { codecCapabilities: capabilities } });
     h.session.start();
     await settle();
 
@@ -1063,7 +1063,7 @@ describe('codec preferences', () => {
   });
 
   it('applies the preferences on the callee before answering', async () => {
-    const h = build('callee', { deps: { codecCapabilities: capabilities } as never });
+    const h = build('callee', { deps: { codecCapabilities: capabilities } });
     h.session.start();
     h.connection.transceivers.push(new FakeTransceiver('audio', null), new FakeTransceiver('video', null), new FakeTransceiver('video', null), new FakeTransceiver('audio', null));
     for (const transceiver of h.connection.transceivers) {
@@ -1079,7 +1079,7 @@ describe('codec preferences', () => {
   });
 
   it('keeps working when the browser has no codec capabilities', async () => {
-    const h = build('caller', { deps: { codecCapabilities: () => [] } as never });
+    const h = build('caller', { deps: { codecCapabilities: () => [] } });
     h.session.start();
     await settle();
 
@@ -1216,7 +1216,7 @@ describe('screen share transport', () => {
     const created = [cameraStream, screenStream];
     const h = build('caller', {
       onRemoteScreen: (stream) => screens.push(stream),
-      deps: { createStream: () => created.shift() as MediaStream } as never,
+      deps: { createStream: () => created.shift() as MediaStream },
     });
     h.session.start();
     await settle();

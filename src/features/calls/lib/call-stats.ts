@@ -13,6 +13,31 @@ export interface QualityReading {
   lossRatio: number;
   rttMs: number | null;
   jitterMs: number | null;
+  outboundLoss: number;
+}
+
+export const UNSTABLE_LOSS_RATIO = 0.05;
+export const UNSTABLE_AFTER_MS = 4_000;
+
+export interface InstabilityState {
+  unstable: boolean;
+  highSince: number | null;
+  lowSince: number | null;
+}
+
+export const STABLE: InstabilityState = { unstable: false, highSince: null, lowSince: null };
+
+export function nextInstability(state: InstabilityState, lossRatio: number, now: number): InstabilityState {
+  const windowStart = now - STATS_INTERVAL_MS;
+  if (lossRatio > UNSTABLE_LOSS_RATIO) {
+    const highSince = state.highSince ?? windowStart;
+    return { unstable: state.unstable || now - highSince >= UNSTABLE_AFTER_MS, highSince, lowSince: null };
+  }
+  if (!state.unstable) {
+    return STABLE;
+  }
+  const lowSince = state.lowSince ?? windowStart;
+  return now - lowSince >= UNSTABLE_AFTER_MS ? STABLE : { unstable: true, highSince: null, lowSince };
 }
 
 function barsFor(value: number | null, good: number, fair: number): QualityBars {
@@ -34,6 +59,7 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
   let packetsLost = 0;
   let jitterMs: number | null = null;
   let rttMs: number | null = null;
+  let outboundLoss = 0;
 
   report.forEach((entry: Record<string, unknown>) => {
     if (entry.type === 'inbound-rtp' && (entry.kind === 'audio' || entry.kind === 'video')) {
@@ -42,6 +68,9 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
       if (typeof entry.jitter === 'number') {
         jitterMs = Math.max(jitterMs ?? 0, entry.jitter * 1000);
       }
+    }
+    if (entry.type === 'remote-inbound-rtp' && typeof entry.fractionLost === 'number' && Number.isFinite(entry.fractionLost)) {
+      outboundLoss = Math.max(outboundLoss, Math.min(1, Math.max(0, entry.fractionLost)));
     }
     if (entry.type === 'candidate-pair' && entry.nominated === true && typeof entry.currentRoundTripTime === 'number') {
       rttMs = entry.currentRoundTripTime * 1000;
@@ -53,5 +82,5 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
   const lostDelta = previous ? Math.max(0, packetsLost - previous.packetsLost) : packetsLost;
   const total = receivedDelta + lostDelta;
   const lossRatio = total > 0 ? lostDelta / total : 0;
-  return { bars: qualityBars(lossRatio, rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs };
+  return { bars: qualityBars(Math.max(lossRatio, outboundLoss), rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs, outboundLoss };
 }

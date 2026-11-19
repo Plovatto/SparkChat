@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { qualityBars, readQuality } from './call-stats';
+import { STABLE, STATS_INTERVAL_MS, nextInstability, qualityBars, readQuality, type InstabilityState } from './call-stats';
 
 function report(entries: Array<Record<string, unknown>>): RTCStatsReport {
   return new Map(entries.map((entry, index) => [String(index), entry]));
@@ -61,5 +61,44 @@ describe('readQuality', () => {
   it('is safe on an empty report and on counters that went backwards', () => {
     expect(readQuality(report([]), null).bars).toBe(3);
     expect(readQuality(report([{ type: 'inbound-rtp', kind: 'audio', packetsReceived: 5, packetsLost: -1 }]), { packetsReceived: 50, packetsLost: 10 }).lossRatio).toBe(0);
+  });
+});
+
+describe('outbound loss', () => {
+  it('reads the loss the other side reports for what we send and uses it for the bars', () => {
+    const reading = readQuality(report([
+      { type: 'inbound-rtp', kind: 'audio', packetsReceived: 100, packetsLost: 0 },
+      { type: 'remote-inbound-rtp', kind: 'video', fractionLost: 0.08 },
+      { type: 'remote-inbound-rtp', kind: 'audio', fractionLost: 0.02 },
+    ]), null);
+    expect(reading.outboundLoss).toBe(0.08);
+    expect(reading.lossRatio).toBe(0);
+    expect(reading.bars).toBe(1);
+  });
+
+  it('ignores invalid fractions', () => {
+    expect(readQuality(report([{ type: 'remote-inbound-rtp', fractionLost: Number.NaN }, { type: 'remote-inbound-rtp', fractionLost: -1 }]), null).outboundLoss).toBe(0);
+  });
+});
+
+describe('instability detector', () => {
+  function run(samples: number[]): boolean[] {
+    let state: InstabilityState = STABLE;
+    return samples.map((loss, index) => {
+      state = nextInstability(state, loss, 10_000 + index * STATS_INTERVAL_MS);
+      return state.unstable;
+    });
+  }
+
+  it('turns unstable only when loss stays above 5% for 4 seconds', () => {
+    expect(run([0.06])).toEqual([false]);
+    expect(run([0.06, 0.07])).toEqual([false, true]);
+    expect(run([0.06, 0.01, 0.06])).toEqual([false, false, false]);
+    expect(run([0.05, 0.05, 0.05])).toEqual([false, false, false]);
+  });
+
+  it('recovers only after 4 seconds of low loss', () => {
+    expect(run([0.1, 0.1, 0.01, 0.01, 0.1])).toEqual([false, true, true, false, false]);
+    expect(run([0.1, 0.1, 0.01, 0.2, 0.01])).toEqual([false, true, true, true, true]);
   });
 });

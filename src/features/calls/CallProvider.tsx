@@ -11,7 +11,7 @@ import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
@@ -53,6 +53,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       tabs,
       acquireMedia: (kind) => acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: preferredAudioRef.current, videoInputId: preferredVideoRef.current }),
       acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
+      acquireScreen: () => acquireScreenShare(),
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
       isMobile: isMobileDevice,

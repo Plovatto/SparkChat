@@ -102,11 +102,27 @@ class FakePeer implements PeerSessionLike {
   setAudioTrack(): Promise<void> {
     return Promise.resolve();
   }
+  shareable = true;
+  screenTracks: Array<{ video: unknown; audio: unknown }> = [];
+  screenResult = true;
+  unstableCalls: boolean[] = [];
+  canShareScreen(): boolean {
+    return this.shareable;
+  }
+  setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null): Promise<boolean> {
+    this.screenTracks.push({ video, audio });
+    return Promise.resolve(this.screenResult);
+  }
+  setNetworkUnstable(unstable: boolean): Promise<void> {
+    this.unstableCalls.push(unstable);
+    return Promise.resolve();
+  }
   applyDegrade(): Promise<void> {
     return Promise.resolve();
   }
+  statsReport: Map<string, Record<string, unknown>> = new Map();
   getStats(): Promise<RTCStatsReport> {
-    return Promise.resolve(new Map() as unknown as RTCStatsReport);
+    return Promise.resolve(this.statsReport as unknown as RTCStatsReport);
   }
   close(): void {
     this.closed = true;
@@ -157,6 +173,7 @@ function makeNode(self: Party, resolve: (userId: string) => Promise<ResolvedPeer
         cameraFailed: false,
       }),
     acquireCamera: () => Promise.resolve(null),
+    acquireScreen: () => Promise.resolve(null),
     stopMedia: () => {
       node.stopped += 1;
     },
@@ -958,5 +975,177 @@ describe('server events', () => {
     w.a.controller.dispose();
 
     expect(Array.from(w.a.socket.handlers.values()).reduce((sum, set) => sum + set.size, 0)).toBe(0);
+  });
+});
+
+function screenStream(withAudio = true) {
+  const listeners: Array<() => void> = [];
+  const video = {
+    kind: 'video',
+    stopped: false,
+    stop() {
+      this.stopped = true;
+    },
+    addEventListener: (_event: string, listener: () => void) => listeners.push(listener),
+  };
+  const audio = { kind: 'audio', stopped: false, stop() { this.stopped = true; } };
+  const tracks = withAudio ? [video, audio] : [video];
+  const stream = {
+    getTracks: () => tracks,
+    getVideoTracks: () => [video],
+    getAudioTracks: () => (withAudio ? [audio] : []),
+  } as unknown as MediaStream;
+  return { stream, video, audio, end: () => listeners.forEach((listener) => listener()) };
+}
+
+describe('screen share', () => {
+  async function activeCall(acquireScreen: () => Promise<MediaStream | null>) {
+    const w = await world({ alice: { acquireScreen, stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    return { w, peer };
+  }
+
+  it('exposes whether sharing is possible once media is verified and connected', async () => {
+    const { w } = await activeCall(() => Promise.resolve(null));
+    expect(w.a.controller.getSnapshot().canShareScreen).toBe(true);
+
+    const other = await world();
+    await connectCall(other);
+    other.a.peers[0]!.shareable = false;
+    other.a.peers[0]!.options.onConnection('connected');
+    expect(other.a.controller.getSnapshot().canShareScreen).toBe(false);
+  });
+
+  it('shares the screen video and audio, then stops and releases the capture', async () => {
+    const share = screenStream();
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenTracks).toEqual([{ video: share.video, audio: share.audio }]);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: true, localScreenStream: share.stream });
+
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenTracks.at(-1)).toEqual({ video: null, audio: null });
+    expect(share.video.stopped).toBe(true);
+    expect(share.audio.stopped).toBe(true);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, localScreenStream: null });
+  });
+
+  it('stops sharing when the browser ends the capture', async () => {
+    const share = screenStream(false);
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenTracks[0]).toEqual({ video: share.video, audio: null });
+
+    share.end();
+    await settle();
+
+    expect(peer.screenTracks.at(-1)).toEqual({ video: null, audio: null });
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+  });
+
+  it('stops sharing on hang up', async () => {
+    const share = screenStream();
+    const { w } = await activeCall(() => Promise.resolve(share.stream));
+    await w.a.controller.toggleScreenShare();
+
+    w.a.controller.hangup();
+    await settle();
+
+    expect(share.video.stopped).toBe(true);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, localScreenStream: null, remoteScreenStream: null });
+  });
+
+  it('does nothing when the picker is cancelled and never captures before the call is connected', async () => {
+    let asked = 0;
+    const w = await world({ alice: { acquireScreen: () => { asked += 1; return Promise.resolve(null); } } });
+    await connectCall(w);
+    await w.a.controller.toggleScreenShare();
+    expect(asked).toBe(0);
+
+    w.a.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+    expect(asked).toBe(1);
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+    expect(w.a.peers[0]!.screenTracks).toEqual([]);
+  });
+
+  it('releases the capture and shows a notice when the peer session refuses it', async () => {
+    const share = screenStream();
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+    peer.screenResult = false;
+
+    await w.a.controller.toggleScreenShare();
+
+    expect(share.video.stopped).toBe(true);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, notice: { kind: 'screen-failed' } });
+  });
+
+  it('stops an active share with a notice when the server degrades to audio only', async () => {
+    const share = screenStream();
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+    await w.a.controller.toggleScreenShare();
+
+    peer.options.onDegrade('audio-only-relay');
+
+    expect(share.video.stopped).toBe(true);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, degrade: 'audio-only-relay', notice: { kind: 'screen-degraded' } });
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenTracks).toHaveLength(1);
+  });
+
+  it('tracks the remote share state and stream', async () => {
+    const { w, peer } = await activeCall(() => Promise.resolve(null));
+    const remote = { id: 'screen' } as unknown as MediaStream;
+
+    peer.options.onRemoteScreen(remote);
+    peer.options.onControl({ t: 'screen', on: true });
+    expect(w.a.controller.getSnapshot()).toMatchObject({ remoteScreenOn: true, remoteScreenStream: remote });
+
+    peer.options.onControl({ t: 'screen', on: false });
+    expect(w.a.controller.getSnapshot().remoteScreenOn).toBe(false);
+  });
+});
+
+describe('unstable connection', () => {
+  it('shows the notice and lowers the camera after 4 s above 5% loss, then restores', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    let received = 0;
+    let lost = 0;
+    const tick = async (loss: number) => {
+      received += 90;
+      lost += Math.round(loss * 100);
+      peer.statsReport = new Map([['in', { type: 'inbound-rtp', kind: 'audio', packetsReceived: received, packetsLost: lost }]]);
+      await vi.advanceTimersByTimeAsync(2_000);
+    };
+
+    await tick(0);
+    await tick(0.1);
+    expect(w.a.controller.getSnapshot().unstable).toBe(false);
+    await tick(0.1);
+    expect(w.a.controller.getSnapshot().unstable).toBe(true);
+    expect(peer.unstableCalls).toEqual([true]);
+
+    await tick(0);
+    await tick(0);
+    expect(w.a.controller.getSnapshot().unstable).toBe(false);
+    expect(peer.unstableCalls).toEqual([true, false]);
+  });
+
+  it('also reacts to the loss the other side reports for our outgoing media', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    peer.statsReport = new Map([['remote', { type: 'remote-inbound-rtp', kind: 'video', fractionLost: 0.2 }]]);
+
+    await vi.advanceTimersByTimeAsync(4_000);
+
+    expect(w.a.controller.getSnapshot().unstable).toBe(true);
   });
 });

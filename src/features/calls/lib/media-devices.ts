@@ -124,3 +124,42 @@ export async function listDevices(): Promise<DeviceLists> {
     return { audioInputs: [], videoInputs: [], audioOutputs: [] };
   }
 }
+
+export interface DisplayMediaHost {
+  getDisplayMedia?: (options?: DisplayMediaStreamOptions) => Promise<MediaStream>;
+}
+
+function displayHost(): DisplayMediaHost | undefined {
+  return typeof navigator === 'undefined' ? undefined : (navigator.mediaDevices);
+}
+
+export function supportsScreenShare(host: DisplayMediaHost | undefined = displayHost()): boolean {
+  return typeof host?.getDisplayMedia === 'function';
+}
+
+export function screenShareOptions(): DisplayMediaStreamOptions {
+  return {
+    video: { frameRate: { ideal: 15, max: 30 } },
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } as MediaTrackConstraints,
+    selfBrowserSurface: 'exclude',
+    surfaceSwitching: 'include',
+    systemAudio: 'include',
+    monitorTypeSurfaces: 'include',
+  } as DisplayMediaStreamOptions;
+}
+
+export async function acquireScreenShare(host: DisplayMediaHost | undefined = displayHost()): Promise<MediaStream | null> {
+  if (!host?.getDisplayMedia) {
+    return null;
+  }
+  try {
+    const stream = await host.getDisplayMedia(screenShareOptions());
+    if (stream.getVideoTracks().length === 0) {
+      stopStream(stream);
+      return null;
+    }
+    return stream;
+  } catch {
+    return null;
+  }
+}

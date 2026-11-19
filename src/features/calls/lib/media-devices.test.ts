@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { acquireLocalMedia, audioConstraints, videoConstraints } from './media-devices';
+import { acquireLocalMedia, acquireScreenShare, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -67,5 +67,39 @@ describe('acquireLocalMedia', () => {
     const getUserMedia = vi.fn().mockRejectedValue(new Error('denied'));
 
     await expect(acquireLocalMedia('video', {}, getUserMedia, false)).rejects.toThrow('denied');
+  });
+});
+
+describe('screen share', () => {
+  function fakeStream(kinds: string[]) {
+    const tracks = kinds.map((kind) => ({ kind, stopped: false, stop() { this.stopped = true; } }));
+    return { tracks, getTracks: () => tracks, getVideoTracks: () => tracks.filter((track) => track.kind === 'video') } as unknown as MediaStream & { tracks: Array<{ stopped: boolean }> };
+  }
+
+  it('offers the button only where getDisplayMedia exists', () => {
+    expect(supportsScreenShare({ getDisplayMedia: () => Promise.reject(new Error('x')) })).toBe(true);
+    expect(supportsScreenShare({})).toBe(false);
+    expect(supportsScreenShare(undefined)).toBe(false);
+  });
+
+  it('asks for a tab, window or screen with audio and excludes the app tab itself', () => {
+    expect((screenShareOptions().audio as Record<string, unknown>).restrictOwnAudio).toBe(true);
+    expect(screenShareOptions()).toMatchObject({
+      selfBrowserSurface: 'exclude',
+      surfaceSwitching: 'include',
+      systemAudio: 'include',
+      monitorTypeSurfaces: 'include',
+    });
+    expect(screenShareOptions().video).not.toHaveProperty('displaySurface');
+  });
+
+  it('returns the stream, or null when the picker is cancelled or gives no video', async () => {
+    const stream = fakeStream(['video', 'audio']);
+    expect(await acquireScreenShare({ getDisplayMedia: () => Promise.resolve(stream) })).toBe(stream);
+    expect(await acquireScreenShare({ getDisplayMedia: () => Promise.reject(new DOMException('no', 'NotAllowedError')) })).toBeNull();
+    const audioOnly = fakeStream(['audio']);
+    expect(await acquireScreenShare({ getDisplayMedia: () => Promise.resolve(audioOnly) })).toBeNull();
+    expect(audioOnly.tracks[0]?.stopped).toBe(true);
+    expect(await acquireScreenShare({})).toBeNull();
   });
 });
