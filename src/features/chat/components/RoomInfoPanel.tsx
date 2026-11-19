@@ -16,6 +16,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isAssistantRoom } from '../utils/assistant';
 import { AppearanceEditor } from './AppearanceEditor';
 import { GroupInviteSection } from './GroupInviteSection';
+import { GroupNameEditor } from './GroupNameEditor';
 import { ImageModal } from './ImageModal';
 import { MediaGallery } from './MediaGallery';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -210,7 +211,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={removalTarget ? () => setPendingRemoval(null) : onClose} title={room.type === 'group' ? room.name : otherUser?.nickname}>
+      <Modal isOpen={isOpen} onClose={removalTarget ? () => setPendingRemoval(null) : onClose} title={room.type === 'group' ? (room.name ?? t('common.group')) : otherUser?.nickname}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {room.type === 'private' && otherUser && (
             <>
@@ -309,7 +310,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   <FaUsers size={45} color={theme.accentText} />
                 </div>
 
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{room.name}</h3>
+                <GroupNameEditor room={room} currentUserId={currentUserId} />
 
                 <div style={{ fontSize: '0.9rem', color: theme.textSecondary, fontWeight: 500 }}>
                   {t('roomInfo.members', { count: room.participants.length })}
