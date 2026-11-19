@@ -22,13 +22,15 @@ interface ShownNotification {
   closed: boolean;
 }
 
-function fakeClient(overrides: Partial<WorkerWindowClient> = {}): WorkerWindowClient & { messages: unknown[]; focusCalls: number } {
-  const client = {
+type FakeClient = WorkerWindowClient & { messages: unknown[]; focusCalls: number };
+
+function fakeClient(overrides: Partial<WorkerWindowClient> = {}): FakeClient {
+  const client: FakeClient = {
     id: 'client-1',
     url: 'https://chat.example/app/',
     focused: false,
     visibilityState: 'hidden',
-    messages: [] as unknown[],
+    messages: [],
     focusCalls: 0,
     focus: () => {
       client.focusCalls += 1;

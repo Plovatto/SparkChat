@@ -90,7 +90,7 @@ describe('install availability', () => {
 describe('beforeinstallprompt flow', () => {
   it('captures the event, prevents the mini infobar and prompts from a user action', async () => {
     const target = new EventTarget();
-    const stop = captureInstallPrompt(target as unknown as Window);
+    const stop = captureInstallPrompt(target);
     const listener = vi.fn();
     subscribeInstallState(listener);
     const { event, prompt } = fakePromptEvent('accepted');
@@ -109,7 +109,7 @@ describe('beforeinstallprompt flow', () => {
 
   it('forgets a dismissed prompt and opens the sheet when no prompt is available', async () => {
     const target = new EventTarget();
-    captureInstallPrompt(target as unknown as Window);
+    captureInstallPrompt(target);
     target.dispatchEvent(fakePromptEvent('dismissed').event);
     await expect(requestInstall()).resolves.toBe('dismissed');
     expect(getInstallSnapshot()).toMatchObject({ canPrompt: false, installed: false, sheetOpen: false });
@@ -120,7 +120,7 @@ describe('beforeinstallprompt flow', () => {
 
   it('marks the app installed on appinstalled', () => {
     const target = new EventTarget();
-    captureInstallPrompt(target as unknown as Window);
+    captureInstallPrompt(target);
     target.dispatchEvent(fakePromptEvent('accepted').event);
     target.dispatchEvent(new Event('appinstalled'));
     expect(getInstallSnapshot()).toMatchObject({ canPrompt: false, installed: true });
