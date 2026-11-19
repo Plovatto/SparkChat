@@ -2,7 +2,7 @@ import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | { t: 'screen'; on: boolean };
 
 export type ConnectionStatus = 'connected' | 'interrupted';
 
@@ -14,6 +14,10 @@ export const CREDENTIAL_REFRESH_MS = 3.5 * 60 * 60 * 1000;
 export const AUDIO_MAX_BITRATE = 32_000;
 export const VIDEO_MAX_BITRATE = 1_500_000;
 export const VIDEO_DEGRADED_MAX_BITRATE = 600_000;
+export const VIDEO_UNSTABLE_MAX_BITRATE = 350_000;
+export const SCREEN_MAX_BITRATE = 2_500_000;
+export const SCREEN_DEGRADED_MAX_BITRATE = 1_000_000;
+export const SCREEN_AUDIO_MAX_BITRATE = 64_000;
 export const MAX_REMOTE_CANDIDATES = 200;
 export const DTLS_VERIFY_TIMEOUT_MS = 10_000;
 const MAX_SDP_LENGTH = 14_000;
@@ -29,6 +33,7 @@ export interface PeerSessionDeps {
   hashCertificate: (certificate: ArrayBuffer) => Promise<string>;
   createStream: () => MediaStream;
   now: () => number;
+  codecCapabilities: (kind: 'audio' | 'video') => RTCRtpCodec[];
 }
 
 export interface IceRefresh {
@@ -48,6 +53,7 @@ export interface PeerSessionOptions {
   onConnection: (status: ConnectionStatus) => void;
   onFatal: (detail: string) => void;
   onRemoteStream: (stream: MediaStream) => void;
+  onRemoteScreen?: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade?: (step: DegradeStep | null) => void;
   deps?: Partial<PeerSessionDeps>;
@@ -65,7 +71,55 @@ function defaultDeps(): PeerSessionDeps {
     hashCertificate: defaultHashCertificate,
     createStream: () => new MediaStream(),
     now: () => Date.now(),
+    codecCapabilities: (kind) => {
+      try {
+        return typeof RTCRtpReceiver !== 'undefined' && typeof RTCRtpReceiver.getCapabilities === 'function' ? (RTCRtpReceiver.getCapabilities(kind)?.codecs ?? []) : [];
+      } catch {
+        return [];
+      }
+    },
   };
+}
+
+function mimeOf(codec: RTCRtpCodec): string {
+  return codec.mimeType.toLowerCase();
+}
+
+export function preferredAudioCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  const red = codecs.filter((codec) => mimeOf(codec) === 'audio/red');
+  const opus = codecs.filter((codec) => mimeOf(codec) === 'audio/opus');
+  if (opus.length === 0) {
+    return [];
+  }
+  const rest = codecs.filter((codec) => !red.includes(codec) && !opus.includes(codec));
+  return [...red, ...opus, ...rest];
+}
+
+export function screenAudioCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  return codecs.filter((codec) => mimeOf(codec) === 'audio/opus');
+}
+
+function isCompactScreenCodec(codec: RTCRtpCodec): boolean {
+  const mime = mimeOf(codec);
+  const fmtp = (codec.sdpFmtpLine ?? '').toLowerCase();
+  if (mime === 'video/vp8') {
+    return true;
+  }
+  if (mime === 'video/vp9') {
+    return fmtp === '' || fmtp.includes('profile-id=0');
+  }
+  if (mime === 'video/h264') {
+    return fmtp.includes('packetization-mode=1') && fmtp.includes('profile-level-id=42e01f');
+  }
+  return false;
+}
+
+export function screenVideoCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  const primary = codecs.filter(isCompactScreenCodec);
+  if (primary.length === 0) {
+    return [];
+  }
+  return codecs.filter((codec) => primary.includes(codec) || mimeOf(codec) === 'video/rtx');
 }
 
 export function extractSdpFingerprints(sdp: string): string[] {
@@ -89,7 +143,7 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     if (message.t === 'hangup') {
       return { t: 'hangup' };
     }
-    if ((message.t === 'mute' || message.t === 'camera') && typeof message.on === 'boolean') {
+    if ((message.t === 'mute' || message.t === 'camera' || message.t === 'screen') && typeof message.on === 'boolean') {
       return { t: message.t, on: message.on };
     }
     return null;
@@ -121,6 +175,34 @@ function parseFingerprints(value: unknown): string[] | null {
   return normalized;
 }
 
+export interface SenderCap {
+  maxBitrate: number;
+  scaleResolutionDownBy?: number;
+  priority?: RTCPriorityType;
+  degradationPreference?: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
+}
+
+type ExtendedEncoding = RTCRtpEncodingParameters & { priority?: RTCPriorityType; networkPriority?: RTCPriorityType };
+
+export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, extended: boolean): RTCRtpSendParameters {
+  const encodings: ExtendedEncoding[] = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
+  const first: ExtendedEncoding = encodings[0] ?? {};
+  first.maxBitrate = cap.maxBitrate;
+  if (cap.scaleResolutionDownBy !== undefined) {
+    first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
+  }
+  if (extended && cap.priority) {
+    first.priority = cap.priority;
+    first.networkPriority = cap.priority;
+  }
+  encodings[0] = first;
+  const next = { ...current, encodings } as RTCRtpSendParameters & { degradationPreference?: string };
+  if (extended && cap.degradationPreference) {
+    next.degradationPreference = cap.degradationPreference;
+  }
+  return next;
+}
+
 export class PeerSession {
   private readonly options: PeerSessionOptions;
   private readonly deps: PeerSessionDeps;
@@ -147,6 +229,9 @@ export class PeerSession {
   private fallbackStream: MediaStream | null = null;
   private degrade: DegradeStep | null;
   private localAttached = false;
+  private remoteScreen: MediaStream | null = null;
+  private remoteScreenExposed = false;
+  private unstable = false;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -193,6 +278,28 @@ export class PeerSession {
     const init: RTCRtpTransceiverInit = { direction: 'sendrecv' };
     this.connection.addTransceiver('audio', init);
     this.connection.addTransceiver('video', init);
+    this.connection.addTransceiver('video', init);
+    this.connection.addTransceiver('audio', init);
+    this.applyCodecPreferences();
+  }
+
+  private applyCodecPreferences(): void {
+    const audio = this.deps.codecCapabilities('audio');
+    const video = this.deps.codecCapabilities('video');
+    this.preferCodecs(this.transceiversOf('audio')[0], preferredAudioCodecs(audio));
+    this.preferCodecs(this.screenTransceiver(), screenVideoCodecs(video));
+    this.preferCodecs(this.screenAudioTransceiver(), screenAudioCodecs(audio));
+  }
+
+  private preferCodecs(transceiver: RTCRtpTransceiver | undefined, codecs: RTCRtpCodec[]): void {
+    if (!transceiver || codecs.length === 0 || typeof transceiver.setCodecPreferences !== 'function') {
+      return;
+    }
+    try {
+      transceiver.setCodecPreferences(codecs);
+    } catch {
+      return;
+    }
   }
 
   receiveSignal(type: SignalType, payload: Record<string, unknown>): Promise<void> {
@@ -246,6 +353,9 @@ export class PeerSession {
       }
       for (const transceiver of connection.getTransceivers()) {
         transceiver.direction = 'sendrecv';
+      }
+      if (this.polite) {
+        this.applyCodecPreferences();
       }
       await connection.setLocalDescription();
       this.sendDescription('answer');
@@ -367,6 +477,13 @@ export class PeerSession {
   }
 
   private handleTrack(event: RTCTrackEvent): void {
+    const transceiver = event.transceiver as RTCRtpTransceiver | undefined;
+    if (transceiver && (transceiver === this.screenTransceiver() || transceiver === this.screenAudioTransceiver())) {
+      this.remoteScreen ??= this.deps.createStream();
+      this.remoteScreen.addTrack(event.track);
+      this.exposeRemoteScreen();
+      return;
+    }
     const stream = event.streams[0];
     if (stream) {
       this.exposeRemoteStream(stream);
@@ -383,6 +500,14 @@ export class PeerSession {
       return;
     }
     this.pendingRemoteStreams.set(stream.id || 'fallback', stream);
+  }
+
+  private exposeRemoteScreen(): void {
+    if (!this.verified || !this.remoteScreen || this.closed) {
+      return;
+    }
+    this.remoteScreenExposed = true;
+    this.options.onRemoteScreen?.(this.remoteScreen);
   }
 
   private handleIceState(): void {
@@ -547,6 +672,9 @@ export class PeerSession {
     for (const stream of pending) {
       this.options.onRemoteStream(stream);
     }
+    if (!this.remoteScreenExposed) {
+      this.exposeRemoteScreen();
+    }
     void this.attachLocalTracks();
     const state = this.connection.iceConnectionState;
     if (state === 'connected' || state === 'completed') {
@@ -585,7 +713,7 @@ export class PeerSession {
   }
 
   async setVideoTrack(track: MediaStreamTrack | null): Promise<void> {
-    const transceiver = this.videoTransceiver();
+    const transceiver = this.cameraTransceiver();
     if (!transceiver || !this.verified) {
       return;
     }
@@ -604,12 +732,64 @@ export class PeerSession {
     await this.audioSender()?.replaceTrack(track);
   }
 
-  private videoTransceiver(): RTCRtpTransceiver | undefined {
-    return this.connection.getTransceivers().find((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === 'video');
+  canShareScreen(): boolean {
+    return this.verified && !this.closed && this.screenTransceiver() !== undefined;
+  }
+
+  async setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null): Promise<boolean> {
+    const transceiver = this.screenTransceiver();
+    if (!transceiver || !this.verified || this.closed) {
+      return false;
+    }
+    if (video && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {
+      return false;
+    }
+    if (video && 'contentHint' in video) {
+      video.contentHint = 'detail';
+    }
+    const audioSender = this.screenAudioTransceiver()?.sender;
+    try {
+      await transceiver.sender.replaceTrack(video);
+      if (audioSender && (audio || audioSender.track)) {
+        await audioSender.replaceTrack(video ? audio : null);
+      }
+    } catch {
+      await transceiver.sender.replaceTrack(null).catch(() => undefined);
+      await audioSender?.replaceTrack(null).catch(() => undefined);
+      this.sendControl({ t: 'screen', on: false });
+      return false;
+    }
+    this.sendControl({ t: 'screen', on: video !== null });
+    await this.applyCaps();
+    return true;
+  }
+
+  async setNetworkUnstable(unstable: boolean): Promise<void> {
+    if (this.unstable === unstable) {
+      return;
+    }
+    this.unstable = unstable;
+    await this.applyCaps();
+  }
+
+  private transceiversOf(kind: 'audio' | 'video'): RTCRtpTransceiver[] {
+    return this.connection.getTransceivers().filter((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === kind);
+  }
+
+  private cameraTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('video')[0];
+  }
+
+  private screenTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('video')[1];
+  }
+
+  private screenAudioTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('audio')[1];
   }
 
   private audioSender(): RTCRtpSender | undefined {
-    return this.connection.getTransceivers().find((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === 'audio')?.sender;
+    return this.transceiversOf('audio')[0]?.sender;
   }
 
   async applyDegrade(step: DegradeStep | null): Promise<void> {
@@ -641,39 +821,51 @@ export class PeerSession {
     }
     const degradeVideo = this.degrade === 'video-360';
     const audioOnly = this.degrade === 'audio-only-relay' && (await this.isRelayed());
-    await this.setSenderCap(this.audioSender(), { maxBitrate: AUDIO_MAX_BITRATE });
-    const videoSender = this.videoTransceiver()?.sender;
-    if (audioOnly && videoSender?.track) {
-      await videoSender.replaceTrack(null);
-      this.sendControl({ t: 'camera', on: false });
+    await this.setSenderCap(this.audioSender(), { maxBitrate: AUDIO_MAX_BITRATE, priority: 'high' });
+    const videoSender = this.cameraTransceiver()?.sender;
+    const screenSender = this.screenTransceiver()?.sender;
+    const screenAudioSender = this.screenAudioTransceiver()?.sender;
+    if (audioOnly && (videoSender?.track || screenSender?.track)) {
+      if (videoSender?.track) {
+        await videoSender.replaceTrack(null);
+        this.sendControl({ t: 'camera', on: false });
+      }
+      if (screenSender?.track) {
+        await screenSender.replaceTrack(null);
+        await screenAudioSender?.replaceTrack(null);
+        this.sendControl({ t: 'screen', on: false });
+      }
       this.options.onDegrade?.('audio-only-relay');
       return;
     }
+    const lowerCamera = degradeVideo || this.unstable;
     await this.setSenderCap(videoSender, {
-      maxBitrate: degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE,
-      scaleResolutionDownBy: degradeVideo ? (this.options.mobile ? 1.333 : 2) : 1,
+      maxBitrate: this.unstable ? VIDEO_UNSTABLE_MAX_BITRATE : degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE,
+      scaleResolutionDownBy: lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1,
+      degradationPreference: 'maintain-framerate',
     });
+    await this.setSenderCap(screenSender, {
+      maxBitrate: degradeVideo ? SCREEN_DEGRADED_MAX_BITRATE : SCREEN_MAX_BITRATE,
+      degradationPreference: 'maintain-resolution',
+    });
+    await this.setSenderCap(screenAudioSender, { maxBitrate: SCREEN_AUDIO_MAX_BITRATE });
     if (degradeVideo) {
       this.options.onDegrade?.('video-360');
     }
   }
 
-  private async setSenderCap(sender: RTCRtpSender | undefined, cap: { maxBitrate: number; scaleResolutionDownBy?: number }): Promise<void> {
+  private async setSenderCap(sender: RTCRtpSender | undefined, cap: SenderCap): Promise<void> {
     if (!sender) {
       return;
     }
     try {
-      const parameters = sender.getParameters();
-      const encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-      const first = encodings[0] ?? {};
-      first.maxBitrate = cap.maxBitrate;
-      if (cap.scaleResolutionDownBy !== undefined) {
-        first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
-      }
-      encodings[0] = first;
-      await sender.setParameters({ ...parameters, encodings });
+      await sender.setParameters(senderParameters(sender.getParameters(), cap, true));
     } catch {
-      return;
+      try {
+        await sender.setParameters(senderParameters(sender.getParameters(), cap, false));
+      } catch {
+        return;
+      }
     }
   }
 
@@ -724,6 +916,7 @@ export class PeerSession {
     this.refreshTimer = null;
     this.dtlsTimer = null;
     this.pendingRemoteStreams.clear();
+    this.remoteScreen = null;
     this.pendingCandidates = [];
     this.connection.onicecandidate = null;
     this.connection.onnegotiationneeded = null;
