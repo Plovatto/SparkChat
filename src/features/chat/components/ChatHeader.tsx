@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { FaArrowLeft, FaCheck, FaComments, FaCopy, FaLink, FaUser } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaComments, FaLink, FaUser } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
@@ -7,6 +7,7 @@ import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { shareLinkNatively } from '@lib/share-link';
 import type { RoomSummary } from '@lib/socket';
+import { useGroupInviteLink } from '../hooks/useGroupInviteLink';
 import { isAssistantRoom } from '../utils/assistant';
 
 interface ChatHeaderProps {
@@ -16,7 +17,6 @@ interface ChatHeaderProps {
   onOpenInfo: () => void;
 }
 
-const COPY_KEY_CODE = 'code';
 const COPY_KEY_LINK = 'link';
 
 export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHeaderProps) {
@@ -28,22 +28,14 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
   const roomName = getRoomDisplayName(room, currentUserId);
   const statusText = isAssistantRoom(room) ? t('chat.assistantStatus') : otherUser?.statusText;
-
-  const copyRoomCode = () => {
-    if (room.roomCode) {
-      clipboard.copy(room.roomCode, COPY_KEY_CODE);
-    }
-  };
+  const invite = useGroupInviteLink(room);
 
   const shareInviteLink = () => {
-    if (!room.roomCode) {
-      return;
-    }
-
-    const link = `${window.location.origin}${window.location.pathname}?join=${room.roomCode}`;
-    if (!shareLinkNatively({ text: t('chat.header.inviteText', { name: roomName }), url: link })) {
-      clipboard.copy(link, COPY_KEY_LINK);
-    }
+    void invite.createLink().then((link) => {
+      if (link && !shareLinkNatively({ text: t('chat.header.inviteText', { name: roomName }), url: link })) {
+        clipboard.copy(link, COPY_KEY_LINK);
+      }
+    });
   };
 
   return (
@@ -167,27 +159,18 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
               </span>
             </small>
           )}
-          {room.type === 'group' && room.roomCode && (
+          {room.type === 'group' && (
             <div style={{ marginTop: '2px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <button
                 type="button"
-                onClick={copyRoomCode}
-                className="sc-chip"
-                style={{ height: '18px', padding: '0 8px', fontSize: '0.62rem', fontFamily: 'monospace', fontWeight: 600 }}
-                title={t('chat.header.copyCode')}
-              >
-                {clipboard.isCopied(COPY_KEY_CODE) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaCopy size={8} />}
-                <span>{room.roomCode}</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={shareInviteLink}
+                disabled={!invite.isAvailable}
                 className="sc-chip"
-                style={{ height: '18px', width: '18px', justifyContent: 'center', padding: 0, fontSize: '0.62rem' }}
-                title={t('chat.header.shareInvite')}
+                style={{ height: '18px', padding: '0 8px', fontSize: '0.62rem', fontWeight: 600 }}
+                title={invite.isAvailable ? t('chat.header.copyInvite') : t('chat.header.inviteUnavailable')}
               >
                 {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaLink size={8} />}
+                <span>{t('chat.header.copyInvite')}</span>
               </button>
             </div>
           )}

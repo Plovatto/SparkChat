@@ -53,7 +53,8 @@
       "removeRequiresAdmin": "Apenas administradores podem remover membros.",
       "cannotRemoveSelf": "Use a opção de sair do grupo para se remover.",
       "notMember": "Usuário não faz parte do grupo.",
-      "groupFull": "Este grupo atingiu o limite de membros."
+      "groupFull": "Este grupo atingiu o limite de membros.",
+      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro."
     },
     "message": {
       "notFound": "Mensagem não encontrada.",
@@ -86,6 +87,7 @@
       "imageUnavailable": "Não foi possível carregar essa imagem."
     },
     "rateLimit": {
+      "inviteReset": "Você poderá redefinir o link de convite de novo em alguns segundos.",
       "api": "Muitas requisições em pouco tempo. Aguarde e tente novamente.",
       "linkPreview": "Muitas requisições de preview. Aguarde um momento e tente novamente.",
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
@@ -122,7 +124,9 @@
       "invalidRoomKeyEnvelope": "A chave de criptografia enviada para a conversa é inválida.",
       "roomKeyStale": "A chave de criptografia da conversa mudou. Atualizando para a chave atual.",
       "roomKeyIncomplete": "A nova chave da conversa precisa incluir todos os membros.",
-      "roomKeyConflict": "Outro membro já definiu a chave desta conversa."
+      "roomKeyConflict": "Outro membro já definiu a chave desta conversa.",
+      "inviteRequired": "Uma nova chave de grupo precisa incluir um link de convite.",
+      "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros."
     }
   },
   "systemEvents": {
@@ -248,8 +252,8 @@
     },
     "header": {
       "inviteText": "Entre no grupo \"{{name}}\" no SparkChat!",
-      "copyCode": "Clique para copiar o código",
-      "shareInvite": "Compartilhar link de convite",
+      "copyInvite": "Copiar link de convite",
+      "inviteUnavailable": "O link de convite ainda não está disponível.",
       "viewProfile": "Ver perfil",
       "viewGroup": "Ver informações do grupo"
     },
@@ -419,12 +423,23 @@
     "promote": "Promover a administrador",
     "remove": "Remover do grupo",
     "removeTitle": "Remover membro",
-    "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o código de convite.",
+    "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o link de convite.",
     "leave": "Sair do Grupo",
     "seen": "Visto {{time}}",
     "members_one": "{{count}} membro",
     "members_other": "{{count}} membros",
-    "membersTitle": "Membros ({{count}})"
+    "membersTitle": "Membros ({{count}})",
+    "inviteLink": "Link de convite",
+    "inviteHelp": "Qualquer pessoa com este link pode entrar no grupo. Compartilhe só com quem você confia.",
+    "copyInvite": "Copiar link de convite",
+    "copied": "Copiado!",
+    "inviteUnavailable": "O link de convite ainda não está disponível.",
+    "inviteCleared": "O link de convite fica indisponível até a chave do grupo mudar.",
+    "resetInvite": "Redefinir link de convite",
+    "resetInviteTitle": "Redefinir link de convite?",
+    "resetInviteConfirm": "Um novo link e uma nova chave do grupo serão criados. O link atual deixará de funcionar para quem ainda não entrou.",
+    "inviteResetDone": "Um novo link de convite foi criado.",
+    "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente."
   },
   "presence": {
     "online": "Online",
@@ -478,18 +493,12 @@
     "friendHelp": "Digite o username para iniciar uma conversa",
     "starting": "Iniciando...",
     "start": "Iniciar Chat",
-    "joinExisting": "Entrar em Sala Existente",
-    "codePlaceholder": "Código da sala",
-    "codeHelp": "Digite o código da sala para entrar",
-    "joining": "Entrando...",
-    "join": "Entrar na Sala",
+    "joinWithLink": "Para entrar em um grupo existente, abra o link de convite que um membro compartilhou com você.",
     "createNew": "Criar Nova Sala",
     "namePlaceholder": "Nome da sala",
     "nameHelp": "Digite um nome para sua nova sala",
     "creating": "Criando...",
     "create": "Criar Sala",
-    "or": "OU",
-    "invalidCode": "Código de sala inválido",
     "nameTooShort": "Nome da sala deve ter pelo menos {{minLength}} caracteres",
     "enterUsername": "Digite o username"
   },
@@ -552,7 +561,9 @@
     "connecting": "Conectando ao servidor...",
     "deepLink": {
       "joinTitle": "Entrar no grupo?",
-      "joinMessage": "Um link pediu para você entrar no grupo com o código {{code}}. Quer entrar?",
+      "joinMessage": "Um link convidou você para entrar em um grupo. Quer entrar?",
+      "invalidInvite": "Este link de convite é inválido. Peça um novo link a um membro do grupo.",
+      "inviteUnavailable": "Suas chaves de criptografia ainda não estão prontas. Abra o link de convite de novo em instantes.",
       "chatTitle": "Iniciar conversa?",
       "chatMessage": "Um link pediu para você iniciar uma conversa com {{nickname}}. Quer continuar?",
       "notice": "Só confirme se você confia em quem enviou o link.",

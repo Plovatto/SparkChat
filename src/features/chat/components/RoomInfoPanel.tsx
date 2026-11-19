@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { FaBan, FaCheck, FaCopy, FaCrown, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
+import { FaBan, FaCheck, FaCopy, FaCrown, FaLink, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
 import { MdTranslate } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
@@ -15,6 +15,7 @@ import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isAssistantRoom } from '../utils/assistant';
 import { AppearanceEditor } from './AppearanceEditor';
+import { GroupInviteSection } from './GroupInviteSection';
 import { ImageModal } from './ImageModal';
 import { MediaGallery } from './MediaGallery';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -356,6 +357,15 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                   </div>
                 </div>
               </div>
+
+              <GroupInviteSection
+                room={room}
+                title={
+                  <SectionTitle>
+                    <FaLink /> {t('roomInfo.inviteLink')}
+                  </SectionTitle>
+                }
+              />
 
               <div>
                 <SectionTitle>

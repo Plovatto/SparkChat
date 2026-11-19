@@ -14,11 +14,11 @@ interface DeepLinkConfirmDialogProps {
 export function DeepLinkConfirmDialog({ intent, canConfirm, onConfirm, onCancel }: DeepLinkConfirmDialogProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const isJoin = intent?.kind === 'join';
+  const isJoin = intent?.kind === 'invite';
   const title = isJoin ? t('app.deepLink.joinTitle') : t('app.deepLink.chatTitle');
   const message =
-    intent?.kind === 'join'
-      ? t('app.deepLink.joinMessage', { code: intent.code })
+    intent?.kind === 'invite'
+      ? t('app.deepLink.joinMessage')
       : intent?.kind === 'chat'
         ? t('app.deepLink.chatMessage', { nickname: intent.nickname })
         : '';

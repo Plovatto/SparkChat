@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import type { IconType } from 'react-icons';
-import { FaArrowRight, FaExclamationTriangle, FaUser, FaUsers } from 'react-icons/fa';
+import { FaArrowRight, FaExclamationTriangle, FaLink, FaUser, FaUsers } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
@@ -16,36 +16,8 @@ interface NewChatModalProps {
 }
 
 type ChatType = 'private' | 'group';
-type GroupMode = 'join' | 'create';
 
-const ROOM_CODE_MIN_LENGTH = 6;
-const ROOM_CODE_MAX_LENGTH = 12;
 const GROUP_NAME_MIN_LENGTH = 3;
-
-function OrDivider() {
-  const { t } = useTranslation();
-  const { theme } = useTheme();
-
-  return (
-    <div style={{ textAlign: 'center', position: 'relative', margin: '8px 0' }}>
-      <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: theme.border }} />
-      <span
-        style={{
-          background: theme.surfaceElevated,
-          padding: '0 15px',
-          color: theme.textMuted,
-          fontSize: '0.85rem',
-          fontWeight: 600,
-          position: 'relative',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
-        }}
-      >
-        {t('newChat.or')}
-      </span>
-    </div>
-  );
-}
 
 export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const { t } = useTranslation();
@@ -53,22 +25,18 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   const { socket } = useSocket();
   const [chatType, setChatType] = useState<ChatType>('private');
   const [targetNickname, setTargetNickname] = useState('');
-  const [roomCode, setRoomCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [error, setError] = useState('');
   useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
-  const [groupMode, setGroupMode] = useState<GroupMode>('join');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       setChatType('private');
       setTargetNickname('');
-      setRoomCode('');
       setGroupName('');
       setError('');
-      setGroupMode('join');
       setIsSubmitting(false);
     }
   }, [isOpen]);
@@ -109,20 +77,6 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     }
     setIsSubmitting(true);
     socket?.emit('room:create-private', { targetNickname: targetNickname.trim() });
-    setError('');
-  };
-
-  const handleJoinRoom = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (isSubmitting) {
-      return;
-    }
-    if (roomCode.trim().length < ROOM_CODE_MIN_LENGTH) {
-      setError(t('newChat.invalidCode'));
-      return;
-    }
-    setIsSubmitting(true);
-    socket?.emit('room:join-by-code', { roomCode: roomCode.toUpperCase() });
     setError('');
   };
 
@@ -235,89 +189,33 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
         )}
 
         {chatType === 'group' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div
-              className={groupMode === 'join' ? 'sc-anim-swap-in-left' : undefined}
-              style={{ display: groupMode === 'join' ? 'flex' : 'none', flexDirection: 'column', gap: '16px' }}
-            >
-              <form onSubmit={handleJoinRoom} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={labelStyle}>{t('newChat.joinExisting')}</label>
-                  <input
-                    type="text"
-                    value={roomCode}
-                    onChange={(event) => {
-                      setRoomCode(event.target.value.toUpperCase());
-                      setError('');
-                    }}
-                    placeholder={t('newChat.codePlaceholder')}
-                    maxLength={ROOM_CODE_MAX_LENGTH}
-                    autoFocus={groupMode === 'join'}
-                    className="sc-input"
-                  />
-                  <small style={helperStyle}>{t('newChat.codeHelp')}</small>
-                </div>
-                <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
-                  {submitIcon}
-                  {isSubmitting ? t('newChat.joining') : t('newChat.join')}
-                </button>
-              </form>
-
-              <OrDivider />
-
-              <button
-                onClick={() => {
-                  setGroupMode('create');
-                  setRoomCode('');
-                  setError('');
-                }}
-                className="sc-btn sc-btn--outline sc-btn--lift"
-                style={fullWidthButton}
-              >
-                {t('newChat.createNew')}
+          <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={labelStyle}>{t('newChat.createNew')}</label>
+                <input
+                  type="text"
+                  value={groupName}
+                  onChange={(event) => {
+                    setGroupName(event.target.value);
+                    setError('');
+                  }}
+                  placeholder={t('newChat.namePlaceholder')}
+                  maxLength={30}
+                  autoFocus
+                  className="sc-input"
+                />
+                <small style={helperStyle}>{t('newChat.nameHelp')}</small>
+              </div>
+              <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
+                {submitIcon}
+                {isSubmitting ? t('newChat.creating') : t('newChat.create')}
               </button>
-            </div>
+            </form>
 
-            <div
-              className={groupMode === 'create' ? 'sc-anim-swap-in-right' : undefined}
-              style={{ display: groupMode === 'create' ? 'flex' : 'none', flexDirection: 'column', gap: '16px' }}
-            >
-              <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label style={labelStyle}>{t('newChat.createNew')}</label>
-                  <input
-                    type="text"
-                    value={groupName}
-                    onChange={(event) => {
-                      setGroupName(event.target.value);
-                      setError('');
-                    }}
-                    placeholder={t('newChat.namePlaceholder')}
-                    maxLength={30}
-                    autoFocus={groupMode === 'create'}
-                    className="sc-input"
-                  />
-                  <small style={helperStyle}>{t('newChat.nameHelp')}</small>
-                </div>
-                <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
-                  {submitIcon}
-                  {isSubmitting ? t('newChat.creating') : t('newChat.create')}
-                </button>
-              </form>
-
-              <OrDivider />
-
-              <button
-                onClick={() => {
-                  setGroupMode('join');
-                  setGroupName('');
-                  setError('');
-                }}
-                className="sc-btn sc-btn--outline sc-btn--lift"
-                style={fullWidthButton}
-              >
-                {t('newChat.joinExisting')}
-              </button>
+            <div className="sc-notice sc-notice--info" style={{ alignItems: 'center' }}>
+              <FaLink size={13} style={{ flexShrink: 0, opacity: 0.85 }} />
+              <span>{t('newChat.joinWithLink')}</span>
             </div>
           </div>
         )}

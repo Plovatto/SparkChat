@@ -21,6 +21,7 @@ export interface ContactPin {
   verified: boolean;
   pinnedAt: number;
   pending: { publicKey: string; signingPublicKey: string | null; seenAt: number } | null;
+  replacedSigningPublicKey?: string | null;
 }
 
 export interface StoredRoomKeyGeneration {
@@ -28,6 +29,7 @@ export interface StoredRoomKeyGeneration {
   keyId: string;
   epoch: number;
   key: Uint8Array;
+  roomType?: 'private' | 'group';
 }
 
 const ROOM_KEYS_BY_ROOM_INDEX = 'by_room';

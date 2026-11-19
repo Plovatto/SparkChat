@@ -1,4 +1,4 @@
-export type DeepLinkIntent = { kind: 'join'; code: string } | { kind: 'chat'; nickname: string };
+export type DeepLinkIntent = { kind: 'invite'; roomId: string; secret: Uint8Array } | { kind: 'chat'; nickname: string };
 
 export const DEEP_LINK_PARAMS = ['join', 'startChat'] as const;
 export const MAX_DEEP_LINK_VALUE_LENGTH = 64;
@@ -18,17 +18,29 @@ export function hasDeepLinkParams(search: string): boolean {
 
 export function readDeepLinkIntents(search: string, ownNickname: string): DeepLinkIntent[] {
   const params = new URLSearchParams(search);
-  const intents: DeepLinkIntent[] = [];
-
   const nickname = readParam(params, 'startChat');
   if (nickname && nickname.toLowerCase() !== ownNickname.toLowerCase()) {
-    intents.push({ kind: 'chat', nickname });
+    return [{ kind: 'chat', nickname }];
   }
+  return [];
+}
 
-  const code = readParam(params, 'join');
-  if (code) {
-    intents.push({ kind: 'join', code: code.toUpperCase() });
+function zeroInviteIntent(intent: DeepLinkIntent | undefined): void {
+  if (intent?.kind === 'invite') {
+    intent.secret.fill(0);
   }
+}
 
-  return intents;
+export function withInviteIntent(previous: DeepLinkIntent[], invite: Extract<DeepLinkIntent, { kind: 'invite' }>): DeepLinkIntent[] {
+  for (const intent of previous) {
+    if (intent.kind === 'invite' && intent.secret !== invite.secret) {
+      zeroInviteIntent(intent);
+    }
+  }
+  return [...previous.filter((intent) => intent.kind !== 'invite'), invite];
+}
+
+export function withoutFirstIntent(previous: DeepLinkIntent[]): DeepLinkIntent[] {
+  zeroInviteIntent(previous[0]);
+  return previous.slice(1);
 }

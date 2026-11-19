@@ -183,8 +183,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants })));
     };
 
-    const handleMemberLeft = ({ roomId, participants, roomCode }: { roomId: string; participants: RoomParticipant[]; roomCode?: string }) => {
-      setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants, ...(roomCode ? { roomCode } : {}) })));
+    const handleMemberLeft = ({ roomId, participants }: { roomId: string; participants: RoomParticipant[] }) => {
+      setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants })));
     };
 
     const handleBlockStatusChanged = ({ roomId, blockedBy }: BlockStatusPayload) => {
