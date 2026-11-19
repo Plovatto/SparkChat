@@ -4,6 +4,14 @@ import { createBatchedLookup } from './batched-lookup';
 import { ASSISTANT_USER_ID } from './assistant';
 import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
 import { getCurrentIdentity, type CurrentIdentity } from './current-identity';
+import {
+  createInviteBundle,
+  buildInviteLink,
+  deriveInviteProof,
+  deriveInviteToken,
+  openInviteSecret,
+  verifyInviteProof,
+} from './group-invite';
 import { clearRoomKeyStore, loadRoomKeyGenerations, saveRoomKeyGeneration } from './key-store';
 import { clearDecryptedMediaCache } from './media-cache';
 import {
@@ -42,6 +50,33 @@ interface PendingPublish {
   startedAt: number;
 }
 
+export interface RoomInvite {
+  encryptedInvite: string;
+  keyId: string;
+}
+
+interface KnownInvite extends RoomInvite {
+  secret: Uint8Array;
+}
+
+interface PublishedInvite extends KnownInvite {
+  epoch: number;
+}
+
+export interface RoomKeyRequest {
+  roomId: string;
+  requesterId: string;
+  proof?: unknown;
+}
+
+export interface InviteJoinRequest {
+  roomId: string;
+  inviteToken: string;
+  proof: string;
+}
+
+export type RoomInviteListener = (roomId: string) => void;
+
 const REQUEST_TIMEOUT_MS = 8000;
 
 const MISSING_GENERATION_RETRY_MS = 30000;
@@ -57,6 +92,15 @@ const pendingPublishes = new Map<string, PendingPublish>();
 const MAX_QUEUED_ENVELOPES_PER_ROOM = 50;
 const MAX_QUEUED_ENVELOPES = 500;
 let queuedEnvelopes: SealedRoomKeyEntry[] = [];
+const roomInvites = new Map<string, RoomInvite | null>();
+const openedInvites = new Map<string, KnownInvite>();
+const publishedInvites = new Map<string, PublishedInvite>();
+const joinSecrets = new Map<string, Uint8Array>();
+const pendingInviteRefreshes = new Map<string, Promise<void>>();
+const lastInviteRefresh = new Map<string, number>();
+const pendingInviteResets = new Set<string>();
+const roomInviteListeners = new Set<RoomInviteListener>();
+const INVITE_REFRESH_INTERVAL_MS = 15000;
 const ownSigningPublicKeys = new WeakMap<Uint8Array, string>();
 
 function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
@@ -194,6 +238,300 @@ function notifyRoomKeyAvailable(roomId: string): void {
   }
 }
 
+export function subscribeRoomInvite(listener: RoomInviteListener): () => void {
+  roomInviteListeners.add(listener);
+  return () => {
+    roomInviteListeners.delete(listener);
+  };
+}
+
+function notifyRoomInvite(roomId: string): void {
+  for (const listener of Array.from(roomInviteListeners)) {
+    try {
+      listener(roomId);
+    } catch (error) {
+      console.error('[e2e] room invite listener failed', error);
+    }
+  }
+}
+
+function isRoomInvite(value: unknown): value is RoomInvite {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Partial<RoomInvite>;
+  return typeof candidate.encryptedInvite === 'string' && typeof candidate.keyId === 'string';
+}
+
+function forgetOpenedInvite(roomId: string): void {
+  const opened = openedInvites.get(roomId);
+  if (opened) {
+    opened.secret.fill(0);
+    openedInvites.delete(roomId);
+  }
+}
+
+function forgetJoinSecret(roomId: string): void {
+  const secret = joinSecrets.get(roomId);
+  if (secret) {
+    secret.fill(0);
+    joinSecrets.delete(roomId);
+  }
+}
+
+function sameInvite(left: RoomInvite | null | undefined, right: RoomInvite | null): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+  return left.encryptedInvite === right.encryptedInvite && left.keyId === right.keyId;
+}
+
+function setRoomInvite(roomId: string, invite: RoomInvite | null, known?: KnownInvite): void {
+  if (roomInvites.has(roomId) && sameInvite(roomInvites.get(roomId), invite)) {
+    return;
+  }
+  roomInvites.set(roomId, invite ? { encryptedInvite: invite.encryptedInvite, keyId: invite.keyId } : null);
+  forgetOpenedInvite(roomId);
+  if (known && invite) {
+    openedInvites.set(roomId, { encryptedInvite: invite.encryptedInvite, keyId: invite.keyId, secret: known.secret.slice() });
+  }
+  notifyRoomInvite(roomId);
+}
+
+function applyRoomInvite(roomId: string, invite: unknown): void {
+  if (invite === undefined) {
+    return;
+  }
+  if (invite === null) {
+    setRoomInvite(roomId, null);
+    return;
+  }
+  if (isRoomInvite(invite)) {
+    setRoomInvite(roomId, invite);
+  }
+}
+
+function adoptPublishedInvite(roomId: string, generation: RoomKeyGeneration): void {
+  const published = publishedInvites.get(roomId);
+  if (!published) {
+    return;
+  }
+  if (published.keyId === generation.keyId) {
+    publishedInvites.delete(roomId);
+    if (roomInvites.get(roomId)?.keyId !== generation.keyId) {
+      setRoomInvite(roomId, published, published);
+    }
+    published.secret.fill(0);
+  } else if (generation.epoch >= published.epoch) {
+    publishedInvites.delete(roomId);
+    published.secret.fill(0);
+  }
+}
+
+function rememberPublishedInvite(roomId: string, invite: PublishedInvite): void {
+  publishedInvites.get(roomId)?.secret.fill(0);
+  publishedInvites.set(roomId, invite);
+}
+
+async function openRoomInvite(socket: AppSocket, roomId: string, invite: RoomInvite): Promise<Uint8Array | null> {
+  const opened = openedInvites.get(roomId);
+  if (opened && opened.encryptedInvite === invite.encryptedInvite && opened.keyId === invite.keyId) {
+    return opened.secret;
+  }
+  const roomKey = await ensureRoomKeyGeneration(socket, roomId, invite.keyId);
+  if (!roomKey) {
+    return null;
+  }
+  const secret = await openInviteSecret(invite.encryptedInvite, roomKey, roomId, invite.keyId);
+  if (!secret) {
+    console.warn('[e2e] discarded a group invite that does not open with its room key', { roomId });
+    return null;
+  }
+  if (!sameInvite(roomInvites.get(roomId), invite)) {
+    secret.fill(0);
+    return null;
+  }
+  forgetOpenedInvite(roomId);
+  openedInvites.set(roomId, { encryptedInvite: invite.encryptedInvite, keyId: invite.keyId, secret });
+  return secret;
+}
+
+function waitForInvite(roomId: string, keyId: string, timeoutMs: number): Promise<void> {
+  if (roomInvites.get(roomId)?.keyId === keyId) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    let timeoutId = 0;
+    const unsubscribe = subscribeRoomInvite((changedRoomId) => {
+      if (changedRoomId === roomId && roomInvites.get(roomId)?.keyId === keyId) {
+        window.clearTimeout(timeoutId);
+        unsubscribe();
+        resolve();
+      }
+    });
+    timeoutId = window.setTimeout(() => {
+      unsubscribe();
+      resolve();
+    }, timeoutMs);
+  });
+}
+
+function refreshRoomInvite(socket: AppSocket, roomId: string, keyId: string): Promise<void> {
+  const pending = pendingInviteRefreshes.get(roomId);
+  if (pending) {
+    return pending;
+  }
+  const last = lastInviteRefresh.get(roomId);
+  if (last !== undefined && Date.now() - last < INVITE_REFRESH_INTERVAL_MS) {
+    return Promise.resolve();
+  }
+  lastInviteRefresh.set(roomId, Date.now());
+  const refresh = waitForInvite(roomId, keyId, REQUEST_TIMEOUT_MS).finally(() => {
+    pendingInviteRefreshes.delete(roomId);
+  });
+  pendingInviteRefreshes.set(roomId, refresh);
+  socket.emit('rooms:get');
+  return refresh;
+}
+
+async function currentInviteSecret(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
+  await loadPersistedGenerations(roomId);
+  const current = sendableGeneration(roomId);
+  if (!current) {
+    return null;
+  }
+  const known = roomInvites.get(roomId);
+  if (known !== null && known?.keyId !== current.keyId) {
+    await refreshRoomInvite(socket, roomId, current.keyId);
+  }
+  const invite = roomInvites.get(roomId);
+  if (!invite || invite.keyId !== current.keyId || sendableGeneration(roomId)?.keyId !== current.keyId) {
+    return null;
+  }
+  return openRoomInvite(socket, roomId, invite);
+}
+
+async function ownInviteSecret(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
+  const joinSecret = joinSecrets.get(roomId);
+  if (joinSecret) {
+    return joinSecret;
+  }
+  const invite = roomInvites.get(roomId);
+  return invite ? openRoomInvite(socket, roomId, invite) : null;
+}
+
+async function requestRoomKey(socket: AppSocket, roomId: string): Promise<void> {
+  const view = roomViews.get(roomId);
+  if (view?.type === 'private') {
+    socket.emit('e2e:request-room-key', { roomId });
+    return;
+  }
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return;
+  }
+  const secret = await ownInviteSecret(socket, roomId);
+  if (!secret) {
+    console.warn('[e2e] cannot ask for a group key without the invite link', { roomId });
+    return;
+  }
+  const proof = await deriveInviteProof(secret, roomId, identity.userId, await ownSigningPublicKey(identity));
+  if (getCurrentIdentity() !== identity) {
+    return;
+  }
+  socket.emit('e2e:request-room-key', { roomId, proof });
+}
+
+async function keyRequestRejection(socket: AppSocket, view: RoomView, request: RoomKeyRequest): Promise<string | null> {
+  if (typeof request.proof !== 'string' || request.proof.length === 0) {
+    return 'missing-proof';
+  }
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return 'no-identity';
+  }
+  if (!view.members.has(request.requesterId) || request.requesterId === identity.userId) {
+    return 'not-member';
+  }
+  const sender = await resolveEnvelopeSender(socket, identity, request.requesterId);
+  if (!sender) {
+    return 'unpinned-requester';
+  }
+  const secret = await currentInviteSecret(socket, request.roomId);
+  if (!secret) {
+    return 'no-invite';
+  }
+  const valid = await verifyInviteProof(secret, request.roomId, request.requesterId, sender.signingPublicKey, request.proof);
+  return valid ? null : 'invalid-proof';
+}
+
+export async function prepareInviteJoin(roomId: string, secret: Uint8Array): Promise<InviteJoinRequest | null> {
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return null;
+  }
+  const [inviteToken, signingPublicKey] = await Promise.all([deriveInviteToken(secret), ownSigningPublicKey(identity)]);
+  const proof = await deriveInviteProof(secret, roomId, identity.userId, signingPublicKey);
+  if (getCurrentIdentity() !== identity) {
+    return null;
+  }
+  forgetJoinSecret(roomId);
+  joinSecrets.set(roomId, secret.slice());
+  return { roomId, inviteToken, proof };
+}
+
+export function isGroupInviteCleared(roomId: string): boolean {
+  return roomInvites.get(roomId) === null;
+}
+
+export async function getGroupInviteLink(socket: AppSocket, roomId: string, origin: string): Promise<string | null> {
+  if (roomViews.get(roomId)?.type !== 'group') {
+    return null;
+  }
+  const secret = await currentInviteSecret(socket, roomId);
+  return secret ? buildInviteLink(origin, roomId, secret) : null;
+}
+
+export async function resetGroupInvite(socket: AppSocket, roomId: string): Promise<boolean> {
+  const identity = getCurrentIdentity();
+  const view = roomViews.get(roomId);
+  if (!identity || view?.type !== 'group' || view.creatorId !== identity.userId) {
+    return false;
+  }
+  const generation = await ensureRoomKeyForSending(socket, roomId);
+  const bundle = await createInviteBundle(generation.key, roomId, generation.keyId);
+  try {
+    if (getCurrentIdentity() !== identity || sendableGeneration(roomId)?.keyId !== generation.keyId) {
+      return false;
+    }
+    const invite = { tokenHash: bundle.tokenHash, encryptedInvite: bundle.encryptedInvite, keyId: generation.keyId };
+    pendingInviteResets.add(roomId);
+    socket.emit('room:reset-invite', { roomId, invite });
+    setRoomInvite(roomId, invite, { ...invite, secret: bundle.secret });
+    return true;
+  } finally {
+    bundle.secret.fill(0);
+  }
+}
+
+export function handleRoomInviteUpdated(payload: { roomId: string; invite?: unknown }): void {
+  if (!payload || typeof payload.roomId !== 'string') {
+    return;
+  }
+  pendingInviteResets.delete(payload.roomId);
+  applyRoomInvite(payload.roomId, payload.invite ?? null);
+}
+
+export function handleRoomInviteResetRejected(): void {
+  for (const roomId of pendingInviteResets) {
+    roomInvites.delete(roomId);
+    forgetOpenedInvite(roomId);
+    lastInviteRefresh.delete(roomId);
+    notifyRoomInvite(roomId);
+  }
+  pendingInviteResets.clear();
+}
+
 function generationsOf(roomId: string): Map<string, RoomKeyGeneration> {
   let generations = generationsByRoom.get(roomId);
   if (!generations) {
@@ -246,6 +584,10 @@ function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist:
   const pending = pendingPublishes.get(roomId);
   if (pending && generation.epoch >= pending.epoch) {
     pendingPublishes.delete(roomId);
+  }
+  adoptPublishedInvite(roomId, generation);
+  if (sendableGeneration(roomId)?.keyId === generation.keyId) {
+    forgetJoinSecret(roomId);
   }
   if (persist) {
     void saveRoomKeyGeneration({ roomId, keyId: generation.keyId, epoch: generation.epoch, key: generation.key });
@@ -512,11 +854,24 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
       pendingPublishes.delete(roomId);
       return;
     }
+    const invite = view.type === 'group' ? await createInviteBundle(generation.key, roomId, generation.keyId) : null;
     if (publishTarget(roomId) !== epoch || getCurrentIdentity() !== identity) {
+      invite?.secret.fill(0);
       pendingPublishes.delete(roomId);
       return;
     }
-    socket.emit('e2e:publish-room-key', { roomId, keyId: generation.keyId, epoch, keys });
+    if (invite) {
+      rememberPublishedInvite(roomId, { encryptedInvite: invite.encryptedInvite, keyId: generation.keyId, epoch, secret: invite.secret });
+      socket.emit('e2e:publish-room-key', {
+        roomId,
+        keyId: generation.keyId,
+        epoch,
+        keys,
+        invite: { tokenHash: invite.tokenHash, encryptedInvite: invite.encryptedInvite },
+      });
+    } else {
+      socket.emit('e2e:publish-room-key', { roomId, keyId: generation.keyId, epoch, keys });
+    }
   } finally {
     generation.key.fill(0);
   }
@@ -564,7 +919,7 @@ export async function ensureRoomKeyForSending(socket: AppSocket, roomId: string)
   if (target !== null) {
     await publishGeneration(socket, roomId, target);
   } else if (roomViews.has(roomId)) {
-    socket.emit('e2e:request-room-key', { roomId });
+    await requestRoomKey(socket, roomId);
   }
 
   generation = await waitForSendable(roomId, REQUEST_TIMEOUT_MS);
@@ -634,6 +989,7 @@ async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: Trac
   applyParticipants(view, room.participants);
   view.type = room.type;
   view.creatorId = room.creatorId ?? null;
+  applyRoomInvite(room.id, room.invite);
   view.currentEpoch = Math.max(view.currentEpoch, room.currentEpoch ?? 0);
   applyRotationRequired(view, room.id, room.rotationRequiredEpoch);
 
@@ -665,7 +1021,7 @@ async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: Trac
     return;
   }
   if (!sendableGeneration(room.id) && view.currentEpoch > 0) {
-    socket.emit('e2e:request-room-key', { roomId: room.id });
+    await requestRoomKey(socket, room.id);
   }
 }
 
@@ -744,7 +1100,9 @@ async function handleGroupUserJoinedImpl(socket: AppSocket, payload: { roomId: s
     return;
   }
   const added = applyParticipants(view, payload.participants);
-  await shareCurrentGeneration(socket, payload.roomId, added);
+  if (view.type === 'private') {
+    await shareCurrentGeneration(socket, payload.roomId, added);
+  }
 }
 
 export function updateRoomParticipants(roomId: string, participants: RoomParticipant[]): void {
@@ -754,7 +1112,18 @@ export function updateRoomParticipants(roomId: string, participants: RoomPartici
   }
 }
 
-async function handleKeyRequestImpl(socket: AppSocket, payload: { roomId: string; requesterId: string }): Promise<void> {
+async function handleKeyRequestImpl(socket: AppSocket, payload: RoomKeyRequest): Promise<void> {
+  const view = roomViews.get(payload.roomId);
+  if (!view || typeof payload.requesterId !== 'string') {
+    return;
+  }
+  if (view.type !== 'private') {
+    const rejection = await keyRequestRejection(socket, view, payload);
+    if (rejection) {
+      console.warn('[e2e] ignored group key request', { roomId: payload.roomId, requesterId: payload.requesterId, reason: rejection });
+      return;
+    }
+  }
   await shareCurrentGeneration(socket, payload.roomId, [payload.requesterId]);
 }
 
@@ -771,6 +1140,20 @@ async function clearRoomKeysImpl(): Promise<void> {
   missingGenerations.clear();
   pendingPublishes.clear();
   queuedEnvelopes = [];
+  for (const roomId of Array.from(openedInvites.keys())) {
+    forgetOpenedInvite(roomId);
+  }
+  for (const roomId of Array.from(joinSecrets.keys())) {
+    forgetJoinSecret(roomId);
+  }
+  for (const published of publishedInvites.values()) {
+    published.secret.fill(0);
+  }
+  publishedInvites.clear();
+  roomInvites.clear();
+  pendingInviteRefreshes.clear();
+  lastInviteRefresh.clear();
+  pendingInviteResets.clear();
   clearDecryptedMediaCache();
   await clearRoomKeyStore();
 }

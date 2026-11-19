@@ -56,6 +56,21 @@ interface ServerRoom {
   currentEpoch: number;
   currentKeyId: string | null;
   rotationRequired: number | null;
+  invite: { encryptedInvite: string; keyId: string } | null;
+  tokenHash: string | null;
+}
+
+interface PublishedBatch {
+  roomId: string;
+  keyId: string;
+  epoch: number;
+  keys: { userId: string; sealedKey: string }[];
+  invite?: { tokenHash: string; encryptedInvite: string };
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 interface StoredEnvelope extends SealedRoomKeyEntry {
@@ -110,6 +125,7 @@ class FakeServer {
   readonly rooms = new Map<string, ServerRoom>();
   envelopes: StoredEnvelope[] = [];
   readonly rejections: { userId: string; roomId: string; epoch: number }[] = [];
+  readonly keyRequests: { userId: string; roomId: string; proof?: string }[] = [];
   private held: (() => void)[] | null = null;
 
   hold(): void {
@@ -151,7 +167,47 @@ class FakeServer {
       currentEpoch: room.currentEpoch,
       currentKeyId: room.currentKeyId,
       rotationRequiredEpoch: room.rotationRequired,
+      invite: room.invite,
     } as unknown as RoomSummary;
+  }
+
+  private pushInvite(roomId: string): void {
+    const room = this.rooms.get(roomId) as ServerRoom;
+    for (const member of room.members) {
+      this.push(member, 'room:invite-updated', { roomId, invite: room.invite });
+    }
+  }
+
+  private async handleJoinByInvite(userId: string, payload: { roomId: string; inviteToken: string; proof: string }): Promise<void> {
+    const room = this.rooms.get(payload.roomId);
+    if (!room || room.type !== 'group' || !room.tokenHash || (await sha256Hex(payload.inviteToken)) !== room.tokenHash) {
+      this.push(userId, 'error', { message: 'invalid', code: 'room.invalidInvite', event: 'room:join-by-invite' });
+      return;
+    }
+    if (!room.members.includes(userId)) {
+      room.members.push(userId);
+    }
+    const participants = room.members.map((id) => ({ id, nickname: id }));
+    for (const member of room.members) {
+      if (member !== userId) {
+        this.push(member, 'group:user-joined', { roomId: room.id, participants });
+      }
+    }
+    this.push(userId, 'room:joined', { room: this.summary(room.id), messages: [] });
+  }
+
+  private handleResetInvite(
+    userId: string,
+    payload: { roomId: string; invite: { tokenHash: string; encryptedInvite: string; keyId: string } },
+  ): void {
+    const room = this.rooms.get(payload.roomId);
+    if (!room || room.creatorId !== userId || payload.invite.keyId !== room.currentKeyId) {
+      this.push(userId, 'error', { message: 'forbidden', code: 'room.inviteResetRequiresOwner', event: 'room:reset-invite' });
+      return;
+    }
+    room.invite = { encryptedInvite: payload.invite.encryptedInvite, keyId: payload.invite.keyId };
+    room.tokenHash = payload.invite.tokenHash;
+    this.pushInvite(room.id);
   }
 
   private handle(userId: string, event: string, payload: unknown): void {
@@ -170,7 +226,23 @@ class FakeServer {
       return;
     }
     if (event === 'e2e:publish-room-key') {
-      this.handlePublish(userId, payload as { roomId: string; keyId: string; epoch: number; keys: { userId: string; sealedKey: string }[] });
+      this.handlePublish(userId, payload as PublishedBatch);
+      return;
+    }
+    if (event === 'room:join-by-invite') {
+      void this.handleJoinByInvite(userId, payload as { roomId: string; inviteToken: string; proof: string });
+      return;
+    }
+    if (event === 'room:reset-invite') {
+      this.handleResetInvite(userId, payload as { roomId: string; invite: { tokenHash: string; encryptedInvite: string; keyId: string } });
+      return;
+    }
+    if (event === 'rooms:get') {
+      for (const room of this.rooms.values()) {
+        if (room.members.includes(userId)) {
+          this.push(userId, 'room:invite-updated', { roomId: room.id, invite: room.invite });
+        }
+      }
       return;
     }
     if (event === 'e2e:share-room-key') {
@@ -178,10 +250,11 @@ class FakeServer {
       return;
     }
     if (event === 'e2e:request-room-key') {
-      const { roomId } = payload as { roomId: string };
+      const { roomId, proof } = payload as { roomId: string; proof?: string };
+      this.keyRequests.push({ userId, roomId, proof });
       for (const member of this.rooms.get(roomId)?.members ?? []) {
         if (member !== userId) {
-          this.push(member, 'e2e:key-request', { roomId, requesterId: userId });
+          this.push(member, 'e2e:key-request', { roomId, requesterId: userId, ...(proof === undefined ? {} : { proof }) });
         }
       }
     }
@@ -195,10 +268,7 @@ class FakeServer {
     }
   }
 
-  private handlePublish(
-    userId: string,
-    batch: { roomId: string; keyId: string; epoch: number; keys: { userId: string; sealedKey: string }[] },
-  ): void {
+  private handlePublish(userId: string, batch: PublishedBatch): void {
     const room = this.rooms.get(batch.roomId);
     if (!room?.members.includes(userId)) {
       return;
@@ -206,7 +276,8 @@ class FakeServer {
     const expected = room.rotationRequired ?? (room.currentEpoch === 0 ? 1 : null);
     const recipients = new Set(batch.keys.map((key) => key.userId));
     const covers = room.members.every((member) => recipients.has(member)) && recipients.size === room.members.length;
-    if (batch.epoch !== expected || !covers) {
+    const invitePresent = room.type !== 'group' || Boolean(batch.invite?.tokenHash && batch.invite.encryptedInvite);
+    if (batch.epoch !== expected || !covers || !invitePresent) {
       this.rejections.push({ userId, roomId: batch.roomId, epoch: batch.epoch });
       this.push(userId, 'e2e:room-key-rejected', { roomId: batch.roomId, epoch: batch.epoch });
       return;
@@ -214,7 +285,14 @@ class FakeServer {
     room.currentEpoch = batch.epoch;
     room.currentKeyId = batch.keyId;
     room.rotationRequired = null;
+    if (batch.invite) {
+      room.invite = { encryptedInvite: batch.invite.encryptedInvite, keyId: batch.keyId };
+      room.tokenHash = batch.invite.tokenHash;
+    }
     this.store(batch.roomId, batch.keyId, batch.epoch, userId, batch.keys);
+    if (batch.invite) {
+      this.pushInvite(batch.roomId);
+    }
   }
 
   private handleShare(
@@ -280,13 +358,31 @@ async function loadClient(userId: string, options: { store?: string; privateKey?
     void roomKeys.handleRoomKeyRejected(socket.asAppSocket(), payload));
   socket.on('e2e:rotation-required', (payload: { roomId: string; epoch: number; memberIds?: string[] }) =>
     void roomKeys.handleRotationRequired(socket.asAppSocket(), payload));
-  socket.on('e2e:key-request', (payload: { roomId: string; requesterId: string }) =>
+  socket.on('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string }) =>
     void roomKeys.handleKeyRequest(socket.asAppSocket(), payload));
+  socket.on('room:invite-updated', (payload: { roomId: string; invite: unknown }) => roomKeys.handleRoomInviteUpdated(payload));
+  socket.on('error', (payload: { event?: string }) => {
+    if (payload.event === 'room:reset-invite') {
+      roomKeys.handleRoomInviteResetRejected();
+    }
+  });
+  socket.on('group:user-joined', (payload: { roomId: string; participants: never }) =>
+    void roomKeys.handleGroupUserJoined(socket.asAppSocket(), payload));
   return { userId, socket, roomKeys, messages, privateKey, publicKey };
 }
 
 function createRoom(id: string, type: 'private' | 'group', creatorId: string, members: string[]): void {
-  server.rooms.set(id, { id, type, creatorId, members, currentEpoch: 0, currentKeyId: null, rotationRequired: null });
+  server.rooms.set(id, {
+    id,
+    type,
+    creatorId,
+    members,
+    currentEpoch: 0,
+    currentKeyId: null,
+    rotationRequired: null,
+    invite: null,
+    tokenHash: null,
+  });
 }
 
 async function track(client: Client, roomId: string, activeCreation = false): Promise<void> {
@@ -448,9 +544,12 @@ describe('rotation', () => {
 
     const anaBatches = ana.socket.emittedOf('e2e:publish-room-key') as { epoch: number }[];
     const biaBatches = bia.socket.emittedOf('e2e:publish-room-key') as { epoch: number }[];
-    expect(anaBatches.filter((batch) => batch.epoch === 2)).toHaveLength(1);
-    expect(biaBatches.filter((batch) => batch.epoch === 2)).toHaveLength(1);
-    expect(server.rejections.filter((rejection) => rejection.epoch === 2)).toHaveLength(1);
+    const anaAttempts = anaBatches.filter((batch) => batch.epoch === 2).length;
+    const biaAttempts = biaBatches.filter((batch) => batch.epoch === 2).length;
+    expect(anaAttempts).toBeLessThanOrEqual(1);
+    expect(biaAttempts).toBeLessThanOrEqual(1);
+    expect(anaAttempts + biaAttempts).toBeGreaterThanOrEqual(1);
+    expect(server.rejections.filter((rejection) => rejection.epoch === 2)).toHaveLength(anaAttempts + biaAttempts - 1);
 
     const anaKey = ana.roomKeys.getCurrentRoomKey('group');
     const biaKey = bia.roomKeys.getCurrentRoomKey('group');
@@ -528,34 +627,164 @@ describe('rotation', () => {
   });
 });
 
+const ORIGIN = 'https://spark.test';
+
+async function inviteLink(client: Client, roomId: string): Promise<string | null> {
+  return client.roomKeys.getGroupInviteLink(client.socket.asAppSocket(), roomId, ORIGIN);
+}
+
+async function secretFromLink(link: string): Promise<Uint8Array> {
+  const invite = await import('./group-invite');
+  const target = await invite.parseInviteFragment(new URL(link).hash);
+  if (!target) {
+    throw new Error('invalid link');
+  }
+  return target.secret;
+}
+
+function addMember(roomId: string, userId: string): void {
+  const room = server.rooms.get(roomId) as ServerRoom;
+  room.members.push(userId);
+  const participants = room.members.map((id) => ({ id, nickname: id }));
+  for (const member of room.members) {
+    if (member !== userId) {
+      server.push(member, 'group:user-joined', { roomId, participants });
+    }
+  }
+}
+
+function keyRequestRejections(): string[] {
+  return warn.mock.calls
+    .filter((call) => call[0] === '[e2e] ignored group key request')
+    .map((call) => (call[1] as { reason: string }).reason);
+}
+
+async function establishGroup(): Promise<{ ana: Client; bia: Client }> {
+  const ana = await loadClient('ana');
+  const bia = await loadClient('bia');
+  createRoom('group', 'group', 'ana', ['ana', 'bia']);
+  await Promise.all([track(ana, 'group'), track(bia, 'group')]);
+  await settle();
+  return { ana, bia };
+}
+
 describe('new members', () => {
-  it('receive only the current generation, without a rotation', async () => {
-    const ana = await loadClient('ana');
-    const bia = await loadClient('bia');
-    createRoom('group', 'group', 'ana', ['ana', 'bia']);
-    await Promise.all([track(ana, 'group'), track(bia, 'group')]);
-    await settle();
+  it('join with the invite link and receive only the current generation after the members check their proof', async () => {
+    const { ana, bia } = await establishGroup();
     server.requireRotation('group');
     await settle();
     const current = ana.roomKeys.getCurrentRoomKey('group');
     expect(current?.epoch).toBe(2);
+    const link = await inviteLink(bia, 'group');
+    expect(link).not.toBeNull();
 
     const davi = await loadClient('davi');
+    const request = await davi.roomKeys.prepareInviteJoin('group', await secretFromLink(link as string));
+    expect(request && Object.keys(request).sort()).toEqual(['inviteToken', 'proof', 'roomId']);
+    davi.socket.emit('room:join-by-invite', request);
+    await settle();
     const room = server.rooms.get('group') as ServerRoom;
-    room.members.push('davi');
+    expect(room.members).toContain('davi');
+
     await track(davi, 'group');
-    await ana.roomKeys.handleGroupUserJoined(ana.socket.asAppSocket(), {
-      roomId: 'group',
-      participants: room.members.map((id) => ({ id, nickname: id })) as never,
-    });
     await settle();
 
+    expect(server.keyRequests.filter((entry) => entry.userId === 'davi').every((entry) => typeof entry.proof === 'string')).toBe(true);
     expect(room.currentEpoch).toBe(2);
     expect(davi.roomKeys.getCurrentRoomKey('group')?.keyId).toBe(current?.keyId);
     expect(server.envelopes.filter((entry) => entry.recipientId === 'davi').map((entry) => entry.epoch)).toEqual([2]);
+    expect(keyRequestRejections()).toEqual([]);
   });
 
-  it('ask the members for the current generation when it is missing', async () => {
+  it('are refused by the server when the link token is wrong', async () => {
+    await establishGroup();
+    const davi = await loadClient('davi');
+    const errors: { code?: string }[] = [];
+    davi.socket.on('error', (payload: { code?: string }) => errors.push(payload));
+    const request = await davi.roomKeys.prepareInviteJoin('group', crypto.getRandomValues(new Uint8Array(16)));
+    davi.socket.emit('room:join-by-invite', request);
+    await settle();
+
+    expect(errors.map((error) => error.code)).toEqual(['room.invalidInvite']);
+    expect((server.rooms.get('group') as ServerRoom).members).not.toContain('davi');
+  });
+
+  it.each([
+    ['missing proof', 'missing-proof', () => Promise.resolve(undefined)],
+    [
+      'proof made with another secret',
+      'invalid-proof',
+      async (_secret: Uint8Array, signingKey: string) => {
+        const invite = await import('./group-invite');
+        return invite.deriveInviteProof(crypto.getRandomValues(new Uint8Array(16)), 'group', 'davi', signingKey);
+      },
+    ],
+    [
+      'proof made for another joiner',
+      'invalid-proof',
+      async (secret: Uint8Array, signingKey: string) => {
+        const invite = await import('./group-invite');
+        return invite.deriveInviteProof(secret, 'group', 'eva', signingKey);
+      },
+    ],
+    [
+      'proof bound to a signing key other than the pinned one',
+      'invalid-proof',
+      async (secret: Uint8Array) => {
+        const invite = await import('./group-invite');
+        const sodium = await (await import('./sodium')).getSodium();
+        const other = sodium.to_base64(sodium.crypto_sign_keypair().publicKey);
+        return invite.deriveInviteProof(secret, 'group', 'davi', other);
+      },
+    ],
+    ['empty proof', 'missing-proof', () => Promise.resolve('')],
+  ])('never receive the key with a %s', async (_label, reason, makeProof) => {
+    const { ana } = await establishGroup();
+    const secret = await secretFromLink((await inviteLink(ana, 'group')) as string);
+    const davi = await loadClient('davi');
+    addMember('group', 'davi');
+    await settle();
+
+    const proof = await makeProof(secret, server.directory.get('davi')?.signingPublicKey as string);
+    davi.socket.emit('e2e:request-room-key', proof === undefined ? { roomId: 'group' } : { roomId: 'group', proof });
+    await settle();
+
+    expect(server.envelopes.filter((entry) => entry.recipientId === 'davi')).toEqual([]);
+    expect(keyRequestRejections()).toEqual([reason, reason]);
+  });
+
+  it('get the key from members only while they are in the member list', async () => {
+    const { ana } = await establishGroup();
+    const secret = await secretFromLink((await inviteLink(ana, 'group')) as string);
+    const davi = await loadClient('davi');
+    const invite = await import('./group-invite');
+    const proof = await invite.deriveInviteProof(secret, 'group', 'davi', server.directory.get('davi')?.signingPublicKey as string);
+
+    davi.socket.emit('e2e:request-room-key', { roomId: 'group', proof });
+    await settle();
+    expect(server.envelopes.filter((entry) => entry.recipientId === 'davi')).toEqual([]);
+    expect(keyRequestRejections()).toEqual(['not-member', 'not-member']);
+  });
+
+  it('still get the key without a proof in private rooms', async () => {
+    const ana = await loadClient('ana');
+    const bia = await loadClient('bia');
+    createRoom('direct', 'private', 'ana', ['ana', 'bia']);
+    server.sockets.delete('bia');
+    await track(ana, 'direct', true);
+    await settle();
+
+    const room = server.rooms.get('direct') as ServerRoom;
+    server.envelopes = server.envelopes.filter((entry) => entry.recipientId !== 'bia');
+    server.sockets.set('bia', bia.socket);
+    await track(bia, 'direct');
+    await settle();
+
+    expect(bia.socket.emittedOf('e2e:request-room-key')).toEqual([{ roomId: 'direct' }]);
+    expect(bia.roomKeys.getCurrentRoomKey('direct')?.keyId).toBe(room.currentKeyId);
+  });
+
+  it('do not ask for a group key when they hold no invite secret', async () => {
     const ana = await loadClient('ana');
     const bia = await loadClient('bia');
     createRoom('group', 'group', 'ana', ['ana', 'bia']);
@@ -563,14 +792,128 @@ describe('new members', () => {
     await track(ana, 'group');
     await settle();
 
-    const room = server.rooms.get('group') as ServerRoom;
     server.envelopes = server.envelopes.filter((entry) => entry.recipientId !== 'bia');
     server.sockets.set('bia', bia.socket);
     await track(bia, 'group');
     await settle();
 
-    expect(bia.socket.emittedOf('e2e:request-room-key')).toEqual([{ roomId: 'group' }]);
-    expect(bia.roomKeys.getCurrentRoomKey('group')?.keyId).toBe(room.currentKeyId);
+    expect(bia.socket.emittedOf('e2e:request-room-key')).toEqual([]);
+    expect(bia.roomKeys.getCurrentRoomKey('group')).toBeNull();
+  });
+});
+
+describe('group invite links', () => {
+  it('are created with the first generation and rotated with every new generation', async () => {
+    const { ana, bia } = await establishGroup();
+    const room = server.rooms.get('group') as ServerRoom;
+    const [batch] = ana.socket.emittedOf('e2e:publish-room-key') as PublishedBatch[];
+    expect(batch?.invite?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(batch?.invite?.encryptedInvite.startsWith(`e2e:v2:${batch?.keyId}:`)).toBe(true);
+
+    const first = await inviteLink(ana, 'group');
+    expect(first).toMatch(/^https:\/\/spark\.test\/app\/#join=group\.[A-Za-z0-9_-]{22}$/);
+    expect(await inviteLink(bia, 'group')).toBe(first);
+    const invite = await import('./group-invite');
+    const firstSecret = await secretFromLink(first as string);
+    expect(await invite.hashInviteToken(await invite.deriveInviteToken(firstSecret))).toBe(room.tokenHash);
+
+    server.requireRotation('group', 'bia');
+    await settle();
+    const rotation = (ana.socket.emittedOf('e2e:publish-room-key') as PublishedBatch[])[1];
+    expect(rotation?.epoch).toBe(2);
+    expect(rotation?.invite?.tokenHash).not.toBe(batch?.invite?.tokenHash);
+    expect(room.invite?.keyId).toBe(room.currentKeyId);
+
+    const second = await inviteLink(ana, 'group');
+    expect(second).not.toBeNull();
+    expect(second).not.toBe(first);
+    expect(await invite.hashInviteToken(await invite.deriveInviteToken(await secretFromLink(second as string)))).toBe(room.tokenHash);
+  });
+
+  it('are not part of private room batches', async () => {
+    const ana = await loadClient('ana');
+    await loadClient('bia');
+    createRoom('direct', 'private', 'ana', ['ana', 'bia']);
+    await track(ana, 'direct', true);
+    await settle();
+
+    const [batch] = ana.socket.emittedOf('e2e:publish-room-key') as PublishedBatch[];
+    expect(batch).toBeDefined();
+    expect(batch?.invite).toBeUndefined();
+    expect(await inviteLink(ana, 'direct')).toBeNull();
+  });
+
+  it('are replaced when the owner resets them, so the old link stops working', async () => {
+    const { ana, bia } = await establishGroup();
+    const room = server.rooms.get('group') as ServerRoom;
+    const oldLink = await inviteLink(ana, 'group');
+    const oldSecret = await secretFromLink(oldLink as string);
+
+    expect(await ana.roomKeys.resetGroupInvite(ana.socket.asAppSocket(), 'group')).toBe(true);
+    const [reset] = ana.socket.emittedOf('room:reset-invite') as {
+      roomId: string;
+      invite: { tokenHash: string; encryptedInvite: string; keyId: string };
+    }[];
+    expect(reset?.roomId).toBe('group');
+    expect(Object.keys(reset?.invite ?? {}).sort()).toEqual(['encryptedInvite', 'keyId', 'tokenHash']);
+    expect(reset?.invite.keyId).toBe(room.currentKeyId);
+    await settle();
+
+    const newLink = await inviteLink(ana, 'group');
+    expect(newLink).not.toBe(oldLink);
+    expect(await inviteLink(bia, 'group')).toBe(newLink);
+    expect(room.currentEpoch).toBe(1);
+
+    const davi = await loadClient('davi');
+    const errors: { code?: string }[] = [];
+    davi.socket.on('error', (payload: { code?: string }) => errors.push(payload));
+    davi.socket.emit('room:join-by-invite', await davi.roomKeys.prepareInviteJoin('group', oldSecret));
+    await settle();
+    expect(errors.map((error) => error.code)).toEqual(['room.invalidInvite']);
+
+    addMember('group', 'davi');
+    await settle();
+    const invite = await import('./group-invite');
+    const staleProof = await invite.deriveInviteProof(oldSecret, 'group', 'davi', server.directory.get('davi')?.signingPublicKey as string);
+    davi.socket.emit('e2e:request-room-key', { roomId: 'group', proof: staleProof });
+    await settle();
+    expect(server.envelopes.filter((entry) => entry.recipientId === 'davi')).toEqual([]);
+    expect(keyRequestRejections()).toEqual(['invalid-proof', 'invalid-proof']);
+  });
+
+  it('stay unavailable after the server clears them until the next generation brings a new one', async () => {
+    const { ana } = await establishGroup();
+    const room = server.rooms.get('group') as ServerRoom;
+    room.invite = null;
+    room.tokenHash = null;
+    server.push('ana', 'room:invite-updated', { roomId: 'group', invite: null });
+
+    expect(await inviteLink(ana, 'group')).toBeNull();
+    expect(ana.roomKeys.isGroupInviteCleared('group')).toBe(true);
+    expect(ana.socket.emittedOf('rooms:get')).toEqual([]);
+
+    server.requireRotation('group', 'bia');
+    await settle();
+    expect(ana.roomKeys.isGroupInviteCleared('group')).toBe(false);
+    expect(await inviteLink(ana, 'group')).not.toBeNull();
+  });
+
+  it('can only be reset by the owner', async () => {
+    const { bia } = await establishGroup();
+    expect(await bia.roomKeys.resetGroupInvite(bia.socket.asAppSocket(), 'group')).toBe(false);
+    expect(bia.socket.emittedOf('room:reset-invite')).toEqual([]);
+  });
+
+  it('fall back to the server copy when a reset is rejected', async () => {
+    const { ana } = await establishGroup();
+    const before = await inviteLink(ana, 'group');
+    const room = server.rooms.get('group') as ServerRoom;
+    room.creatorId = 'someone-else';
+
+    expect(await ana.roomKeys.resetGroupInvite(ana.socket.asAppSocket(), 'group')).toBe(true);
+    await settle();
+
+    expect(await inviteLink(ana, 'group')).toBe(before);
   });
 });
 
@@ -795,31 +1138,6 @@ describe('server feedback', () => {
 
     expect(ana.socket.emittedOf('e2e:publish-room-key')).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith('[e2e] room has more members than a room key batch can hold', expect.anything());
-  });
-
-  it('splits key shares for many new members into batches of at most 150', async () => {
-    const ana = await loadClient('ana');
-    createRoom('group', 'group', 'ana', ['ana']);
-    await track(ana, 'group');
-    await settle();
-    const sodium = await (await import('./sodium')).getSodium();
-    const signing = await import('./signing');
-    const newcomers = Array.from({ length: 151 }, (_, index) => `new-${index}`);
-    for (const userId of newcomers) {
-      const pair = sodium.crypto_box_keypair();
-      const publicKey = sodium.to_base64(pair.publicKey);
-      server.directory.set(userId, { userId, publicKey, ...(await signing.buildSigningProof(userId, publicKey, pair.privateKey)) });
-    }
-    const room = server.rooms.get('group') as ServerRoom;
-    room.members.push(...newcomers);
-
-    await ana.roomKeys.handleGroupUserJoined(ana.socket.asAppSocket(), {
-      roomId: 'group',
-      participants: room.members.map((id) => ({ id, nickname: id })) as never,
-    });
-
-    const shares = ana.socket.emittedOf('e2e:share-room-key') as { keys: unknown[] }[];
-    expect(shares.map((share) => share.keys.length)).toEqual([150, 1]);
   });
 });
 

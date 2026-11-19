@@ -10,6 +10,8 @@ import {
   handleGroupUserJoined,
   handleKeyRequest,
   handleRoomKeyPush,
+  handleRoomInviteResetRejected,
+  handleRoomInviteUpdated,
   handleRoomKeyRejected,
   handleRotationRequired,
   MissingRoomKeyError,
@@ -287,12 +289,19 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     updateRoomParticipants(payload.roomId, payload.participants);
   });
 
-  originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string }) => {
+  originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string }) => {
     void handleKeyRequest(socket, payload);
+  });
+
+  originalOn('room:invite-updated', (payload: { roomId: string; invite: unknown }) => {
+    handleRoomInviteUpdated(payload);
   });
 
   originalOn('error', (payload: unknown) => {
     retriesStaleSend(payload);
+    if (typeof payload === 'object' && payload !== null && (payload as SocketErrorPayload).event === 'room:reset-invite') {
+      handleRoomInviteResetRejected();
+    }
   });
 
   originalOn('message:new', (payload: { clientTempId?: string }) => {

@@ -44,13 +44,20 @@ export {
 export {
   clearRoomKeys,
   ensureRoomKeyForSending,
+  getGroupInviteLink,
   handleGroupUserJoined,
   handleKeyRequest,
+  handleRoomInviteResetRejected,
+  handleRoomInviteUpdated,
   handleRoomKeyPush,
+  isGroupInviteCleared,
   handleRoomKeyRejected,
   handleRotationRequired,
   MissingRoomKeyError,
+  prepareInviteJoin,
   recoverFromStaleRoomKey,
+  resetGroupInvite,
+  subscribeRoomInvite,
   subscribeRoomKeyAvailable,
   trackRoom,
   updateRoomParticipants,
@@ -58,6 +65,7 @@ export {
   type RoomKeyGeneration,
   type RoomKeyRejection,
 } from './room-keys';
+export { hasInviteFragment, parseInviteFragment, type InviteLinkTarget } from './group-invite';
 export {
   decryptMediaContentIfNeeded,
   decryptMessageView,
