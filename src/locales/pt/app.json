@@ -676,7 +676,9 @@
       "other-tab": "Já existe uma chamada em outra aba.",
       "disabled": "As chamadas estão indisponíveis no momento.",
       "interrupted": "Uma chamada anterior foi interrompida.",
-      "server-error": "Não foi possível completar a chamada."
+      "server-error": "Não foi possível completar a chamada.",
+      "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
+      "screen-failed": "Não foi possível compartilhar a tela."
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",
@@ -731,6 +733,34 @@
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
-    }
+    },
+    "share": {
+      "start": "Compartilhar tela",
+      "stop": "Parar compartilhamento",
+      "banner": "Você está compartilhando a tela",
+      "stopShort": "Parar",
+      "remote": "Tela de {{name}}",
+      "fullscreen": "Tela cheia",
+      "exitFullscreen": "Sair da tela cheia",
+      "unavailable": "Compartilhamento de tela indisponível nesta chamada",
+      "preview": "Prévia do que você está compartilhando"
+    },
+    "unstable": "Conexão instável",
+    "you": "Você",
+    "pip": {
+      "open": "Abrir em janela flutuante",
+      "close": "Fechar janela flutuante"
+    },
+    "tabs": {
+      "devices": "Dispositivos",
+      "audio": "Áudio"
+    },
+    "settings": "Configurações da chamada",
+    "incomingKind": {
+      "voice": "Chamada de voz",
+      "video": "Chamada de vídeo"
+    },
+    "mutedBadge": "Microfone desligado",
+    "speaking": "Falando"
   }
 }

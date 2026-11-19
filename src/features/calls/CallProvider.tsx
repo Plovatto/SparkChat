@@ -11,11 +11,12 @@ import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
+import './styles/calls.css';
 
 interface CallProviderProps {
   rooms: RoomSummary[];
@@ -120,6 +121,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     [],
   );
 
+  const screenShareSupported = supportsScreenShare();
+
   const api: CallApi = {
     snapshot,
     minimized,
@@ -137,6 +140,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     hangup: () => controller?.hangup(),
     toggleMute: () => controller?.toggleMute(),
     toggleCamera: () => void controller?.toggleCamera(),
+    toggleScreenShare: () => void controller?.toggleScreenShare(),
+    canShareScreen: screenShareSupported,
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),
     changeAudioInput: (deviceId) => {

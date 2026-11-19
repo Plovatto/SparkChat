@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
+import { FaPhone, FaVolumeMute } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
@@ -11,12 +12,30 @@ export function IncomingCallModal() {
   const { theme } = useTheme();
   const call = useCall();
   const { state } = call.snapshot;
-  if (state.phase !== 'incoming-ringing' || !state.kind) {
+  const answerRef = useRef<HTMLButtonElement>(null);
+  const ringing = state.phase === 'incoming-ringing' && state.kind !== null;
+  const { silence } = call;
+
+  useEffect(() => {
+    if (!ringing) {
+      return;
+    }
+    answerRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        silence();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [ringing, silence]);
+
+  if (!ringing || !state.kind) {
     return null;
   }
   const peer = call.peerDisplay(state.peerId);
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
-  const round = { width: '56px', height: '56px', borderRadius: '50%', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as const;
+  const titleId = 'sc-incoming-title';
   const answer = () => {
     call.primePlayback();
     call.accept();
@@ -25,42 +44,52 @@ export function IncomingCallModal() {
   return (
     <div
       role="alertdialog"
-      aria-label={translate(`calls.incoming.${state.kind}`)}
-      style={{
-        position: 'fixed',
-        top: '16px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 1070,
-        width: 'min(360px, calc(100vw - 32px))',
-        background: theme.surfaceElevated,
-        color: theme.textPrimary,
-        borderRadius: '16px',
-        boxShadow: theme.shadowMd,
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '12px',
+      aria-labelledby={titleId}
+      aria-describedby="sc-incoming-kind"
+      className="sc-incoming"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && event.target === event.currentTarget) {
+          answer();
+        }
       }}
     >
-      <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: avatar?.bgGradient ?? theme.gradientControl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {avatar ? <avatar.icon size={32} color={AVATAR_ICON_COLOR} /> : null}
+      <div className="sc-incoming__head">
+        <div className="sc-incoming__avatar" style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
+          {avatar ? <avatar.icon size={44} color={AVATAR_ICON_COLOR} style={{ width: '50%', height: '50%' }} /> : null}
+        </div>
+        <div className="sc-incoming__text">
+          <h2 id={titleId} className="sc-incoming__name">
+            {peer?.name ?? ''}
+          </h2>
+          <span id="sc-incoming-kind" className="sc-incoming__sub">
+            {translate(`calls.incomingKind.${state.kind}`)}
+          </span>
+          <span className="sc-incoming__sub" aria-live="polite">
+            {t('calls.status.ringing')}
+          </span>
+        </div>
       </div>
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{peer?.name ?? ''}</div>
-        <small style={{ color: theme.textSecondary }}>{translate(`calls.incoming.${state.kind}`)}</small>
-      </div>
-      <div style={{ display: 'flex', gap: '20px' }}>
-        <button type="button" style={{ ...round, background: theme.danger, color: theme.textOnAccent }} onClick={call.decline} title={t('calls.decline')} aria-label={t('calls.decline')}>
-          <MdCallEnd size={26} />
-        </button>
-        <button type="button" style={{ ...round, background: theme.surfaceSunken, color: theme.textPrimary }} onClick={call.silence} title={t('calls.silence')} aria-label={t('calls.silence')}>
-          <FaVolumeMute size={20} />
-        </button>
-        <button type="button" style={{ ...round, background: theme.success, color: theme.textOnAccent }} onClick={answer} title={t('calls.answer')} aria-label={t('calls.answer')}>
-          {state.kind === 'video' ? <FaVideo size={20} /> : <FaPhone size={20} />}
-        </button>
+      <div className="sc-incoming__bottom">
+        <div className="sc-incoming__actions">
+          <button type="button" className="sc-incoming__action" onClick={call.decline}>
+            <span className="sc-incoming__circle" style={{ background: theme.danger }} aria-hidden="true">
+              <MdCallEnd size={30} />
+            </span>
+            {t('calls.decline')}
+          </button>
+          <button ref={answerRef} type="button" className="sc-incoming__action" onClick={answer}>
+            <span className="sc-incoming__circle" style={{ background: theme.success }} aria-hidden="true">
+              <FaPhone size={22} />
+            </span>
+            {t('calls.answer')}
+          </button>
+        </div>
+        <div className="sc-incoming__footer">
+          <button type="button" className="sc-incoming__silence" onClick={call.silence}>
+            <FaVolumeMute size={14} aria-hidden="true" />
+            {t('calls.silence')}
+          </button>
+        </div>
       </div>
     </div>
   );

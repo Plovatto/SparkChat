@@ -676,7 +676,9 @@
       "other-tab": "There is already a call in another tab.",
       "disabled": "Calls are unavailable right now.",
       "interrupted": "A previous call was interrupted.",
-      "server-error": "The call could not be completed."
+      "server-error": "The call could not be completed.",
+      "screen-degraded": "Screen sharing stopped to save data on this connection.",
+      "screen-failed": "Could not share your screen."
     },
     "callBack": "Call back",
     "close": "Close",
@@ -731,6 +733,34 @@
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds."
-    }
+    },
+    "share": {
+      "start": "Share screen",
+      "stop": "Stop sharing",
+      "banner": "You are sharing your screen",
+      "stopShort": "Stop",
+      "remote": "{{name}}'s screen",
+      "fullscreen": "Full screen",
+      "exitFullscreen": "Exit full screen",
+      "unavailable": "Screen sharing is unavailable in this call",
+      "preview": "Preview of what you are sharing"
+    },
+    "unstable": "Unstable connection",
+    "you": "You",
+    "pip": {
+      "open": "Open floating window",
+      "close": "Close floating window"
+    },
+    "tabs": {
+      "devices": "Devices",
+      "audio": "Audio"
+    },
+    "settings": "Call settings",
+    "incomingKind": {
+      "voice": "Voice call",
+      "video": "Video call"
+    },
+    "mutedBadge": "Microphone off",
+    "speaking": "Speaking"
   }
 }
