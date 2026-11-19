@@ -570,7 +570,19 @@ describe('incoming call gates', () => {
 
     expect(w.b.controller.getSnapshot().state.phase).toBe('idle');
     expect(resolve).not.toHaveBeenCalled();
-  });
+  }, 15000);
+
+  it('waits briefly for the room of a first-contact call to reach the local list before deciding', async () => {
+    let known = false;
+    const w = await world({ bob: { isPrivateRoomWith: () => known } });
+    setTimeout(() => {
+      known = true;
+    }, 250);
+
+    await incomingEnvelope(w);
+
+    await vi.waitFor(() => expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing'), { timeout: 5000 });
+  }, 15000);
 
   it('drops an invite when the caller key changed', async () => {
     const w = await world({ bobResolve: () => Promise.resolve({ error: 'key-changed' }) });

@@ -36,6 +36,8 @@ export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
 export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
 export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
+export const ROOM_WAIT_ATTEMPTS = 30;
+export const ROOM_WAIT_INTERVAL_MS = 100;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
@@ -297,7 +299,10 @@ export class CallController {
     if (typeof payload.callId !== 'string' || this.knownCallIds.has(payload.callId)) {
       return;
     }
-    if (!this.deps.isPrivateRoomWith(payload.roomId, identity.userId, payload.callerId)) {
+    if (!(await this.waitForPrivateRoom(payload.roomId, identity.userId, payload.callerId))) {
+      return;
+    }
+    if (this.preparing || isCallLive(this.machine.getState()) || this.knownCallIds.has(payload.callId)) {
       return;
     }
     this.preparing = true;
@@ -860,6 +865,18 @@ export class CallController {
       case 'close-peer':
         return;
     }
+  }
+
+  private async waitForPrivateRoom(roomId: string, selfId: string, peerId: string): Promise<boolean> {
+    for (let attempt = 0; attempt <= ROOM_WAIT_ATTEMPTS; attempt += 1) {
+      if (this.deps.isPrivateRoomWith(roomId, selfId, peerId)) {
+        return true;
+      }
+      if (attempt < ROOM_WAIT_ATTEMPTS) {
+        await new Promise<void>((resolve) => setTimeout(resolve, ROOM_WAIT_INTERVAL_MS));
+      }
+    }
+    return false;
   }
 
   private confirmAccept(session: Session): void {
