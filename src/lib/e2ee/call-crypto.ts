@@ -393,6 +393,7 @@ export class SignalChannel {
   private sendSeq = 0;
   private lastReceivedSeq = 0;
   private epoch = 0;
+  private lastReceivedEpoch = 0;
   private disposed = false;
 
   constructor(input: SignalChannelInput) {
@@ -457,7 +458,7 @@ export class SignalChannel {
       if (typeof seq !== 'number' || !Number.isSafeInteger(seq) || seq < 1 || seq <= this.lastReceivedSeq) {
         return null;
       }
-      if (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < this.epoch) {
+      if (typeof epoch !== 'number' || !Number.isSafeInteger(epoch) || epoch < this.lastReceivedEpoch) {
         return null;
       }
       if (!isBase64Url(nonce, 1, 64) || !isBase64Url(ct, 1, MAX_SIGNAL_WIRE_LENGTH)) {
@@ -479,7 +480,7 @@ export class SignalChannel {
         return null;
       }
       this.lastReceivedSeq = seq;
-      this.epoch = Math.max(this.epoch, epoch);
+      this.lastReceivedEpoch = Math.max(this.lastReceivedEpoch, epoch);
       return { type: type as SignalType, seq, epoch, payload: body };
     } catch {
       return null;

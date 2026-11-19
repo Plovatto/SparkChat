@@ -396,10 +396,20 @@ describe('session keys and signal channel', () => {
 
     expect(callerChannel.currentEpoch).toBe(1);
     expect((await calleeChannel.open(restart, 'alice'))?.epoch).toBe(1);
-    expect(calleeChannel.currentEpoch).toBe(1);
+    expect(calleeChannel.currentEpoch).toBe(0);
     expect(await calleeChannel.open(stale, 'alice')).toBeNull();
     const fresh = await callerChannel.seal('candidate', { candidate: { candidate: 'new' } });
     expect((await calleeChannel.open(fresh, 'alice'))?.epoch).toBe(1);
+  });
+
+  it('keeps send and receive epochs independent so a local ice-restart does not break receiving', async () => {
+    const { callerChannel, calleeChannel } = await channels();
+    await callerChannel.seal('ice-restart', {});
+
+    const fromPeer = await calleeChannel.seal('candidate', { candidate: { candidate: 'x' } });
+
+    expect(callerChannel.currentEpoch).toBe(1);
+    expect((await callerChannel.open(fromPeer, 'bob'))?.epoch).toBe(0);
   });
 
   it('refuses to send or open oversized messages', async () => {
