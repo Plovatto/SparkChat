@@ -169,6 +169,12 @@ export interface RoomSummary {
   invite?: RoomInviteSummary | null;
   roster?: RoomRosterSummary | null;
   inviteProofs?: RoomInviteProof[];
+  encryptedName?: RoomEncryptedName | null;
+}
+
+export interface RoomEncryptedName {
+  encryptedName: string;
+  keyId: string;
 }
 
 export interface RoomRosterSummary {
@@ -198,6 +204,7 @@ export interface SealedRoomKeyEntry {
   epoch: number;
   senderId: string;
   sealedKey: string;
+  roster?: string | null;
 }
 
 export interface RoomKeyBatch {
@@ -210,6 +217,7 @@ export interface RoomKeyBatch {
 export interface PublishRoomKeyBatch extends RoomKeyBatch {
   invite?: RoomInviteUpdate;
   roster?: string;
+  name?: string;
 }
 
 export interface E2ePublicKeyEntry {
@@ -262,9 +270,10 @@ export interface ServerToClientEvents {
   'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
-  'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[] }) => void;
+  'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[]; truncated?: boolean }) => void;
   'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string; proof?: string | null }) => void;
+  'room:name-updated': (payload: { roomId: string; encryptedName: string; keyId: string }) => void;
   'room:invite-updated': (payload: { roomId: string; invite: RoomInviteSummary | null; roster?: RoomRosterSummary | null }) => void;
   'e2e:room-key-rejected': (payload: {
     roomId: string;
@@ -332,7 +341,8 @@ export interface ClientToServerEvents {
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
   'e2e:publish-room-key': (payload: PublishRoomKeyBatch) => void;
   'e2e:share-room-key': (payload: RoomKeyBatch) => void;
-  'e2e:get-room-keys': (payload: { roomIds: string[] }) => void;
+  'e2e:get-room-keys': (payload: { roomIds: string[]; keyIds?: Record<string, string[]> }) => void;
+  'room:rename': (payload: { roomId: string; name: string; keyId: string }) => void;
   'e2e:request-room-key': (payload: { roomId: string }) => void;
   'message:send': (payload: {
     roomId: string;

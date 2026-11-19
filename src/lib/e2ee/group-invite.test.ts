@@ -9,9 +9,11 @@ import {
   hasInviteFragment,
   INVITE_SECRET_BYTES,
   openInviteSecret,
+  openRoomName,
   openRoster,
   parseInviteFragment,
   sealInviteSecret,
+  sealRoomName,
   sealRoster,
   verifyInviteProof,
 } from './group-invite';
@@ -148,6 +150,34 @@ describe('encrypted roster', () => {
   it('rejects a roster whose members are malformed', async () => {
     const malformed = await sealRoster({ epoch: 2, members: [{ userId: 'user-1' }] } as never, roomKey, ROOM_ID, KEY_ID);
     expect(await openRoster(malformed, roomKey, ROOM_ID, KEY_ID, 2)).toBeNull();
+  });
+});
+
+describe('encrypted group name', () => {
+  const roomKey = new Uint8Array(32).fill(4);
+
+  it('opens only with the same room key, room id and key id', async () => {
+    const sealed = await sealRoomName('  Weekend trip ', roomKey, ROOM_ID, KEY_ID);
+    expect(sealed.startsWith(`e2e:v2:${KEY_ID}:`)).toBe(true);
+    expect(sealed).not.toContain('Weekend');
+    expect(await openRoomName(sealed, roomKey, ROOM_ID, KEY_ID)).toBe('Weekend trip');
+    expect(await openRoomName(sealed, roomKey, 'other-room', KEY_ID)).toBeNull();
+    expect(await openRoomName(sealed, roomKey, ROOM_ID, 'BBECAwQFBgcICQoLDA0ODw')).toBeNull();
+    expect(await openRoomName(sealed, new Uint8Array(32).fill(5), ROOM_ID, KEY_ID)).toBeNull();
+  });
+
+  it('is bound to the room name context, not to rosters or invites', async () => {
+    const roster = await sealRoster({ epoch: 1, members: [] }, roomKey, ROOM_ID, KEY_ID);
+    const invite = await sealInviteSecret(SECRET, roomKey, ROOM_ID, KEY_ID);
+    expect(await openRoomName(roster, roomKey, ROOM_ID, KEY_ID)).toBeNull();
+    expect(await openRoomName(invite, roomKey, ROOM_ID, KEY_ID)).toBeNull();
+    const name = await sealRoomName('Team', roomKey, ROOM_ID, KEY_ID);
+    expect(await openRoster(name, roomKey, ROOM_ID, KEY_ID, 1)).toBeNull();
+  });
+
+  it('refuses empty or overlong names', async () => {
+    await expect(sealRoomName('   ', roomKey, ROOM_ID, KEY_ID)).rejects.toThrow();
+    await expect(sealRoomName('x'.repeat(65), roomKey, ROOM_ID, KEY_ID)).rejects.toThrow();
   });
 });
 

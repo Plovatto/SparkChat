@@ -15,7 +15,7 @@ import { openAttachment, type AttachmentBinding } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
-import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey } from './room-keys';
+import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
 
@@ -331,11 +331,21 @@ export function decryptMessageViews(socket: AppSocket, messages: MessageView[]):
   return Promise.all(messages.map((message) => decryptMessageView(socket, message)));
 }
 
-export async function decryptRoomSummary(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
-  if (!room.lastMessage) {
+async function withDecryptedName(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
+  if (room.type !== 'group') {
     return room;
   }
-  return { ...room, lastMessage: await decryptMessageView(socket, room.lastMessage) };
+  const { name: _serverName, ...rest } = room;
+  const name = await resolveRoomName(socket, room);
+  return name ? { ...rest, name } : rest;
+}
+
+export async function decryptRoomSummary(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
+  const [named, lastMessage] = await Promise.all([
+    withDecryptedName(socket, room),
+    room.lastMessage ? decryptMessageView(socket, room.lastMessage) : Promise.resolve(null),
+  ]);
+  return { ...named, lastMessage };
 }
 
 export function decryptRoomSummaries(socket: AppSocket, rooms: RoomSummary[]): Promise<RoomSummary[]> {

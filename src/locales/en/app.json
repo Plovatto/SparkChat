@@ -126,7 +126,10 @@
       "roomKeyIncomplete": "The new conversation key must include every member.",
       "roomKeyConflict": "Another member already set the key for this conversation.",
       "inviteRequired": "A new group key must include an invite link.",
-      "rosterRequired": "A new group key must include the verified member list."
+      "rosterRequired": "A new group key must include the verified member list.",
+      "nameRequired": "A new group key must include the encrypted group name.",
+      "nameKeyStale": "The group name was encrypted with an old key. Try again.",
+      "renameRequiresRoster": "Only members listed in the group's current verified member list can rename it."
     }
   },
   "systemEvents": {
@@ -409,11 +412,16 @@
       "blockingTitle": "Verified contact key changed",
       "blockingBody": "The security key of {{name}}, whom you verified, changed. This can happen when they reinstall or sign in on a new device, but it can also mean someone is intercepting the conversation. Verify the new safety number with them before accepting.",
       "acceptChangeVerified": "Accept the new key anyway",
-      "keepBlocked": "Keep blocked"
+      "keepBlocked": "Keep blocked",
+      "rotationBlocked": "The group key update is on hold until you verify and accept {{name}}'s new key; it resumes right after."
     }
   },
   "roomInfo": {
     "copyUsername": "Copy username",
+    "rename": "Rename group",
+    "renameLabel": "Group name",
+    "renameSave": "Save name",
+    "renameCancel": "Cancel",
     "status": "Status",
     "unblock": "Unblock User",
     "block": "Block User",

@@ -62,6 +62,8 @@ interface ServerRoom {
   roster: { encryptedRoster: string; keyId: string } | null;
   tokenHash: string | null;
   inviteProofs: Map<string, string>;
+  encryptedName: { encryptedName: string; keyId: string } | null;
+  rosters: Map<string, string>;
 }
 
 interface PublishedBatch {
@@ -71,6 +73,7 @@ interface PublishedBatch {
   keys: { userId: string; sealedKey: string }[];
   invite?: { tokenHash: string; encryptedInvite: string };
   roster?: string;
+  name?: string;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -132,6 +135,7 @@ class FakeServer {
   readonly rejections: { userId: string; roomId: string; epoch: number }[] = [];
   readonly keyRequests: { userId: string; payload: Record<string, unknown> }[] = [];
   readonly failResets = new Set<string>();
+  truncateRosters = false;
   private held: (() => void)[] | null = null;
 
   hold(): void {
@@ -176,6 +180,7 @@ class FakeServer {
       invite: room.invite,
       roster: room.roster,
       inviteProofs: this.proofList(room),
+      encryptedName: room.type === 'group' ? room.encryptedName : null,
     } as unknown as RoomSummary;
   }
 
@@ -233,15 +238,38 @@ class FakeServer {
       return;
     }
     if (event === 'e2e:get-room-keys') {
-      const { roomIds } = payload as { roomIds: string[] };
+      const { roomIds, keyIds } = payload as { roomIds: string[]; keyIds?: Record<string, string[]> };
+      if (keyIds && Object.values(keyIds).some((ids) => ids.length > 50)) {
+        this.push(userId, 'error', { message: 'too large', code: 'e2e.lookupTooLarge', event: 'e2e:get-room-keys' });
+        return;
+      }
       const keys = this.envelopes
         .filter((entry) => entry.recipientId === userId && roomIds.includes(entry.roomId))
+        .filter((entry) => !keyIds?.[entry.roomId] || keyIds[entry.roomId]?.includes(entry.keyId))
         .map(({ recipientId: _recipientId, ...entry }) => entry);
+      if (this.truncateRosters && !keyIds) {
+        this.push(userId, 'e2e:room-keys', { keys: keys.map(({ roster: _roster, ...entry }) => entry), truncated: true });
+        return;
+      }
       this.push(userId, 'e2e:room-keys', { keys });
       return;
     }
     if (event === 'e2e:publish-room-key') {
       this.handlePublish(userId, payload as PublishedBatch);
+      return;
+    }
+    if (event === 'room:rename') {
+      const { roomId, name, keyId } = payload as { roomId: string; name: string; keyId: string };
+      const room = this.rooms.get(roomId);
+      if (!room?.members.includes(userId)) {
+        return;
+      }
+      if (keyId !== room.currentKeyId) {
+        this.push(userId, 'error', { message: 'stale', code: 'e2e.nameKeyStale', event: 'room:rename' });
+        return;
+      }
+      room.encryptedName = { encryptedName: name, keyId };
+      this.pushName(room);
       return;
     }
     if (event === 'room:join-by-invite') {
@@ -276,9 +304,16 @@ class FakeServer {
     }
   }
 
+  pushName(room: ServerRoom): void {
+    for (const member of room.members) {
+      this.push(member, 'room:name-updated', { roomId: room.id, ...room.encryptedName });
+    }
+  }
+
   private store(roomId: string, keyId: string, epoch: number, senderId: string, keys: { userId: string; sealedKey: string }[]): void {
+    const roster = this.rooms.get(roomId)?.rosters.get(keyId);
     for (const key of keys) {
-      const entry = { roomId, keyId, epoch, senderId, sealedKey: key.sealedKey };
+      const entry = { roomId, keyId, epoch, senderId, sealedKey: key.sealedKey, ...(roster ? { roster } : {}) };
       this.envelopes.push({ ...entry, recipientId: key.userId });
       this.push(key.userId, 'e2e:room-key', entry);
     }
@@ -298,6 +333,11 @@ class FakeServer {
       this.push(userId, 'e2e:room-key-rejected', { roomId: batch.roomId, epoch: batch.epoch });
       return;
     }
+    if (room.type === 'group' && (typeof batch.name !== 'string' || batch.name.length === 0 || batch.name.length > 2048)) {
+      this.rejections.push({ userId, roomId: batch.roomId, epoch: batch.epoch });
+      this.push(userId, 'e2e:room-key-rejected', { roomId: batch.roomId, epoch: batch.epoch, code: 'e2e.nameRequired' });
+      return;
+    }
     room.currentEpoch = batch.epoch;
     room.currentKeyId = batch.keyId;
     room.rotationRequired = null;
@@ -305,10 +345,17 @@ class FakeServer {
       room.invite = { encryptedInvite: batch.invite.encryptedInvite, keyId: batch.keyId, active: true };
       room.roster = { encryptedRoster: batch.roster, keyId: batch.keyId };
       room.tokenHash = batch.invite.tokenHash;
+      room.rosters.set(batch.keyId, batch.roster);
+    }
+    if (batch.name) {
+      room.encryptedName = { encryptedName: batch.name, keyId: batch.keyId };
     }
     this.store(batch.roomId, batch.keyId, batch.epoch, userId, batch.keys);
     if (batch.invite) {
       this.pushInvite(batch.roomId);
+    }
+    if (batch.name) {
+      this.pushName(room);
     }
   }
 
@@ -390,6 +437,8 @@ async function loadClient(userId: string, options: { store?: string; privateKey?
   socket.on('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string }) =>
     void roomKeys.handleKeyRequest(socket.asAppSocket(), payload));
   socket.on('room:invite-updated', (payload: { roomId: string; invite: unknown }) => roomKeys.handleRoomInviteUpdated(payload));
+  socket.on('room:name-updated', (payload: { roomId: string; encryptedName: string; keyId: string }) =>
+    void roomKeys.handleRoomNameUpdated(socket.asAppSocket(), payload));
   socket.on('rooms:list', (payload: { rooms: RoomSummary[] }) => {
     for (const room of payload.rooms) {
       void roomKeys.trackRoom(socket.asAppSocket(), room);
@@ -418,11 +467,17 @@ function createRoom(id: string, type: 'private' | 'group', creatorId: string, me
     roster: null,
     tokenHash: null,
     inviteProofs: new Map(),
+    encryptedName: null,
+    rosters: new Map(),
   });
 }
 
+const GROUP_NAME = 'Weekend trip';
+
 async function track(client: Client, roomId: string, activeCreation = false): Promise<void> {
-  await client.roomKeys.trackRoom(client.socket.asAppSocket(), server.summary(roomId), { activeCreation });
+  const room = server.rooms.get(roomId);
+  const groupName = room?.type === 'group' && room.creatorId === client.userId ? GROUP_NAME : undefined;
+  await client.roomKeys.trackRoom(client.socket.asAppSocket(), server.summary(roomId), { activeCreation, ...(groupName ? { groupName } : {}) });
 }
 
 async function settle(): Promise<void> {
@@ -1208,12 +1263,19 @@ describe('member key changes in a group roster', () => {
     expect(server.rooms.get('group')?.currentEpoch).toBe(2);
     expect(server.envelopes.filter((entry) => entry.epoch === 3)).toEqual([]);
     expect(ana.trust.getContactTrust('bia')?.status).toBe('changed');
+    expect(ana.roomKeys.isRotationBlockedBy('group', 'bia')).toBe(true);
+    expect(ana.roomKeys.isRotationBlockedBy('group', 'ana')).toBe(false);
+    const notified: string[] = [];
+    const stop = ana.roomKeys.subscribeRotationBlocks((roomId) => notified.push(roomId));
 
     await accept(ana, 'bia');
     await settle();
+    stop();
 
     expect(server.rooms.get('group')?.currentEpoch).toBe(3);
     expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(3);
+    expect(ana.roomKeys.isRotationBlockedBy('group', 'bia')).toBe(false);
+    expect(notified).toContain('group');
   });
 
   it('never include a member whose roster key differs from a pin this user did not accept', async () => {
@@ -1329,7 +1391,7 @@ describe('envelope acceptance', () => {
     expect(await bia.roomKeys.ensureRoomKeyGeneration(bia.socket.asAppSocket(), 'dm', unknown)).toBeNull();
     expect(await bia.roomKeys.ensureRoomKeyGeneration(bia.socket.asAppSocket(), 'dm', unknown)).toBeNull();
 
-    expect(bia.socket.emittedOf('e2e:get-room-keys')).toHaveLength(1);
+    expect(bia.socket.emittedOf('e2e:get-room-keys')).toEqual([{ roomIds: ['dm'], keyIds: { dm: [unknown] } }]);
 
     vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 31000);
     expect(await bia.roomKeys.ensureRoomKeyGeneration(bia.socket.asAppSocket(), 'dm', unknown)).toBeNull();
@@ -1486,23 +1548,132 @@ describe('review hardening', () => {
     expect(discardReasons()).toContain('non-member-sender');
   });
 
-  it('accepts a historical generation from a former member on a fresh device', async () => {
-    const [caio, , bia] = await groupAtEpochOne('caio', ['caio', 'ana', 'bia']);
-    if (!caio || !bia) {
+  async function rotateWith(firstId: string, removedUserId?: string): Promise<void> {
+    const room = server.rooms.get('group') as ServerRoom;
+    const detached = Array.from(server.sockets).filter(([id]) => id !== firstId);
+    for (const [id] of detached) {
+      server.sockets.delete(id);
+    }
+    server.requireRotation('group', removedUserId);
+    await settle();
+    await settle();
+    for (const [id, socket] of detached) {
+      server.sockets.set(id, socket);
+    }
+    const participants = room.members.map((id) => ({ id, nickname: id }));
+    for (const member of room.members.filter((id) => id !== firstId)) {
+      server.push(member, 'group:user-joined', { roomId: 'group', participants });
+      for (const { recipientId, ...entry } of server.envelopes.filter((stored) => stored.recipientId === member && stored.epoch === room.currentEpoch)) {
+        server.push(recipientId, 'e2e:room-key', entry);
+      }
+    }
+    await settle();
+  }
+
+  it('accepts a historical generation from a former member attested by the roster of a generation it already trusts', async () => {
+    const [, bia, caio] = await groupAtEpochOne('ana', ['ana', 'bia', 'caio']);
+    if (!bia || !caio) {
       throw new Error('clients missing');
     }
-    const firstKeyId = caio.roomKeys.getCurrentRoomKey('group')?.keyId as string;
+    await rotateWith('ana');
+    await rotateWith('caio');
+    const third = server.envelopes.find((entry) => entry.epoch === 3);
+    expect(third?.senderId).toBe('caio');
     const fromFormerMember = await sendText(caio, 'group', 'sent before leaving');
-    server.requireRotation('group', 'caio');
-    await settle();
+    await rotateWith('ana', 'caio');
+    expect(server.rooms.get('group')?.currentEpoch).toBe(4);
 
     const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
     await track(fresh, 'group');
     await settle();
 
-    expect(await fresh.roomKeys.ensureRoomKeyGeneration(fresh.socket.asAppSocket(), 'group', firstKeyId)).not.toBeNull();
-    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
     expect(await readText(fresh, fromFormerMember)).toBe('sent before leaving');
+    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(4);
+    expect(fresh.roomKeys.getRoomKeyGeneration('group', third?.keyId as string)).not.toBeNull();
+  });
+
+  it('asks again with key ids for the rosters a truncated response left out', async () => {
+    const [, bia, caio] = await groupAtEpochOne('ana', ['ana', 'bia', 'caio']);
+    if (!bia || !caio) {
+      throw new Error('clients missing');
+    }
+    await rotateWith('ana');
+    await rotateWith('caio');
+    const fromFormerMember = await sendText(caio, 'group', 'sent before leaving');
+    await rotateWith('ana', 'caio');
+    server.truncateRosters = true;
+
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+
+    expect(await readText(fresh, fromFormerMember)).toBe('sent before leaving');
+    const secondKeyId = server.envelopes.find((entry) => entry.epoch === 2)?.keyId as string;
+    const requests = fresh.socket.emittedOf('e2e:get-room-keys') as { keyIds?: Record<string, string[]> }[];
+    expect(requests.some((request) => request.keyIds?.group?.includes(secondKeyId))).toBe(true);
+  });
+
+  it('rejects a historical generation from a former member that only its own roster attests', async () => {
+    const [, bia, caio] = await groupAtEpochOne('ana', ['ana', 'bia', 'caio']);
+    if (!bia || !caio) {
+      throw new Error('clients missing');
+    }
+    await rotateWith('ana', 'caio');
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
+
+    const envelope = await import('./room-key-envelope');
+    const signing = await import('./signing');
+    const invite = await import('./group-invite');
+    const pair = await signing.deriveSigningKeyPair(caio.privateKey);
+    const roomKey = crypto.getRandomValues(new Uint8Array(32));
+    const keyId = await envelope.deriveRoomKeyId(roomKey);
+    const roster = await invite.sealRoster(
+      { epoch: 1, members: [{ userId: 'caio', signingPublicKey: server.directory.get('caio')?.signingPublicKey as string }] },
+      roomKey,
+      'group',
+      keyId,
+    );
+    const sealedKey = await envelope.sealRoomKeyEnvelope({
+      roomKey,
+      roomId: 'group',
+      keyId,
+      epoch: 1,
+      senderId: 'caio',
+      senderPrivateKey: caio.privateKey,
+      senderSigningPrivateKey: pair.privateKey,
+      recipientId: 'bia',
+      recipientPublicKey: bia.publicKey,
+    });
+
+    await fresh.roomKeys.handleRoomKeyPush(fresh.socket.asAppSocket(), { roomId: 'group', keyId, epoch: 1, senderId: 'caio', sealedKey, roster });
+
+    expect(fresh.roomKeys.getRoomKeyGeneration('group', keyId)).toBeNull();
+    expect(discardReasons()).toContain('unattested-sender');
+    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
+  });
+
+  it('rejects a historical generation from a former member missing from the trusted previous roster', async () => {
+    const [ana, bia, caio] = await groupAtEpochOne('ana', ['ana', 'bia', 'caio']);
+    if (!ana || !bia || !caio) {
+      throw new Error('clients missing');
+    }
+    await rotateWith('ana', 'caio');
+    await rotateWith('ana');
+    const firstKeyId = server.envelopes.find((entry) => entry.epoch === 1)?.keyId as string;
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+    expect(await fresh.roomKeys.ensureRoomKeyGeneration(fresh.socket.asAppSocket(), 'group', firstKeyId)).not.toBeNull();
+    expect(fresh.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(3);
+
+    const forged = await forgeEnvelope(caio, bia, { roomId: 'group', epoch: 2 });
+    await fresh.roomKeys.handleRoomKeyPush(fresh.socket.asAppSocket(), forged);
+
+    expect(discardReasons()).toContain('unattested-sender');
+    expect(fresh.roomKeys.getRoomKeyGeneration('group', forged.keyId)).toBeNull();
   });
 
   it('rejects a different key shared to a newcomer under the current key id', async () => {
@@ -1582,5 +1753,148 @@ describe('review hardening', () => {
 
   it('drops the oldest queued envelope past the total cap', async () => {
     expect(await queuedRoomKey((index) => junkFor(`room-${index}`), 500)).toBeNull();
+  });
+});
+
+describe('encrypted group name', () => {
+  it('is sealed under the first generation by the creator and never sent in plaintext', async () => {
+    const { ana, bia } = await establishGroup();
+    const [batch] = batchesOf(ana, 1);
+    expect(batch?.name).toEqual(expect.any(String));
+    expect(JSON.stringify(ana.socket.emitted)).not.toContain(GROUP_NAME);
+    const invite = await import('./group-invite');
+    const key = ana.roomKeys.getRoomKeyGeneration('group', batch?.keyId as string) as Uint8Array;
+    expect(await invite.openRoomName(batch?.name as string, key, 'group', batch?.keyId as string)).toBe(GROUP_NAME);
+    expect(ana.roomKeys.getRoomName('group')).toBe(GROUP_NAME);
+    expect(await bia.roomKeys.resolveRoomName(bia.socket.asAppSocket(), server.summary('group'))).toBe(GROUP_NAME);
+  });
+
+  it('is re-encrypted under every new generation by the rotator', async () => {
+    const { ana, bia } = await establishGroup();
+    server.requireRotation('group');
+    await settle();
+    await settle();
+    const room = server.rooms.get('group') as ServerRoom;
+    expect(room.currentEpoch).toBe(2);
+    expect(room.encryptedName?.keyId).toBe(room.currentKeyId);
+    const winning = [...batchesOf(ana, 2), ...batchesOf(bia, 2)].find((batch) => batch.keyId === room.currentKeyId);
+    expect(winning?.name).toBe(room.encryptedName?.encryptedName);
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+    expect(await fresh.roomKeys.resolveRoomName(fresh.socket.asAppSocket(), server.summary('group'))).toBe(GROUP_NAME);
+  });
+
+  it('still rotates with the placeholder name when the rotator cannot decrypt the current name', async () => {
+    const { ana, bia } = await establishGroup();
+    const room = server.rooms.get('group') as ServerRoom;
+    room.encryptedName = { encryptedName: 'e2e:v2:garbage', keyId: room.currentKeyId as string };
+    const freshAna = await loadClient('ana', { store: 'fresh-ana', privateKey: ana.privateKey });
+    const freshBia = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await Promise.all([freshAna.roomKeys.trackRoom(freshAna.socket.asAppSocket(), server.summary('group')), track(freshBia, 'group')]);
+    await settle();
+    server.requireRotation('group', 'bia');
+    await settle();
+    await settle();
+
+    expect(room.currentEpoch).toBe(2);
+    const invite = await import('./group-invite');
+    const key = freshAna.roomKeys.getRoomKeyGeneration('group', room.currentKeyId as string) as Uint8Array;
+    expect(await invite.openRoomName(room.encryptedName?.encryptedName, key, 'group', room.currentKeyId as string)).toBe('common.group');
+  });
+
+  it('shows no name until it opens and rejects a blob bound to another room', async () => {
+    const { bia } = await establishGroup();
+    const invite = await import('./group-invite');
+    const generation = bia.roomKeys.getCurrentRoomKey('group') as { keyId: string; key: Uint8Array };
+    const otherRoom = await invite.sealRoomName('Hijacked', generation.key, 'other', generation.keyId);
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    const room = server.rooms.get('group') as ServerRoom;
+    room.encryptedName = { encryptedName: otherRoom, keyId: generation.keyId };
+    await track(fresh, 'group');
+    expect(await fresh.roomKeys.resolveRoomName(fresh.socket.asAppSocket(), server.summary('group'))).toBeNull();
+    expect(warn).toHaveBeenCalledWith('[e2e] discarded a group name that does not open with its room key', { roomId: 'group' });
+  });
+
+  it('renames with a blob under the current key that every member decrypts', async () => {
+    const { ana, bia } = await establishGroup();
+    expect(await ana.roomKeys.renameGroup(ana.socket.asAppSocket(), 'group', 'New name')).toBe(true);
+    await settle();
+    const [rename] = ana.socket.emittedOf('room:rename') as { roomId: string; name: string; keyId: string }[];
+    expect(rename?.keyId).toBe(server.rooms.get('group')?.currentKeyId);
+    expect(rename?.name).not.toContain('New name');
+    expect(bia.roomKeys.getRoomName('group')).toBe('New name');
+    expect(await ana.roomKeys.renameGroup(ana.socket.asAppSocket(), 'group', '  ')).toBe(false);
+  });
+
+  it('lets only members of the current verified roster rename', async () => {
+    const { ana, bia } = await establishGroup();
+    expect(await ana.roomKeys.canRenameGroup(ana.socket.asAppSocket(), 'group')).toBe(true);
+    expect(await bia.roomKeys.canRenameGroup(bia.socket.asAppSocket(), 'group')).toBe(false);
+    expect(await bia.roomKeys.renameGroup(bia.socket.asAppSocket(), 'group', 'Taken over')).toBe(false);
+    expect(bia.socket.emittedOf('room:rename')).toEqual([]);
+
+    server.requireRotation('group');
+    await settle();
+    await settle();
+    expect(await bia.roomKeys.canRenameGroup(bia.socket.asAppSocket(), 'group')).toBe(true);
+  });
+
+  it('ignores a name sealed under an older generation, so a rename cannot be rolled back', async () => {
+    const { ana, bia } = await establishGroup();
+    const room = server.rooms.get('group') as ServerRoom;
+    const oldName = room.encryptedName as { encryptedName: string; keyId: string };
+    server.requireRotation('group');
+    await settle();
+    await settle();
+    expect(room.currentEpoch).toBe(2);
+    await ana.roomKeys.renameGroup(ana.socket.asAppSocket(), 'group', 'Renamed');
+    await settle();
+    expect(bia.roomKeys.getRoomName('group')).toBe('Renamed');
+
+    await bia.roomKeys.handleRoomNameUpdated(bia.socket.asAppSocket(), { roomId: 'group', ...oldName });
+
+    expect(bia.roomKeys.getRoomName('group')).toBe('Renamed');
+    expect(warn).toHaveBeenCalledWith('[e2e] ignored a group name that is not sealed under the current generation', { roomId: 'group' });
+  });
+});
+
+describe('group summaries', () => {
+  it('ignore a plaintext name from the server and show only the locally decrypted one', async () => {
+    const { bia } = await establishGroup();
+    const summary = { ...server.summary('group'), name: 'Injected', lastMessage: null } as RoomSummary;
+    expect((await bia.messages.decryptRoomSummary(bia.socket.asAppSocket(), summary)).name).toBe(GROUP_NAME);
+
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    const withoutName = { ...summary, encryptedName: null } as RoomSummary;
+    expect((await fresh.messages.decryptRoomSummary(fresh.socket.asAppSocket(), withoutName)).name).toBeUndefined();
+  });
+});
+
+describe('missing generation lookups', () => {
+  it('ask only for the missing key ids of a room', async () => {
+    const { bia } = await establishGroup();
+    server.requireRotation('group');
+    await settle();
+    const firstKeyId = server.envelopes.find((entry) => entry.epoch === 1)?.keyId as string;
+    const fresh = await loadClient('bia', { store: 'fresh-bia', privateKey: bia.privateKey });
+    await track(fresh, 'group');
+    await settle();
+    const currentKeyId = server.rooms.get('group')?.currentKeyId as string;
+    expect(fresh.socket.emittedOf('e2e:get-room-keys')).toEqual([{ roomIds: ['group'], keyIds: { group: [currentKeyId] } }]);
+
+    expect(await fresh.roomKeys.ensureRoomKeyGeneration(fresh.socket.asAppSocket(), 'group', firstKeyId)).not.toBeNull();
+    expect(fresh.socket.emittedOf('e2e:get-room-keys').at(-1)).toEqual({ roomIds: ['group'], keyIds: { group: [firstKeyId] } });
+  });
+
+  it('never put more than 50 key ids of a room in one request', async () => {
+    const { bia } = await establishGroup();
+    bia.socket.emitted.length = 0;
+    const ids = Array.from({ length: 60 }, (_, index) => `${String(index).padStart(2, '0')}${'A'.repeat(20)}`);
+    await Promise.all(ids.map((id) => bia.roomKeys.ensureRoomKeyGeneration(bia.socket.asAppSocket(), 'group', id)));
+    const requests = bia.socket.emittedOf('e2e:get-room-keys') as { keyIds: Record<string, string[]> }[];
+    expect(requests.length).toBeGreaterThan(1);
+    expect(requests.every((request) => (request.keyIds.group?.length ?? 0) <= 50)).toBe(true);
+    expect(requests.flatMap((request) => request.keyIds.group ?? []).sort()).toEqual([...ids].sort());
   });
 });

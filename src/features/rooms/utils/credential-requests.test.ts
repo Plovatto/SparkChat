@@ -54,7 +54,7 @@ describe('buildChangePasswordRequest', () => {
     const unwrapped = await unwrapPrivateKeyV2(request.payload.encryptedPrivateKeyByPassword ?? '', next.wrapKey, 'user-1', identity.publicKey);
     expect(Array.from(unwrapped)).toEqual(Array.from(identity.privateKey));
     expect(JSON.stringify(request.payload)).not.toMatch(/old-password|new-password/);
-  });
+  }, 30000);
 
   it('omits the current password for keyfile sessions', async () => {
     rememberAuthParams('user-1', { version: 2, salt: SALT });

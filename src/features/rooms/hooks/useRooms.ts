@@ -7,6 +7,7 @@ import {
   type RoomSummary,
   type SocketUserStatus,
 } from '@lib/socket';
+import { getRoomName, subscribeRoomName } from '@lib/e2ee';
 import { clearTranslationsForRoom } from '@lib/translation';
 
 export interface RoomsState {
@@ -200,6 +201,13 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
 
     const requestRooms = () => socket.emit('rooms:get');
 
+    const stopRoomNames = subscribeRoomName((roomId) => {
+      const name = getRoomName(roomId);
+      setRooms((previous) =>
+        patchRoom(previous, roomId, (room) => (room.type !== 'group' || !name || room.name === name ? room : { ...room, name })),
+      );
+    });
+
     requestRooms();
     socket.on('user:resumed', requestRooms);
     socket.on('user:registered', requestRooms);
@@ -226,6 +234,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('recording:update', handleRecordingUpdate);
 
     return () => {
+      stopRoomNames();
       socket.off('user:resumed', requestRooms);
       socket.off('user:registered', requestRooms);
       socket.off('rooms:list', handleRoomsList);

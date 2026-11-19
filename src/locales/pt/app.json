@@ -126,7 +126,10 @@
       "roomKeyIncomplete": "A nova chave da conversa precisa incluir todos os membros.",
       "roomKeyConflict": "Outro membro já definiu a chave desta conversa.",
       "inviteRequired": "Uma nova chave de grupo precisa incluir um link de convite.",
-      "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros."
+      "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros.",
+      "nameRequired": "A nova chave do grupo precisa incluir o nome do grupo criptografado.",
+      "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente.",
+      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo."
     }
   },
   "systemEvents": {
@@ -409,11 +412,16 @@
       "blockingTitle": "Chave de contato verificado mudou",
       "blockingBody": "A chave de segurança de {{name}}, que você verificou, mudou. Isso pode acontecer quando a pessoa reinstala o app ou entra em outro aparelho, mas também pode indicar que alguém está interceptando a conversa. Verifique o novo número de segurança com ela antes de aceitar.",
       "acceptChangeVerified": "Aceitar a nova chave mesmo assim",
-      "keepBlocked": "Manter bloqueado"
+      "keepBlocked": "Manter bloqueado",
+      "rotationBlocked": "A atualização da chave do grupo está pausada até você verificar e aceitar a nova chave de {{name}}; ela continua logo depois."
     }
   },
   "roomInfo": {
     "copyUsername": "Copiar username",
+    "rename": "Renomear grupo",
+    "renameLabel": "Nome do grupo",
+    "renameSave": "Salvar nome",
+    "renameCancel": "Cancelar",
     "status": "Status",
     "unblock": "Desbloquear Usuário",
     "block": "Bloquear Usuário",
