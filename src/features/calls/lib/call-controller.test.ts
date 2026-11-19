@@ -724,6 +724,17 @@ describe('server events', () => {
     expect(busy.a.socket.sent('call:hangup')).toHaveLength(0);
   });
 
+  it('keeps a server call that is still ringing for this user so opening the app from a push does not decline it', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'ringing', state: 'ringing', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'callee' });
+    await settle();
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+
+    w.a.socket.receive('call:state', { callId: 'outgoing', state: 'ringing', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
+    await settle();
+    expect(w.a.socket.sent('call:hangup')).toEqual([{ callId: 'outgoing' }]);
+  });
+
   it('ignores an accepted event with a forged or foreign envelope by ending the call', async () => {
     const w = await world();
     void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
