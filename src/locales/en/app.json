@@ -758,7 +758,11 @@
         "unknown": "The screen"
       },
       "volume": "Shared audio volume",
-      "yourScreen": "Your screen"
+      "yourScreen": "Your screen",
+      "live": "LIVE",
+      "hidePreview": "Hide preview",
+      "showPreview": "Show preview",
+      "streamVolume": "Stream volume"
     },
     "unstable": "Unstable connection",
     "you": "You",
@@ -776,6 +780,10 @@
       "video": "Video call"
     },
     "mutedBadge": "Microphone off",
-    "speaking": "Speaking"
+    "speaking": "Speaking",
+    "route": {
+      "direct": "Direct connection",
+      "relay": "Connection through a server (TURN)"
+    }
   }
 }

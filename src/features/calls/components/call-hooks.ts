@@ -18,7 +18,7 @@ export function useSpeaking(stream: MediaStream | null, enabled: boolean): boole
   return speaking;
 }
 
-export function useStreamOn(ref: RefObject<HTMLVideoElement | null>, stream: MediaStream | null): void {
+export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: MediaStream | null): void {
   useEffect(() => {
     const element = ref.current;
     if (!element) {

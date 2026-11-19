@@ -758,7 +758,11 @@
         "unknown": "A tela"
       },
       "volume": "Volume do áudio compartilhado",
-      "yourScreen": "Sua tela"
+      "yourScreen": "Sua tela",
+      "live": "AO VIVO",
+      "hidePreview": "Ocultar prévia",
+      "showPreview": "Mostrar prévia",
+      "streamVolume": "Volume da transmissão"
     },
     "unstable": "Conexão instável",
     "you": "Você",
@@ -776,6 +780,10 @@
       "video": "Chamada de vídeo"
     },
     "mutedBadge": "Microfone desligado",
-    "speaking": "Falando"
+    "speaking": "Falando",
+    "route": {
+      "direct": "Conexão direta",
+      "relay": "Conexão via servidor (TURN)"
+    }
   }
 }
