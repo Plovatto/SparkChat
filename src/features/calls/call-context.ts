@@ -27,6 +27,8 @@ export interface CallApi {
   changeAudioInput: (deviceId: string) => void;
   changeVideoInput: (deviceId: string) => void;
   primePlayback: () => void;
+  hasStatusBar: boolean;
+  registerStatusBar: () => () => void;
   peerDisplay: (peerId: string | null) => PeerDisplay | null;
 }
 

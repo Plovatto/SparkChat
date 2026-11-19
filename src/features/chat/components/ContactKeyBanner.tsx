@@ -1,5 +1,5 @@
 import { useCallback, useState, useSyncExternalStore } from 'react';
-import { FaExclamationTriangle, FaShieldAlt } from 'react-icons/fa';
+import { FaExclamationTriangle } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { getOtherParticipant } from '@features/rooms';
@@ -30,12 +30,6 @@ function subscribeKeyChanges(onChange: () => void): () => void {
     stopBlocks();
   };
 }
-
-const STATUS_LABEL_KEYS = {
-  verified: 'chat.keyTrust.statusVerified',
-  unverified: 'chat.keyTrust.statusUnverified',
-  unverifiable: 'chat.keyTrust.statusUnverifiable',
-} as const;
 
 export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps) {
   const { t } = useTranslation();
@@ -149,32 +143,5 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
     );
   }
 
-  const status = trust.status as keyof typeof STATUS_LABEL_KEYS;
-
-  return (
-    <>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '4px 12px',
-          fontSize: '0.75rem',
-          color: status === 'verified' ? theme.accentText : theme.textSecondary,
-          borderBottom: `1px solid ${theme.border}`,
-        }}
-      >
-        <FaShieldAlt aria-hidden="true" />
-        <span>{t(STATUS_LABEL_KEYS[status])}</span>
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', color: theme.accentText, cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline' }}
-        >
-          {t('chat.keyTrust.openDialog')}
-        </button>
-      </div>
-      <SafetyNumberDialog isOpen={dialogOpen} onClose={() => setDialogOpen(false)} contactId={other.id} contactName={other.nickname} trust={trust} />
-    </>
-  );
+  return null;
 }

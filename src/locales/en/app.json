@@ -157,10 +157,6 @@
       "dailyLimitReached": "You've reached your daily AI message limit. Please try again tomorrow.",
       "encryptionUnavailable": "Couldn't set up the encrypted conversation. Please try sending your message again shortly.",
       "replyFailed": "I couldn't reply right now. Please try again shortly."
-    },
-    "call": {
-      "ended": "{{kind}} call ended · {{duration}}",
-      "missed": "Missed {{kind}} call"
     }
   },
   "auth": {
@@ -273,8 +269,7 @@
       "inviteUnavailable": "The invite link is not available yet.",
       "viewProfile": "View profile",
       "viewGroup": "View group info",
-      "voiceCall": "Voice call",
-      "videoCall": "Video call"
+      "voiceCall": "Call"
     },
     "input": {
       "attachments_one": "1 attachment selected",
@@ -417,9 +412,6 @@
       "qrAlt": "Safety number QR code",
       "markVerified": "Mark as verified",
       "unmarkVerified": "Remove verification",
-      "statusVerified": "Verified contact",
-      "statusUnverified": "Not verified",
-      "statusUnverifiable": "Not verifiable yet",
       "openDialog": "Safety number",
       "changedWarning": "The security key of {{name}} changed. Messages are not encrypted to the new key until you accept it.",
       "changedVerifiedWarning": "The security key of a verified contact, {{name}}, changed. Compare the safety number again before accepting.",
@@ -646,9 +638,6 @@
     "speaker": "Audio output",
     "defaultDevice": "Default",
     "tapToResume": "Tap to enable audio",
-    "verified": "Verified",
-    "notVerified": "Not verified",
-    "verifyShortcut": "View safety code",
     "quality": "Connection quality: {{bars}} of 3",
     "remoteMuted": "Microphone off",
     "remoteCameraOff": "Camera off",
@@ -693,6 +682,42 @@
       "server-error": "The call could not be completed."
     },
     "callBack": "Call back",
-    "close": "Close"
+    "close": "Close",
+    "event": {
+      "title": {
+        "voice": "Voice call",
+        "video": "Video call"
+      },
+      "outgoing": "You called",
+      "incoming": "Called you",
+      "answered": "Answered",
+      "outcome": {
+        "missed": {
+          "outgoing": "No answer",
+          "incoming": "Missed"
+        },
+        "cancelled": {
+          "outgoing": "Canceled",
+          "incoming": "Missed"
+        },
+        "declined": {
+          "outgoing": "Declined",
+          "incoming": "You declined"
+        },
+        "busy": {
+          "outgoing": "Busy",
+          "incoming": "Missed"
+        },
+        "failed": {
+          "outgoing": "Could not connect",
+          "incoming": "Could not connect"
+        },
+        "connection-lost": {
+          "outgoing": "Connection lost",
+          "incoming": "Connection lost"
+        }
+      }
+    },
+    "alreadyInCall": "You are already in a call"
   }
 }

@@ -157,10 +157,6 @@
       "dailyLimitReached": "Você atingiu o limite diário de mensagens com a IA. Tente novamente amanhã.",
       "encryptionUnavailable": "Não foi possível preparar a conversa criptografada. Tente enviar a mensagem novamente em instantes.",
       "replyFailed": "Não consegui responder agora. Tente novamente em instantes."
-    },
-    "call": {
-      "ended": "Chamada de {{kind}} encerrada · {{duration}}",
-      "missed": "Chamada de {{kind}} perdida"
     }
   },
   "auth": {
@@ -273,8 +269,7 @@
       "inviteUnavailable": "O link de convite ainda não está disponível.",
       "viewProfile": "Ver perfil",
       "viewGroup": "Ver informações do grupo",
-      "voiceCall": "Ligação de voz",
-      "videoCall": "Chamada de vídeo"
+      "voiceCall": "Ligar"
     },
     "input": {
       "attachments_one": "Anexo pendente",
@@ -417,9 +412,6 @@
       "qrAlt": "QR code do número de segurança",
       "markVerified": "Marcar como verificado",
       "unmarkVerified": "Remover verificação",
-      "statusVerified": "Contato verificado",
-      "statusUnverified": "Não verificado",
-      "statusUnverifiable": "Ainda não verificável",
       "openDialog": "Número de segurança",
       "changedWarning": "A chave de segurança de {{name}} mudou. As mensagens não são cifradas para a nova chave até você aceitá-la.",
       "changedVerifiedWarning": "A chave de segurança de {{name}}, um contato verificado, mudou. Compare o número de segurança novamente antes de aceitar.",
@@ -646,9 +638,6 @@
     "speaker": "Saída de áudio",
     "defaultDevice": "Padrão",
     "tapToResume": "Toque para ativar o áudio",
-    "verified": "Verificado",
-    "notVerified": "Não verificado",
-    "verifyShortcut": "Ver código de segurança",
     "quality": "Qualidade da conexão: {{bars}} de 3",
     "remoteMuted": "Microfone desligado",
     "remoteCameraOff": "Câmera desligada",
@@ -693,6 +682,42 @@
       "server-error": "Não foi possível completar a chamada."
     },
     "callBack": "Ligar de volta",
-    "close": "Fechar"
+    "close": "Fechar",
+    "event": {
+      "title": {
+        "voice": "Chamada de voz",
+        "video": "Chamada de vídeo"
+      },
+      "outgoing": "Você ligou",
+      "incoming": "Ligou para você",
+      "answered": "Atendida",
+      "outcome": {
+        "missed": {
+          "outgoing": "Sem resposta",
+          "incoming": "Perdida"
+        },
+        "cancelled": {
+          "outgoing": "Cancelada",
+          "incoming": "Perdida"
+        },
+        "declined": {
+          "outgoing": "Recusada",
+          "incoming": "Você recusou"
+        },
+        "busy": {
+          "outgoing": "Ocupado",
+          "incoming": "Perdida"
+        },
+        "failed": {
+          "outgoing": "Não conectou",
+          "incoming": "Não conectou"
+        },
+        "connection-lost": {
+          "outgoing": "Conexão perdida",
+          "incoming": "Conexão perdida"
+        }
+      }
+    },
+    "alreadyInCall": "Você já está em uma chamada"
   }
 }

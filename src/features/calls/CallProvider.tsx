@@ -76,6 +76,12 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     }
   }, [phase]);
 
+  const [statusBars, setStatusBars] = useState(0);
+  const registerStatusBar = useCallback(() => {
+    setStatusBars((count) => count + 1);
+    return () => setStatusBars((count) => Math.max(0, count - 1));
+  }, []);
+
   const primePlayback = useCallback(() => {
     void remoteRef.current?.play().catch(() => undefined);
   }, []);
@@ -132,6 +138,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     changeVideoInput: (deviceId) =>
       replaceTrackFromDevice({ video: videoConstraints(isMobileDevice(), deviceId) }, (track) => controller?.replaceVideoInput(track) ?? Promise.resolve()),
     primePlayback,
+    hasStatusBar: statusBars > 0,
+    registerStatusBar,
     peerDisplay: (peerId): PeerDisplay | null => {
       if (!peerId) {
         return null;

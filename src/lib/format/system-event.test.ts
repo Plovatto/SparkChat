@@ -76,22 +76,20 @@ describe('systemMessageSegments', () => {
 });
 
 describe('call events', () => {
-  it('renders ended and missed calls with kind and duration in both languages', async () => {
-    const ended = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'video', duration: 125 } } };
-    const missed = { content: '', systemEvent: { type: 'call.missed', params: { kind: 'voice' } } };
+  it('renders ended and missed calls with direction, outcome and duration in both languages', async () => {
+    const ended = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'video', callerId: 'peer', reason: 'completed', durationSec: '125' } } };
+    const missed = { content: '', systemEvent: { type: 'call.missed', params: { kind: 'voice', callerId: 'peer', reason: 'missed' } } };
 
-    expect(systemMessageText(ended)).toBe('Chamada de vídeo encerrada · 2:05');
-    expect(systemMessageText(missed)).toBe('Chamada de voz perdida');
+    expect(systemMessageText(ended)).toBe('Chamada de vídeo · Ligou para você · Atendida · 2:05');
+    expect(systemMessageText(missed)).toBe('Chamada de voz · Ligou para você · Perdida');
     await appI18n.changeLanguage('en');
-    expect(systemMessageText(ended)).toBe('video call ended · 2:05');
-    expect(systemMessageText(missed)).toBe('Missed voice call');
+    expect(systemMessageText(ended)).toBe('Video call · Called you · Answered · 2:05');
+    expect(systemMessageText(missed)).toBe('Voice call · Called you · Missed');
   });
 
-  it('reads the duration the server sends as text in durationSec', () => {
-    const ended = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'voice', durationSec: '125' } } };
-    expect(systemMessageText(ended)).toBe('Chamada de voz encerrada · 2:05');
-    const broken = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'voice', durationSec: 'abc' } } };
-    expect(systemMessageText(broken)).toBe('Chamada de voz encerrada · 0:00');
+  it('shows a zero duration when the server value is not a number', () => {
+    const broken = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'voice', callerId: 'peer', durationSec: 'abc' } } };
+    expect(systemMessageText(broken)).toBe('Chamada de voz · Ligou para você · Atendida · 0:00');
   });
 
   it('formats long durations with hours', () => {

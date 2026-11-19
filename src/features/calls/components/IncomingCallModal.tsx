@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { FaPhone, FaPhoneSlash, FaVideo, FaVolumeMute } from 'react-icons/fa';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
-import { useContactTrust } from '@features/chat/hooks/useContactTrust';
 import { useTheme } from '@features/theme';
 import { translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
@@ -11,7 +10,6 @@ export function IncomingCallModal() {
   const { theme } = useTheme();
   const call = useCall();
   const { state } = call.snapshot;
-  const trust = useContactTrust(state.phase === 'incoming-ringing' ? (state.peerId ?? undefined) : undefined);
   if (state.phase !== 'incoming-ringing' || !state.kind) {
     return null;
   }
@@ -51,13 +49,6 @@ export function IncomingCallModal() {
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{peer?.name ?? ''}</div>
         <small style={{ color: theme.textSecondary }}>{translate(`calls.incoming.${state.kind}`)}</small>
-        {trust && (
-          <div>
-            <small style={{ color: trust.status === 'verified' ? theme.successText : theme.warningText }}>
-              {trust.status === 'verified' ? t('calls.verified') : t('calls.notVerified')}
-            </small>
-          </div>
-        )}
       </div>
       <div style={{ display: 'flex', gap: '20px' }}>
         <button type="button" style={{ ...round, background: theme.danger, color: theme.textOnAccent }} onClick={call.decline} title={t('calls.decline')} aria-label={t('calls.decline')}>

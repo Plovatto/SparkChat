@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCompressAlt, FaShieldAlt } from 'react-icons/fa';
+import { FaCompressAlt } from 'react-icons/fa';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
-import { SafetyNumberDialog } from '@features/chat/components/SafetyNumberDialog';
-import { useContactTrust } from '@features/chat/hooks/useContactTrust';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
@@ -35,14 +33,12 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const { state } = snapshot;
   const localRef = useRef<HTMLVideoElement>(null);
   const [needsTap, setNeedsTap] = useState(false);
-  const [safetyOpen, setSafetyOpen] = useState(false);
   const peer = call.peerDisplay(state.peerId);
-  const trust = useContactTrust(state.peerId ?? undefined);
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const running = state.phase === 'active' || state.phase === 'reconnecting';
   const elapsed = useElapsed(state.connectedAt, running);
-  const isVideo = state.kind === 'video';
-  const showRemoteVideo = isVideo && snapshot.remoteStream !== null && snapshot.remoteCameraOn;
+  const isVideo = state.kind === 'video' || snapshot.cameraOn || snapshot.remoteCameraOn;
+  const showRemoteVideo = snapshot.remoteStream !== null && snapshot.remoteCameraOn;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
 
   useEffect(() => {
@@ -147,17 +143,11 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           {statusText}
         </div>
         {snapshot.remoteMuted && <small style={{ color: theme.onGradientMuted }}>{t('calls.remoteMuted')}</small>}
-        {isVideo && snapshot.remoteStream !== null && !snapshot.remoteCameraOn && <small style={{ color: theme.onGradientMuted }}>{t('calls.remoteCameraOff')}</small>}
+        {state.kind === 'video' && snapshot.remoteStream !== null && !snapshot.remoteCameraOn && <small style={{ color: theme.onGradientMuted }}>{t('calls.remoteCameraOff')}</small>}
         {warning && (
           <div role="status" style={{ maxWidth: '320px', fontSize: '0.85rem', background: theme.warningSoft, color: theme.warningText, borderRadius: '10px', padding: '8px 12px' }}>
             {warning}
           </div>
-        )}
-        {trust && state.peerId && (
-          <button type="button" className="sc-chip" onClick={() => setSafetyOpen(true)} title={t('calls.verifyShortcut')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <FaShieldAlt size={12} />
-            <span>{trust.status === 'verified' ? t('calls.verified') : t('calls.notVerified')}</span>
-          </button>
         )}
         {needsTap && (
           <button type="button" className="sc-btn sc-btn--primary" onClick={() => void videoRef.current?.play().then(() => setNeedsTap(false))}>
@@ -185,9 +175,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         )}
       </div>
 
-      {trust && state.peerId && peer && (
-        <SafetyNumberDialog isOpen={safetyOpen} onClose={() => setSafetyOpen(false)} contactId={state.peerId} contactName={peer.name} trust={trust} />
-      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser, FaVideo } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
@@ -187,22 +187,12 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
             <button
               onClick={() => call.startCall(room, 'voice')}
               disabled={callBusy}
-              title={t('chat.header.voiceCall')}
+              title={callBusy ? t('calls.alreadyInCall') : t('chat.header.voiceCall')}
               aria-label={t('chat.header.voiceCall')}
               className="sc-icon-btn sc-icon-btn--header"
-              style={{ width: '38px', height: '38px' }}
+              style={{ width: '38px', height: '38px', ...(callBusy ? { filter: 'grayscale(1)', opacity: 0.45, cursor: 'not-allowed' } : {}) }}
             >
               <FaPhone size={15} />
-            </button>
-            <button
-              onClick={() => call.startCall(room, 'video')}
-              disabled={callBusy}
-              title={t('chat.header.videoCall')}
-              aria-label={t('chat.header.videoCall')}
-              className="sc-icon-btn sc-icon-btn--header"
-              style={{ width: '38px', height: '38px' }}
-            >
-              <FaVideo size={15} />
             </button>
           </>
         )}
