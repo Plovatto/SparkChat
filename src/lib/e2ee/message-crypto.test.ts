@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket, MessageView } from '@lib/socket';
 import { encryptAttachment } from './attachment-crypto';
+import { sealAuthenticatedField } from './authenticated-field';
 import { setCurrentIdentity } from './current-identity';
 import { clearDecryptedMediaCache } from './media-cache';
 import { decryptMediaContentIfNeeded, decryptMessageView, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
@@ -88,7 +89,7 @@ describe('encryptOutgoingMessage', () => {
       roomId: ROOM_ID,
       type: 'text',
       content: 'olá',
-      caption: 'legenda',
+      caption: 'caption',
       fileMeta: { name: 'foto.png', mimeType: 'image/png', size: 10 },
       linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl: null, siteName: 'Site' },
     });
@@ -178,7 +179,7 @@ describe('hasUnencryptedFields', () => {
 
   it('flags plaintext text, captions, file details and link previews', () => {
     expect(hasUnencryptedFields(toMessageView({ content: 'olá' }))).toBe(true);
-    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, caption: 'legenda' }))).toBe(true);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, caption: 'caption' }))).toBe(true);
     expect(
       hasUnencryptedFields(
         toMessageView({
@@ -314,7 +315,7 @@ describe('authenticated message fields', () => {
 
   async function unavailableText(view: MessageView): Promise<boolean> {
     const decrypted = await decryptMessageView(socket, view);
-    return decrypted.content !== 'segredo';
+    return decrypted.content !== 'secret';
   }
 
   it('generates a unique message id for every message', async () => {
@@ -325,7 +326,7 @@ describe('authenticated message fields', () => {
   });
 
   it('opens a message only for the room, sender and id it was sealed for', async () => {
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'segredo' });
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
     const view = viewOf(encrypted);
 
     expect(await unavailableText(view)).toBe(false);
@@ -335,14 +336,14 @@ describe('authenticated message fields', () => {
   });
 
   it('does not accept a field moved to another slot of the same message', async () => {
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'segredo', caption: 'legenda' });
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret', caption: 'caption' });
     const swapped = { ...viewOf(encrypted), content: encrypted.caption };
     expect(await unavailableText(swapped)).toBe(true);
   });
 
   it('rejects a message whose signature does not come from the claimed sender', async () => {
     const sodium = await getSodium();
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'segredo' });
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
     const view = viewOf(encrypted);
     const forged = { ...view, sender: { ...view.sender, id: 'user-2' } };
     const otherKey = await deriveSigningKeyPair(crypto.getRandomValues(new Uint8Array(32)));
@@ -351,8 +352,74 @@ describe('authenticated message fields', () => {
     expect(await unavailableText(forged)).toBe(true);
   });
 
+  it('rejects a field sealed with another key even when the context is right', async () => {
+    const sodium = await getSodium();
+    const roomKey = roomKeys.get(ROOM_ID) as Uint8Array;
+    const attacker = await deriveSigningKeyPair(crypto.getRandomValues(new Uint8Array(32)));
+    const real = await deriveSigningKeyPair(crypto.getRandomValues(new Uint8Array(32)));
+    contactSigningKeys.set('user-2', sodium.to_base64(real.publicKey));
+    const forged = await sealAuthenticatedField('secret', roomKey, attacker.privateKey, {
+      roomId: ROOM_ID,
+      senderId: 'user-2',
+      messageId: 'message-1',
+      label: 'content',
+    });
+
+    const view = toMessageView({ content: forged, sender: { id: 'user-2', nickname: 'bia', avatar: null } });
+    expect(await unavailableText(view)).toBe(true);
+    contactSigningKeys.set('user-2', sodium.to_base64(attacker.publicKey));
+    expect((await decryptMessageView(socket, view)).content).toBe('secret');
+  });
+
+  it('rejects a flipped byte, a truncated payload and slot swaps in file and link fields', async () => {
+    const sodium = await getSodium();
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      content: 'secret',
+      fileMeta: { name: 'a.txt', mimeType: 'text/plain', size: 1 },
+      linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl: null, siteName: 'Site' },
+    });
+    const view = viewOf(encrypted);
+    const raw = sodium.from_base64(encrypted.content.slice('e2e:v2:'.length));
+    raw[raw.length - 1] = (raw[raw.length - 1] ?? 0) ^ 1;
+    expect(await unavailableText({ ...view, content: 'e2e:v2:' + sodium.to_base64(raw) })).toBe(true);
+    expect(await unavailableText({ ...view, content: 'e2e:v2:AAAA' })).toBe(true);
+
+    const swappedFile = await decryptMessageView(socket, {
+      ...view,
+      fileMeta: { name: encrypted.fileMeta?.mimeType ?? '', mimeType: encrypted.fileMeta?.name ?? '', size: 1 },
+    });
+    expect(swappedFile.fileMeta?.name).not.toBe('text/plain');
+    expect(swappedFile.fileMeta?.mimeType).not.toBe('a.txt');
+    const swappedLink = await decryptMessageView(socket, {
+      ...view,
+      linkPreview: { url: encrypted.linkPreview?.title ?? '', title: encrypted.linkPreview?.url ?? '', description: null, imageUrl: null, siteName: null },
+    });
+    expect(swappedLink.linkPreview?.url).not.toBe('Site');
+    expect(swappedLink.linkPreview?.title).not.toBe('https://site.test');
+  });
+
+  it('opens the fields of a reply snapshot with the replied message identity', async () => {
+    const original = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
+    const view = toMessageView({
+      content: 'e2e:v1:ignored',
+      replyTo: {
+        id: original.messageId,
+        content: original.content,
+        type: 'text',
+        duration: null,
+        fileMeta: null,
+        caption: null,
+        sender: { id: OWN_ID, nickname: 'ana', avatar: null },
+      },
+    });
+    expect((await decryptMessageView(socket, view)).replyTo?.content).toBe('secret');
+    const wrongId = { ...view, replyTo: view.replyTo && { ...view.replyTo, id: 'other-message' } };
+    expect((await decryptMessageView(socket, wrongId)).replyTo?.content).not.toBe('secret');
+  });
+
   it('rejects a message from a sender without a known signing key', async () => {
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'segredo' });
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
     const view = viewOf(encrypted);
     setCurrentIdentity({ userId: 'user-9', publicKey: 'unused', privateKey: crypto.getRandomValues(new Uint8Array(32)) });
     expect(await unavailableText(view)).toBe(true);
@@ -362,7 +429,7 @@ describe('authenticated message fields', () => {
     const sodium = await getSodium();
     const senderPrivateKey = crypto.getRandomValues(new Uint8Array(32));
     setCurrentIdentity({ userId: 'user-2', publicKey: 'unused', privateKey: senderPrivateKey });
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'segredo' });
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
     const view = { ...viewOf(encrypted), sender: { id: 'user-2', nickname: 'bia', avatar: null } };
 
     setCurrentIdentity({ userId: OWN_ID, publicKey: 'unused', privateKey: crypto.getRandomValues(new Uint8Array(32)) });
@@ -375,13 +442,13 @@ describe('authenticated message fields', () => {
     const sodium = await getSodium();
     const key = roomKeys.get(ROOM_ID) as Uint8Array;
     const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-    const sealed = sodium.crypto_secretbox_easy('segredo', nonce, key);
+    const sealed = sodium.crypto_secretbox_easy('secret', nonce, key);
     const combined = new Uint8Array(nonce.length + sealed.length);
     combined.set(nonce, 0);
     combined.set(sealed, nonce.length);
 
     const decrypted = await decryptMessageView(socket, toMessageView({ content: 'e2e:v1:' + sodium.to_base64(combined) }));
-    expect(decrypted.content).toBe('segredo');
+    expect(decrypted.content).toBe('secret');
     expect(decrypted.unencrypted).toBe(false);
   });
 });

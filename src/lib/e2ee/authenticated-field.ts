@@ -18,6 +18,9 @@ export function isAuthenticatedField(value: string): boolean {
 }
 
 function contextBytes(prefix: string, context: FieldContext): Uint8Array {
+  if ([context.roomId, context.senderId, context.messageId, context.label].some((part) => part.includes(FIELD_SEPARATOR))) {
+    throw new Error('Field context contains the separator');
+  }
   const text = [prefix, context.roomId, context.senderId, context.messageId, context.label].join(FIELD_SEPARATOR) + FIELD_SEPARATOR;
   return new TextEncoder().encode(text);
 }
