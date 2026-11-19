@@ -39,6 +39,9 @@
       "nicknameTaken": "Esse nickname já está em uso.",
       "passwordTooShort": "A senha deve ter pelo menos {{minLength}} caracteres.",
       "currentPasswordIncorrect": "Senha atual incorreta.",
+      "credentialsInvalid": "Os dados de segurança enviados são inválidos. Tente novamente.",
+      "credentialsIncomplete": "Faltam dados de segurança. Tente novamente.",
+      "credentialsAlreadyUpgraded": "A segurança da sua conta já está atualizada.",
       "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
       "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
     },
@@ -109,7 +112,8 @@
       "invalidPayload": "Dados inválidos."
     },
     "e2e": {
-      "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez."
+      "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez.",
+      "keysLocked": "As chaves de criptografia desta conta já foram definidas e não podem ser substituídas."
     }
   },
   "systemEvents": {
@@ -169,6 +173,7 @@
       "confirmPassword": "Confirmar senha",
       "confirmPlaceholder": "Digite a senha novamente",
       "submit": "Começar a Conversar",
+      "submitting": "Protegendo sua conta...",
       "checking": "Verificando...",
       "available": "Disponível!",
       "taken": "Esse username já está em uso.",
@@ -191,7 +196,8 @@
   "recovery": {
     "title": "Seu arquivo de recuperação",
     "intro": "Esse arquivo é a sua chave reserva para entrar na conta caso esqueça sua senha. Guarde em um lugar seguro — se você perder o arquivo e a senha ao mesmo tempo, ninguém consegue recuperar sua conta.",
-    "noPassword": "O arquivo não contém sua senha em texto — só o servidor consegue usá-lo para autenticar você.",
+    "noPassword": "O arquivo não contém sua senha. Quem tiver o arquivo consegue entrar na sua conta, então guarde-o só com você.",
+    "upgraded": "Atualizamos a segurança da sua conta. O arquivo de recuperação anterior deixou de funcionar — baixe este novo e substitua o antigo.",
     "replaceOld": "Se você já tinha um arquivo salvo, substitua-o por este — o anterior deixou de funcionar.",
     "download": "Baixar arquivo",
     "downloadAgain": "Baixar novamente",
@@ -467,6 +473,8 @@
       "system": "Sistema"
     },
     "autoSaved": "Arquivo de recuperação atualizado automaticamente.",
+    "identityUnavailable": "Não foi possível acessar sua chave de criptografia neste dispositivo. Entre de novo com sua senha ou arquivo de recuperação e tente outra vez.",
+    "passwordChangedSigningOut": "Senha alterada. Encerrando a sessão...",
     "shareText": "Fale comigo no SparkChat! Meu username é {{name}}",
     "newPasswordTooShort": "A nova senha deve ter pelo menos {{minLength}} caracteres.",
     "username": "Username",

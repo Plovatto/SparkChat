@@ -46,10 +46,19 @@ export interface SocketUser {
 }
 
 type JoinPayload =
-  | { mode: 'register'; nickname: string; avatar: number; password: string }
+  | {
+      mode: 'register';
+      nickname: string;
+      avatar: number;
+      password: string;
+      authSalt?: string;
+      recoveryVerifier?: string;
+    }
   | { mode: 'resume'; userId: string; sessionToken: string };
 
 export type AuthMethod = 'password' | 'keyfile';
+
+export type AuthVersion = 1 | 2;
 
 export interface SessionSummary {
   id: string;
@@ -165,8 +174,8 @@ export interface ServerToClientEvents {
   'user:registered': (payload: {
     user: SocketUser;
     sessionToken: string;
-    recoveryFile: string;
-    recoveryToken: string;
+    recoveryFile?: string | null;
+    recoveryToken?: string | null;
     authMethod: AuthMethod;
   }) => void;
   'user:resumed': (payload: { user: SocketUser; authMethod: AuthMethod }) => void;
@@ -178,8 +187,9 @@ export interface ServerToClientEvents {
   }) => void;
   'user:profile-updated': (payload: { userId: string; nickname: string; avatar: number; statusText: string | null }) => void;
   'user:profile-updated-success': (payload: { user: SocketUser; recoveryFile: string | null; recoveryToken: string | null }) => void;
-  'user:password-changed': (payload: { recoveryFile: string; recoveryToken: string }) => void;
-  'user:recovery-file-regenerated': (payload: { recoveryFile: string; recoveryToken: string }) => void;
+  'user:password-changed': (payload: { recoveryFile: string | null; recoveryToken?: string | null }) => void;
+  'user:recovery-file-regenerated': (payload: { recoveryFile: string | null; recoveryToken?: string | null }) => void;
+  'user:credentials-upgraded': (payload: { authVersion: AuthVersion }) => void;
   'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
   'user:session-revoked': () => void;
   'user:chat-settings-updated': (payload: { chatSettings: SocketChatSettings }) => void;
@@ -188,6 +198,7 @@ export interface ServerToClientEvents {
     publicKey: string | null;
     encryptedPrivateKeyByPassword: string | null;
     encryptedPrivateKeyByRecovery: string | null;
+    authVersion?: AuthVersion;
   }) => void;
   error: (payload: SocketErrorPayload) => void;
   'rooms:list': (payload: { rooms: RoomSummary[] }) => void;
@@ -229,8 +240,27 @@ export interface ClientToServerEvents {
   'user:update-chat-settings': (payload: SocketChatSettings) => void;
   'user:logout': () => void;
   'user:visibility': (payload: { visible: boolean }, ack?: () => void) => void;
-  'user:change-password': (payload: { currentPassword?: string; newPassword: string }) => void;
-  'user:regenerate-recovery-file': (payload: { currentPassword: string }) => void;
+  'user:change-password': (payload: {
+    currentPassword?: string;
+    newPassword: string;
+    newAuthSalt?: string;
+    encryptedPrivateKeyByPassword?: string;
+    recoveryVerifier?: string;
+    encryptedPrivateKeyByRecovery?: string;
+  }) => void;
+  'user:regenerate-recovery-file': (payload: {
+    currentPassword: string;
+    recoveryVerifier?: string;
+    encryptedPrivateKeyByRecovery?: string;
+  }) => void;
+  'user:upgrade-credentials': (payload: {
+    currentPassword: string;
+    newAuthSalt: string;
+    newAuthKey: string;
+    encryptedPrivateKeyByPassword: string;
+    recoveryVerifier: string;
+    encryptedPrivateKeyByRecovery: string;
+  }) => void;
   'user:list-sessions': () => void;
   'user:revoke-session': (payload: { sessionId: string }) => void;
   'e2e:publish-keys': (payload: {

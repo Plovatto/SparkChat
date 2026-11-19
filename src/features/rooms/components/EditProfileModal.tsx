@@ -18,6 +18,7 @@ import {
   FaVolumeUp,
 } from 'react-icons/fa';
 import { Modal } from '@components/common/Modal';
+import { Spinner } from '@components/common/Spinner';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
 import { Switch } from '@components/common/Switch';
 import type { User } from '@features/auth';
@@ -26,16 +27,22 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
-import { useTheme } from '@features/theme';
+import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
-import { rewrapIdentityAfterPasswordChange, rewrapIdentityAfterRecoveryRegenerate } from '@lib/e2ee';
+import { buildRecoveryFile, rewrapIdentityAfterLegacyRecoveryRegenerate } from '@lib/e2ee';
 import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { shareLinkNatively } from '@lib/share-link';
-import { translateErrorPayload } from '@lib/api/api-error';
+import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import {
+  buildChangePasswordRequest,
+  buildRegenerateRecoveryRequest,
+  IdentityUnavailableError,
+  resolveProfileUpdateProof,
+} from '../utils/credential-requests';
 import { buildProfileUpdatePayload, isNicknameChange } from '../utils/profile-update';
 
 interface EditProfileModalProps {
@@ -132,7 +139,8 @@ export function EditProfileModal({
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<string | null>(null);
   const [pendingLogoutAfterDownload, setPendingLogoutAfterDownload] = useState(false);
   const pendingActionRef = useRef<PendingAction | null>(null);
-  const pendingPasswordRef = useRef('');
+  const pendingRecoverySecretRef = useRef<Uint8Array | null>(null);
+  const [isDeriving, setIsDeriving] = useState(false);
   const isRevokingOwnSessionRef = useRef(false);
 
   useEffect(() => {
@@ -167,6 +175,24 @@ export function EditProfileModal({
       return saved;
     };
 
+    const discardPendingRecoverySecret = () => {
+      pendingRecoverySecretRef.current?.fill(0);
+      pendingRecoverySecretRef.current = null;
+    };
+
+    const takeLocalRecoveryFile = async (): Promise<string | null> => {
+      const secret = pendingRecoverySecretRef.current;
+      pendingRecoverySecretRef.current = null;
+      if (!secret) {
+        return null;
+      }
+      try {
+        return await buildRecoveryFile({ userId: user.id, nickname: user.nickname, secret });
+      } finally {
+        secret.fill(0);
+      }
+    };
+
     const handleProfileUpdated = async ({
       user: updated,
       recoveryFile,
@@ -183,7 +209,7 @@ export function EditProfileModal({
         onClose();
         return;
       }
-      void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
+      void rewrapIdentityAfterLegacyRecoveryRegenerate(socket, user.id, recoveryToken);
       if (await trySilentRecoveryFileUpdate(recoveryFile, updated.nickname)) {
         onClose();
         return;
@@ -191,15 +217,16 @@ export function EditProfileModal({
       setRecoveryFilePrompt(recoveryFile);
     };
 
-    const handlePasswordChanged = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
+    const handlePasswordChanged = async () => {
       pendingActionRef.current = null;
-      const changedPassword = pendingPasswordRef.current;
-      pendingPasswordRef.current = '';
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      if (changedPassword) {
-        void rewrapIdentityAfterPasswordChange(socket, user.id, changedPassword, recoveryToken);
+      const recoveryFile = await takeLocalRecoveryFile();
+      if (!recoveryFile) {
+        setAutoSaveFeedback(translate('profile.passwordChangedSigningOut'));
+        setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
+        return;
       }
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
@@ -209,11 +236,24 @@ export function EditProfileModal({
       setRecoveryFilePrompt(recoveryFile);
     };
 
-    const handleRecoveryFileRegenerated = async ({ recoveryFile, recoveryToken }: { recoveryFile: string; recoveryToken: string }) => {
+    const handleRecoveryFileRegenerated = async ({
+      recoveryFile: serverRecoveryFile,
+      recoveryToken,
+    }: {
+      recoveryFile: string | null;
+      recoveryToken?: string | null;
+    }) => {
       pendingActionRef.current = null;
       setIsConfirmingRegenerate(false);
       setRegeneratePassword('');
-      void rewrapIdentityAfterRecoveryRegenerate(socket, user.id, recoveryToken);
+      let recoveryFile = await takeLocalRecoveryFile();
+      if (!recoveryFile && serverRecoveryFile && recoveryToken) {
+        void rewrapIdentityAfterLegacyRecoveryRegenerate(socket, user.id, recoveryToken);
+        recoveryFile = serverRecoveryFile;
+      }
+      if (!recoveryFile) {
+        return;
+      }
       if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
         return;
       }
@@ -235,8 +275,10 @@ export function EditProfileModal({
       const message = translateErrorPayload(payload, 'errors.generic');
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
+      if (action === 'password' || action === 'regenerate') {
+        discardPendingRecoverySecret();
+      }
       if (action === 'password') {
-        pendingPasswordRef.current = '';
         setPasswordError(message);
         setIsWrongPassword(payload.code === 'user.currentPasswordIncorrect');
         if (payload.code === 'user.currentPasswordRequired') {
@@ -266,16 +308,31 @@ export function EditProfileModal({
 
   const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
   const isNicknameChanging = isNicknameChange(user.nickname, nickname);
-  const saveProfileDisabled = isNicknameChanging && !profilePassword;
+  const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving;
 
-  const handleSaveProfile = () => {
-    if (saveProfileDisabled) {
+  const credentialErrorMessage = (error: unknown): string =>
+    error instanceof IdentityUnavailableError ? t('profile.identityUnavailable') : translateError(error, 'errors.generic');
+
+  const handleSaveProfile = async () => {
+    if (saveProfileDisabled || !socket) {
       return;
     }
     setProfileError('');
-    pendingActionRef.current = 'profile';
     void ensureAutoSavePermission(user.id);
-    socket?.emit('user:update-profile', buildProfileUpdatePayload(user.nickname, nickname, avatar, profilePassword));
+    let proof = '';
+    if (isNicknameChanging) {
+      setIsDeriving(true);
+      try {
+        proof = await resolveProfileUpdateProof(user.id, user.nickname, profilePassword);
+      } catch (error) {
+        setProfileError(credentialErrorMessage(error));
+        return;
+      } finally {
+        setIsDeriving(false);
+      }
+    }
+    pendingActionRef.current = 'profile';
+    socket.emit('user:update-profile', buildProfileUpdatePayload(user.nickname, nickname, avatar, proof));
   };
 
   const handleShare = () => {
@@ -285,8 +342,12 @@ export function EditProfileModal({
     }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setPasswordError('');
+
+    if (!socket || isDeriving) {
+      return;
+    }
 
     if (newPassword.length < PASSWORD_MIN_LENGTH) {
       setPasswordError(t('profile.newPasswordTooShort', { minLength: PASSWORD_MIN_LENGTH }));
@@ -298,23 +359,39 @@ export function EditProfileModal({
       return;
     }
 
-    pendingActionRef.current = 'password';
-    pendingPasswordRef.current = newPassword;
     void ensureAutoSavePermission(user.id);
-    socket?.emit('user:change-password', {
-      currentPassword: currentPassword || undefined,
-      newPassword,
-    });
+    setIsDeriving(true);
+    try {
+      const request = await buildChangePasswordRequest({ socket, userId: user.id, nickname: user.nickname }, currentPassword, newPassword);
+      pendingRecoverySecretRef.current?.fill(0);
+      pendingRecoverySecretRef.current = request.upgradeRecoverySecret;
+      pendingActionRef.current = 'password';
+      socket.emit('user:change-password', request.payload);
+    } catch (error) {
+      setPasswordError(credentialErrorMessage(error));
+    } finally {
+      setIsDeriving(false);
+    }
   };
 
-  const handleRegenerateRecoveryFile = () => {
-    if (!regeneratePassword) {
+  const handleRegenerateRecoveryFile = async () => {
+    if (!regeneratePassword || !socket || isDeriving) {
       return;
     }
     setRegenerateError('');
-    pendingActionRef.current = 'regenerate';
     void ensureAutoSavePermission(user.id);
-    socket?.emit('user:regenerate-recovery-file', { currentPassword: regeneratePassword });
+    setIsDeriving(true);
+    try {
+      const request = await buildRegenerateRecoveryRequest({ socket, userId: user.id, nickname: user.nickname }, regeneratePassword);
+      pendingRecoverySecretRef.current?.fill(0);
+      pendingRecoverySecretRef.current = request.recoverySecret;
+      pendingActionRef.current = 'regenerate';
+      socket.emit('user:regenerate-recovery-file', request.payload);
+    } catch (error) {
+      setRegenerateError(credentialErrorMessage(error));
+    } finally {
+      setIsDeriving(false);
+    }
   };
 
   const handleCancelRegenerate = () => {
@@ -351,7 +428,7 @@ export function EditProfileModal({
 
   const labelStyle: CSSProperties = { fontWeight: 600, display: 'block', marginBottom: '10px', color: theme.textPrimary, fontSize: '0.95rem' };
   const needsCurrentPassword = user.authMethod !== 'keyfile' || isCurrentPasswordRequired;
-  const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword);
+  const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword) || isDeriving;
   const otherSessionsCount = sessions.filter((session) => !session.isCurrent).length;
 
   return (
@@ -498,11 +575,12 @@ export function EditProfileModal({
                 {t('common.cancel')}
               </button>
               <button
-                onClick={handleSaveProfile}
+                onClick={() => void handleSaveProfile()}
                 disabled={saveProfileDisabled}
                 className="sc-btn sc-btn--gradient sc-btn--lift"
                 style={{ flex: 1, padding: '12px 20px' }}
               >
+                {isDeriving && <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />}
                 {t('profile.saveChanges')}
               </button>
             </div>
@@ -556,12 +634,12 @@ export function EditProfileModal({
               </InfoNotice>
 
               <button
-                onClick={handleChangePassword}
+                onClick={() => void handleChangePassword()}
                 disabled={changePasswordDisabled}
                 className="sc-btn sc-btn--gradient sc-btn--lift"
                 style={{ padding: '11px 16px', fontSize: '0.9rem' }}
               >
-                <FaLock size={14} />
+                {isDeriving ? <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaLock size={14} />}
                 {t('profile.changePassword')}
               </button>
             </>
@@ -587,12 +665,12 @@ export function EditProfileModal({
                   {t('common.cancel')}
                 </button>
                 <button
-                  onClick={handleRegenerateRecoveryFile}
-                  disabled={!regeneratePassword}
+                  onClick={() => void handleRegenerateRecoveryFile()}
+                  disabled={!regeneratePassword || isDeriving}
                   className="sc-btn sc-btn--gradient sc-btn--lift"
                   style={{ flex: 1, padding: '11px 16px', fontSize: '0.9rem' }}
                 >
-                  <FaFileDownload size={14} />
+                  {isDeriving ? <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaFileDownload size={14} />}
                   {t('profile.confirmRegenerate')}
                 </button>
               </div>

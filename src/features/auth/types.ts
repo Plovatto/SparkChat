@@ -1,4 +1,5 @@
 import type { IconType } from 'react-icons';
+import type { RegistrationCredentials } from '@lib/e2ee';
 import type { AuthMethod, SocketChatSettings, SocketUserStatus, SocketUserTheme } from '@lib/socket';
 
 export type LoginMode = 'choose' | 'new' | 'existing';
@@ -18,7 +19,7 @@ export interface User {
 export interface PendingRegistration {
   nickname: string;
   avatar: number;
-  password: string;
+  credentials: RegistrationCredentials;
 }
 
 export interface LoginCredentials {
@@ -28,7 +29,9 @@ export interface LoginCredentials {
 
 export type PendingE2eCredential =
   | { type: 'password'; password: string }
-  | { type: 'keyfile'; recoveryToken: string };
+  | { type: 'password-v2'; wrapKey: Uint8Array }
+  | { type: 'keyfile'; recoveryToken: string }
+  | { type: 'recovery-v2'; recoveryWrapKey: Uint8Array };
 
 export interface Avatar {
   icon: IconType;

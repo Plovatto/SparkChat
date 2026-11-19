@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearTranslationCache, disposeTranslationEngines } from '@lib/translation';
 import { getStoredSession, saveSession } from '../api/session-storage';
+import { forgetAuthParams } from '../lib/auth-params';
 import { clearLocalAccountData } from '../lib/clear-local-account-data';
 import type { PendingE2eCredential, User } from '../types';
 
@@ -40,6 +41,7 @@ export function useAuthSession(): AuthSession {
   const logout = useCallback(() => {
     setIsRestoring(true);
     setUser(null);
+    forgetAuthParams();
     clearTranslationCache();
     disposeTranslationEngines();
     const transition = new Promise<void>((resolve) => setTimeout(resolve, LOGOUT_TRANSITION_DELAY_MS));

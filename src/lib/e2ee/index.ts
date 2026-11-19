@@ -3,11 +3,29 @@ export {
   clearIdentity,
   ensureIdentityAfterKeyfileLogin,
   ensureIdentityAfterPasswordLogin,
+  ensureIdentityAfterPasswordLoginV2,
+  ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
-  rewrapIdentityAfterPasswordChange,
-  rewrapIdentityAfterRecoveryRegenerate,
+  resolveIdentityForRewrap,
+  rewrapIdentityAfterLegacyRecoveryRegenerate,
   setupIdentityAfterRegister,
 } from './setup-identity';
+export {
+  buildRecoveryFile,
+  derivePasswordCredentials,
+  deriveRecoveryCredentials,
+  InvalidRecoveryFileError,
+  parseRecoveryFile,
+  type RecoveryFileContents,
+} from './credentials';
+export {
+  createPasswordMaterial,
+  createRecoveryMaterial,
+  prepareRegistrationCredentials,
+  upgradeLegacyCredentials,
+  type RegistrationCredentials,
+  type UpgradedCredentials,
+} from './credential-flows';
 export {
   clearRoomKeys,
   ensureRoomKeyForDecryption,

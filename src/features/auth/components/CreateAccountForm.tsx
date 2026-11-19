@@ -3,8 +3,9 @@ import { Card, Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
-import type { ThemeTokens } from '@features/theme';
+import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
+import { prepareRegistrationCredentials } from '@lib/e2ee';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { AVATARS } from '../constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
@@ -41,6 +42,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isPreparing, setIsPreparing] = useState(false);
   useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
 
@@ -53,8 +55,12 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   const nicknameStatus = useNicknameAvailability(nickname);
   const { avatarSize, iconSize } = useResponsiveAvatarSize();
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (isPreparing) {
+      return;
+    }
 
     if (!nickname.trim()) {
       setError(t('auth.register.enterUsername'));
@@ -76,7 +82,15 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
       return;
     }
 
-    onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar, password });
+    setIsPreparing(true);
+    try {
+      const credentials = await prepareRegistrationCredentials(password);
+      onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar, credentials });
+    } catch {
+      setError(t('errors.generic'));
+    } finally {
+      setIsPreparing(false);
+    }
   };
 
   const nicknameStatusColor: Record<ResolvedNicknameCheckState, string> = {
@@ -173,7 +187,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               scrollbarGutter: 'stable both-edges',
             }}
           >
-            <Form onSubmit={handleSubmit} autoComplete="off">
+            <Form onSubmit={(event) => void handleSubmit(event)} autoComplete="off">
               <AutofillDecoyFields />
               <Form.Group style={{ marginBottom: '18px' }}>
                 <Form.Label style={{ ...labelStyle, marginBottom: '10px' }}>
@@ -326,6 +340,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
 
               <button
                 type="submit"
+                disabled={isPreparing}
                 className="sc-btn sc-btn--gradient sc-btn--lift"
                 style={{
                   width: '100%',
@@ -334,10 +349,11 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                   fontWeight: 700,
                   borderRadius: '14px',
                   gap: 'clamp(8px, 2vw, 10px)',
+                  cursor: isPreparing ? 'wait' : undefined,
                 }}
               >
-                <FaCheckCircle size={18} />
-                {t('auth.register.submit')}
+                {isPreparing ? <Spinner size={18} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaCheckCircle size={18} />}
+                {isPreparing ? t('auth.register.submitting') : t('auth.register.submit')}
               </button>
             </Form>
           </Card.Body>

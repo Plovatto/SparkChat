@@ -6,8 +6,8 @@ import type { PendingRegistration, User } from '../types';
 export interface RegisteredPayload {
   user: SocketUser;
   sessionToken: string;
-  recoveryFile: string;
-  recoveryToken: string;
+  recoveryFile?: string | null;
+  recoveryToken?: string | null;
   authMethod: AuthMethod;
 }
 
@@ -78,7 +78,9 @@ export function useSocketAuthSync({
           mode: 'register',
           nickname: currentRegistration.nickname,
           avatar: currentRegistration.avatar,
-          password: currentRegistration.password,
+          password: currentRegistration.credentials.authKey,
+          authSalt: currentRegistration.credentials.authSalt,
+          recoveryVerifier: currentRegistration.credentials.recoveryVerifier,
         });
       }
     };

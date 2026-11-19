@@ -1,5 +1,6 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from '@lib/socket';
+import { unwrapPrivateKeyV2, wrapPrivateKeyV2 } from './credentials';
 import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
 import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
@@ -9,7 +10,6 @@ import {
   privateKeyMatchesPublicKey,
   unwrapPrivateKeyWithPassword,
   unwrapPrivateKeyWithRecoveryToken,
-  wrapPrivateKeyWithPassword,
   wrapPrivateKeyWithRecoveryToken,
 } from './identity';
 
@@ -19,6 +19,13 @@ interface MyKeysPayload {
   publicKey: string | null;
   encryptedPrivateKeyByPassword: string | null;
   encryptedPrivateKeyByRecovery: string | null;
+}
+
+type WrapField = 'encryptedPrivateKeyByPassword' | 'encryptedPrivateKeyByRecovery';
+
+export interface ResolvedIdentity {
+  publicKey: string;
+  privateKey: Uint8Array;
 }
 
 function requestMyKeys(socket: AppSocket): Promise<MyKeysPayload | null> {
@@ -56,13 +63,13 @@ async function assertPrivateKeyMatches(privateKey: Uint8Array, publicKey: string
 async function setupIdentityAfterRegisterImpl(
   socket: AppSocket,
   userId: string,
-  password: string,
-  recoveryToken: string,
+  wrapKey: Uint8Array,
+  recoveryWrapKey: Uint8Array,
 ): Promise<void> {
   const identity = await generateIdentity();
   const [encryptedPrivateKeyByPassword, encryptedPrivateKeyByRecovery] = await Promise.all([
-    wrapPrivateKeyWithPassword(identity.privateKey, password),
-    wrapPrivateKeyWithRecoveryToken(identity.privateKey, recoveryToken),
+    wrapPrivateKeyV2(identity.privateKey, wrapKey, userId, identity.publicKey),
+    wrapPrivateKeyV2(identity.privateKey, recoveryWrapKey, userId, identity.publicKey),
   ]);
 
   await savePrivateKey(userId, identity.publicKey, identity.privateKey);
@@ -81,76 +88,79 @@ async function hydrateCurrentIdentityImpl(userId: string): Promise<void> {
   }
 }
 
-async function ensureIdentityAfterPasswordLoginImpl(socket: AppSocket, userId: string, password: string): Promise<void> {
-  const cached = await loadPrivateKey(userId);
-  if (cached) {
-    setCurrentIdentity({ userId, publicKey: cached.publicKey, privateKey: cached.privateKey });
-    return;
-  }
-
-  const myKeys = await requestMyKeys(socket);
-  if (!myKeys?.publicKey || !myKeys.encryptedPrivateKeyByPassword) {
-    return;
-  }
-
-  const privateKey = await unwrapPrivateKeyWithPassword(myKeys.encryptedPrivateKeyByPassword, password);
-  await assertPrivateKeyMatches(privateKey, myKeys.publicKey);
-  await savePrivateKey(userId, myKeys.publicKey, privateKey);
-  setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
-}
-
-async function ensureIdentityAfterKeyfileLoginImpl(socket: AppSocket, userId: string, recoveryToken: string): Promise<void> {
-  const cached = await loadPrivateKey(userId);
-  if (cached) {
-    setCurrentIdentity({ userId, publicKey: cached.publicKey, privateKey: cached.privateKey });
-    return;
-  }
-
-  const myKeys = await requestMyKeys(socket);
-  if (!myKeys?.publicKey || !myKeys.encryptedPrivateKeyByRecovery) {
-    return;
-  }
-
-  const privateKey = await unwrapPrivateKeyWithRecoveryToken(myKeys.encryptedPrivateKeyByRecovery, recoveryToken);
-  await assertPrivateKeyMatches(privateKey, myKeys.publicKey);
-  await savePrivateKey(userId, myKeys.publicKey, privateKey);
-  setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
-}
-
-async function rewrapIdentityAfterPasswordChangeImpl(
+async function restoreIdentityFromServer(
   socket: AppSocket,
   userId: string,
-  newPassword: string,
-  newRecoveryToken: string,
+  field: WrapField,
+  unwrap: (wrapped: string, publicKey: string) => Promise<Uint8Array>,
 ): Promise<void> {
-  const active = getCurrentIdentity();
-  let cached = active?.userId === userId ? { publicKey: active.publicKey, privateKey: active.privateKey } : await loadPrivateKey(userId);
-
-  if (!cached) {
-    const myKeys = await requestMyKeys(socket);
-    if (myKeys?.publicKey) {
-      return;
-    }
-
-    const identity = await generateIdentity();
-    cached = { publicKey: identity.publicKey, privateKey: identity.privateKey };
+  const cached = await loadPrivateKey(userId);
+  if (cached) {
+    setCurrentIdentity({ userId, publicKey: cached.publicKey, privateKey: cached.privateKey });
+    return;
   }
 
-  const [encryptedPrivateKeyByPassword, encryptedPrivateKeyByRecovery] = await Promise.all([
-    wrapPrivateKeyWithPassword(cached.privateKey, newPassword),
-    wrapPrivateKeyWithRecoveryToken(cached.privateKey, newRecoveryToken),
-  ]);
+  const myKeys = await requestMyKeys(socket);
+  const wrapped = myKeys?.[field];
+  if (!myKeys?.publicKey || !wrapped) {
+    return;
+  }
 
-  await savePrivateKey(userId, cached.publicKey, cached.privateKey);
-  setCurrentIdentity({ userId, publicKey: cached.publicKey, privateKey: cached.privateKey });
-  socket.emit('e2e:publish-keys', {
-    publicKey: cached.publicKey,
-    encryptedPrivateKeyByPassword,
-    encryptedPrivateKeyByRecovery,
-  });
+  const privateKey = await unwrap(wrapped, myKeys.publicKey);
+  await assertPrivateKeyMatches(privateKey, myKeys.publicKey);
+  await savePrivateKey(userId, myKeys.publicKey, privateKey);
+  setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
 }
 
-async function rewrapIdentityAfterRecoveryRegenerateImpl(
+function ensureIdentityAfterPasswordLoginImpl(socket: AppSocket, userId: string, password: string): Promise<void> {
+  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByPassword', (wrapped) =>
+    unwrapPrivateKeyWithPassword(wrapped, password),
+  );
+}
+
+function ensureIdentityAfterPasswordLoginV2Impl(socket: AppSocket, userId: string, wrapKey: Uint8Array): Promise<void> {
+  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByPassword', (wrapped, publicKey) =>
+    unwrapPrivateKeyV2(wrapped, wrapKey, userId, publicKey),
+  );
+}
+
+function ensureIdentityAfterKeyfileLoginImpl(socket: AppSocket, userId: string, recoveryToken: string): Promise<void> {
+  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByRecovery', (wrapped) =>
+    unwrapPrivateKeyWithRecoveryToken(wrapped, recoveryToken),
+  );
+}
+
+function ensureIdentityAfterRecoveryLoginImpl(socket: AppSocket, userId: string, recoveryWrapKey: Uint8Array): Promise<void> {
+  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByRecovery', (wrapped, publicKey) =>
+    unwrapPrivateKeyV2(wrapped, recoveryWrapKey, userId, publicKey),
+  );
+}
+
+export async function resolveIdentityForRewrap(socket: AppSocket, userId: string): Promise<ResolvedIdentity | null> {
+  const active = getCurrentIdentity();
+  if (active?.userId === userId) {
+    return { publicKey: active.publicKey, privateKey: active.privateKey };
+  }
+
+  const cached = await loadPrivateKey(userId);
+  if (cached) {
+    setCurrentIdentity({ userId, publicKey: cached.publicKey, privateKey: cached.privateKey });
+    return cached;
+  }
+
+  const myKeys = await requestMyKeys(socket);
+  if (!myKeys || myKeys.publicKey) {
+    return null;
+  }
+
+  const identity = await generateIdentity();
+  await savePrivateKey(userId, identity.publicKey, identity.privateKey);
+  setCurrentIdentity({ userId, publicKey: identity.publicKey, privateKey: identity.privateKey });
+  socket.emit('e2e:publish-keys', { publicKey: identity.publicKey });
+  return identity;
+}
+
+async function rewrapIdentityAfterLegacyRecoveryRegenerateImpl(
   socket: AppSocket,
   userId: string,
   newRecoveryToken: string,
@@ -173,10 +183,11 @@ async function clearIdentityImpl(): Promise<void> {
 export const setupIdentityAfterRegister = safeAsync('setupIdentityAfterRegister', setupIdentityAfterRegisterImpl);
 export const hydrateCurrentIdentity = safeAsync('hydrateCurrentIdentity', hydrateCurrentIdentityImpl);
 export const ensureIdentityAfterPasswordLogin = safeAsync('ensureIdentityAfterPasswordLogin', ensureIdentityAfterPasswordLoginImpl);
+export const ensureIdentityAfterPasswordLoginV2 = safeAsync('ensureIdentityAfterPasswordLoginV2', ensureIdentityAfterPasswordLoginV2Impl);
 export const ensureIdentityAfterKeyfileLogin = safeAsync('ensureIdentityAfterKeyfileLogin', ensureIdentityAfterKeyfileLoginImpl);
-export const rewrapIdentityAfterPasswordChange = safeAsync('rewrapIdentityAfterPasswordChange', rewrapIdentityAfterPasswordChangeImpl);
-export const rewrapIdentityAfterRecoveryRegenerate = safeAsync(
-  'rewrapIdentityAfterRecoveryRegenerate',
-  rewrapIdentityAfterRecoveryRegenerateImpl,
+export const ensureIdentityAfterRecoveryLogin = safeAsync('ensureIdentityAfterRecoveryLogin', ensureIdentityAfterRecoveryLoginImpl);
+export const rewrapIdentityAfterLegacyRecoveryRegenerate = safeAsync(
+  'rewrapIdentityAfterLegacyRecoveryRegenerate',
+  rewrapIdentityAfterLegacyRecoveryRegenerateImpl,
 );
 export const clearIdentity = safeAsync('clearIdentity', clearIdentityImpl);

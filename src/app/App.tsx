@@ -11,13 +11,17 @@ import {
   useChatTriggerEffects,
   useEnsureAssistantChat,
 } from '@features/chat';
-import { LoginScreen, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
+import { LoginScreen, rememberAuthParams, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
+  buildRecoveryFile,
   ensureIdentityAfterKeyfileLogin,
   ensureIdentityAfterPasswordLogin,
+  ensureIdentityAfterPasswordLoginV2,
+  ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
   setupIdentityAfterRegister,
+  upgradeLegacyCredentials,
 } from '@lib/e2ee';
 import {
   useAudioContextPrimer,
@@ -34,13 +38,44 @@ import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { clearTranslationsForRoom } from '@lib/translation';
-import { SocketProvider, useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
+import { SocketProvider, useSocket, type AppSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
 import { hasDeepLinkParams, readDeepLinkIntents, type DeepLinkIntent } from './deep-link';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
+
+interface RecoveryFilePrompt {
+  userId: string;
+  nickname: string;
+  recoveryFile: string;
+  isUpgrade: boolean;
+}
+
+function restoreIdentityForCredential(socket: AppSocket, userId: string, credential: PendingE2eCredential | null): Promise<void> {
+  switch (credential?.type) {
+    case 'password':
+      return ensureIdentityAfterPasswordLogin(socket, userId, credential.password);
+    case 'password-v2':
+      return ensureIdentityAfterPasswordLoginV2(socket, userId, credential.wrapKey).finally(() => credential.wrapKey.fill(0));
+    case 'keyfile':
+      return ensureIdentityAfterKeyfileLogin(socket, userId, credential.recoveryToken);
+    case 'recovery-v2':
+      return ensureIdentityAfterRecoveryLogin(socket, userId, credential.recoveryWrapKey).finally(() => credential.recoveryWrapKey.fill(0));
+    default:
+      return hydrateCurrentIdentity(userId);
+  }
+}
+
+async function buildRecoveryFilePrompt(userId: string, nickname: string, secret: Uint8Array, isUpgrade: boolean): Promise<RecoveryFilePrompt> {
+  try {
+    const recoveryFile = await buildRecoveryFile({ userId, nickname, secret });
+    return { userId, nickname, recoveryFile, isUpgrade };
+  } finally {
+    secret.fill(0);
+  }
+}
 
 export function App() {
   const { user, isRestoring, login, logout, updateUser, consumePendingE2eCredential } = useAuthSession();
@@ -93,7 +128,7 @@ function AuthGate({
   const { theme } = useTheme();
   const loginTheme = useLoginTheme();
   const { socket } = useSocket();
-  const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<{ userId: string; nickname: string; recoveryFile: string } | null>(null);
+  const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<RecoveryFilePrompt | null>(null);
   const [isSocketReady, setIsSocketReady] = useState(false);
   const [registerError, setRegisterError] = useState('');
 
@@ -106,7 +141,7 @@ function AuthGate({
   useSocketAuthSync({
     user,
     pendingRegistration,
-    onRegistered: ({ user: registered, sessionToken, recoveryFile, recoveryToken, authMethod }) => {
+    onRegistered: ({ user: registered, sessionToken, authMethod }) => {
       onLogin({
         id: registered.id,
         nickname: registered.nickname,
@@ -118,12 +153,19 @@ function AuthGate({
         theme: registered.theme,
         chatSettings: registered.chatSettings,
       });
-      setRecoveryFilePrompt({ userId: registered.id, nickname: registered.nickname, recoveryFile });
       setIsSocketReady(true);
       setRegisterError('');
 
-      if (socket && pendingRegistration) {
-        void setupIdentityAfterRegister(socket, registered.id, pendingRegistration.password, recoveryToken);
+      if (pendingRegistration) {
+        const { credentials } = pendingRegistration;
+        rememberAuthParams(registered.id, { version: 2, salt: credentials.authSalt });
+        if (socket) {
+          void setupIdentityAfterRegister(socket, registered.id, credentials.wrapKey, credentials.recoveryWrapKey).finally(() => {
+            credentials.wrapKey.fill(0);
+            credentials.recoveryWrapKey.fill(0);
+          });
+        }
+        void buildRecoveryFilePrompt(registered.id, registered.nickname, credentials.recoverySecret, false).then(setRecoveryFilePrompt);
       }
       onRegisterStart(null);
     },
@@ -144,14 +186,22 @@ function AuthGate({
       }
 
       const credential = consumePendingE2eCredential();
-      const restoreIdentity =
-        credential?.type === 'password'
-          ? ensureIdentityAfterPasswordLogin(socket, resumed.id, credential.password)
-          : credential?.type === 'keyfile'
-            ? ensureIdentityAfterKeyfileLogin(socket, resumed.id, credential.recoveryToken)
-            : hydrateCurrentIdentity(resumed.id);
+      const restoreIdentity = restoreIdentityForCredential(socket, resumed.id, credential);
 
       void restoreIdentity.finally(() => setIsSocketReady(true));
+
+      if (credential?.type === 'password') {
+        void restoreIdentity
+          .then(() => upgradeLegacyCredentials(socket, resumed.id, credential.password))
+          .then(async (upgraded) => {
+            if (!upgraded) {
+              return;
+            }
+            rememberAuthParams(resumed.id, { version: 2, salt: upgraded.authSalt });
+            setRecoveryFilePrompt(await buildRecoveryFilePrompt(resumed.id, resumed.nickname, upgraded.recoverySecret, true));
+          })
+          .catch((error: unknown) => console.error('[e2e] credential upgrade failed', error));
+      }
     },
     onResumeFailed: onLogout,
     onSessionRevoked: onLogout,
@@ -214,7 +264,8 @@ function AuthGate({
         nickname={recoveryFilePrompt?.nickname ?? ''}
         recoveryFile={recoveryFilePrompt?.recoveryFile ?? ''}
         onClose={() => setRecoveryFilePrompt(null)}
-        isFirstDownload
+        isFirstDownload={!recoveryFilePrompt?.isUpgrade}
+        isUpgrade={recoveryFilePrompt?.isUpgrade ?? false}
       />
     </AppBackground>
   );
