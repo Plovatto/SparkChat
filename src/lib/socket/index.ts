@@ -13,6 +13,8 @@ export type {
   MessageStatus,
   MessageType,
   MessageView,
+  PushConfigPayload,
+  PushSubscriptionWire,
   RoomKeyBatch,
   RoomParticipant,
   RoomSummary,
