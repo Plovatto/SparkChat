@@ -34,6 +34,10 @@ import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership'
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
+export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
+export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
+export const ROOM_WAIT_ATTEMPTS = 30;
+export const ROOM_WAIT_INTERVAL_MS = 100;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
@@ -148,6 +152,8 @@ interface Session {
   sendChain: Promise<void>;
   protectIp: boolean;
   handledAccept: boolean;
+  acceptConfirmed: boolean;
+  acceptWaiters: Array<() => void>;
   statsSample: QualitySample | null;
 }
 
@@ -293,7 +299,10 @@ export class CallController {
     if (typeof payload.callId !== 'string' || this.knownCallIds.has(payload.callId)) {
       return;
     }
-    if (!this.deps.isPrivateRoomWith(payload.roomId, identity.userId, payload.callerId)) {
+    if (!(await this.waitForPrivateRoom(payload.roomId, identity.userId, payload.callerId))) {
+      return;
+    }
+    if (this.preparing || isCallLive(this.machine.getState()) || this.knownCallIds.has(payload.callId)) {
       return;
     }
     this.preparing = true;
@@ -333,6 +342,8 @@ export class CallController {
         sendChain: Promise.resolve(),
         protectIp: this.deps.getProtectIp(),
         handledAccept: false,
+        acceptConfirmed: false,
+        acceptWaiters: [],
         statsSample: null,
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
@@ -422,6 +433,8 @@ export class CallController {
         sendChain: Promise.resolve(),
         protectIp,
         handledAccept: false,
+        acceptConfirmed: false,
+        acceptWaiters: [],
         statsSample: null,
       };
       const handedOver = media;
@@ -618,6 +631,10 @@ export class CallController {
   private async onAccepted(payload: { callId: string; envelope: string; deviceId: string }): Promise<void> {
     const session = this.session;
     const identity = this.deps.getIdentity();
+    if (session && session.role === 'callee' && session.callId === payload.callId) {
+      this.confirmAccept(session);
+      return;
+    }
     if (!session || !identity || session.role !== 'caller' || session.callId !== payload.callId || session.handledAccept) {
       return;
     }
@@ -850,12 +867,70 @@ export class CallController {
     }
   }
 
+  private async waitForPrivateRoom(roomId: string, selfId: string, peerId: string): Promise<boolean> {
+    for (let attempt = 0; attempt <= ROOM_WAIT_ATTEMPTS; attempt += 1) {
+      if (this.deps.isPrivateRoomWith(roomId, selfId, peerId)) {
+        return true;
+      }
+      if (attempt < ROOM_WAIT_ATTEMPTS) {
+        await new Promise<void>((resolve) => setTimeout(resolve, ROOM_WAIT_INTERVAL_MS));
+      }
+    }
+    return false;
+  }
+
+  private confirmAccept(session: Session): void {
+    session.acceptConfirmed = true;
+    for (const waiter of session.acceptWaiters.splice(0)) {
+      waiter();
+    }
+  }
+
+  private waitForAcceptConfirmation(session: Session): Promise<void> {
+    if (session.role === 'caller' || session.acceptConfirmed) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ACCEPT_CONFIRM_TIMEOUT_MS);
+      session.acceptWaiters.push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
+
+  private async requestIceWithRetry(session: Session): Promise<CallIceServersResult | null> {
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        return await this.requestIce(session);
+      } catch (error) {
+        const delay = ICE_RETRY_DELAYS_MS[attempt];
+        if (!(error instanceof Error) || error.message !== 'call.invalidState' || delay === undefined) {
+          throw error;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+        if (this.session !== session) {
+          return null;
+        }
+      }
+    }
+  }
+
   private async createPeer(session: Session): Promise<void> {
     let result: CallIceServersResult | null = null;
+    await this.waitForAcceptConfirmation(session);
+    if (this.session !== session) {
+      return;
+    }
     try {
-      result = await this.requestIce(session);
+      result = await this.requestIceWithRetry(session);
     } catch (error) {
       const code = error instanceof Error ? error.message : 'call.error';
+      if (code === 'call.invalidState') {
+        this.update({ notice: { kind: 'server-error', code } });
+        this.machine.dispatch({ type: 'failure', callId: session.callId, detail: code });
+        return;
+      }
       if (session.protectIp || code === 'call.relayUnavailable') {
         this.update({ notice: { kind: 'relay-unavailable', code } });
         this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'relay-unavailable' });
@@ -997,6 +1072,7 @@ export class CallController {
       pending.resolve(null);
     }
     if (session) {
+      this.confirmAccept(session);
       session.peerSession?.close();
       session.channel?.dispose();
       if (session.ownEk) {

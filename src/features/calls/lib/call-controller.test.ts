@@ -205,6 +205,7 @@ async function world(overrides: { alice?: Partial<CallControllerDeps>; bob?: Par
       to.socket.receive('call:incoming', { callId: payload.callId, roomId: payload.roomId, kind: payload.kind, callerId: fromId, envelope: payload.envelope, ringExpiresAt: 1 });
     } else if (event === 'call:accept') {
       to.socket.receive('call:accepted', { callId: payload.callId, envelope: payload.envelope, deviceId: 'server-device' });
+      from.socket.receive('call:accepted', { callId: payload.callId, envelope: payload.envelope, deviceId: 'server-device' });
     } else if (event === 'call:signal') {
       to.socket.receive('call:signal', { callId: payload.callId, from: fromId, envelope: payload.envelope });
     } else if (event === 'call:ice-servers') {
@@ -414,6 +415,7 @@ describe('full call between two controllers', () => {
     w.b.socket.onEmit = (event, payload) => {
       if (event === 'call:accept') {
         w.a.socket.receive('call:accepted', { callId: payload.callId, envelope: payload.envelope, deviceId: 'd' });
+        w.b.socket.receive('call:accepted', { callId: payload.callId, envelope: payload.envelope, deviceId: 'd' });
       }
     };
     void w.b.controller.accept();
@@ -568,7 +570,19 @@ describe('incoming call gates', () => {
 
     expect(w.b.controller.getSnapshot().state.phase).toBe('idle');
     expect(resolve).not.toHaveBeenCalled();
-  });
+  }, 15000);
+
+  it('waits briefly for the room of a first-contact call to reach the local list before deciding', async () => {
+    let known = false;
+    const w = await world({ bob: { isPrivateRoomWith: () => known } });
+    setTimeout(() => {
+      known = true;
+    }, 250);
+
+    await incomingEnvelope(w);
+
+    await vi.waitFor(() => expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing'), { timeout: 5000 });
+  }, 15000);
 
   it('drops an invite when the caller key changed', async () => {
     const w = await world({ bobResolve: () => Promise.resolve({ error: 'key-changed' }) });
@@ -854,6 +868,78 @@ describe('server events', () => {
 
     expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed' });
     expect(sanitizeEndReason('declined')).toBe('declined');
+  });
+
+  it('makes the callee wait for the accepted event before asking for ice servers', async () => {
+    const w = await world();
+    const held: Array<() => void> = [];
+    const route = w.b.socket.onEmit!;
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:accept') {
+        held.push(() => route(event, payload));
+        return;
+      }
+      route(event, payload);
+    };
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+
+    void w.b.controller.accept();
+    await settle();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(w.b.socket.sent('call:accept')).toHaveLength(1);
+    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(0);
+    expect(w.b.peers).toHaveLength(0);
+
+    held.forEach((release) => release());
+    await settle();
+
+    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(1);
+    expect(w.b.peers).toHaveLength(1);
+  });
+
+  it('retries ice servers with backoff on call.invalidState before giving up', async () => {
+    const w = await world();
+    const route = w.b.socket.onEmit!;
+    let rejections = 2;
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:ice-servers' && rejections > 0) {
+        rejections -= 1;
+        w.b.socket.receive('error', { message: 'x', code: 'call.invalidState', event: 'call:ice-servers' });
+        return;
+      }
+      route(event, payload);
+    };
+    await connectCall(w);
+    await vi.advanceTimersByTimeAsync(300);
+    await settle();
+    await vi.advanceTimersByTimeAsync(600);
+    await settle();
+
+    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(3);
+    expect(w.b.peers).toHaveLength(1);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
+  it('fails the call after three ice retries on call.invalidState', async () => {
+    const w = await world();
+    const route = w.b.socket.onEmit!;
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:ice-servers') {
+        w.b.socket.receive('error', { message: 'x', code: 'call.invalidState', event: 'call:ice-servers' });
+        return;
+      }
+      route(event, payload);
+    };
+    await connectCall(w);
+    for (const delay of [300, 600, 1200]) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await settle();
+    }
+
+    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(4);
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed', detail: 'call.invalidState' });
   });
 
   it('removes its socket listeners when disposed', async () => {
