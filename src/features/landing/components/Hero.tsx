@@ -41,7 +41,7 @@ export function Hero({ wallpaper }: HeroProps) {
             <a className="sc-btn sc-btn--header lp-hero__cta" href="#temas">
               {t('hero.tryThemes')}
             </a>
-            <a className="sc-btn sc-btn--header lp-hero__cta lp-hero__install" href={APP_INSTALL_URL}>
+            <a className="sc-btn sc-btn--header sc-btn--lift lp-hero__cta lp-hero__install" href={APP_INSTALL_URL}>
               <FaDownload size={14} aria-hidden="true" /> {t('hero.install')}
             </a>
           </div>

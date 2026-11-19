@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 
-interface PwaPromptCardProps {
+export interface PwaPromptCardProps {
   icon: ReactNode;
   title: string;
   text: string;
@@ -29,7 +29,6 @@ export function PwaPromptCard({ icon, title, text, primaryLabel, onPrimary, seco
         alignItems: 'flex-start',
         borderRadius: '14px',
         padding: '14px 14px 14px 14px',
-        marginBottom: '10px',
         background: theme.surfaceElevated,
         border: `1px solid ${theme.borderSubtle}`,
         boxShadow: theme.shadowSm,

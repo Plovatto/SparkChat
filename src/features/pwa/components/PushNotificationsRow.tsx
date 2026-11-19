@@ -7,6 +7,7 @@ import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { usePushNotifications, type PushStatus } from '../hooks/usePushNotifications';
 import { openInstallSheet } from '../lib/install-state';
+import '../styles/pwa.css';
 
 const HINT_KEYS = {
   blocked: 'pwa.push.blocked',
@@ -40,7 +41,9 @@ export function PushNotificationsRow() {
     <div className="sc-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderRadius: '10px', padding: '16px', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minHeight: '26px' }}>
         <span aria-hidden="true" style={{ width: '20px', display: 'inline-flex', justifyContent: 'center', flexShrink: 0 }}>
-          {isOn ? <FaBell size={16} color={theme.accentText} /> : <FaBellSlash size={16} color={theme.textMuted} />}
+          <span key={isOn ? 'on' : 'off'} className="pwa-push-icon">
+            {isOn ? <FaBell size={16} color={theme.accentText} /> : <FaBellSlash size={16} color={theme.textMuted} />}
+          </span>
         </span>
         <span style={{ flex: 1, minWidth: 0 }}>
           <span id={labelId} style={{ display: 'block', fontWeight: 600, color: theme.textPrimary, fontSize: '0.92rem', lineHeight: 1.35, overflowWrap: 'anywhere' }}>
@@ -56,7 +59,7 @@ export function PushNotificationsRow() {
         </span>
       </div>
       {hintKey && (
-        <div className={`sc-notice ${status === 'blocked' ? 'sc-notice--danger' : 'sc-notice--info'}`} role="note" style={{ flexWrap: 'wrap' }}>
+        <div key={status} className={`sc-notice pwa-push-notice ${status === 'blocked' ? 'sc-notice--danger' : 'sc-notice--info'}`} role="note" style={{ flexWrap: 'wrap' }}>
           <span style={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere' }}>{t(hintKey)}</span>
           {status === 'ios-needs-install' && (
             <button type="button" onClick={openInstallSheet} className="sc-btn sc-btn--text" style={{ padding: '4px 0', fontSize: '0.8rem' }}>
@@ -66,7 +69,7 @@ export function PushNotificationsRow() {
         </div>
       )}
       {error && (
-        <div className="sc-notice sc-notice--danger" role="alert">
+        <div className="sc-notice sc-notice--danger pwa-push-notice" role="alert">
           {translateErrorPayload({ code: serverError?.code, params: serverError?.params }, 'pwa.push.error')}
         </div>
       )}

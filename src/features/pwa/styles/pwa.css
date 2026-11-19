@@ -1,0 +1,94 @@
+.pwa-card-shell {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-bottom: 10px;
+  transition:
+    grid-template-rows var(--sc-dur-normal) var(--sc-ease-exit),
+    margin-bottom var(--sc-dur-normal) var(--sc-ease-exit),
+    opacity var(--sc-dur-fast) var(--sc-ease-exit),
+    transform var(--sc-dur-fast) var(--sc-ease-exit);
+}
+
+.pwa-card-shell__inner {
+  min-height: 0;
+}
+
+.pwa-card-shell.is-exiting .pwa-card-shell__inner {
+  overflow: hidden;
+}
+
+.pwa-card-shell.is-exiting {
+  grid-template-rows: 0fr;
+  margin-bottom: 0;
+  opacity: 0;
+  transform: translate3d(0, -6px, 0) scale(0.98);
+  pointer-events: none;
+}
+
+.pwa-toast-shell {
+  animation: pwaToastIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
+.pwa-toast-shell.is-exiting {
+  animation: pwaToastOut var(--sc-dur-fast) var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.pwa-install-btn {
+  animation: scAttention 1.1s var(--sc-ease-standard) 600ms backwards;
+}
+
+.pwa-push-icon {
+  display: inline-flex;
+  animation: scPopIn var(--sc-dur-normal) var(--sc-ease-spring) backwards;
+}
+
+.pwa-push-notice {
+  animation: scRiseIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
+@keyframes pwaToastIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes pwaToastOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-toast-shell,
+  .pwa-push-icon,
+  .pwa-push-notice {
+    animation: scFadeIn var(--sc-dur-instant) linear backwards;
+  }
+
+  .pwa-card-shell {
+    transition: opacity var(--sc-dur-instant) linear;
+  }
+
+  .pwa-card-shell.is-exiting {
+    transform: none;
+  }
+
+  .pwa-toast-shell.is-exiting {
+    animation: scFadeOut var(--sc-dur-instant) linear forwards;
+  }
+
+  .pwa-install-btn {
+    animation: none;
+  }
+}

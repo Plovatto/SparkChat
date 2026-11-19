@@ -1,15 +1,18 @@
 import { useTranslation } from 'react-i18next';
 import { FaSyncAlt } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
+import { PWA_TOAST_EXIT_MS, useRetainedPresence } from '../hooks/useRetainedPresence';
 import { useUpdateAvailable } from '../hooks/useUpdateAvailable';
+import '../styles/pwa.css';
 import { dismissUpdate } from '../lib/sw-registration';
 
 export function UpdateToast() {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const updateAvailable = useUpdateAvailable();
+  const presence = useRetainedPresence(updateAvailable ? true : null, PWA_TOAST_EXIT_MS);
 
-  if (!updateAvailable) {
+  if (!presence.isPresent) {
     return null;
   }
 
@@ -29,7 +32,7 @@ export function UpdateToast() {
       <div
         role="status"
         aria-live="polite"
-        className="sc-anim-rise-in pwa-update-toast"
+        className={`pwa-toast-shell pwa-update-toast${presence.isExiting ? ' is-exiting' : ''}`}
         style={{
           pointerEvents: 'auto',
           maxWidth: '100%',

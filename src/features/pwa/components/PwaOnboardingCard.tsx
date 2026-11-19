@@ -12,7 +12,9 @@ import {
   snoozeNotificationsPrompt,
 } from '../lib/onboarding';
 import { isNotificationSupported, isPushSupported } from '../lib/push-subscription';
-import { PwaPromptCard } from './PwaPromptCard';
+import { PwaPromptCard, type PwaPromptCardProps } from './PwaPromptCard';
+import { PWA_CARD_EXIT_MS, useRetainedPresence } from '../hooks/useRetainedPresence';
+import '../styles/pwa.css';
 
 interface PwaOnboardingCardProps {
   onNotificationsGranted: () => void;
@@ -52,51 +54,59 @@ export function PwaOnboardingCard({ onNotificationsGranted }: PwaOnboardingCardP
     }
   }, [prompt]);
 
+  let card: (PwaPromptCardProps & { kind: 'notifications' | 'install' }) | null = null;
   if (prompt === 'notifications') {
-    const handleEnable = () => {
-      const request = isPushSupported() ? push.enable() : Notification.requestPermission();
-      void request.then((permission) => {
-        if (permission === 'granted') {
-          onNotificationsGranted();
-        }
-        if (permission !== 'default') {
-          setNotificationsHandled(true);
-        }
-      });
+    card = {
+      kind: 'notifications',
+      icon: <FaBell size={16} />,
+      title: t('pwa.card.notificationsTitle'),
+      text: t('pwa.card.notificationsText'),
+      primaryLabel: t('pwa.card.enable'),
+      onPrimary: () => {
+        const request = isPushSupported() ? push.enable() : Notification.requestPermission();
+        void request.then((permission) => {
+          if (permission === 'granted') {
+            onNotificationsGranted();
+          }
+          if (permission !== 'default') {
+            setNotificationsHandled(true);
+          }
+        });
+      },
+      secondaryLabel: t('pwa.notNow'),
+      onSecondary: () => {
+        snoozeNotificationsPrompt();
+        setNotificationsHandled(true);
+      },
+      busy: push.busy,
     };
-    return (
-      <PwaPromptCard
-        icon={<FaBell size={16} />}
-        title={t('pwa.card.notificationsTitle')}
-        text={t('pwa.card.notificationsText')}
-        primaryLabel={t('pwa.card.enable')}
-        onPrimary={handleEnable}
-        secondaryLabel={t('pwa.notNow')}
-        onSecondary={() => {
-          snoozeNotificationsPrompt();
-          setNotificationsHandled(true);
-        }}
-        busy={push.busy}
-      />
-    );
+  } else if (prompt === 'install') {
+    card = {
+      kind: 'install',
+      icon: <FaDownload size={15} />,
+      title: t('pwa.card.installTitle'),
+      text: t('pwa.card.installText'),
+      primaryLabel: install.isIos ? t('pwa.card.iosInstallAction') : t('pwa.install'),
+      onPrimary: () => void requestInstall(),
+      secondaryLabel: t('pwa.notNow'),
+      onSecondary: () => {
+        dismissInstallCard();
+        setHidden(true);
+      },
+    };
   }
 
-  if (prompt === 'install') {
-    return (
-      <PwaPromptCard
-        icon={<FaDownload size={15} />}
-        title={t('pwa.card.installTitle')}
-        text={t('pwa.card.installText')}
-        primaryLabel={install.isIos ? t('pwa.card.iosInstallAction') : t('pwa.install')}
-        onPrimary={() => void requestInstall()}
-        secondaryLabel={t('pwa.notNow')}
-        onSecondary={() => {
-          dismissInstallCard();
-          setHidden(true);
-        }}
-      />
-    );
+  const presence = useRetainedPresence(card, PWA_CARD_EXIT_MS);
+  if (!presence.isPresent || !presence.value) {
+    return null;
   }
+  const { kind, ...cardProps } = presence.value;
 
-  return null;
+  return (
+    <div className={`pwa-card-shell${presence.isExiting ? ' is-exiting' : ''}`} aria-hidden={presence.isExiting || undefined}>
+      <div className="pwa-card-shell__inner">
+        <PwaPromptCard key={kind} {...cardProps} />
+      </div>
+    </div>
+  );
 }
