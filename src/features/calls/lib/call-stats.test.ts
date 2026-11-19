@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STABLE, STATS_INTERVAL_MS, nextInstability, qualityBars, readQuality, type InstabilityState } from './call-stats';
+import { RELAY_UNKNOWN, STABLE, STATS_INTERVAL_MS, nextInstability, nextRelay, qualityBars, qualityTone, readQuality, selectedPairRelayed, type InstabilityState } from './call-stats';
 
 function report(entries: Array<Record<string, unknown>>): RTCStatsReport {
   return new Map(entries.map((entry, index) => [String(index), entry]));
@@ -100,5 +100,77 @@ describe('instability detector', () => {
   it('recovers only after 4 seconds of low loss', () => {
     expect(run([0.1, 0.1, 0.01, 0.01, 0.1])).toEqual([false, true, true, false, false]);
     expect(run([0.1, 0.1, 0.01, 0.2, 0.01])).toEqual([false, true, true, true, true]);
+  });
+});
+
+function statsMap(entries: Record<string, Record<string, unknown>>): RTCStatsReport {
+  return new Map(Object.entries(entries));
+}
+
+describe('selectedPairRelayed', () => {
+  const candidates = {
+    lh: { type: 'local-candidate', candidateType: 'host' },
+    lr: { type: 'local-candidate', candidateType: 'relay' },
+    rh: { type: 'remote-candidate', candidateType: 'srflx' },
+    rr: { type: 'remote-candidate', candidateType: 'relay' },
+  };
+
+  it('follows the transport selected candidate pair', () => {
+    const report = statsMap({
+      ...candidates,
+      t: { type: 'transport', selectedCandidatePairId: 'p2' },
+      p1: { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'lh', remoteCandidateId: 'rh' },
+      p2: { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'lr', remoteCandidateId: 'rh' },
+    });
+    expect(selectedPairRelayed(report)).toBe(true);
+  });
+
+  it('treats a relayed remote side as relayed too', () => {
+    const report = statsMap({ ...candidates, t: { type: 'transport', selectedCandidatePairId: 'p' }, p: { type: 'candidate-pair', localCandidateId: 'lh', remoteCandidateId: 'rr' } });
+    expect(selectedPairRelayed(report)).toBe(true);
+  });
+
+  it('falls back to the nominated succeeded pair without a transport entry', () => {
+    const direct = statsMap({ ...candidates, p: { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'lh', remoteCandidateId: 'rh' } });
+    expect(selectedPairRelayed(direct)).toBe(false);
+    const waiting = statsMap({ ...candidates, p: { type: 'candidate-pair', nominated: true, state: 'in-progress', localCandidateId: 'lr', remoteCandidateId: 'rh' } });
+    expect(selectedPairRelayed(waiting)).toBeNull();
+  });
+
+  it('returns null when the pair or its candidates are missing', () => {
+    expect(selectedPairRelayed(statsMap({}))).toBeNull();
+    expect(selectedPairRelayed(statsMap({ t: { type: 'transport', selectedCandidatePairId: 'gone' } }))).toBeNull();
+    expect(selectedPairRelayed(statsMap({ p: { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'x', remoteCandidateId: 'y' } }))).toBeNull();
+  });
+});
+
+describe('relay hysteresis', () => {
+  it('decides immediately the first time, then needs two equal readings to switch', () => {
+    let state = nextRelay(RELAY_UNKNOWN, true);
+    expect(state.relayed).toBe(true);
+    state = nextRelay(state, false);
+    expect(state.relayed).toBe(true);
+    state = nextRelay(state, false);
+    expect(state.relayed).toBe(false);
+  });
+
+  it('ignores a single different or missing sample', () => {
+    let state = nextRelay(RELAY_UNKNOWN, false);
+    state = nextRelay(state, true);
+    state = nextRelay(state, false);
+    state = nextRelay(state, null);
+    state = nextRelay(state, true);
+    expect(state.relayed).toBe(false);
+    expect(nextRelay(RELAY_UNKNOWN, null)).toBe(RELAY_UNKNOWN);
+  });
+});
+
+describe('qualityTone', () => {
+  it('keeps the poor and fair colors and shows relay only when quality is good', () => {
+    expect(qualityTone(1, true)).toBe('poor');
+    expect(qualityTone(2, false)).toBe('fair');
+    expect(qualityTone(3, true)).toBe('relay');
+    expect(qualityTone(3, false)).toBe('good');
+    expect(qualityTone(3, null)).toBe('good');
   });
 });

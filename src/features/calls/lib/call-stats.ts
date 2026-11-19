@@ -84,3 +84,63 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
   const lossRatio = total > 0 ? lostDelta / total : 0;
   return { bars: qualityBars(Math.max(lossRatio, outboundLoss), rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs, outboundLoss };
 }
+
+export function selectedPairRelayed(report: RTCStatsReport): boolean | null {
+  let pair: Record<string, unknown> | undefined;
+  report.forEach((entry: Record<string, unknown>) => {
+    if (!pair && entry.type === 'transport' && typeof entry.selectedCandidatePairId === 'string') {
+      pair = report.get(entry.selectedCandidatePairId) as Record<string, unknown> | undefined;
+    }
+  });
+  if (!pair) {
+    report.forEach((entry: Record<string, unknown>) => {
+      if (entry.type === 'candidate-pair' && entry.nominated === true && entry.state === 'succeeded' && (!pair || entry.selected === true)) {
+        pair = entry;
+      }
+    });
+  }
+  if (!pair) {
+    return null;
+  }
+  const local = report.get(String(pair.localCandidateId)) as Record<string, unknown> | undefined;
+  const remote = report.get(String(pair.remoteCandidateId)) as Record<string, unknown> | undefined;
+  if (!local && !remote) {
+    return null;
+  }
+  return local?.candidateType === 'relay' || remote?.candidateType === 'relay';
+}
+
+export interface RelayState {
+  relayed: boolean | null;
+  pending: boolean | null;
+}
+
+export const RELAY_UNKNOWN: RelayState = { relayed: null, pending: null };
+
+export function nextRelay(state: RelayState, reading: boolean | null): RelayState {
+  if (reading === null) {
+    return state;
+  }
+  if (state.relayed === null) {
+    return { relayed: reading, pending: null };
+  }
+  if (reading === state.relayed) {
+    return state.pending === null ? state : { relayed: state.relayed, pending: null };
+  }
+  if (state.pending === reading) {
+    return { relayed: reading, pending: null };
+  }
+  return { relayed: state.relayed, pending: reading };
+}
+
+export type QualityTone = 'good' | 'relay' | 'fair' | 'poor';
+
+export function qualityTone(bars: QualityBars, relayed: boolean | null): QualityTone {
+  if (bars === 1) {
+    return 'poor';
+  }
+  if (bars === 2) {
+    return 'fair';
+  }
+  return relayed === true ? 'relay' : 'good';
+}

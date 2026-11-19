@@ -1280,3 +1280,33 @@ describe('screen share info and volume', () => {
     expect(w.a.controller.getSnapshot()).toMatchObject({ remoteScreenOn: false, remoteScreenSurface: null, remoteScreenLabel: null });
   });
 });
+
+describe('relay indicator', () => {
+  it('exposes whether the call goes through TURN and resets it when the call ends', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const relayedStats = new Map<string, Record<string, unknown>>([
+      ['t', { type: 'transport', selectedCandidatePairId: 'p' }],
+      ['p', { type: 'candidate-pair', localCandidateId: 'l', remoteCandidateId: 'r' }],
+      ['l', { type: 'local-candidate', candidateType: 'relay' }],
+      ['r', { type: 'remote-candidate', candidateType: 'host' }],
+    ]);
+    expect(w.a.controller.getSnapshot().relayed).toBeNull();
+
+    peer.statsReport = relayedStats;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().relayed).toBe(true);
+
+    relayedStats.set('l', { type: 'local-candidate', candidateType: 'host' });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().relayed).toBe(true);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().relayed).toBe(false);
+
+    w.a.controller.hangup();
+    await settle();
+    expect(w.a.controller.getSnapshot().relayed).toBeNull();
+  });
+});

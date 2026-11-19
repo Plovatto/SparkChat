@@ -27,7 +27,7 @@ import {
   type CallMachine,
   type CallState,
 } from '../state/call-machine';
-import { nextInstability, readQuality, STABLE, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
+import { nextInstability, nextRelay, readQuality, RELAY_UNKNOWN, selectedPairRelayed, STABLE, type RelayState, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
 import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, ScreenInfo } from './peer-session';
 import type { ShareAudio } from './share-audio';
@@ -80,6 +80,7 @@ export interface CallSnapshot {
   shareVolume: number;
   unstable: boolean;
   quality: QualityBars | null;
+  relayed: boolean | null;
   degrade: DegradeStep | null;
   notice: CallNotice | null;
   otherTab: TabCallInfo | null;
@@ -173,6 +174,7 @@ interface Session {
   acceptConfirmed: boolean;
   acceptWaiters: Array<() => void>;
   statsSample: QualitySample | null;
+  relay: RelayState;
   screen: MediaStream | null;
   screenPending: boolean;
   shareAudio: ShareAudio | null;
@@ -237,6 +239,7 @@ export function initialSnapshot(): CallSnapshot {
     shareVolume: 1,
     unstable: false,
     quality: null,
+    relayed: null,
     degrade: null,
     notice: null,
     otherTab: null,
@@ -388,6 +391,7 @@ export class CallController {
         acceptConfirmed: false,
         acceptWaiters: [],
         statsSample: null,
+        relay: RELAY_UNKNOWN,
         screen: null,
         screenPending: false,
         shareAudio: null,
@@ -478,6 +482,7 @@ export class CallController {
         acceptConfirmed: false,
         acceptWaiters: [],
         statsSample: null,
+        relay: RELAY_UNKNOWN,
         screen: null,
         screenPending: false,
         shareAudio: null,
@@ -1207,13 +1212,14 @@ export class CallController {
         .then((report) => {
           const reading = readQuality(report, session.statsSample);
           session.statsSample = reading.sample;
+          session.relay = nextRelay(session.relay, selectedPairRelayed(report));
           if (this.session !== session) {
             return;
           }
           const wasUnstable = session.instability.unstable;
           session.instability = nextInstability(session.instability, Math.max(reading.lossRatio, reading.outboundLoss), this.deps.now());
           const unstable = session.instability.unstable;
-          this.update({ quality: reading.bars, unstable });
+          this.update({ quality: reading.bars, unstable, relayed: session.relay.relayed });
           if (unstable !== wasUnstable) {
             void peer.setNetworkUnstable(unstable);
           }
@@ -1253,6 +1259,7 @@ export class CallController {
         shareAudio: false,
         unstable: false,
         quality: null,
+        relayed: null,
         degrade: null,
         localStream: null,
         remoteStream: null,
@@ -1302,7 +1309,7 @@ export class CallController {
       this.deps.tabs.announceReleased(session.callId);
     }
     this.deps.tabs.releaseCall();
-    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, shareAudio: false, unstable: false });
+    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, shareAudio: false, unstable: false, relayed: null });
   }
 
   dismissEnded(): void {
