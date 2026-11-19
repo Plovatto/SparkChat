@@ -991,3 +991,5 @@ export class CallController {
     this.listeners.clear();
   }
 }
+
+export const EMPTY_CALL_SNAPSHOT: CallSnapshot = initialSnapshot();

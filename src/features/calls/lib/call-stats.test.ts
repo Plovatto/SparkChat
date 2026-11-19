@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { qualityBars, readQuality } from './call-stats';
 
 function report(entries: Array<Record<string, unknown>>): RTCStatsReport {
-  return new Map(entries.map((entry, index) => [String(index), entry])) as unknown as RTCStatsReport;
+  return new Map(entries.map((entry, index) => [String(index), entry]));
 }
 
 describe('qualityBars', () => {

@@ -22,7 +22,7 @@ describe('acquireLocalMedia', () => {
     const media = await acquireLocalMedia('voice', {}, getUserMedia, false);
 
     expect(media.cameraFailed).toBe(false);
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: expect.any(Object), video: false });
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: expect.any(Object) as unknown, video: false });
   });
 
   it('captures audio and video for video calls', async () => {
@@ -32,7 +32,7 @@ describe('acquireLocalMedia', () => {
 
     expect(media.cameraFailed).toBe(false);
     expect(getUserMedia).toHaveBeenCalledTimes(1);
-    expect(getUserMedia.mock.calls[0]?.[0].video).toMatchObject({ width: { ideal: 1280 } });
+    expect((getUserMedia.mock.calls[0]?.[0] as { video: unknown }).video).toMatchObject({ width: { ideal: 1280 } });
   });
 
   it('falls back to audio when the camera fails', async () => {
@@ -41,7 +41,7 @@ describe('acquireLocalMedia', () => {
     const media = await acquireLocalMedia('video', {}, getUserMedia, false);
 
     expect(media.cameraFailed).toBe(true);
-    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: expect.any(Object), video: false });
+    expect(getUserMedia).toHaveBeenLastCalledWith({ audio: expect.any(Object) as unknown, video: false });
   });
 
   it('fails when the microphone is unavailable', async () => {

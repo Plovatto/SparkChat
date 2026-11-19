@@ -162,7 +162,7 @@ class FakeConnection {
   }
 
   getStats(): Promise<Map<string, Record<string, unknown>>> {
-    return Promise.resolve(new Map());
+    return Promise.resolve(new Map<string, Record<string, unknown>>());
   }
 
   close(): void {
@@ -320,7 +320,7 @@ describe('caller negotiation', () => {
     expect(h.connection.added).toHaveLength(3);
   });
 
-  it('forwards local candidates and the end marker', async () => {
+  it('forwards local candidates and the end marker', () => {
     const h = build('caller');
     h.session.start();
     h.connection.onicecandidate?.({ candidate: { candidate: HOST, sdpMid: '0', sdpMLineIndex: 0, usernameFragment: 'f' } });
