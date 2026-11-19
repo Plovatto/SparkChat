@@ -7,6 +7,7 @@ import {
   CONTROL_CHANNEL_LABEL,
   CREDENTIAL_REFRESH_MS,
   DISCONNECTED_RESTART_DELAY_MS,
+  DTLS_VERIFY_TIMEOUT_MS,
   MAX_REMOTE_CANDIDATES,
   PeerSession,
   VIDEO_DEGRADED_MAX_BITRATE,
@@ -135,8 +136,10 @@ class FakeConnection {
     getRemoteCertificates: (): ArrayBuffer[] => this.remoteCertificates,
   };
 
+  hasTransport = true;
+
   getReceivers() {
-    return [{ transport: this.transport }];
+    return this.hasTransport ? [{ transport: this.transport }] : [];
   }
 
   setDtls(state: string): void {
@@ -196,6 +199,7 @@ interface Harness {
   statuses: string[];
   controls: ControlMessage[];
   degrades: Array<DegradeStep | null>;
+  streams: MediaStream[];
 }
 
 const TURN_SERVERS = [{ urls: ['stun:stun.example:3478', 'turn:turn.example:3478?transport=udp'], username: 'u', credential: 'c' }];
@@ -211,7 +215,7 @@ function localStream(kinds: string[]) {
 
 function build(role: CallRole, overrides: Partial<PeerSessionOptions> = {}, hashed = REMOTE_FP): Harness {
   let connection!: FakeConnection;
-  const harness = { signals: [], fatals: [], statuses: [], controls: [], degrades: [] } as unknown as Harness;
+  const harness = { signals: [], fatals: [], statuses: [], controls: [], degrades: [], streams: [] } as unknown as Harness;
   const session = new PeerSession({
     role,
     kind: 'video',
@@ -222,7 +226,7 @@ function build(role: CallRole, overrides: Partial<PeerSessionOptions> = {}, hash
     sendSignal: (type, payload) => harness.signals.push({ type, payload }),
     onConnection: (status) => harness.statuses.push(status),
     onFatal: (detail) => harness.fatals.push(detail),
-    onRemoteStream: () => undefined,
+    onRemoteStream: (stream) => harness.streams.push(stream),
     onControl: (message) => harness.controls.push(message),
     onDegrade: (step) => harness.degrades.push(step),
     deps: {
@@ -607,6 +611,91 @@ describe('dtls fingerprint check', () => {
     await settle();
 
     expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+});
+
+describe('dtls fail closed', () => {
+  async function negotiated(hashed = REMOTE_FP) {
+    const h = build('caller', {}, hashed);
+    h.session.start();
+    await settle();
+    await h.session.receiveSignal('answer', remoteDescription('answer'));
+    return h;
+  }
+
+  it('fails when no signaled fingerprints are known once the remote description exists', async () => {
+    const h = await negotiated();
+    (h.session as unknown as { remoteFingerprints: string[] }).remoteFingerprints = [];
+
+    h.connection.setIce('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
+  it('fails when ICE connects and no dtls transport can be located', async () => {
+    const h = await negotiated();
+    h.connection.hasTransport = false;
+
+    h.connection.setIce('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
+  it('fails when the dtls transport is not verified within 10 seconds of ICE connecting', async () => {
+    const h = await negotiated();
+    h.connection.setIce('connected');
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS - 1);
+    expect(h.fatals).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
+  it('clears the watchdog after a successful verification and on close', async () => {
+    const h = await negotiated();
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS * 2);
+    expect(h.fatals).toEqual([]);
+
+    const other = await negotiated();
+    other.connection.setIce('connected');
+    other.session.close();
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS * 2);
+    expect(other.fatals).toEqual([]);
+  });
+
+  it('holds remote media back until the certificate is verified, then delivers it once', async () => {
+    const h = await negotiated();
+    const stream = { id: 'remote' } as unknown as MediaStream;
+
+    h.connection.ontrack?.({ streams: [stream], track: {} });
+    h.connection.setIce('connected');
+    await settle();
+    expect(h.streams).toEqual([]);
+
+    h.connection.setDtls('connected');
+    await settle();
+    expect(h.streams).toEqual([stream]);
+
+    h.connection.ontrack?.({ streams: [stream], track: {} });
+    expect(h.streams).toEqual([stream, stream]);
+  });
+
+  it('never delivers remote media when verification fails', async () => {
+    const h = await negotiated('DD:DD:DD');
+    h.connection.ontrack?.({ streams: [{ id: 'remote' } as unknown as MediaStream], track: {} });
+
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+    expect(h.streams).toEqual([]);
   });
 });
 

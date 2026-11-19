@@ -15,6 +15,7 @@ export const AUDIO_MAX_BITRATE = 32_000;
 export const VIDEO_MAX_BITRATE = 1_500_000;
 export const VIDEO_DEGRADED_MAX_BITRATE = 600_000;
 export const MAX_REMOTE_CANDIDATES = 200;
+export const DTLS_VERIFY_TIMEOUT_MS = 10_000;
 const MAX_SDP_LENGTH = 14_000;
 const MAX_CANDIDATE_LENGTH = 2_048;
 const MAX_CONTROL_LENGTH = 256;
@@ -148,6 +149,9 @@ export class PeerSession {
   private connected = false;
   private dtlsChecked = false;
   private watchedTransport: RTCDtlsTransport | null = null;
+  private verified = false;
+  private pendingRemoteStream: MediaStream | null = null;
+  private dtlsTimer: ReturnType<typeof setTimeout> | null = null;
   private remoteFingerprints: string[] = [];
   private lastRestartAt = -Infinity;
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -371,12 +375,20 @@ export class PeerSession {
   private handleTrack(event: RTCTrackEvent): void {
     const stream = event.streams[0];
     if (stream) {
-      this.options.onRemoteStream(stream);
+      this.exposeRemoteStream(stream);
       return;
     }
     this.fallbackStream ??= this.deps.createStream();
     this.fallbackStream.addTrack(event.track);
-    this.options.onRemoteStream(this.fallbackStream);
+    this.exposeRemoteStream(this.fallbackStream);
+  }
+
+  private exposeRemoteStream(stream: MediaStream): void {
+    if (this.verified) {
+      this.options.onRemoteStream(stream);
+      return;
+    }
+    this.pendingRemoteStream = stream;
   }
 
   private handleIceState(): void {
@@ -393,6 +405,14 @@ export class PeerSession {
         this.connectTimer = null;
       }
       this.options.onConnection('connected');
+      if (first && !this.verified && this.dtlsTimer === null) {
+        this.dtlsTimer = setTimeout(() => {
+          this.dtlsTimer = null;
+          if (!this.verified) {
+            this.fatal('fingerprint-mismatch');
+          }
+        }, DTLS_VERIFY_TIMEOUT_MS);
+      }
       if (first || !this.dtlsChecked) {
         this.verifyDtls();
       }
@@ -459,11 +479,20 @@ export class PeerSession {
   }
 
   private verifyDtls(): void {
-    if (this.dtlsChecked || this.closed || !this.connection.remoteDescription || this.remoteFingerprints.length === 0) {
+    if (this.dtlsChecked || this.closed || !this.connection.remoteDescription) {
+      return;
+    }
+    if (this.remoteFingerprints.length === 0) {
+      this.dtlsChecked = true;
+      this.fatal('fingerprint-mismatch');
       return;
     }
     const transport = this.dtlsTransport();
     if (!transport) {
+      if (this.connected) {
+        this.dtlsChecked = true;
+        this.fatal('fingerprint-mismatch');
+      }
       return;
     }
     if (this.watchedTransport !== transport) {
@@ -489,9 +518,27 @@ export class PeerSession {
       const actual = await this.deps.hashCertificate(first);
       if (!expected.includes(`sha-256 ${actual.toUpperCase()}`)) {
         this.fatal('fingerprint-mismatch');
+        return;
       }
+      this.markVerified();
     } catch {
       this.fatal('fingerprint-mismatch');
+    }
+  }
+
+  private markVerified(): void {
+    if (this.closed) {
+      return;
+    }
+    this.verified = true;
+    if (this.dtlsTimer !== null) {
+      clearTimeout(this.dtlsTimer);
+      this.dtlsTimer = null;
+    }
+    const pending = this.pendingRemoteStream;
+    this.pendingRemoteStream = null;
+    if (pending) {
+      this.options.onRemoteStream(pending);
     }
   }
 
@@ -653,13 +700,15 @@ export class PeerSession {
     }
     this.closed = true;
     this.clearDisconnectTimer();
-    for (const timer of [this.connectTimer, this.refreshTimer]) {
+    for (const timer of [this.connectTimer, this.refreshTimer, this.dtlsTimer]) {
       if (timer !== null) {
         clearTimeout(timer);
       }
     }
     this.connectTimer = null;
     this.refreshTimer = null;
+    this.dtlsTimer = null;
+    this.pendingRemoteStream = null;
     this.pendingCandidates = [];
     this.connection.onicecandidate = null;
     this.connection.onnegotiationneeded = null;
