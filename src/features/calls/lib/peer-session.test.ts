@@ -622,6 +622,28 @@ describe('dtls fingerprint check', () => {
     expect(h.fatals).toEqual(['fingerprint-mismatch']);
   });
 
+  it('falls back to the authenticated remote description fingerprints when the browser cannot expose certificates', async () => {
+    const h = await negotiated();
+    (h.connection.transport as { getRemoteCertificates?: unknown }).getRemoteCertificates = undefined;
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.fatals).toEqual([]);
+    expect(h.statuses).toEqual(['connected']);
+  });
+
+  it('still fails closed without certificate support when the remote description does not carry the signaled fingerprint', async () => {
+    const h = await negotiated();
+    (h.connection.transport as { getRemoteCertificates?: unknown }).getRemoteCertificates = undefined;
+    h.connection.remoteDescription = { type: 'answer', sdp: ['v=0', 'a=fingerprint:sha-256 EE:EE:EE', ''].join(String.fromCharCode(13, 10)) };
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
   it('also verifies when the connection state becomes connected', async () => {
     const h = await negotiated('DD:DD:DD');
     h.connection.transport.state = 'connected';

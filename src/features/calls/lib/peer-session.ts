@@ -527,6 +527,15 @@ export class PeerSession {
 
   private async checkCertificate(transport: RTCDtlsTransport): Promise<void> {
     const expected = this.remoteFingerprints.filter((fingerprint) => fingerprint.startsWith('sha-256 '));
+    if (typeof transport.getRemoteCertificates !== 'function') {
+      const inRemote = extractSdpFingerprints(this.connection.remoteDescription?.sdp ?? '');
+      if (expected.length > 0 && expected.every((fingerprint) => inRemote.includes(fingerprint))) {
+        this.markVerified();
+      } else {
+        this.fatal('fingerprint-mismatch');
+      }
+      return;
+    }
     try {
       const certificates = transport.getRemoteCertificates();
       const first = certificates[0];
