@@ -504,6 +504,7 @@
     "lastUsed": "Último uso: {{date}}",
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username gera um novo arquivo de recuperação e encerra as outras sessões. Confirme com a sua senha atual.",
+    "nicknamePasswordHintV2": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
     "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
     "confirmRegenerate": "Gerar novo arquivo"
   },

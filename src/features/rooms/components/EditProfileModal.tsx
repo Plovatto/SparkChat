@@ -26,6 +26,7 @@ import { PasswordField, PasswordFieldHint } from '@features/auth/components/Pass
 import { AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
+import { resolveAuthParams } from '@features/auth/lib/auth-params';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
@@ -36,7 +37,7 @@ import { shareLinkNatively } from '@lib/share-link';
 import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import { useSocket, type AuthVersion, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
 import {
   buildChangePasswordRequest,
   buildRegenerateRecoveryRequest,
@@ -141,6 +142,7 @@ export function EditProfileModal({
   const pendingActionRef = useRef<PendingAction | null>(null);
   const pendingRecoverySecretRef = useRef<Uint8Array | null>(null);
   const [isDeriving, setIsDeriving] = useState(false);
+  const [authVersion, setAuthVersion] = useState<AuthVersion | null>(null);
   const isRevokingOwnSessionRef = useRef(false);
 
   useEffect(() => {
@@ -158,6 +160,7 @@ export function EditProfileModal({
       setIsConfirmingRegenerate(false);
       setRegeneratePassword('');
       setIsCurrentPasswordRequired(false);
+      setAuthVersion(null);
       socket?.emit('user:list-sessions');
     }
   }, [isOpen, user.nickname, user.avatar, socket]);
@@ -309,6 +312,23 @@ export function EditProfileModal({
   const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
   const isNicknameChanging = isNicknameChange(user.nickname, nickname);
   const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving;
+
+  useEffect(() => {
+    if (!isOpen || !isNicknameChanging || authVersion !== null) {
+      return;
+    }
+    let cancelled = false;
+    resolveAuthParams(user.id, user.nickname)
+      .then((params) => {
+        if (!cancelled) {
+          setAuthVersion(params.version);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isNicknameChanging, authVersion, user.id, user.nickname]);
 
   const credentialErrorMessage = (error: unknown): string =>
     error instanceof IdentityUnavailableError ? t('profile.identityUnavailable') : translateError(error, 'errors.generic');
@@ -547,7 +567,7 @@ export function EditProfileModal({
           {hasChanges && isNicknameChanging && (
             <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-                {t('profile.nicknamePasswordHint')}
+                {t(authVersion === 1 ? 'profile.nicknamePasswordHint' : 'profile.nicknamePasswordHintV2')}
               </InfoNotice>
               <PasswordField
                 value={profilePassword}

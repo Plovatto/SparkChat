@@ -504,6 +504,7 @@
     "lastUsed": "Last used: {{date}}",
     "revokeSession": "Sign out this session",
     "nicknamePasswordHint": "Changing your username issues a new recovery file and signs out your other sessions. Confirm with your current password.",
+    "nicknamePasswordHintV2": "Changing your username signs out your other sessions. Confirm with your current password.",
     "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
     "confirmRegenerate": "Generate new file"
   },
