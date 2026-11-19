@@ -104,6 +104,7 @@ export interface PeerSessionFactoryOptions {
 export type ResolvedPeer = { peer: PinnedPeer } | { error: 'key-changed' | 'unverifiable' };
 
 export interface CallSocket {
+  connected?: boolean;
   on: (event: string, handler: (...args: never[]) => void) => unknown;
   off: (event: string, handler: (...args: never[]) => void) => unknown;
   emit: (event: string, ...args: unknown[]) => unknown;
@@ -246,10 +247,16 @@ export class CallController {
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
+      ['connect', () => this.requestSync()],
+      ['user:resumed', () => this.requestSync()],
+      ['user:registered', () => this.requestSync()],
     ];
     for (const [event, handler] of handlers) {
       socket.on(event, handler);
       this.detach.push(() => socket.off(event, handler));
+    }
+    if (socket.connected) {
+      this.requestSync();
     }
     if (typeof window !== 'undefined') {
       const online = () => this.session?.peerSession?.restartIce();
@@ -258,11 +265,12 @@ export class CallController {
     }
   }
 
+  private requestSync(): void {
+    this.deps.socket.emit('call:sync', {});
+  }
+
   private onConfig(payload: CallConfigPayload): void {
     this.update({ enabled: payload.enabled === true, relayAvailable: payload.relayAvailable === true });
-    if (payload.enabled === true) {
-      this.deps.socket.emit('call:sync', {});
-    }
   }
 
   private async onIncoming(payload: {

@@ -18,6 +18,7 @@ import { createTabOwnership } from './tab-ownership';
 type Handler = (...args: unknown[]) => void;
 
 class FakeSocket implements CallSocket {
+  connected = false;
   readonly handlers = new Map<string, Set<Handler>>();
   readonly emitted: Array<{ event: string; payload: Record<string, unknown> }> = [];
   onEmit: ((event: string, payload: Record<string, unknown>) => void) | null = null;
@@ -122,7 +123,7 @@ interface Node {
 }
 
 function makeNode(self: Party, resolve: (userId: string) => Promise<ResolvedPeer>, overrides: Partial<CallControllerDeps> = {}): Node {
-  const socket = new FakeSocket();
+  const socket = (overrides.socket as FakeSocket | undefined) ?? new FakeSocket();
   const node = { socket, peers: [], stopped: 0, rings: [] } as unknown as Node;
   const deps: CallControllerDeps = {
     socket,
@@ -239,7 +240,35 @@ describe('availability', () => {
     expect(node.socket.sent('call:start')).toHaveLength(0);
     node.socket.receive('call:config', { enabled: true, relayAvailable: false });
     expect(node.controller.getSnapshot()).toMatchObject({ enabled: true, relayAvailable: false });
+    expect(node.socket.sent('call:sync')).toHaveLength(0);
+  });
+
+  it('syncs on creation, connect and auth so a controller created after config still becomes enabled', async () => {
+    const alice = await makeParty('alice');
+    const socket = new FakeSocket();
+    socket.connected = true;
+    socket.onEmit = (event) => {
+      if (event === 'call:sync') {
+        socket.receive('call:config', { enabled: true, relayAvailable: true });
+        socket.receive('call:state', null);
+      }
+    };
+    const node = makeNode(alice, () => Promise.resolve({ error: 'unverifiable' }), { socket });
+
     expect(node.socket.sent('call:sync')).toHaveLength(1);
+    expect(node.controller.getSnapshot()).toMatchObject({ enabled: true, relayAvailable: true });
+
+    socket.receive('connect', undefined);
+    socket.receive('user:resumed', {});
+    socket.receive('user:registered', {});
+    expect(socket.sent('call:sync')).toHaveLength(4);
+  });
+
+  it('does not sync on creation while the socket is not connected', async () => {
+    const alice = await makeParty('alice');
+    const node = makeNode(alice, () => Promise.resolve({ error: 'unverifiable' }));
+
+    expect(node.socket.sent('call:sync')).toHaveLength(0);
   });
 
   it('refuses protect-my-IP calls when relay is unavailable instead of exposing the IP', async () => {
