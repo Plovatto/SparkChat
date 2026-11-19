@@ -53,7 +53,11 @@
       "removeRequiresAdmin": "Only admins can remove members.",
       "cannotRemoveSelf": "Use the leave group option to remove yourself.",
       "notMember": "This user isn't a member of the group.",
-      "groupFull": "This group has reached its member limit."
+      "groupFull": "This group has reached its member limit.",
+      "inviteLinkRequired": "Groups can only be joined with an invite link.",
+      "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one.",
+      "inviteResetRequiresOwner": "Only the group owner can reset the invite link.",
+      "inviteKeyStale": "The group key changed while resetting the invite link. Please try again."
     },
     "message": {
       "notFound": "Message not found.",
@@ -122,7 +126,8 @@
       "invalidRoomKeyEnvelope": "The encryption key sent for this conversation is invalid.",
       "roomKeyStale": "The conversation encryption key changed. Updating to the current key.",
       "roomKeyIncomplete": "The new conversation key must include every member.",
-      "roomKeyConflict": "Another member already set the key for this conversation."
+      "roomKeyConflict": "Another member already set the key for this conversation.",
+      "inviteRequired": "A new group key must include an invite link."
     }
   },
   "systemEvents": {
@@ -248,8 +253,8 @@
     },
     "header": {
       "inviteText": "Join the group \"{{name}}\" on SparkChat!",
-      "copyCode": "Click to copy the code",
-      "shareInvite": "Share invite link",
+      "copyInvite": "Copy invite link",
+      "inviteUnavailable": "The invite link is not available yet.",
       "viewProfile": "View profile",
       "viewGroup": "View group info"
     },
@@ -419,12 +424,23 @@
     "promote": "Make admin",
     "remove": "Remove from group",
     "removeTitle": "Remove member",
-    "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite code.",
+    "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite link.",
     "leave": "Leave Group",
     "seen": "Seen {{time}}",
     "members_one": "{{count}} member",
     "members_other": "{{count}} members",
-    "membersTitle": "Members ({{count}})"
+    "membersTitle": "Members ({{count}})",
+    "inviteLink": "Invite link",
+    "inviteHelp": "Anyone with this link can join the group. Share it only with people you trust.",
+    "copyInvite": "Copy invite link",
+    "copied": "Copied!",
+    "inviteUnavailable": "The invite link is not available yet.",
+    "inviteCleared": "The invite link is unavailable until the group key changes.",
+    "resetInvite": "Reset invite link",
+    "resetInviteTitle": "Reset invite link?",
+    "resetInviteConfirm": "A new link will be created and the current one will stop working for anyone who has not joined yet.",
+    "inviteResetDone": "A new invite link was created.",
+    "inviteResetFailed": "Couldn't reset the invite link. Please try again."
   },
   "presence": {
     "online": "Online",
@@ -478,18 +494,12 @@
     "friendHelp": "Type the username to start a conversation",
     "starting": "Starting...",
     "start": "Start Chat",
-    "joinExisting": "Join an Existing Group",
-    "codePlaceholder": "Group code",
-    "codeHelp": "Type the group code to join",
-    "joining": "Joining...",
-    "join": "Join Group",
+    "joinWithLink": "To join an existing group, open the invite link a member shared with you.",
     "createNew": "Create New Group",
     "namePlaceholder": "Group name",
     "nameHelp": "Type a name for your new group",
     "creating": "Creating...",
     "create": "Create Group",
-    "or": "OR",
-    "invalidCode": "Invalid group code",
     "nameTooShort": "Group names must be at least {{minLength}} characters long",
     "enterUsername": "Type the username"
   },
@@ -552,7 +562,9 @@
     "connecting": "Connecting to the server...",
     "deepLink": {
       "joinTitle": "Join group?",
-      "joinMessage": "A link asked you to join the group with code {{code}}. Do you want to join?",
+      "joinMessage": "A link invited you to join a group. Do you want to join?",
+      "invalidInvite": "This invite link is invalid. Ask a member of the group for a new one.",
+      "inviteUnavailable": "Your encryption keys are not ready yet. Open the invite link again in a moment.",
       "chatTitle": "Start chat?",
       "chatMessage": "A link asked you to start a chat with {{nickname}}. Do you want to continue?",
       "notice": "Only confirm if you trust whoever sent you the link.",
