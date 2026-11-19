@@ -13,24 +13,34 @@ import type {
 } from '@lib/socket';
 import { decryptAttachment } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
-import { ensureRoomKeyForDecryption, refetchRoomKeyAfterDecryptionFailure, requireCachedRoomKey } from './room-keys';
+import { E2E_V2_PREFIX, isAuthenticatedField, openAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
+import { getCurrentIdentity } from './current-identity';
+import { ensureRoomKeyForDecryption, lookupContactKey, refetchRoomKeyAfterDecryptionFailure, requireCachedRoomKey } from './room-keys';
+import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
 
 const E2E_PREFIX = 'e2e:v1:';
 
+interface FieldSource {
+  messageId: string;
+  senderId: string;
+}
+
+const FIELD_LABELS = {
+  content: 'content',
+  caption: 'caption',
+  fileName: 'file-name',
+  fileMime: 'file-mime',
+  linkUrl: 'link-url',
+  linkTitle: 'link-title',
+  linkDescription: 'link-description',
+  linkImage: 'link-image',
+  linkSite: 'link-site',
+} as const;
+
 const ENCRYPTED_MEDIA_PARAM = 'e2e';
 
 const LINK_PREVIEW_IMAGE_META: MessageFileMeta = { name: 'link-preview', mimeType: THUMBNAIL_MIME_TYPE, size: 0 };
-
-async function encryptText(plaintext: string, roomKey: Uint8Array): Promise<string> {
-  const sodium = await getSodium();
-  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-  const ciphertext = sodium.crypto_secretbox_easy(plaintext, nonce, roomKey);
-  const combined = new Uint8Array(nonce.length + ciphertext.length);
-  combined.set(nonce, 0);
-  combined.set(ciphertext, nonce.length);
-  return E2E_PREFIX + sodium.to_base64(combined);
-}
 
 async function decryptText(payload: string, roomKey: Uint8Array): Promise<string> {
   const sodium = await getSodium();
@@ -41,8 +51,54 @@ async function decryptText(payload: string, roomKey: Uint8Array): Promise<string
   return sodium.to_string(plaintextBytes);
 }
 
-async function decryptTextContentIfNeeded(socket: AppSocket, content: string, roomId: string): Promise<string> {
-  if (!content.startsWith(E2E_PREFIX)) {
+const ownSigningPublicKeys = new WeakMap<Uint8Array, Uint8Array>();
+
+async function resolveOwnSigningPublicKey(privateKey: Uint8Array): Promise<Uint8Array> {
+  const cached = ownSigningPublicKeys.get(privateKey);
+  if (cached) {
+    return cached;
+  }
+  const pair = await deriveSigningKeyPair(privateKey);
+  pair.privateKey.fill(0);
+  ownSigningPublicKeys.set(privateKey, pair.publicKey);
+  return pair.publicKey;
+}
+
+async function resolveSenderSigningKey(socket: AppSocket, senderId: string): Promise<Uint8Array | null> {
+  const sodium = await getSodium();
+  const identity = getCurrentIdentity();
+  if (identity && identity.userId === senderId) {
+    return resolveOwnSigningPublicKey(identity.privateKey);
+  }
+  const trust = await lookupContactKey(socket, senderId);
+  const signingPublicKey = trust?.pin?.signingPublicKey;
+  return signingPublicKey ? sodium.from_base64(signingPublicKey) : null;
+}
+
+async function openField(
+  socket: AppSocket,
+  content: string,
+  roomId: string,
+  roomKey: Uint8Array,
+  source: FieldSource,
+  label: string,
+): Promise<string> {
+  const signingKey = await resolveSenderSigningKey(socket, source.senderId);
+  if (!signingKey) {
+    throw new Error('Sender signing key unavailable');
+  }
+  return openAuthenticatedField(content, roomKey, signingKey, { roomId, senderId: source.senderId, messageId: source.messageId, label });
+}
+
+async function decryptTextContentIfNeeded(
+  socket: AppSocket,
+  content: string,
+  roomId: string,
+  source: FieldSource,
+  label: string,
+): Promise<string> {
+  const authenticated = isAuthenticatedField(content);
+  if (!authenticated && !content.startsWith(E2E_PREFIX)) {
     return content;
   }
 
@@ -51,7 +107,10 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
     return translate('chat.message.encryptedUnavailable');
   }
 
-  const decrypted = await decryptText(content, roomKey).catch(() => null);
+  const open = (key: Uint8Array) =>
+    authenticated ? openField(socket, content, roomId, key, source, label) : decryptText(content, key);
+
+  const decrypted = await open(roomKey).catch(() => null);
   if (decrypted !== null) {
     return decrypted;
   }
@@ -62,7 +121,7 @@ async function decryptTextContentIfNeeded(socket: AppSocket, content: string, ro
   }
 
   try {
-    return await decryptText(content, refetched);
+    return await open(refetched);
   } catch {
     return translate('chat.message.encryptedUnavailable');
   }
@@ -114,9 +173,10 @@ async function resolveContent(
   roomId: string,
   type: MessageType,
   fileMeta: MessageFileMeta | null,
+  source: FieldSource,
 ): Promise<string> {
   return type === 'text'
-    ? decryptTextContentIfNeeded(socket, content, roomId)
+    ? decryptTextContentIfNeeded(socket, content, roomId, source, FIELD_LABELS.content)
     : decryptMediaContentIfNeeded(socket, content, roomId, fileMeta, type);
 }
 
@@ -124,24 +184,26 @@ async function decryptCaptionIfNeeded(
   socket: AppSocket,
   caption: string | null | undefined,
   roomId: string,
+  source: FieldSource,
 ): Promise<string | null> {
   if (!caption) {
     return null;
   }
-  return decryptTextContentIfNeeded(socket, caption, roomId);
+  return decryptTextContentIfNeeded(socket, caption, roomId, source, FIELD_LABELS.caption);
 }
 
 async function decryptFileMetaIfNeeded(
   socket: AppSocket,
   fileMeta: MessageFileMeta | null | undefined,
   roomId: string,
+  source: FieldSource,
 ): Promise<MessageFileMeta | null> {
   if (!fileMeta) {
     return null;
   }
   const [name, mimeType] = await Promise.all([
-    decryptTextContentIfNeeded(socket, fileMeta.name, roomId),
-    decryptTextContentIfNeeded(socket, fileMeta.mimeType, roomId),
+    decryptTextContentIfNeeded(socket, fileMeta.name, roomId, source, FIELD_LABELS.fileName),
+    decryptTextContentIfNeeded(socket, fileMeta.mimeType, roomId, source, FIELD_LABELS.fileMime),
   ]);
   const decrypted = { ...fileMeta, name, mimeType };
   const thumbnailUrl = fileMeta.thumbnailUrl
@@ -150,28 +212,35 @@ async function decryptFileMetaIfNeeded(
   return { ...decrypted, ...(thumbnailUrl !== undefined ? { thumbnailUrl } : {}) };
 }
 
-async function decryptNullableTextIfNeeded(socket: AppSocket, value: string | null, roomId: string): Promise<string | null> {
+async function decryptNullableTextIfNeeded(
+  socket: AppSocket,
+  value: string | null,
+  roomId: string,
+  source: FieldSource,
+  label: string,
+): Promise<string | null> {
   if (!value) {
     return null;
   }
-  return decryptTextContentIfNeeded(socket, value, roomId);
+  return decryptTextContentIfNeeded(socket, value, roomId, source, label);
 }
 
 async function decryptLinkPreviewIfNeeded(
   socket: AppSocket,
   linkPreview: MessageLinkPreview | null | undefined,
   roomId: string,
+  source: FieldSource,
 ): Promise<MessageLinkPreview | null> {
   if (!linkPreview) {
     return null;
   }
 
   const [url, title, description, imageUrl, siteName] = await Promise.all([
-    decryptTextContentIfNeeded(socket, linkPreview.url, roomId),
-    decryptTextContentIfNeeded(socket, linkPreview.title, roomId),
-    decryptNullableTextIfNeeded(socket, linkPreview.description, roomId),
-    decryptNullableTextIfNeeded(socket, linkPreview.imageUrl, roomId),
-    decryptNullableTextIfNeeded(socket, linkPreview.siteName, roomId),
+    decryptTextContentIfNeeded(socket, linkPreview.url, roomId, source, FIELD_LABELS.linkUrl),
+    decryptTextContentIfNeeded(socket, linkPreview.title, roomId, source, FIELD_LABELS.linkTitle),
+    decryptNullableTextIfNeeded(socket, linkPreview.description, roomId, source, FIELD_LABELS.linkDescription),
+    decryptNullableTextIfNeeded(socket, linkPreview.imageUrl, roomId, source, FIELD_LABELS.linkImage),
+    decryptNullableTextIfNeeded(socket, linkPreview.siteName, roomId, source, FIELD_LABELS.linkSite),
   ]);
 
   return { url, title, description, imageUrl: await resolveLinkPreviewImage(socket, imageUrl, roomId), siteName };
@@ -194,10 +263,11 @@ async function decryptReplySnapshot(
   if (!reply || reply.deleted) {
     return reply;
   }
-  const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId);
+  const source = { messageId: reply.id, senderId: reply.sender.id };
+  const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId, source);
   const [content, caption] = await Promise.all([
-    resolveContent(socket, reply.content, roomId, reply.type, fileMeta),
-    decryptCaptionIfNeeded(socket, reply.caption, roomId),
+    resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
+    decryptCaptionIfNeeded(socket, reply.caption, roomId, source),
   ]);
   return { ...reply, content, caption, fileMeta };
 }
@@ -205,7 +275,7 @@ async function decryptReplySnapshot(
 const UNENCRYPTED_EXEMPT_TYPES: ReadonlySet<MessageType> = new Set(['system', 'error']);
 
 function isPlaintextField(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.length > 0 && !value.startsWith(E2E_PREFIX);
+  return typeof value === 'string' && value.length > 0 && !value.startsWith(E2E_PREFIX) && !value.startsWith(E2E_V2_PREFIX);
 }
 
 function isPlaintextMediaUrl(value: string | null | undefined): boolean {
@@ -231,13 +301,14 @@ export function hasUnencryptedFields(message: MessageView): boolean {
 
 export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
   const unencrypted = hasUnencryptedFields(message);
-  const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId);
+  const source = { messageId: message.id, senderId: message.sender.id };
+  const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal = message.type === 'image' && Boolean(fileMeta?.thumbnailUrl);
   const [content, replyTo, caption, linkPreview] = await Promise.all([
-    deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta),
+    deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta, source),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
-    decryptCaptionIfNeeded(socket, message.caption, message.roomId),
-    decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId),
+    decryptCaptionIfNeeded(socket, message.caption, message.roomId, source),
+    decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId, source),
   ]);
   return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted };
 }
@@ -264,44 +335,61 @@ export interface OutgoingMessageFields {
   caption?: string;
   fileMeta?: MessageFileMeta;
   linkPreview?: MessageLinkPreview;
+  messageId?: string;
 }
 
-export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T> {
+export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T & { messageId: string }> {
   const roomKey = requireCachedRoomKey(message.roomId);
-  const encrypt = (value: string) => encryptText(value, roomKey);
-  const encryptNullable = (value: string | null) => (value ? encrypt(value) : Promise.resolve(null));
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    throw new Error('Cannot encrypt a message without an identity');
+  }
+  const signingKeys = await deriveSigningKeyPair(identity.privateKey);
+  const messageId = crypto.randomUUID();
+  const seal = (value: string, label: string) =>
+    sealAuthenticatedField(value, roomKey, signingKeys.privateKey, {
+      roomId: message.roomId,
+      senderId: identity.userId,
+      messageId,
+      label,
+    });
+  const sealNullable = (value: string | null, label: string) => (value ? seal(value, label) : Promise.resolve(null));
 
-  const contentPromise = (message.type ?? 'text') === 'text' ? encrypt(message.content) : Promise.resolve(message.content);
-  const captionPromise = message.caption ? encrypt(message.caption) : Promise.resolve(undefined);
-  const fileMetaPromise = message.fileMeta
-    ? Promise.all([encrypt(message.fileMeta.name), encrypt(message.fileMeta.mimeType)]).then(([name, mimeType]) => ({
-        ...message.fileMeta,
-        name,
-        mimeType,
-      }))
-    : Promise.resolve(undefined);
-  const linkPreviewPromise = message.linkPreview
-    ? Promise.all([
-        encrypt(message.linkPreview.url),
-        encrypt(message.linkPreview.title),
-        encryptNullable(message.linkPreview.description),
-        encryptNullable(message.linkPreview.imageUrl),
-        encryptNullable(message.linkPreview.siteName),
-      ]).then(([url, title, description, imageUrl, siteName]) => ({ url, title, description, imageUrl, siteName }))
-    : Promise.resolve(undefined);
+  try {
+    const contentPromise =
+      (message.type ?? 'text') === 'text' ? seal(message.content, FIELD_LABELS.content) : Promise.resolve(message.content);
+    const captionPromise = message.caption ? seal(message.caption, FIELD_LABELS.caption) : Promise.resolve(undefined);
+    const fileMetaPromise = message.fileMeta
+      ? Promise.all([seal(message.fileMeta.name, FIELD_LABELS.fileName), seal(message.fileMeta.mimeType, FIELD_LABELS.fileMime)]).then(
+          ([name, mimeType]) => ({ ...message.fileMeta, name, mimeType }),
+        )
+      : Promise.resolve(undefined);
+    const linkPreviewPromise = message.linkPreview
+      ? Promise.all([
+          seal(message.linkPreview.url, FIELD_LABELS.linkUrl),
+          seal(message.linkPreview.title, FIELD_LABELS.linkTitle),
+          sealNullable(message.linkPreview.description, FIELD_LABELS.linkDescription),
+          sealNullable(message.linkPreview.imageUrl, FIELD_LABELS.linkImage),
+          sealNullable(message.linkPreview.siteName, FIELD_LABELS.linkSite),
+        ]).then(([url, title, description, imageUrl, siteName]) => ({ url, title, description, imageUrl, siteName }))
+      : Promise.resolve(undefined);
 
-  const [content, caption, fileMeta, linkPreview] = await Promise.all([
-    contentPromise,
-    captionPromise,
-    fileMetaPromise,
-    linkPreviewPromise,
-  ]);
+    const [content, caption, fileMeta, linkPreview] = await Promise.all([
+      contentPromise,
+      captionPromise,
+      fileMetaPromise,
+      linkPreviewPromise,
+    ]);
 
-  return {
-    ...message,
-    content,
-    ...(caption !== undefined ? { caption } : {}),
-    ...(fileMeta !== undefined ? { fileMeta } : {}),
-    ...(linkPreview !== undefined ? { linkPreview } : {}),
-  };
+    return {
+      ...message,
+      messageId,
+      content,
+      ...(caption !== undefined ? { caption } : {}),
+      ...(fileMeta !== undefined ? { fileMeta } : {}),
+      ...(linkPreview !== undefined ? { linkPreview } : {}),
+    };
+  } finally {
+    signingKeys.privateKey.fill(0);
+  }
 }

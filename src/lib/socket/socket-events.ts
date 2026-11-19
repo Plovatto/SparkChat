@@ -294,6 +294,7 @@ export interface ClientToServerEvents {
     type?: Extract<MessageType, 'text' | 'image' | 'audio' | 'file'>;
     duration?: number;
     replyToMessageId?: string;
+    messageId?: string;
     clientTempId?: string;
     fileMeta?: MessageFileMeta;
     mentionedUserIds?: string[];
