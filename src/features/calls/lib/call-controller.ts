@@ -16,7 +16,7 @@ import {
   type SignalType,
 } from '@lib/e2ee/call-crypto';
 import type { CurrentIdentity } from '@lib/e2ee/current-identity';
-import type { CallConfigPayload, CallIceServersResult, CallStatePayload, SocketErrorPayload } from '@lib/socket/socket-events';
+import type { CallConfigPayload, CallDegradeWire, CallIceServersResult, CallStatePayload, SocketErrorPayload } from '@lib/socket/socket-events';
 import {
   createCallMachine,
   hasCallMedia,
@@ -166,7 +166,11 @@ function toIceServers(result: CallIceServersResult): RTCIceServer[] {
   return servers;
 }
 
-function initialSnapshot(): CallSnapshot {
+function toDegrade(value: CallDegradeWire | null | undefined): DegradeStep | null {
+  return value === 'video-360' || value === 'audio-only-relay' ? value : null;
+}
+
+export function initialSnapshot(): CallSnapshot {
   return {
     state: IDLE_CALL_STATE,
     enabled: false,
@@ -704,8 +708,13 @@ export class CallController {
       }
       return;
     }
+    if (event === 'call:start' && code === 'call.peerBusy' && !(session && this.machine.getState().phase === 'outgoing-ringing')) {
+      return;
+    }
     if (event === 'call:start' && session && this.machine.getState().phase === 'outgoing-ringing') {
-      this.update({ notice: { kind: code === 'call.disabled' ? 'disabled' : 'server-error', code } });
+      if (code !== 'call.peerBusy') {
+        this.update({ notice: { kind: code === 'call.disabled' ? 'disabled' : 'server-error', code } });
+      }
       this.machine.dispatch({
         type: 'failure',
         callId: session.callId,
@@ -813,7 +822,7 @@ export class CallController {
     }
     const servers = result ? toIceServers(result) : [];
     const iceServers = servers.length > 0 ? servers : [FALLBACK_STUN];
-    const degrade: DegradeStep | null = result?.degrade ?? null;
+    const degrade = toDegrade(result?.degrade);
     const peerSession = this.deps.createPeerSession({
       role: session.role,
       kind: session.kind,
@@ -826,7 +835,7 @@ export class CallController {
       refreshIceServers: async () => {
         try {
           const refreshed = await this.requestIce(session);
-          return refreshed ? { iceServers: toIceServers(refreshed), degrade: refreshed.degrade ?? null } : null;
+          return refreshed ? { iceServers: toIceServers(refreshed), degrade: toDegrade(refreshed.degrade) } : null;
         } catch {
           return null;
         }

@@ -581,7 +581,7 @@ describe('server events', () => {
     await settle();
 
     expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'busy' });
-    expect(w.a.controller.getSnapshot().notice).toEqual({ kind: 'server-error', code: 'call.peerBusy' });
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
   });
 
   it('fails the call when relay is required but the server says it is unavailable', async () => {

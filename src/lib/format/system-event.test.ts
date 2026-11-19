@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { appI18n } from '@lib/i18n/app-i18n';
-import { systemEventSegments, systemMessageSegments, systemMessageText } from './system-event';
+import { formatCallDuration, systemEventSegments, systemMessageSegments, systemMessageText } from './system-event';
 
 afterEach(async () => {
   await appI18n.changeLanguage('pt');
 });
 
-const event = (type: string, params: Record<string, string | null> = {}) => ({ type, params });
+const event = (type: string, params: Record<string, string | number | null> = {}) => ({ type, params });
 
 describe('systemMessageText', () => {
   it('describes every group event in Portuguese', () => {
@@ -72,5 +72,23 @@ describe('systemMessageSegments', () => {
       { text: ' foi removido do grupo por ', isName: false },
       { text: 'Ana', isName: true },
     ]);
+  });
+});
+
+describe('call events', () => {
+  it('renders ended and missed calls with kind and duration in both languages', async () => {
+    const ended = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'video', duration: 125 } } };
+    const missed = { content: '', systemEvent: { type: 'call.missed', params: { kind: 'voice' } } };
+
+    expect(systemMessageText(ended)).toBe('Chamada de vídeo encerrada · 2:05');
+    expect(systemMessageText(missed)).toBe('Chamada de voz perdida');
+    await appI18n.changeLanguage('en');
+    expect(systemMessageText(ended)).toBe('video call ended · 2:05');
+    expect(systemMessageText(missed)).toBe('Missed voice call');
+  });
+
+  it('formats long durations with hours', () => {
+    expect(formatCallDuration(3725)).toBe('1:02:05');
+    expect(formatCallDuration(-5)).toBe('0:00');
   });
 });

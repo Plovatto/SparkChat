@@ -229,7 +229,7 @@ export interface E2ePublicKeyEntry {
 
 export type CallKindWire = 'voice' | 'video';
 export type CallEndReasonWire = 'completed' | 'missed' | 'declined' | 'cancelled' | 'busy' | 'failed' | 'connection-lost';
-export type CallDegradeWire = 'video-360' | 'audio-only-relay';
+export type CallDegradeWire = 'none' | 'video-360' | 'audio-only-relay';
 
 export interface CallConfigPayload {
   enabled: boolean;
@@ -246,7 +246,7 @@ export interface CallIceServerEntry {
 export interface CallIceServersResult {
   callId: string;
   iceServers: CallIceServerEntry[];
-  expiresAt: string | number;
+  expiresAt: string;
   relayOnly: boolean;
   degrade?: CallDegradeWire | null;
 }
@@ -329,12 +329,12 @@ export interface ServerToClientEvents {
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
   'message:updated': (payload: MessageView) => void;
   'call:config': (payload: CallConfigPayload) => void;
-  'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string | number }) => void;
+  'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string }) => void;
   'call:accepted': (payload: { callId: string; envelope: string; deviceId: string }) => void;
   'call:answered-elsewhere': (payload: { callId: string }) => void;
   'call:declined-elsewhere': (payload: { callId: string }) => void;
   'call:signal': (payload: { callId: string; from: string; envelope: string }) => void;
-  'call:ended': (payload: { callId: string; reason: CallEndReasonWire; endedAt: string | number }) => void;
+  'call:ended': (payload: { callId: string; reason: CallEndReasonWire; endedAt: string }) => void;
   'call:state': (payload: CallStatePayload | null) => void;
   'call:ice-servers-result': (payload: CallIceServersResult) => void;
 }
