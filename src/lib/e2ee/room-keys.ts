@@ -1,6 +1,7 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
+import { ASSISTANT_NICKNAME } from './assistant';
 import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
 import { getCurrentIdentity } from './current-identity';
 import { clearRoomKeyStore, deleteRoomKey, loadRoomKey, saveRoomKey } from './key-store';
@@ -91,11 +92,14 @@ export async function lookupContactKey(socket: AppSocket, userId: string): Promi
   return observeContactKey({ userId: identity.userId, publicKey: identity.publicKey }, entry);
 }
 
-async function lookupUsableContactKey(socket: AppSocket, userId: string): Promise<string | null> {
+async function lookupUsableContactKey(socket: AppSocket, userId: string, serverManaged = false): Promise<string | null> {
   const identity = getCurrentIdentity();
   const entry = await lookupPublicKey(socket, userId);
   if (!identity || !entry) {
     return null;
+  }
+  if (serverManaged) {
+    return entry.publicKey;
   }
   const trust = await observeContactKey({ userId: identity.userId, publicKey: identity.publicKey }, entry);
   return isKeyUsable(trust.status) ? entry.publicKey : null;
@@ -299,7 +303,7 @@ async function establishPrivateRoomKeyImpl(
     return;
   }
 
-  const otherPublicKey = await lookupUsableContactKey(socket, otherParticipant.id);
+  const otherPublicKey = await lookupUsableContactKey(socket, otherParticipant.id, otherParticipant.nickname === ASSISTANT_NICKNAME);
   if (!otherPublicKey) {
     return;
   }

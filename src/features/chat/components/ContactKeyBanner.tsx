@@ -67,6 +67,11 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
               ? t('chat.keyTrust.invalidWarning', { name: other.nickname })
               : t(wasVerified ? 'chat.keyTrust.changedVerifiedWarning' : 'chat.keyTrust.changedWarning', { name: other.nickname })}
           </span>
+          {!invalid && (
+            <button type="button" onClick={() => setDialogOpen(true)} style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
+              {t('chat.keyTrust.openDialog')}
+            </button>
+          )}
           {!invalid && !wasVerified && (
             <button type="button" onClick={accept} style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer' }}>
               {t('chat.keyTrust.acceptChange')}
@@ -78,6 +83,9 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
             </button>
           )}
         </div>
+        {!invalid && (
+          <SafetyNumberDialog isOpen={dialogOpen} onClose={() => setDialogOpen(false)} contactId={other.id} contactName={other.nickname} trust={trust} />
+        )}
         {!invalid && wasVerified && (
           <Modal isOpen={!blockingDismissed} onClose={() => setBlockingDismissed(true)} title={t('chat.keyTrust.blockingTitle')}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', color: theme.textPrimary }}>

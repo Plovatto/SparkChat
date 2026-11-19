@@ -3,6 +3,15 @@ import { generateIdentity } from './identity';
 import { buildSigningProof, verifyKeyBinding } from './signing';
 
 describe('signing proof', () => {
+  it('matches the fixed known-answer vector shared with the API', async () => {
+    const proof = await buildSigningProof('user-1', 'pub-key-1', new Uint8Array(32).fill(7));
+
+    expect(proof).toEqual({
+      signingPublicKey: 'WxVi_oq1Q_DMJpBSIrYGqIMN84-KfUWmwVnqbavaJHA',
+      keySignature: 'Xcv5CvLuYmXUiiHaceCx47Z3ZiK_Hocigs6Nx-j8YLVUwR8mw5slD-DRyEt8osJflasWLbD2cXV10ub8FzF_Dw',
+    });
+  });
+
   it('is deterministic for the same identity and verifies', async () => {
     const identity = await generateIdentity();
 

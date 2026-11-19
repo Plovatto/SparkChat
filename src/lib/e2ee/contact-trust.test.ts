@@ -197,4 +197,31 @@ describe('contact trust', () => {
     expect(b.status).toBe('changed');
     expect((store.get('me:bob') as ContactPin).publicKey).toBe(first.publicKey);
   });
+
+  it('flags the same public key presented with a different valid signing key', async () => {
+    const entry = await signedEntry('bob');
+    await observeContactKey(own, entry);
+    const other = await generateIdentity();
+    const otherProof = await buildSigningProof('bob', entry.publicKey, other.privateKey);
+
+    const trust = await observeContactKey(own, { userId: 'bob', publicKey: entry.publicKey, ...otherProof });
+
+    expect(trust.status).toBe('changed');
+  });
+
+  it('treats a partial signing payload as invalid', async () => {
+    const entry = await signedEntry('bob');
+
+    const trust = await observeContactKey(own, { userId: 'bob', publicKey: entry.publicKey, signingPublicKey: entry.signingPublicKey });
+
+    expect(trust.status).toBe('invalid');
+  });
+
+  it('removes the verified state and ignores accept when nothing is pending', async () => {
+    await observeContactKey(own, await signedEntry('bob'));
+    await setContactVerified(own, 'bob', true);
+
+    expect((await acceptContactKeyChange(own, 'bob'))?.status).toBe('verified');
+    expect((await setContactVerified(own, 'bob', false))?.status).toBe('unverified');
+  });
 });

@@ -197,6 +197,16 @@ describe('room key pushes', () => {
     expect(getCachedRoomKey('private-trust-2')).toBeNull();
   });
 
+  it('still seals to the server-managed assistant after its key rotated', async () => {
+    const assistantRoom = { ...privateRoom, participants: [{ id: 'me' }, { id: 'assistant-1', nickname: 'SparkAI' }] } as typeof privateRoom;
+    const first = fakeSocket([], undefined, () => 'pk-assistant-a');
+    await establishPrivateRoomKey(first.socket, { ...assistantRoom, id: 'private-ai-1' }, 'me', true);
+    const rotated = fakeSocket([], undefined, () => 'pk-assistant-b');
+    await establishPrivateRoomKey(rotated.socket, { ...assistantRoom, id: 'private-ai-2' }, 'me', true);
+
+    expect(rotated.emit).toHaveBeenCalledWith('e2e:publish-room-key', expect.anything());
+  });
+
   it('stops treating a created key as provisional after the window', async () => {
     const { socket: creator } = fakeSocket([]);
     generatedKeys.next = 'mine';

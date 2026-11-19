@@ -192,6 +192,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     }
   });
 
+  originalOn('user:resumed', () => {
+    void ensureSigningKeyPublished(socket);
+  });
+
   const closable = socket as unknown as { close: () => AppSocket };
   const originalClose = closable.close.bind(socket);
   closable.close = () => {

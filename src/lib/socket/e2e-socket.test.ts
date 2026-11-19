@@ -99,6 +99,16 @@ describe('wrapSocketWithE2e room key setup', () => {
     expect(ensureSigningKeyPublished).toHaveBeenCalledOnce();
   });
 
+  it('publishes the signing key again after the session is resumed', () => {
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+    ensureSigningKeyPublished.mockClear();
+
+    receive('user:resumed', { user: { id: 'me' }, authMethod: 'password' });
+
+    expect(ensureSigningKeyPublished).toHaveBeenCalledExactlyOnceWith(socket);
+  });
+
   it('establishes the key right away when the identity is ready', () => {
     setIdentity('me');
     const { socket, receive } = createFakeSocket();

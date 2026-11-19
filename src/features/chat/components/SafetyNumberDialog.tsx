@@ -23,7 +23,7 @@ export function SafetyNumberDialog({ isOpen, onClose, contactId, contactName, tr
   const { theme } = useTheme();
   const [safetyNumber, setSafetyNumber] = useState<SafetyNumber | null>(null);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
-  const pinnedKey = trust.pin?.publicKey;
+  const pinnedKey = trust.pin?.pending?.publicKey ?? trust.pin?.publicKey;
   const identity = getCurrentIdentity();
   const ownUserId = identity?.userId;
   const ownPublicKey = identity?.publicKey;

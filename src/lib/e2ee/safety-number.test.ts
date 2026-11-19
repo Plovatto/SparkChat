@@ -5,6 +5,10 @@ const alice = { userId: 'alice-id', publicKey: 'alice-public-key' };
 const bob = { userId: 'bob-id', publicKey: 'bob-public-key' };
 
 describe('computeSafetyNumber', () => {
+  it('matches the fixed known-answer vector', async () => {
+    expect((await computeSafetyNumber(alice, bob)).digits).toBe('665535403539316587285870533195614534870175141770266264007173');
+  });
+
   it('produces 60 digits in 12 groups of 5', async () => {
     const result = await computeSafetyNumber(alice, bob);
 

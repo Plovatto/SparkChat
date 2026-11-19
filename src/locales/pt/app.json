@@ -113,7 +113,9 @@
     },
     "e2e": {
       "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez.",
-      "keysLocked": "As chaves de criptografia desta conta já foram definidas e não podem ser substituídas."
+      "keysLocked": "As chaves de criptografia desta conta já foram definidas e não podem ser substituídas.",
+      "invalidSigningKey": "A chave de assinatura é inválida ou não corresponde à sua chave pública.",
+      "signingKeyLocked": "A chave de assinatura desta conta já está configurada."
     }
   },
   "systemEvents": {
