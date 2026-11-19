@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket, MessageView } from '@lib/socket';
+import { translate } from '@lib/i18n/app-i18n';
 import { encryptAttachment } from './attachment-crypto';
 import { sealAuthenticatedField } from './authenticated-field';
 import { setCurrentIdentity } from './current-identity';
@@ -10,23 +11,23 @@ import { MissingRoomKeyError } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
 
-const roomKeys = vi.hoisted(() => new Map<string, Uint8Array>());
+const roomKeys = vi.hoisted(() => new Map<string, { keyId: string; epoch: number; key: Uint8Array }[]>());
 const contactSigningKeys = vi.hoisted(() => new Map<string, string>());
 
 vi.mock('./room-keys', () => {
   class MissingRoomKeyError extends Error {}
   return {
     MissingRoomKeyError,
-    getCachedRoomKey: (roomId: string) => roomKeys.get(roomId) ?? null,
-    requireCachedRoomKey: (roomId: string) => {
-      const key = roomKeys.get(roomId);
-      if (!key) {
+    requireCurrentRoomKey: (roomId: string) => {
+      const current = roomKeys.get(roomId)?.at(-1);
+      if (!current) {
         throw new MissingRoomKeyError();
       }
-      return key;
+      return current;
     },
-    ensureRoomKeyForDecryption: (_socket: unknown, roomId: string) => Promise.resolve(roomKeys.get(roomId) ?? null),
-    refetchRoomKeyAfterDecryptionFailure: () => Promise.resolve(null),
+    ensureRoomKeyGeneration: (_socket: unknown, roomId: string, keyId: string) =>
+      Promise.resolve(roomKeys.get(roomId)?.find((generation) => generation.keyId === keyId)?.key ?? null),
+    ensureAnyRoomKey: (_socket: unknown, roomId: string) => Promise.resolve((roomKeys.get(roomId)?.length ?? 0) > 0),
     lookupContactKey: (_socket: unknown, userId: string) => {
       const signingPublicKey = contactSigningKeys.get(userId);
       return Promise.resolve(signingPublicKey ? { contactId: userId, status: 'verified', pin: { signingPublicKey } } : null);
@@ -35,6 +36,28 @@ vi.mock('./room-keys', () => {
 });
 
 const ROOM_ID = 'room-1';
+
+function randomKeyId(): string {
+  return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function addGeneration(roomId: string): { keyId: string; epoch: number; key: Uint8Array } {
+  const generations = roomKeys.get(roomId) ?? [];
+  const generation = { keyId: randomKeyId(), epoch: generations.length + 1, key: crypto.getRandomValues(new Uint8Array(32)) };
+  roomKeys.set(roomId, [...generations, generation]);
+  return generation;
+}
+
+function currentGeneration(roomId: string): { keyId: string; epoch: number; key: Uint8Array } {
+  const current = roomKeys.get(roomId)?.at(-1);
+  if (!current) {
+    throw new Error('no generation');
+  }
+  return current;
+}
 const OWN_ID = 'user-1';
 const socket = {} as AppSocket;
 
@@ -76,7 +99,7 @@ function toMessageView(fields: { content: string; caption?: string } & Partial<M
 describe('encryptOutgoingMessage', () => {
   beforeEach(() => {
     roomKeys.clear();
-    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    addGeneration(ROOM_ID);
   });
 
   it('refuses to return a message when the room key is missing', async () => {
@@ -112,8 +135,16 @@ describe('encryptOutgoingMessage', () => {
 
   it('keeps the url of media that was encrypted on upload', async () => {
     const url = 'https://cdn.test/uploads/images/abc.png?e2e=1';
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'image', content: url });
+    const fileMeta = { name: 'abc.png', mimeType: 'image/png', size: 1 };
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'image', content: url, fileMeta });
     expect(encrypted.content).toBe(url);
+    expect(encrypted.messageId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('refuses attachment messages without file details', async () => {
+    for (const type of ['image', 'audio', 'file']) {
+      await expect(encryptOutgoingMessage({ roomId: ROOM_ID, type, content: 'https://cdn.test/uploads/x?e2e=1' })).rejects.toThrow();
+    }
   });
 
   it('never sends the plaintext and decrypts back to it', async () => {
@@ -135,7 +166,7 @@ describe('encryptOutgoingMessage', () => {
 describe('decryptMessageView link preview image', () => {
   beforeEach(() => {
     roomKeys.clear();
-    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    addGeneration(ROOM_ID);
     vi.unstubAllGlobals();
   });
 
@@ -230,7 +261,7 @@ describe('hasUnencryptedFields', () => {
   });
 
   it('marks decrypted views that arrived without encryption', async () => {
-    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    addGeneration(ROOM_ID);
     const plain = await decryptMessageView(socket, toMessageView({ content: 'olá' }));
     const encrypted = await decryptMessageView(socket, viewOf(await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'olá' })));
 
@@ -250,7 +281,7 @@ describe('decryptMediaContentIfNeeded', () => {
 
   beforeEach(async () => {
     roomKeys.clear();
-    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    addGeneration(ROOM_ID);
     createdBlobs.length = 0;
     const html = new Blob(['<script>alert(1)</script>'], { type: 'text/html' });
     ciphertext = await (await encryptAttachment(ROOM_ID, html)).arrayBuffer();
@@ -310,7 +341,7 @@ describe('decryptMediaContentIfNeeded', () => {
 describe('authenticated message fields', () => {
   beforeEach(() => {
     roomKeys.clear();
-    roomKeys.set(ROOM_ID, crypto.getRandomValues(new Uint8Array(32)));
+    addGeneration(ROOM_ID);
   });
 
   async function unavailableText(view: MessageView): Promise<boolean> {
@@ -354,7 +385,7 @@ describe('authenticated message fields', () => {
 
   it('rejects a field sealed with another key even when the context is right', async () => {
     const sodium = await getSodium();
-    const roomKey = roomKeys.get(ROOM_ID) as Uint8Array;
+    const { key: roomKey, keyId } = currentGeneration(ROOM_ID);
     const attacker = await deriveSigningKeyPair(crypto.getRandomValues(new Uint8Array(32)));
     const real = await deriveSigningKeyPair(crypto.getRandomValues(new Uint8Array(32)));
     contactSigningKeys.set('user-2', sodium.to_base64(real.publicKey));
@@ -362,6 +393,7 @@ describe('authenticated message fields', () => {
       roomId: ROOM_ID,
       senderId: 'user-2',
       messageId: 'message-1',
+      keyId,
       label: 'content',
     });
 
@@ -380,10 +412,11 @@ describe('authenticated message fields', () => {
       linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl: null, siteName: 'Site' },
     });
     const view = viewOf(encrypted);
-    const raw = sodium.from_base64(encrypted.content.slice('e2e:v2:'.length));
+    const fieldPrefix = `e2e:v2:${currentGeneration(ROOM_ID).keyId}:`;
+    const raw = sodium.from_base64(encrypted.content.slice(fieldPrefix.length));
     raw[raw.length - 1] = (raw[raw.length - 1] ?? 0) ^ 1;
-    expect(await unavailableText({ ...view, content: 'e2e:v2:' + sodium.to_base64(raw) })).toBe(true);
-    expect(await unavailableText({ ...view, content: 'e2e:v2:AAAA' })).toBe(true);
+    expect(await unavailableText({ ...view, content: fieldPrefix + sodium.to_base64(raw) })).toBe(true);
+    expect(await unavailableText({ ...view, content: fieldPrefix + 'AAAA' })).toBe(true);
 
     const swappedFile = await decryptMessageView(socket, {
       ...view,
@@ -438,17 +471,118 @@ describe('authenticated message fields', () => {
     expect(await unavailableText(view)).toBe(false);
   });
 
-  it('still opens messages in the legacy format', async () => {
+  it('shows content in the v1 format as unsupported and never decrypts it', async () => {
     const sodium = await getSodium();
-    const key = roomKeys.get(ROOM_ID) as Uint8Array;
+    const key = currentGeneration(ROOM_ID).key;
     const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
     const sealed = sodium.crypto_secretbox_easy('secret', nonce, key);
     const combined = new Uint8Array(nonce.length + sealed.length);
     combined.set(nonce, 0);
     combined.set(sealed, nonce.length);
 
-    const decrypted = await decryptMessageView(socket, toMessageView({ content: 'e2e:v1:' + sodium.to_base64(combined) }));
-    expect(decrypted.content).toBe('secret');
+    const decrypted = await decryptMessageView(socket, toMessageView({ content: 'e2e:v1:' + sodium.to_base64(combined), caption: 'e2e:v1:abc' }));
+    expect(decrypted.content).toBe(translate('chat.message.unsupportedFormat'));
+    expect(decrypted.caption).toBe(translate('chat.message.unsupportedFormat'));
     expect(decrypted.unencrypted).toBe(false);
+  });
+
+  it('shows v2 fields without a key id as unsupported', async () => {
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
+    const withoutKeyId = 'e2e:v2:' + encrypted.content.slice(encrypted.content.lastIndexOf(':') + 1);
+    const decrypted = await decryptMessageView(socket, { ...viewOf(encrypted), content: withoutKeyId });
+    expect(decrypted.content).toBe(translate('chat.message.unsupportedFormat'));
+  });
+});
+
+describe('room key generations in message fields', () => {
+  beforeEach(() => {
+    roomKeys.clear();
+  });
+
+  it('seals every field with the current generation and names its key id', async () => {
+    addGeneration(ROOM_ID);
+    const current = addGeneration(ROOM_ID);
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret', caption: 'caption' });
+    expect(encrypted.content.startsWith(`e2e:v2:${current.keyId}:`)).toBe(true);
+    expect(encrypted.caption?.startsWith(`e2e:v2:${current.keyId}:`)).toBe(true);
+  });
+
+  it('keeps history readable across generations', async () => {
+    addGeneration(ROOM_ID);
+    const first = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'before rotation' });
+    addGeneration(ROOM_ID);
+    const second = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'after rotation' });
+
+    expect((await decryptMessageView(socket, viewOf(first))).content).toBe('before rotation');
+    expect((await decryptMessageView(socket, viewOf(second))).content).toBe('after rotation');
+  });
+
+  it('binds the key id: a field relabelled with another generation does not open', async () => {
+    const first = addGeneration(ROOM_ID);
+    const second = addGeneration(ROOM_ID);
+    second.key = first.key;
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
+    const relabelled = encrypted.content.replace(second.keyId, first.keyId);
+
+    expect((await decryptMessageView(socket, viewOf(encrypted))).content).toBe('secret');
+    expect((await decryptMessageView(socket, { ...viewOf(encrypted), content: relabelled })).content).toBe(translate('chat.message.encryptedUnavailable'));
+  });
+
+  it('shows a field whose generation is unknown as unavailable', async () => {
+    addGeneration(ROOM_ID);
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'secret' });
+    roomKeys.clear();
+    addGeneration(ROOM_ID);
+    expect((await decryptMessageView(socket, viewOf(encrypted))).content).toBe(translate('chat.message.encryptedUnavailable'));
+  });
+
+});
+
+describe('attachments across room key generations', () => {
+  const MEDIA_URL = 'https://cdn.test/uploads/images/photo.webp?e2e=1';
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    roomKeys.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:https://app.test/decrypted');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    clearDecryptedMediaCache();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('decrypts an attachment from an older generation after a rotation', async () => {
+    addGeneration(ROOM_ID);
+    const ciphertext = await (await encryptAttachment(ROOM_ID, new Blob([new Uint8Array([7, 7, 7])]))).arrayBuffer();
+    addGeneration(ROOM_ID);
+    fetchMock.mockResolvedValue(new Response(ciphertext));
+
+    const resolved = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, { name: 'p', mimeType: 'image/webp', size: 3 }, 'image');
+
+    expect(resolved).toBe('blob:https://app.test/decrypted');
+  });
+
+  it('does not decrypt a legacy attachment without a key id header', async () => {
+    const sodium = await getSodium();
+    const { key } = addGeneration(ROOM_ID);
+    const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+    const sealed = sodium.crypto_secretbox_easy(new Uint8Array(64), nonce, key);
+    const legacy = new Uint8Array(nonce.length + sealed.length);
+    legacy.set(nonce, 0);
+    legacy.set(sealed, nonce.length);
+    fetchMock.mockResolvedValue(new Response(legacy));
+
+    const resolved = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, { name: 'p', mimeType: 'image/webp', size: 3 }, 'image');
+
+    expect(resolved).toBe(MEDIA_URL);
+  });
+
+  it('refuses to encrypt an attachment without a current generation', async () => {
+    await expect(encryptAttachment(ROOM_ID, new Blob([new Uint8Array([1])]))).rejects.toBeInstanceOf(MissingRoomKeyError);
   });
 });

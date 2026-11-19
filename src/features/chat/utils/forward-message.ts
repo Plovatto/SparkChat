@@ -1,6 +1,6 @@
 import { toApiError } from '@lib/api/api-error';
 import type { SessionAuth } from '@lib/api/session-auth';
-import { decryptMediaContentIfNeeded, ensureRoomKeyForDecryption, isEncryptedMediaUrl, MissingRoomKeyError } from '@lib/e2ee';
+import { decryptMediaContentIfNeeded, ensureRoomKeyForSending, isEncryptedMediaUrl } from '@lib/e2ee';
 import { isStorageMediaUrl } from '@lib/media/media-origin';
 import type { AppSocket, MessageFileMeta, MessageView, SocketErrorPayload } from '@lib/socket';
 import type { ClientToServerEvents } from '@lib/socket/socket-events';
@@ -80,10 +80,7 @@ function sendAndConfirm(socket: AppSocket, payload: Omit<OutgoingMessage, 'clien
 }
 
 export async function forwardMessage(socket: AppSocket, auth: SessionAuth, message: ChatMessage, targetRoomId: string): Promise<void> {
-  const targetKey = await ensureRoomKeyForDecryption(socket, targetRoomId);
-  if (!targetKey) {
-    throw new MissingRoomKeyError();
-  }
+  await ensureRoomKeyForSending(socket, targetRoomId);
 
   if (message.type !== 'image' && message.type !== 'audio' && message.type !== 'file') {
     await sendAndConfirm(socket, { roomId: targetRoomId, content: message.content, type: 'text' });

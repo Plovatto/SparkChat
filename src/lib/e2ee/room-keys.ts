@@ -1,37 +1,71 @@
 import { translate } from '@lib/i18n/app-i18n';
-import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
+import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
-import { ASSISTANT_NICKNAME } from './assistant';
+import { ASSISTANT_USER_ID } from './assistant';
 import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
-import { getCurrentIdentity } from './current-identity';
-import { clearRoomKeyStore, deleteRoomKey, loadRoomKey, saveRoomKey } from './key-store';
+import { getCurrentIdentity, type CurrentIdentity } from './current-identity';
+import { clearRoomKeyStore, loadRoomKeyGenerations, saveRoomKeyGeneration } from './key-store';
 import { clearDecryptedMediaCache } from './media-cache';
+import {
+  deriveRoomKeyId,
+  openRoomKeyEnvelope,
+  ROOM_KEY_BYTES,
+  RoomKeyEnvelopeError,
+  sealRoomKeyEnvelope,
+  type EnvelopeSender,
+} from './room-key-envelope';
 import { safeAsync } from './safe-async';
+import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
 
-interface SealedRoomKeyEntry {
+export interface RoomKeyGeneration {
+  keyId: string;
+  epoch: number;
+  key: Uint8Array;
+}
+
+interface RoomView {
+  type: RoomType | null;
+  creatorId: string | null;
+  members: Set<string>;
+  currentEpoch: number;
+  rotationRequiredEpoch: number | null;
+}
+
+interface RoomKeyBundle {
   roomId: string;
-  sealedKey: string;
+  keys: SealedRoomKeyEntry[];
+}
+
+interface PendingPublish {
+  epoch: number;
+  startedAt: number;
 }
 
 const REQUEST_TIMEOUT_MS = 8000;
 
-const PROVISIONAL_KEY_WINDOW_MS = 15000;
+const MISSING_GENERATION_RETRY_MS = 30000;
 
-const memoryCache = new Map<string, Uint8Array>();
-const provisionalUntil = new Map<string, number>();
-const pendingLookups = new Map<string, Promise<Uint8Array | null>>();
-const knownParticipantsByRoom = new Map<string, Set<string>>();
-const refetchedRoomIds = new Set<string>();
-const pendingRefetches = new Map<string, Promise<Uint8Array | null>>();
+export const MAX_ROOM_KEY_BATCH = 150;
 
-function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<SealedRoomKeyEntry[]> {
+const generationsByRoom = new Map<string, Map<string, RoomKeyGeneration>>();
+const roomViews = new Map<string, RoomView>();
+const persistedLoads = new Map<string, Promise<void>>();
+const pendingSyncs = new Map<string, Promise<void>>();
+const missingGenerations = new Map<string, number>();
+const pendingPublishes = new Map<string, PendingPublish>();
+const MAX_QUEUED_ENVELOPES_PER_ROOM = 50;
+const MAX_QUEUED_ENVELOPES = 500;
+let queuedEnvelopes: SealedRoomKeyEntry[] = [];
+const ownSigningPublicKeys = new WeakMap<Uint8Array, string>();
+
+function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
   return new Promise((resolve) => {
     const requested = new Set(roomIds);
     let settled = false;
     let timeoutId = 0;
 
-    const finish = (value: SealedRoomKeyEntry[]) => {
+    const finish = (value: RoomKeyBundle[]) => {
       if (settled) {
         return;
       }
@@ -42,7 +76,16 @@ function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<SealedRoom
     };
 
     const handleKeys = (payload: { keys: SealedRoomKeyEntry[] }) => {
-      finish(payload.keys.filter((entry) => requested.has(entry.roomId)));
+      const bundles = new Map<string, RoomKeyBundle>();
+      for (const entry of payload.keys) {
+        if (!requested.has(entry.roomId)) {
+          continue;
+        }
+        const bundle = bundles.get(entry.roomId) ?? { roomId: entry.roomId, keys: [] };
+        bundle.keys.push(entry);
+        bundles.set(entry.roomId, bundle);
+      }
+      finish(Array.from(bundles.values()));
     };
 
     socket.on('e2e:room-keys', handleKeys);
@@ -77,7 +120,7 @@ function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePubli
   });
 }
 
-const lookupSealedRoomKey = createBatchedLookup(fetchRoomKeys, (entry) => entry.roomId);
+const lookupRoomKeyBundle = createBatchedLookup(fetchRoomKeys, (bundle) => bundle.roomId);
 const lookupPublicKey = createBatchedLookup(fetchPublicKeys, (entry) => entry.userId);
 
 export async function lookupContactKey(socket: AppSocket, userId: string): Promise<ContactTrust | null> {
@@ -92,7 +135,7 @@ export async function lookupContactKey(socket: AppSocket, userId: string): Promi
   return observeContactKey({ userId: identity.userId, publicKey: identity.publicKey }, entry);
 }
 
-async function lookupUsableContactKey(socket: AppSocket, userId: string, serverManaged = false): Promise<string | null> {
+async function lookupUsableContactKey(socket: AppSocket, userId: string, serverManaged: boolean): Promise<string | null> {
   const identity = getCurrentIdentity();
   const entry = await lookupPublicKey(socket, userId);
   if (!identity || !entry) {
@@ -105,27 +148,29 @@ async function lookupUsableContactKey(socket: AppSocket, userId: string, serverM
   return isKeyUsable(trust.status) ? entry.publicKey : null;
 }
 
-async function unsealRoomKey(sealedKeyBase64: string): Promise<Uint8Array | null> {
-  const identity = getCurrentIdentity();
-  if (!identity) {
-    return null;
+async function ownSigningPublicKey(identity: CurrentIdentity): Promise<string> {
+  const cached = ownSigningPublicKeys.get(identity.privateKey);
+  if (cached) {
+    return cached;
   }
-
-  try {
-    const sodium = await getSodium();
-    const sealed = sodium.from_base64(sealedKeyBase64);
-    const publicKey = sodium.from_base64(identity.publicKey);
-    return sodium.crypto_box_seal_open(sealed, publicKey, identity.privateKey);
-  } catch {
-    return null;
-  }
+  const sodium = await getSodium();
+  const pair = await deriveSigningKeyPair(identity.privateKey);
+  pair.privateKey.fill(0);
+  const encoded = sodium.to_base64(pair.publicKey);
+  ownSigningPublicKeys.set(identity.privateKey, encoded);
+  return encoded;
 }
 
-async function sealRoomKeyFor(roomKey: Uint8Array, publicKeyBase64: string): Promise<string> {
-  const sodium = await getSodium();
-  const publicKey = sodium.from_base64(publicKeyBase64);
-  const sealed = sodium.crypto_box_seal(roomKey, publicKey);
-  return sodium.to_base64(sealed);
+async function resolveEnvelopeSender(socket: AppSocket, identity: CurrentIdentity, senderId: string): Promise<EnvelopeSender | null> {
+  if (senderId === identity.userId) {
+    return { publicKey: identity.publicKey, signingPublicKey: await ownSigningPublicKey(identity) };
+  }
+  const trust = await lookupContactKey(socket, senderId);
+  const pin = trust?.pin;
+  if (!trust || trust.status === 'invalid' || !pin?.signingPublicKey) {
+    return null;
+  }
+  return { publicKey: pin.publicKey, signingPublicKey: pin.signingPublicKey };
 }
 
 export type RoomKeyAvailableListener = (roomId: string) => void;
@@ -149,38 +194,221 @@ function notifyRoomKeyAvailable(roomId: string): void {
   }
 }
 
-function setMemoryRoomKey(roomId: string, key: Uint8Array): void {
-  const previous = memoryCache.get(roomId);
-  memoryCache.set(roomId, key);
-  if (previous !== key) {
-    notifyRoomKeyAvailable(roomId);
+function generationsOf(roomId: string): Map<string, RoomKeyGeneration> {
+  let generations = generationsByRoom.get(roomId);
+  if (!generations) {
+    generations = new Map();
+    generationsByRoom.set(roomId, generations);
   }
+  return generations;
 }
 
-function cacheRoomKey(roomId: string, key: Uint8Array): void {
-  setMemoryRoomKey(roomId, key);
-  void saveRoomKey(roomId, key);
+function latestGeneration(roomId: string): RoomKeyGeneration | null {
+  let latest: RoomKeyGeneration | null = null;
+  for (const generation of generationsByRoom.get(roomId)?.values() ?? []) {
+    if (!latest || generation.epoch > latest.epoch) {
+      latest = generation;
+    }
+  }
+  return latest;
 }
 
-function cacheProvisionalRoomKey(roomId: string, key: Uint8Array): void {
-  provisionalUntil.set(roomId, Date.now() + PROVISIONAL_KEY_WINDOW_MS);
-  cacheRoomKey(roomId, key);
+function missingKey(roomId: string, keyId: string): string {
+  return `${roomId}\n${keyId}`;
 }
 
-function isProvisional(roomId: string): boolean {
-  const until = provisionalUntil.get(roomId);
-  if (until === undefined) {
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist: boolean): boolean {
+  const generations = generationsOf(roomId);
+  const existing = generations.get(generation.keyId);
+  if (existing) {
+    return existing.epoch === generation.epoch && sameBytes(existing.key, generation.key);
+  }
+  for (const other of generations.values()) {
+    if (other.epoch === generation.epoch) {
+      console.warn('[e2e] discarded room key generation that conflicts with a known epoch', { roomId, epoch: generation.epoch });
+      return false;
+    }
+  }
+
+  generations.set(generation.keyId, generation);
+  missingGenerations.delete(missingKey(roomId, generation.keyId));
+  const view = roomViews.get(roomId);
+  if (view) {
+    view.currentEpoch = Math.max(view.currentEpoch, generation.epoch);
+    if (view.rotationRequiredEpoch !== null && generation.epoch >= view.rotationRequiredEpoch) {
+      view.rotationRequiredEpoch = null;
+    }
+  }
+  const pending = pendingPublishes.get(roomId);
+  if (pending && generation.epoch >= pending.epoch) {
+    pendingPublishes.delete(roomId);
+  }
+  if (persist) {
+    void saveRoomKeyGeneration({ roomId, keyId: generation.keyId, epoch: generation.epoch, key: generation.key });
+  }
+  notifyRoomKeyAvailable(roomId);
+  return true;
+}
+
+function loadPersistedGenerations(roomId: string): Promise<void> {
+  let load = persistedLoads.get(roomId);
+  if (!load) {
+    load = loadRoomKeyGenerations(roomId).then((stored) => {
+      for (const entry of stored) {
+        if (entry.key.length === ROOM_KEY_BYTES) {
+          adoptGeneration(roomId, { keyId: entry.keyId, epoch: entry.epoch, key: entry.key }, false);
+        }
+      }
+    });
+    persistedLoads.set(roomId, load);
+  }
+  return load;
+}
+
+function queueEnvelope(entry: SealedRoomKeyEntry): void {
+  const sameRoom = queuedEnvelopes.filter((queued) => queued.roomId === entry.roomId);
+  if (sameRoom.length >= MAX_QUEUED_ENVELOPES_PER_ROOM) {
+    const oldest = sameRoom[0];
+    queuedEnvelopes = queuedEnvelopes.filter((queued) => queued !== oldest);
+  }
+  if (queuedEnvelopes.length >= MAX_QUEUED_ENVELOPES) {
+    queuedEnvelopes = queuedEnvelopes.slice(queuedEnvelopes.length - MAX_QUEUED_ENVELOPES + 1);
+  }
+  queuedEnvelopes.push(entry);
+}
+
+function takeQueuedEnvelopes(roomId: string): SealedRoomKeyEntry[] {
+  const taken = queuedEnvelopes.filter((queued) => queued.roomId === roomId);
+  if (taken.length > 0) {
+    queuedEnvelopes = queuedEnvelopes.filter((queued) => queued.roomId !== roomId);
+  }
+  return taken;
+}
+
+function isEnvelopeSenderAllowed(roomId: string, view: RoomView, userId: string, epoch: number): boolean {
+  const highestKnownEpoch = Math.max(view.currentEpoch, latestGeneration(roomId)?.epoch ?? 0);
+  return epoch < highestKnownEpoch || view.members.has(userId);
+}
+
+function isServerManaged(view: RoomView, userId: string): boolean {
+  return view.type === 'private' && userId === ASSISTANT_USER_ID;
+}
+
+async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Promise<boolean> {
+  const identity = getCurrentIdentity();
+  if (!identity) {
     return false;
   }
-  if (until > Date.now()) {
+  const view = roomViews.get(entry.roomId);
+  if (!view) {
+    queueEnvelope(entry);
+    return false;
+  }
+  if (generationsByRoom.get(entry.roomId)?.has(entry.keyId)) {
     return true;
   }
-  provisionalUntil.delete(roomId);
-  return false;
+
+  try {
+    const opened = await openRoomKeyEnvelope(entry.sealedKey, {
+      roomId: entry.roomId,
+      recipientId: identity.userId,
+      recipientPublicKey: identity.publicKey,
+      recipientPrivateKey: identity.privateKey,
+      isMember: (userId, epoch) => isEnvelopeSenderAllowed(entry.roomId, view, userId, epoch),
+      resolveSender: (userId) => resolveEnvelopeSender(socket, identity, userId),
+    });
+    if (opened.keyId !== entry.keyId || opened.epoch !== entry.epoch || opened.senderId !== entry.senderId) {
+      throw new RoomKeyEnvelopeError('malformed');
+    }
+    if (getCurrentIdentity() !== identity) {
+      return false;
+    }
+    return adoptGeneration(entry.roomId, { keyId: opened.keyId, epoch: opened.epoch, key: opened.roomKey }, true);
+  } catch (error) {
+    if (error instanceof RoomKeyEnvelopeError) {
+      console.warn('[e2e] discarded room key envelope', { roomId: entry.roomId, senderId: entry.senderId, reason: error.reason });
+      return false;
+    }
+    throw error;
+  }
 }
 
-export function getCachedRoomKey(roomId: string): Uint8Array | null {
-  return memoryCache.get(roomId) ?? null;
+async function acceptEnvelopes(socket: AppSocket, entries: SealedRoomKeyEntry[]): Promise<void> {
+  const ordered = [...entries].sort((left, right) => left.epoch - right.epoch);
+  for (const entry of ordered) {
+    await acceptEnvelope(socket, entry);
+  }
+}
+
+function syncRoomKeys(socket: AppSocket, roomId: string): Promise<void> {
+  let sync = pendingSyncs.get(roomId);
+  if (!sync) {
+    sync = (async () => {
+      const bundle = await lookupRoomKeyBundle(socket, roomId);
+      if (bundle) {
+        await acceptEnvelopes(socket, bundle.keys);
+      }
+    })().finally(() => {
+      pendingSyncs.delete(roomId);
+    });
+    pendingSyncs.set(roomId, sync);
+  }
+  return sync;
+}
+
+export function getRoomKeyGeneration(roomId: string, keyId: string): Uint8Array | null {
+  return generationsByRoom.get(roomId)?.get(keyId)?.key ?? null;
+}
+
+export async function ensureRoomKeyGeneration(socket: AppSocket, roomId: string, keyId: string): Promise<Uint8Array | null> {
+  const cached = getRoomKeyGeneration(roomId, keyId);
+  if (cached) {
+    return cached;
+  }
+  await loadPersistedGenerations(roomId);
+  const persisted = getRoomKeyGeneration(roomId, keyId);
+  if (persisted) {
+    return persisted;
+  }
+  const marker = missingKey(roomId, keyId);
+  const missingSince = missingGenerations.get(marker);
+  if (missingSince !== undefined && Date.now() - missingSince < MISSING_GENERATION_RETRY_MS) {
+    return null;
+  }
+  await syncRoomKeys(socket, roomId);
+  const fetched = getRoomKeyGeneration(roomId, keyId);
+  if (!fetched) {
+    missingGenerations.set(marker, Date.now());
+  }
+  return fetched;
+}
+
+export async function ensureAnyRoomKey(socket: AppSocket, roomId: string): Promise<boolean> {
+  await loadPersistedGenerations(roomId);
+  if (!latestGeneration(roomId)) {
+    await syncRoomKeys(socket, roomId);
+  }
+  return latestGeneration(roomId) !== null;
+}
+
+function sendableGeneration(roomId: string): RoomKeyGeneration | null {
+  const latest = latestGeneration(roomId);
+  if (!latest) {
+    return null;
+  }
+  const view = roomViews.get(roomId);
+  if (view && (view.currentEpoch > latest.epoch || (view.rotationRequiredEpoch ?? 0) > latest.epoch)) {
+    return null;
+  }
+  return latest;
+}
+
+export function getCurrentRoomKey(roomId: string): RoomKeyGeneration | null {
+  return sendableGeneration(roomId);
 }
 
 export class MissingRoomKeyError extends Error {
@@ -190,288 +418,367 @@ export class MissingRoomKeyError extends Error {
   }
 }
 
-export function requireCachedRoomKey(roomId: string): Uint8Array {
-  const roomKey = memoryCache.get(roomId);
-  if (!roomKey) {
+export function requireCurrentRoomKey(roomId: string): RoomKeyGeneration {
+  const generation = sendableGeneration(roomId);
+  if (!generation) {
     throw new MissingRoomKeyError();
   }
-  return roomKey;
+  return generation;
 }
 
-export async function ensureRoomKeyForDecryption(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
-  const cached = memoryCache.get(roomId);
-  if (cached) {
-    return cached;
+function publishTarget(roomId: string): number | null {
+  const view = roomViews.get(roomId);
+  if (!view) {
+    return null;
+  }
+  const latestEpoch = latestGeneration(roomId)?.epoch ?? 0;
+  if (view.rotationRequiredEpoch !== null && view.rotationRequiredEpoch > latestEpoch) {
+    return view.rotationRequiredEpoch;
+  }
+  if (view.currentEpoch === 0 && latestEpoch === 0) {
+    return 1;
+  }
+  return null;
+}
+
+function isPublishInFlight(roomId: string, epoch: number): boolean {
+  const pending = pendingPublishes.get(roomId);
+  return Boolean(pending && pending.epoch === epoch && Date.now() - pending.startedAt < REQUEST_TIMEOUT_MS);
+}
+
+async function sealFor(
+  socket: AppSocket,
+  identity: CurrentIdentity,
+  view: RoomView,
+  roomId: string,
+  generation: RoomKeyGeneration,
+  recipientIds: string[],
+): Promise<{ userId: string; sealedKey: string }[] | null> {
+  const publicKeys = await Promise.all(
+    recipientIds.map((userId) =>
+      userId === identity.userId
+        ? Promise.resolve(identity.publicKey)
+        : lookupUsableContactKey(socket, userId, isServerManaged(view, userId)),
+    ),
+  );
+  if (publicKeys.some((publicKey) => publicKey === null)) {
+    return null;
   }
 
-  const pending = pendingLookups.get(roomId);
-  if (pending) {
-    return pending;
+  const signing = await deriveSigningKeyPair(identity.privateKey);
+  try {
+    return await Promise.all(
+      recipientIds.map(async (userId, index) => ({
+        userId,
+        sealedKey: await sealRoomKeyEnvelope({
+          roomKey: generation.key,
+          roomId,
+          keyId: generation.keyId,
+          epoch: generation.epoch,
+          senderId: identity.userId,
+          senderPrivateKey: identity.privateKey,
+          senderSigningPrivateKey: signing.privateKey,
+          recipientId: userId,
+          recipientPublicKey: publicKeys[index] as string,
+        }),
+      })),
+    );
+  } finally {
+    signing.privateKey.fill(0);
   }
+}
 
-  const lookup = (async () => {
-    const persisted = await loadRoomKey(roomId);
-    if (persisted) {
-      const current = memoryCache.get(roomId);
-      if (current) {
-        return current;
+async function publishGeneration(socket: AppSocket, roomId: string, epoch: number): Promise<void> {
+  const identity = getCurrentIdentity();
+  const view = roomViews.get(roomId);
+  if (!identity || !view?.members.has(identity.userId) || isPublishInFlight(roomId, epoch)) {
+    return;
+  }
+  pendingPublishes.set(roomId, { epoch, startedAt: Date.now() });
+
+  const sodium = await getSodium();
+  const key = sodium.randombytes_buf(ROOM_KEY_BYTES);
+  const generation: RoomKeyGeneration = { keyId: await deriveRoomKeyId(key), epoch, key };
+  const recipients = Array.from(view.members);
+  if (recipients.length > MAX_ROOM_KEY_BATCH) {
+    console.warn('[e2e] room has more members than a room key batch can hold', { roomId, epoch });
+    pendingPublishes.delete(roomId);
+    return;
+  }
+  try {
+    const keys = await sealFor(socket, identity, view, roomId, generation, recipients);
+    if (!keys) {
+      console.warn('[e2e] cannot seal a new room key generation for every member', { roomId, epoch });
+      pendingPublishes.delete(roomId);
+      return;
+    }
+    if (publishTarget(roomId) !== epoch || getCurrentIdentity() !== identity) {
+      pendingPublishes.delete(roomId);
+      return;
+    }
+    socket.emit('e2e:publish-room-key', { roomId, keyId: generation.keyId, epoch, keys });
+  } finally {
+    generation.key.fill(0);
+  }
+}
+
+function waitForSendable(roomId: string, timeoutMs: number): Promise<RoomKeyGeneration | null> {
+  const ready = sendableGeneration(roomId);
+  if (ready) {
+    return Promise.resolve(ready);
+  }
+  return new Promise((resolve) => {
+    let timeoutId = 0;
+    const unsubscribe = subscribeRoomKeyAvailable((availableRoomId) => {
+      if (availableRoomId !== roomId) {
+        return;
       }
-      setMemoryRoomKey(roomId, persisted);
-      return persisted;
-    }
+      const generation = sendableGeneration(roomId);
+      if (generation) {
+        window.clearTimeout(timeoutId);
+        unsubscribe();
+        resolve(generation);
+      }
+    });
+    timeoutId = window.setTimeout(() => {
+      unsubscribe();
+      resolve(sendableGeneration(roomId));
+    }, timeoutMs);
+  });
+}
 
-    const entry = await lookupSealedRoomKey(socket, roomId);
-    if (!entry) {
-      return null;
-    }
+export async function ensureRoomKeyForSending(socket: AppSocket, roomId: string): Promise<RoomKeyGeneration> {
+  await loadPersistedGenerations(roomId);
+  let generation = sendableGeneration(roomId);
+  if (generation) {
+    return generation;
+  }
 
-    const unsealed = await unsealRoomKey(entry.sealedKey);
-    if (!unsealed) {
-      return null;
-    }
+  await syncRoomKeys(socket, roomId);
+  generation = sendableGeneration(roomId);
+  if (generation) {
+    return generation;
+  }
 
-    const current = memoryCache.get(roomId);
-    if (current) {
-      return current;
-    }
+  const target = publishTarget(roomId);
+  if (target !== null) {
+    await publishGeneration(socket, roomId, target);
+  } else if (roomViews.has(roomId)) {
+    socket.emit('e2e:request-room-key', { roomId });
+  }
 
-    cacheRoomKey(entry.roomId, unsealed);
-    return unsealed;
-  })();
+  generation = await waitForSendable(roomId, REQUEST_TIMEOUT_MS);
+  if (!generation) {
+    throw new MissingRoomKeyError();
+  }
+  return generation;
+}
 
-  pendingLookups.set(roomId, lookup);
-  try {
-    return await lookup;
-  } finally {
-    pendingLookups.delete(roomId);
+function viewFor(roomId: string): RoomView {
+  let view = roomViews.get(roomId);
+  if (!view) {
+    view = {
+      type: null,
+      creatorId: null,
+      members: new Set(),
+      currentEpoch: 0,
+      rotationRequiredEpoch: null,
+    };
+    roomViews.set(roomId, view);
+  }
+  return view;
+}
+
+function applyParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id'>[]): string[] {
+  const added = participants.filter((participant) => !view.members.has(participant.id)).map((participant) => participant.id);
+  view.members = new Set(participants.map((participant) => participant.id));
+  return added;
+}
+
+function applyRotationRequired(view: RoomView, roomId: string, epoch: number | null | undefined): void {
+  const latestEpoch = latestGeneration(roomId)?.epoch ?? 0;
+  if (typeof epoch === 'number' && epoch > latestEpoch && epoch > (view.rotationRequiredEpoch ?? 0)) {
+    view.rotationRequiredEpoch = epoch;
   }
 }
 
-export async function refetchRoomKeyAfterDecryptionFailure(socket: AppSocket, roomId: string): Promise<Uint8Array | null> {
-  const inFlight = pendingRefetches.get(roomId);
-  if (inFlight) {
-    return inFlight;
-  }
-
-  if (refetchedRoomIds.has(roomId)) {
-    return memoryCache.get(roomId) ?? null;
-  }
-  refetchedRoomIds.add(roomId);
-
-  const refetch = (async () => {
-    memoryCache.delete(roomId);
-    pendingLookups.delete(roomId);
-    await deleteRoomKey(roomId);
-    return ensureRoomKeyForDecryption(socket, roomId);
-  })();
-
-  pendingRefetches.set(roomId, refetch);
-  try {
-    return await refetch;
-  } finally {
-    pendingRefetches.delete(roomId);
-  }
-}
-
-async function establishPrivateRoomKeyImpl(
-  socket: AppSocket,
-  room: RoomSummary,
-  currentUserId: string,
-  isActiveCreationEvent: boolean,
-): Promise<void> {
-  if (room.type !== 'private') {
+async function shareCurrentGeneration(socket: AppSocket, roomId: string, targetIds: string[]): Promise<void> {
+  const identity = getCurrentIdentity();
+  const view = roomViews.get(roomId);
+  if (!identity || !view?.members.has(identity.userId)) {
     return;
   }
+  const recipients = targetIds.filter((userId) => userId !== identity.userId && view.members.has(userId));
+  if (recipients.length === 0) {
+    return;
+  }
+  await loadPersistedGenerations(roomId);
+  const generation = sendableGeneration(roomId);
+  if (!generation) {
+    return;
+  }
+  for (let start = 0; start < recipients.length; start += MAX_ROOM_KEY_BATCH) {
+    const keys = await sealFor(socket, identity, view, roomId, generation, recipients.slice(start, start + MAX_ROOM_KEY_BATCH));
+    if (keys) {
+      socket.emit('e2e:share-room-key', { roomId, keyId: generation.keyId, epoch: generation.epoch, keys });
+    }
+  }
+}
+
+export interface TrackRoomOptions {
+  activeCreation?: boolean;
+}
+
+async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: TrackRoomOptions = {}): Promise<void> {
+  const view = viewFor(room.id);
+  applyParticipants(view, room.participants);
+  view.type = room.type;
+  view.creatorId = room.creatorId ?? null;
+  view.currentEpoch = Math.max(view.currentEpoch, room.currentEpoch ?? 0);
+  applyRotationRequired(view, room.id, room.rotationRequiredEpoch);
 
   const identity = getCurrentIdentity();
-  if (!identity) {
+  if (!identity || !view.members.has(identity.userId)) {
     return;
   }
 
-  const existing = await ensureRoomKeyForDecryption(socket, room.id);
-  if (existing) {
-    return;
+  const queued = takeQueuedEnvelopes(room.id);
+  if (queued.length > 0) {
+    await acceptEnvelopes(socket, queued);
   }
 
-  const otherParticipant = room.participants.find((participant) => participant.id !== currentUserId);
-  if (!otherParticipant) {
-    return;
+  await loadPersistedGenerations(room.id);
+  if (!sendableGeneration(room.id) && view.currentEpoch > (latestGeneration(room.id)?.epoch ?? 0)) {
+    await syncRoomKeys(socket, room.id);
   }
 
-  if (!isActiveCreationEvent) {
+  const target = publishTarget(room.id);
+  if (target !== null && target > 1) {
+    await publishGeneration(socket, room.id, target);
+    return;
+  }
+  if (target === 1) {
+    const designated = room.type === 'private' ? options.activeCreation === true : room.creatorId === identity.userId;
+    if (designated) {
+      await publishGeneration(socket, room.id, 1);
+    }
+    return;
+  }
+  if (!sendableGeneration(room.id) && view.currentEpoch > 0) {
     socket.emit('e2e:request-room-key', { roomId: room.id });
-    return;
-  }
-
-  const otherPublicKey = await lookupUsableContactKey(socket, otherParticipant.id, otherParticipant.nickname === ASSISTANT_NICKNAME);
-  if (!otherPublicKey) {
-    return;
-  }
-
-  const sodium = await getSodium();
-  const roomKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
-
-  const [sealedForSelf, sealedForOther] = await Promise.all([
-    sealRoomKeyFor(roomKey, identity.publicKey),
-    sealRoomKeyFor(roomKey, otherPublicKey),
-  ]);
-
-  if (memoryCache.has(room.id)) {
-    return;
-  }
-
-  cacheProvisionalRoomKey(room.id, roomKey);
-  socket.emit('e2e:publish-room-key', {
-    roomId: room.id,
-    keys: [
-      { userId: currentUserId, sealedKey: sealedForSelf },
-      { userId: otherParticipant.id, sealedKey: sealedForOther },
-    ],
-  });
-}
-
-async function handleIncomingRoomKeyPushImpl(payload: { roomId: string; sealedKey: string }): Promise<void> {
-  if (!getCurrentIdentity()) {
-    return;
-  }
-
-  if (isProvisional(payload.roomId)) {
-    const unsealed = await unsealRoomKey(payload.sealedKey);
-    if (unsealed) {
-      provisionalUntil.delete(payload.roomId);
-      cacheRoomKey(payload.roomId, unsealed);
-    }
-    return;
-  }
-
-  if (memoryCache.has(payload.roomId)) {
-    return;
-  }
-
-  const persisted = await loadRoomKey(payload.roomId);
-  if (persisted) {
-    if (!memoryCache.has(payload.roomId)) {
-      setMemoryRoomKey(payload.roomId, persisted);
-    }
-    return;
-  }
-
-  const unsealed = await unsealRoomKey(payload.sealedKey);
-  if (unsealed && !memoryCache.has(payload.roomId)) {
-    cacheRoomKey(payload.roomId, unsealed);
   }
 }
 
-async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: { roomId: string }): Promise<void> {
-  provisionalUntil.delete(payload.roomId);
-  memoryCache.delete(payload.roomId);
-  pendingLookups.delete(payload.roomId);
-  await deleteRoomKey(payload.roomId);
+async function handleRoomKeyPushImpl(socket: AppSocket, entry: SealedRoomKeyEntry): Promise<void> {
+  await acceptEnvelope(socket, entry);
+}
 
-  const stored = await ensureRoomKeyForDecryption(socket, payload.roomId);
-  if (!stored) {
-    socket.emit('e2e:request-room-key', { roomId: payload.roomId });
+export interface RoomKeyRejection {
+  roomId: string;
+  epoch?: number;
+  code?: string;
+  currentEpoch?: number;
+  currentKeyId?: string | null;
+  rotationRequiredEpoch?: number | null;
+}
+
+const INCOMPLETE_BATCH_CODE = 'e2e.roomKeyIncomplete';
+
+async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: RoomKeyRejection): Promise<void> {
+  const pending = pendingPublishes.get(payload.roomId);
+  if (pending && (payload.epoch === undefined || pending.epoch === payload.epoch)) {
+    pendingPublishes.delete(payload.roomId);
+  }
+  const view = roomViews.get(payload.roomId);
+  if (view && typeof payload.currentEpoch === 'number') {
+    view.currentEpoch = Math.max(view.currentEpoch, payload.currentEpoch);
+  }
+  if (view) {
+    applyRotationRequired(view, payload.roomId, payload.rotationRequiredEpoch);
+  }
+  await syncRoomKeys(socket, payload.roomId);
+
+  const target = publishTarget(payload.roomId);
+  if (target !== null && target > 1 && target !== payload.epoch && payload.code !== INCOMPLETE_BATCH_CODE) {
+    await publishGeneration(socket, payload.roomId, target);
   }
 }
 
-export function trackRoomParticipants(room: RoomSummary): void {
-  knownParticipantsByRoom.set(room.id, new Set(room.participants.map((participant) => participant.id)));
+async function handleStaleRoomKeyImpl(socket: AppSocket, roomId: string, staleKeyId: string): Promise<void> {
+  missingGenerations.clear();
+  await syncRoomKeys(socket, roomId);
+  const view = roomViews.get(roomId);
+  const latest = latestGeneration(roomId);
+  if (view && latest && latest.keyId === staleKeyId) {
+    applyRotationRequired(view, roomId, latest.epoch + 1);
+  }
 }
 
-async function establishGroupRoomKeyOnCreateImpl(socket: AppSocket, room: RoomSummary, currentUserId: string): Promise<void> {
-  if (room.type !== 'group' || room.creatorId !== currentUserId) {
-    return;
-  }
-
-  const identity = getCurrentIdentity();
-  if (!identity) {
-    return;
-  }
-
-  const existing = await ensureRoomKeyForDecryption(socket, room.id);
-  if (existing) {
-    return;
-  }
-
-  const sodium = await getSodium();
-  const roomKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
-  const sealedForSelf = await sealRoomKeyFor(roomKey, identity.publicKey);
-
-  if (memoryCache.has(room.id)) {
-    return;
-  }
-
-  cacheProvisionalRoomKey(room.id, roomKey);
-  socket.emit('e2e:publish-room-key', {
-    roomId: room.id,
-    keys: [{ userId: currentUserId, sealedKey: sealedForSelf }],
-  });
+export async function recoverFromStaleRoomKey(socket: AppSocket, roomId: string, staleKeyId: string): Promise<RoomKeyGeneration> {
+  await handleStaleRoomKeyImpl(socket, roomId, staleKeyId);
+  return ensureRoomKeyForSending(socket, roomId);
 }
 
-async function requestGroupRoomKeyIfMissingImpl(socket: AppSocket, room: RoomSummary, currentUserId: string): Promise<void> {
-  if (room.type !== 'group' || room.creatorId === currentUserId) {
-    return;
-  }
-
-  const existing = await ensureRoomKeyForDecryption(socket, room.id);
-  if (existing) {
-    return;
-  }
-
-  socket.emit('e2e:request-room-key', { roomId: room.id });
-}
-
-async function sealAndPublishForParticipant(socket: AppSocket, roomId: string, targetUserId: string): Promise<void> {
-  const roomKey = await ensureRoomKeyForDecryption(socket, roomId);
-  if (!roomKey) {
-    return;
-  }
-
-  const targetPublicKey = await lookupUsableContactKey(socket, targetUserId);
-  if (!targetPublicKey) {
-    return;
-  }
-
-  const sealedKey = await sealRoomKeyFor(roomKey, targetPublicKey);
-  socket.emit('e2e:publish-room-key', { roomId, keys: [{ userId: targetUserId, sealedKey }] });
-}
-
-async function handleGroupUserJoinedImpl(
+async function handleRotationRequiredImpl(
   socket: AppSocket,
-  payload: { roomId: string; participants: { id: string }[] },
+  payload: { roomId: string; epoch: number; memberIds?: string[] },
 ): Promise<void> {
-  const previous = knownParticipantsByRoom.get(payload.roomId);
-  const currentIds = payload.participants.map((participant) => participant.id);
-  knownParticipantsByRoom.set(payload.roomId, new Set(currentIds));
-
-  if (!previous) {
+  const view = roomViews.get(payload.roomId);
+  if (!view) {
     return;
   }
+  if (Array.isArray(payload.memberIds)) {
+    const remaining = new Set(payload.memberIds);
+    view.members = new Set(Array.from(view.members).filter((userId) => remaining.has(userId)));
+  }
+  applyRotationRequired(view, payload.roomId, payload.epoch);
+  const target = publishTarget(payload.roomId);
+  if (target !== null && target === view.rotationRequiredEpoch) {
+    await publishGeneration(socket, payload.roomId, target);
+  }
+}
 
-  const newParticipantIds = currentIds.filter((id) => !previous.has(id));
-  await Promise.all(newParticipantIds.map((userId) => sealAndPublishForParticipant(socket, payload.roomId, userId)));
+async function handleGroupUserJoinedImpl(socket: AppSocket, payload: { roomId: string; participants: RoomParticipant[] }): Promise<void> {
+  const view = roomViews.get(payload.roomId);
+  if (!view) {
+    return;
+  }
+  const added = applyParticipants(view, payload.participants);
+  await shareCurrentGeneration(socket, payload.roomId, added);
+}
+
+export function updateRoomParticipants(roomId: string, participants: RoomParticipant[]): void {
+  const view = roomViews.get(roomId);
+  if (view) {
+    applyParticipants(view, participants);
+  }
 }
 
 async function handleKeyRequestImpl(socket: AppSocket, payload: { roomId: string; requesterId: string }): Promise<void> {
-  await sealAndPublishForParticipant(socket, payload.roomId, payload.requesterId);
+  await shareCurrentGeneration(socket, payload.roomId, [payload.requesterId]);
 }
 
 async function clearRoomKeysImpl(): Promise<void> {
-  memoryCache.clear();
-  provisionalUntil.clear();
-  pendingLookups.clear();
-  knownParticipantsByRoom.clear();
-  refetchedRoomIds.clear();
-  pendingRefetches.clear();
+  for (const generations of generationsByRoom.values()) {
+    for (const generation of generations.values()) {
+      generation.key.fill(0);
+    }
+  }
+  generationsByRoom.clear();
+  roomViews.clear();
+  persistedLoads.clear();
+  pendingSyncs.clear();
+  missingGenerations.clear();
+  pendingPublishes.clear();
+  queuedEnvelopes = [];
   clearDecryptedMediaCache();
   await clearRoomKeyStore();
 }
 
-export const establishPrivateRoomKey = safeAsync('establishPrivateRoomKey', establishPrivateRoomKeyImpl);
-export const handleIncomingRoomKeyPush = safeAsync('handleIncomingRoomKeyPush', handleIncomingRoomKeyPushImpl);
+export const trackRoom = safeAsync('trackRoom', trackRoomImpl);
+export const handleRoomKeyPush = safeAsync('handleRoomKeyPush', handleRoomKeyPushImpl);
 export const handleRoomKeyRejected = safeAsync('handleRoomKeyRejected', handleRoomKeyRejectedImpl);
-export const establishGroupRoomKeyOnCreate = safeAsync('establishGroupRoomKeyOnCreate', establishGroupRoomKeyOnCreateImpl);
-export const requestGroupRoomKeyIfMissing = safeAsync('requestGroupRoomKeyIfMissing', requestGroupRoomKeyIfMissingImpl);
+export const handleRotationRequired = safeAsync('handleRotationRequired', handleRotationRequiredImpl);
 export const handleGroupUserJoined = safeAsync('handleGroupUserJoined', handleGroupUserJoinedImpl);
 export const handleKeyRequest = safeAsync('handleKeyRequest', handleKeyRequestImpl);
 export const clearRoomKeys = safeAsync('clearRoomKeys', clearRoomKeysImpl);
