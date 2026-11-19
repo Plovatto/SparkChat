@@ -75,14 +75,14 @@ describe('GifTile', () => {
     expect(renderTile({ ...ITEM, title: '  ' })).toContain('aria-label="gifs.untitled"');
   });
 
-  it('shows the gif from the session cache once it was loaded', async () => {
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://app.test/gif-1');
+  it('takes a gif already in the session cache but stays unsendable until it is shown', async () => {
     await gifMediaCache.load(ITEM.url, () => Promise.resolve(new Blob([new TextEncoder().encode('RIFF____WEBPVP8 ')])));
 
     const html = renderTile();
 
     expect(html).toContain('data-loaded="true"');
-    expect(html).toContain('src="blob:https://app.test/gif-1"');
+    expect(html).toContain('data-shown="false"');
+    expect(html).toContain('aria-disabled="true"');
   });
 });
 

@@ -14,7 +14,7 @@ import {
 import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
-import { GifButton, GifPanel, gifLocaleFor, useGifStatus } from '@features/gifs';
+import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
 import { useTheme } from '@features/theme';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
@@ -649,7 +649,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             type="text"
             value={message}
             onChange={(event) => {
-              setMessage(event.target.value);
+              const composerText = event.target.value;
+              setMessage(composerText);
+              setIsGifPanelOpen((open) => keepGifPanelOpen(open, composerText));
               onTyping();
               updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
             }}

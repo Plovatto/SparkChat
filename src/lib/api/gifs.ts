@@ -96,11 +96,14 @@ async function requestGifPage(
 
 export async function fetchGifStatus(auth: SessionAuth): Promise<boolean> {
   const response = await fetch(`${env.apiUrl}/api/gifs/status`, { headers: buildAuthHeader(auth) });
-  if (!response.ok) {
-    return false;
-  }
   const data: unknown = await response.json().catch(() => null);
-  return isRecord(data) && data.enabled === true;
+  if (!response.ok) {
+    throw toApiError(data, LOAD_FAILED_KEY);
+  }
+  if (!isRecord(data) || typeof data.enabled !== 'boolean') {
+    throw toApiError(null, LOAD_FAILED_KEY);
+  }
+  return data.enabled;
 }
 
 export function fetchTrendingGifs(auth: SessionAuth, request: GifPageRequest = {}, signal?: AbortSignal): Promise<GifPage> {

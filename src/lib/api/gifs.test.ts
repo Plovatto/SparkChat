@@ -33,15 +33,20 @@ describe('fetchGifStatus', () => {
     expect(init.headers).toEqual({ Authorization: 'Bearer user-1:token' });
   });
 
-  it('treats errors and malformed bodies as disabled', async () => {
-    stubFetch(Response.json({ code: 'gifs.unavailable' }, { status: 503 }));
+  it('reports a disabled gallery only from a successful answer', async () => {
+    stubFetch(Response.json({ enabled: false }));
     await expect(fetchGifStatus(AUTH)).resolves.toBe(false);
+  });
 
-    stubFetch(Response.json({ enabled: 'yes' }));
-    await expect(fetchGifStatus(AUTH)).resolves.toBe(false);
+  it('throws on error responses and malformed bodies instead of answering disabled', async () => {
+    stubFetch(Response.json({ code: 'gifs.unavailable' }, { status: 503 }));
+    await expect(fetchGifStatus(AUTH)).rejects.toMatchObject({ code: 'gifs.unavailable' });
 
     stubFetch(new Response('not found', { status: 404 }));
-    await expect(fetchGifStatus(AUTH)).resolves.toBe(false);
+    await expect(fetchGifStatus(AUTH)).rejects.toBeInstanceOf(ApiError);
+
+    stubFetch(Response.json({ enabled: 'yes' }));
+    await expect(fetchGifStatus(AUTH)).rejects.toBeInstanceOf(ApiError);
   });
 });
 

@@ -1,48 +1,52 @@
-import { BoundedMap } from '@lib/cache/bounded-map';
 import { sniffGifMediaType, type GifMediaType } from '@lib/media/media-type';
 
 export const GIF_MEDIA_CACHE_LIMIT = 200;
+export const GIF_MEDIA_CACHE_MAX_BYTES = 60 * 1024 * 1024;
 
 export interface GifMediaEntry {
   blob: Blob;
-  objectUrl: string;
   mimeType: GifMediaType;
 }
 
 export type GifMediaLoader = (url: string) => Promise<Blob>;
 
-interface ObjectUrlApi {
-  create: (blob: Blob) => string;
-  revoke: (url: string) => void;
+export interface GifMediaCacheLimits {
+  maxEntries?: number;
+  maxBytes?: number;
 }
 
-const BROWSER_OBJECT_URLS: ObjectUrlApi = {
-  create: (blob) => URL.createObjectURL(blob),
-  revoke: (url) => URL.revokeObjectURL(url),
-};
-
 export class GifMediaCache {
-  private readonly entries: BoundedMap<string, GifMediaEntry>;
+  private readonly entries = new Map<string, GifMediaEntry>();
   private readonly pending = new Map<string, Promise<GifMediaEntry | null>>();
+  private readonly maxEntries: number;
+  private readonly maxBytes: number;
+  private totalBytes = 0;
   private generation = 0;
 
-  constructor(
-    maxEntries: number = GIF_MEDIA_CACHE_LIMIT,
-    private readonly objectUrls: ObjectUrlApi = BROWSER_OBJECT_URLS,
-  ) {
-    this.entries = new BoundedMap(maxEntries, (entry) => this.objectUrls.revoke(entry.objectUrl));
+  constructor({ maxEntries = GIF_MEDIA_CACHE_LIMIT, maxBytes = GIF_MEDIA_CACHE_MAX_BYTES }: GifMediaCacheLimits = {}) {
+    this.maxEntries = maxEntries;
+    this.maxBytes = maxBytes;
   }
 
   get size(): number {
     return this.entries.size;
   }
 
+  get bytes(): number {
+    return this.totalBytes;
+  }
+
   peek(url: string): GifMediaEntry | undefined {
-    return this.entries.get(url);
+    const entry = this.entries.get(url);
+    if (entry) {
+      this.entries.delete(url);
+      this.entries.set(url, entry);
+    }
+    return entry;
   }
 
   load(url: string, loader: GifMediaLoader): Promise<GifMediaEntry | null> {
-    const cached = this.entries.get(url);
+    const cached = this.peek(url);
     if (cached) {
       return Promise.resolve(cached);
     }
@@ -53,14 +57,10 @@ export class GifMediaCache {
     const taskGeneration = this.generation;
     const task = this.fetchEntry(url, loader)
       .then((entry) => {
-        if (!entry) {
+        if (!entry || taskGeneration !== this.generation) {
           return null;
         }
-        if (taskGeneration !== this.generation) {
-          this.objectUrls.revoke(entry.objectUrl);
-          return null;
-        }
-        this.entries.set(url, entry);
+        this.store(url, entry);
         return entry;
       })
       .finally(() => {
@@ -76,6 +76,28 @@ export class GifMediaCache {
     this.generation += 1;
     this.pending.clear();
     this.entries.clear();
+    this.totalBytes = 0;
+  }
+
+  private store(url: string, entry: GifMediaEntry): void {
+    this.remove(url);
+    this.entries.set(url, entry);
+    this.totalBytes += entry.blob.size;
+    while (this.entries.size > this.maxEntries || (this.totalBytes > this.maxBytes && this.entries.size > 1)) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) {
+        break;
+      }
+      this.remove(oldest);
+    }
+  }
+
+  private remove(url: string): void {
+    const entry = this.entries.get(url);
+    if (entry) {
+      this.entries.delete(url);
+      this.totalBytes -= entry.blob.size;
+    }
   }
 
   private async fetchEntry(url: string, loader: GifMediaLoader): Promise<GifMediaEntry | null> {
@@ -85,8 +107,7 @@ export class GifMediaCache {
       if (!mimeType) {
         return null;
       }
-      const blob = new Blob([fetched], { type: mimeType });
-      return { blob, objectUrl: this.objectUrls.create(blob), mimeType };
+      return { blob: new Blob([fetched], { type: mimeType }), mimeType };
     } catch {
       return null;
     }
@@ -99,6 +120,6 @@ export function clearGifMediaCache(): void {
   gifMediaCache.clear();
 }
 
-export function takeLoadedGif(cache: GifMediaCache, url: string): Blob | null {
-  return cache.peek(url)?.blob ?? null;
+export function pickDisplayedGif(displayed: GifMediaEntry | null, isShown: boolean): Blob | null {
+  return displayed && isShown ? displayed.blob : null;
 }

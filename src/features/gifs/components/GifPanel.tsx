@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { useTranslation } from 'react-i18next';
 import { FaRedo, FaSearch, FaTimes } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
-import { useEscapeKey } from '@hooks/useEscapeKey';
 import { translateError } from '@lib/api/api-error';
 import type { GifItem, GifLocale } from '@lib/api/gifs';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { useElementWidth } from '../hooks/useElementWidth';
 import { useGifGallery } from '../hooks/useGifGallery';
-import { gifMediaCache, takeLoadedGif } from '../utils/gif-media-cache';
+import { consumeEscape } from '../utils/escape-key';
 import { GIF_QUERY_MAX_LENGTH } from '../utils/gif-gallery-controller';
 import { gifColumnCount, isGridKey, layoutMasonry, moveInMasonry } from '../utils/masonry-layout';
 import { GifTile } from './GifTile';
@@ -46,7 +45,14 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
   const { items, phase, hasNext, isLoadingMore, loadMoreFailed } = state;
 
   const dismiss = onDismiss ?? onClose;
-  useEscapeKey(true, dismiss);
+
+  useEffect(() => {
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      consumeEscape(event, dismiss);
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [dismiss]);
 
   useEffect(() => {
     if (autoFocusSearch) {
@@ -101,8 +107,8 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
   }, []);
 
   const handlePick = useCallback(
-    (item: GifItem) => {
-      const blob = takeLoadedGif(gifMediaCache, item.url);
+    (_item: GifItem, displayedBlob: Blob | null) => {
+      const blob = displayedBlob;
       if (!blob) {
         setNotReadyNotice(true);
         return;
