@@ -24,6 +24,30 @@ function isAllowedFor(messageType: MessageType, essence: string): boolean {
   }
 }
 
+export const GIF_MEDIA_TYPES = ['image/webp', 'image/gif'] as const;
+export type GifMediaType = (typeof GIF_MEDIA_TYPES)[number];
+
+const GIF_MARKER_PARAMETER = 'sparkchat-gif';
+
+export function isGifMediaType(value: string): value is GifMediaType {
+  return (GIF_MEDIA_TYPES as readonly string[]).includes(value);
+}
+
+export function buildGifMimeType(essence: GifMediaType): string {
+  return `${essence}; ${GIF_MARKER_PARAMETER}=1`;
+}
+
+export function isGifMimeType(mimeType: string | null | undefined): boolean {
+  const [essence = '', ...parameters] = (mimeType ?? '').split(';');
+  if (!isGifMediaType(essence.trim().toLowerCase())) {
+    return false;
+  }
+  return parameters.some((parameter) => {
+    const [name = '', value = ''] = parameter.split('=');
+    return name.trim().toLowerCase() === GIF_MARKER_PARAMETER && value.trim() === '1';
+  });
+}
+
 export function resolveSafeMediaType(messageType: MessageType, mimeType: string | null | undefined): string {
   const essence = essenceOf(mimeType);
   return isAllowedFor(messageType, essence) ? essence : OPAQUE_MEDIA_TYPE;

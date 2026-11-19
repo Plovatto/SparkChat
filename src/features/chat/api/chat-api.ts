@@ -2,7 +2,9 @@ import { env } from '@config/env';
 import { ApiError, toApiError } from '@lib/api/api-error';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
 import { sealAttachment, type AttachmentBinding } from '@lib/e2ee';
+import { GifTooLargeError, padGif } from '@lib/media/gif-padding';
 import { buildImageVariants } from '@lib/media/image-compression';
+import { buildGifMimeType, isGifMediaType } from '@lib/media/media-type';
 
 export interface SealedUpload {
   url: string;
@@ -25,13 +27,14 @@ export interface UploadedFile extends UploadedMedia {
   thumbnailKey?: string;
 }
 
-type UploadKind = 'image' | 'audio' | 'file';
+type UploadKind = 'image' | 'audio' | 'file' | 'gif';
 
 export const ENCRYPTED_UPLOAD_FILENAME = 'blob.bin';
 export const ENCRYPTED_UPLOAD_MIME_TYPE = 'application/octet-stream';
 
 const ALLOWED_MIME_TYPES: Record<UploadKind, ReadonlySet<string>> = {
   image: new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']),
+  gif: new Set(['image/gif', 'image/webp']),
   audio: new Set(['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/aac', 'audio/mpeg', 'audio/wav', 'audio/x-wav']),
   file: new Set([
     'application/pdf',
@@ -58,12 +61,14 @@ const FALLBACK_ERROR_KEY: Record<UploadKind, string> = {
   image: 'chat.upload.imageFailed',
   audio: 'chat.upload.audioFailed',
   file: 'chat.upload.fileFailed',
+  gif: 'chat.upload.gifFailed',
 };
 
 const UPLOAD_ENDPOINT: Record<UploadKind, string> = {
   image: '/api/messages/upload-image',
   audio: '/api/messages/upload-audio',
   file: '/api/messages/upload-file',
+  gif: '/api/messages/upload/gif',
 };
 
 function baseMimeType(mimeType: string): string {
@@ -143,4 +148,28 @@ export async function uploadChatFile(file: File, auth: SessionAuth, target: Atta
 
 export function uploadLinkPreviewImage(image: Blob, auth: SessionAuth, target: AttachmentTarget): Promise<SealedUpload> {
   return uploadEncryptedAttachment('image', image, auth, { ...target, slot: 'preview' });
+}
+
+export async function uploadChatGif(blob: Blob, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedFile> {
+  const essence = baseMimeType(blob.type);
+  if (!isGifMediaType(essence)) {
+    throw new ApiError({ code: 'upload.invalidType', params: { kind: 'gif' } }, FALLBACK_ERROR_KEY.gif);
+  }
+  let padded: Blob;
+  try {
+    padded = await padGif(blob);
+  } catch (error) {
+    if (error instanceof GifTooLargeError) {
+      throw new ApiError({ code: 'upload.invalidGifSize' }, FALLBACK_ERROR_KEY.gif);
+    }
+    throw error;
+  }
+  const { url, key } = await uploadEncryptedAttachment('gif', padded, auth, { ...target, slot: 'content' });
+  return {
+    url,
+    key,
+    name: essence === 'image/gif' ? 'gif.gif' : 'gif.webp',
+    mimeType: buildGifMimeType(essence),
+    size: blob.size,
+  };
 }

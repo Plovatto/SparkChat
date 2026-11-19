@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { MessageType } from '@lib/socket';
-import { OPAQUE_MEDIA_TYPE, resolveSafeMediaType } from './media-type';
+import { buildGifMimeType, isGifMimeType, OPAQUE_MEDIA_TYPE, resolveSafeMediaType } from './media-type';
 
 const ACTIVE_TYPES = ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/xml', 'text/javascript', 'multipart/x-mixed-replace'];
 
@@ -13,6 +13,12 @@ describe('resolveSafeMediaType', () => {
     expect(resolveSafeMediaType('image', 'image/webp')).toBe('image/webp');
     expect(resolveSafeMediaType('image', 'image/svg+xml')).toBe(OPAQUE_MEDIA_TYPE);
     expect(resolveSafeMediaType('image', 'application/pdf')).toBe(OPAQUE_MEDIA_TYPE);
+  });
+
+  it('keeps only the raster essence of a marked gif type', () => {
+    expect(resolveSafeMediaType('image', 'image/webp; sparkchat-gif=1')).toBe('image/webp');
+    expect(resolveSafeMediaType('image', 'image/gif;sparkchat-gif=1')).toBe('image/gif');
+    expect(resolveSafeMediaType('image', 'image/svg+xml; sparkchat-gif=1')).toBe(OPAQUE_MEDIA_TYPE);
   });
 
   it('keeps audio types for audio messages without their parameters', () => {
@@ -40,5 +46,24 @@ describe('resolveSafeMediaType', () => {
         expect(resolved === OPAQUE_MEDIA_TYPE || /^(image\/(jpeg|png|gif|webp)|audio\/[a-z0-9.+-]+|video\/(mp4|webm|quicktime)|application\/pdf)$/.test(resolved)).toBe(true);
       }),
     );
+  });
+});
+
+describe('isGifMimeType', () => {
+  it('recognizes the gif marker built for webp and gif media', () => {
+    expect(buildGifMimeType('image/webp')).toBe('image/webp; sparkchat-gif=1');
+    expect(isGifMimeType(buildGifMimeType('image/webp'))).toBe(true);
+    expect(isGifMimeType(buildGifMimeType('image/gif'))).toBe(true);
+    expect(isGifMimeType('IMAGE/WEBP;SPARKCHAT-GIF=1')).toBe(true);
+  });
+
+  it('rejects unmarked, wrongly marked or non gif media', () => {
+    expect(isGifMimeType('image/webp')).toBe(false);
+    expect(isGifMimeType('image/gif')).toBe(false);
+    expect(isGifMimeType('image/webp; sparkchat-gif=0')).toBe(false);
+    expect(isGifMimeType('image/png; sparkchat-gif=1')).toBe(false);
+    expect(isGifMimeType('text/html; sparkchat-gif=1')).toBe(false);
+    expect(isGifMimeType(null)).toBe(false);
+    expect(isGifMimeType(undefined)).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
 import { translate } from '@lib/i18n/app-i18n';
 import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import { isStorageMediaUrl } from '@lib/media/media-origin';
-import { resolveSafeMediaType } from '@lib/media/media-type';
+import { unpadGif } from '@lib/media/gif-padding';
+import { isGifMimeType, resolveSafeMediaType } from '@lib/media/media-type';
 import type {
   AppSocket,
   MessageFileMeta,
@@ -12,7 +13,7 @@ import type {
   RoomSummary,
 } from '@lib/socket';
 import { openAttachment, type AttachmentBinding } from './attachment-crypto';
-import { resolveDecryptedMediaUrl } from './media-cache';
+import { markExpiredMediaUrl, resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
 import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
@@ -124,19 +125,36 @@ export interface EncryptedMediaSource {
   messageType: MessageType;
 }
 
-function decryptAttachmentUrl(content: string, binding: AttachmentBinding, key: string | undefined, mimeType: string): Promise<string> {
+const EXPIRED_MEDIA_STATUSES: ReadonlySet<number> = new Set([403, 404]);
+
+async function openPaddedGif(ciphertext: ArrayBuffer, key: string, binding: AttachmentBinding, mimeType: string): Promise<Blob | null> {
+  const padded = await openAttachment(ciphertext, key, binding, mimeType);
+  return padded ? unpadGif(new Uint8Array(await padded.arrayBuffer()), mimeType) : null;
+}
+
+function decryptAttachmentUrl(
+  content: string,
+  binding: AttachmentBinding,
+  key: string | undefined,
+  mimeType: string,
+  isGif = false,
+): Promise<string> {
   if (!key || !isEncryptedMediaUrl(content) || !isStorageMediaUrl(content)) {
     return Promise.resolve(content);
   }
 
-  const scope = [mimeType, binding.roomId, binding.messageId, binding.slot].join('\n');
+  const scope = [mimeType, binding.roomId, binding.messageId, binding.slot, isGif ? 'gif' : 'media'].join('\n');
   return resolveDecryptedMediaUrl(content, scope, async () => {
     try {
       const response = await fetch(content, { credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!response.ok) {
+        if (isGif && EXPIRED_MEDIA_STATUSES.has(response.status)) {
+          markExpiredMediaUrl(content);
+        }
         return null;
       }
-      const blob = await openAttachment(await response.arrayBuffer(), key, binding, mimeType);
+      const ciphertext = await response.arrayBuffer();
+      const blob = isGif ? await openPaddedGif(ciphertext, key, binding, mimeType) : await openAttachment(ciphertext, key, binding, mimeType);
       return blob ? URL.createObjectURL(blob) : null;
     } catch {
       return null;
@@ -146,7 +164,14 @@ function decryptAttachmentUrl(content: string, binding: AttachmentBinding, key: 
 
 export function decryptMediaContentIfNeeded(content: string, source: EncryptedMediaSource): Promise<string> {
   const mimeType = resolveSafeMediaType(source.messageType, source.fileMeta?.mimeType);
-  return decryptAttachmentUrl(content, { roomId: source.roomId, messageId: source.messageId, slot: 'content' }, source.fileMeta?.key, mimeType);
+  const isGif = source.messageType === 'image' && isGifMimeType(source.fileMeta?.mimeType);
+  return decryptAttachmentUrl(
+    content,
+    { roomId: source.roomId, messageId: source.messageId, slot: 'content' },
+    source.fileMeta?.key,
+    mimeType,
+    isGif,
+  );
 }
 
 async function resolveContent(
