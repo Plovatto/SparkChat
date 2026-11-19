@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { MessageType } from '@lib/socket';
-import { buildGifMimeType, isGifMimeType, OPAQUE_MEDIA_TYPE, resolveSafeMediaType } from './media-type';
+import { buildGifMimeType, isGifMimeType, OPAQUE_MEDIA_TYPE, resolveSafeMediaType, sniffGifMediaType } from './media-type';
 
 const ACTIVE_TYPES = ['text/html', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/xml', 'text/javascript', 'multipart/x-mixed-replace'];
 
@@ -65,5 +65,22 @@ describe('isGifMimeType', () => {
     expect(isGifMimeType('text/html; sparkchat-gif=1')).toBe(false);
     expect(isGifMimeType(null)).toBe(false);
     expect(isGifMimeType(undefined)).toBe(false);
+  });
+});
+
+describe('sniffGifMediaType', () => {
+  const encode = (text: string) => new TextEncoder().encode(text);
+
+  it('detects webp and gif signatures', () => {
+    expect(sniffGifMediaType(encode('RIFF____WEBPVP8 '))).toBe('image/webp');
+    expect(sniffGifMediaType(encode('GIF89a......'))).toBe('image/gif');
+    expect(sniffGifMediaType(encode('GIF87a......'))).toBe('image/gif');
+  });
+
+  it('rejects anything else', () => {
+    expect(sniffGifMediaType(encode('<svg xmlns="http://www.w3.org/2000/svg"/>'))).toBeNull();
+    expect(sniffGifMediaType(encode('RIFF____WAVE'))).toBeNull();
+    expect(sniffGifMediaType(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBeNull();
+    expect(sniffGifMediaType(new Uint8Array())).toBeNull();
   });
 });

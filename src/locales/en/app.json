@@ -79,7 +79,9 @@
       "invalidType": "Invalid file type.",
       "contentMismatch": "The file content doesn't match its declared type.",
       "quotaExceeded": "The server storage limit was reached. Please try again later.",
-      "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones."
+      "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones.",
+      "invalidType_gif": "Invalid GIF type. Pick another GIF from the gallery.",
+      "invalidGifSize": "This GIF is too large to send."
     },
     "linkPreview": {
       "invalidUrl": "Invalid URL.",
@@ -98,7 +100,9 @@
       "resumeAttempts": "Too many reconnection attempts. Please wait a moment.",
       "roomJoin": "Too many attempts to join with a code. Try again later.",
       "roomCreate": "You created too many groups in a short time. Try again later.",
-      "socket": "Too many actions in a short time. Wait a moment."
+      "socket": "Too many actions in a short time. Wait a moment.",
+      "gifs": "Too many GIF searches in a short time. Wait a moment and try again.",
+      "gifUpload": "Too many GIFs sent in a short time. Wait a moment."
     },
     "internal": {
       "unexpected": "Unexpected error.",
@@ -141,6 +145,12 @@
       "invalidState": "This action is not possible right now in the call.",
       "signalTooLarge": "Call message too large.",
       "relayUnavailable": "Relay is unavailable."
+    },
+    "gifs": {
+      "unavailable": "The GIF gallery is not available right now.",
+      "providerFailed": "Could not load GIFs. Try again.",
+      "invalidMediaUrl": "This GIF cannot be loaded.",
+      "invalidQuery": "Type a valid search term."
     }
   },
   "systemEvents": {
@@ -253,7 +263,8 @@
     "uploading": {
       "image": "Sending image...",
       "audio": "Sending audio...",
-      "file": "Sending file..."
+      "file": "Sending file...",
+      "gif": "Sending GIF..."
     },
     "upload": {
       "imageFailed": "Couldn't send the image.",
@@ -261,7 +272,8 @@
       "fileFailed": "Couldn't send the file.",
       "someImageFailed": "Couldn't send one of the images. Please try again.",
       "someFileFailed": "Couldn't send one of the files. Please try again.",
-      "audioRetry": "Couldn't send the audio. Please try again."
+      "audioRetry": "Couldn't send the audio. Please try again.",
+      "gifFailed": "Could not send the GIF."
     },
     "header": {
       "inviteText": "Join the group \"{{name}}\" on SparkChat!",
@@ -327,7 +339,11 @@
       "unsupportedFormat": "🔒 Encrypted message in an old format that is no longer supported.",
       "notEncrypted": "Not encrypted",
       "notEncryptedHint": "This message arrived without end-to-end encryption. Its media is not loaded automatically.",
-      "mediaNotLoaded": "This media could not be loaded safely."
+      "mediaNotLoaded": "This media could not be loaded safely.",
+      "gif": "GIF",
+      "sentGif": "Sent GIF",
+      "gifExpired": "GIF expired",
+      "gifExpiredHint": "GIFs stay available for 30 days."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -570,7 +586,8 @@
     "sentAudio": "Sent a voice message",
     "sentFile": "Sent a file",
     "sentNamedFile": "Sent a file: {{name}}",
-    "newMessage": "New message"
+    "newMessage": "New message",
+    "sentGif": "Sent a GIF"
   },
   "app": {
     "loadingConversations": "Loading conversations...",
@@ -735,5 +752,21 @@
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds."
     }
+  },
+  "gifs": {
+    "open": "Open GIF gallery",
+    "close": "Close GIF gallery",
+    "panelLabel": "GIF gallery",
+    "searchLabel": "Search GIFs",
+    "trending": "Trending GIFs",
+    "results": "GIF search results",
+    "loading": "Loading GIFs...",
+    "empty": "No GIFs found.",
+    "retry": "Try again",
+    "loadFailed": "Could not load GIFs.",
+    "loadMoreFailed": "Could not load more GIFs.",
+    "mediaFailed": "Could not load this GIF.",
+    "untitled": "Untitled GIF",
+    "notReady": "Wait for the GIF to appear before sending."
   }
 }

@@ -20,6 +20,9 @@ vi.mock('@lib/e2ee', () => ({
     ),
 }));
 
+vi.mock('@features/gifs/utils/gif-media-cache', () => ({ clearGifMediaCache: () => calls.push('clearGifMediaCache') }));
+vi.mock('@features/gifs/utils/gif-status-cache', () => ({ clearGifStatusCache: () => calls.push('clearGifStatusCache') }));
+
 class MemoryStorage {
   private readonly data = new Map<string, string>();
   get length(): number {
@@ -77,8 +80,9 @@ describe('clearLocalAccountData', () => {
     await clearLocalAccountData();
     expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual([...ACCOUNT_INDEXED_DB_NAMES]);
     expect(ACCOUNT_INDEXED_DB_NAMES).toEqual(['sparkchat-e2ee', 'sparkchat-recovery-files']);
-    expect(calls.slice(0, 2).sort()).toEqual(['clearIdentity', 'clearRoomKeys']);
-    expect(calls.slice(2).sort()).toEqual(['delete:sparkchat-e2ee', 'delete:sparkchat-recovery-files']);
+    expect(calls.slice(0, 2).sort()).toEqual(['clearGifMediaCache', 'clearGifStatusCache']);
+    expect(calls.slice(2, 4).sort()).toEqual(['clearIdentity', 'clearRoomKeys']);
+    expect(calls.slice(4).sort()).toEqual(['delete:sparkchat-e2ee', 'delete:sparkchat-recovery-files']);
   });
 
   it('removes account and room keys but keeps device preferences', async () => {
