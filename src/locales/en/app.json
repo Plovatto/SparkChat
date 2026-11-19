@@ -141,6 +141,11 @@
       "invalidState": "This action is not possible right now in the call.",
       "signalTooLarge": "Call message too large.",
       "relayUnavailable": "Relay is unavailable."
+    },
+    "push": {
+      "disabled": "Notifications with the app closed are disabled on this server.",
+      "invalidSubscription": "This browser created a notification subscription the server does not accept.",
+      "rateLimited": "Too many attempts in a row. Wait a moment and try again."
     }
   },
   "systemEvents": {
@@ -734,6 +739,49 @@
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds."
+    }
+  },
+  "pwa": {
+    "installApp": "Install app",
+    "install": "Install",
+    "notNow": "Not now",
+    "close": "Close",
+    "card": {
+      "installTitle": "Install SparkChat",
+      "installText": "Open it straight from your home screen or desktop and get calls and messages even when the app is closed.",
+      "iosInstallAction": "See how to install",
+      "notificationsTitle": "Turn on notifications",
+      "notificationsText": "Know right away when a message arrives or someone calls you, even with the app closed. No content is shown in the alert.",
+      "enable": "Turn on",
+      "dismiss": "Dismiss"
+    },
+    "sheet": {
+      "title": "Install SparkChat",
+      "installedTitle": "SparkChat is already installed",
+      "installedText": "You are already using the installed app. You can close this.",
+      "lead": "Once installed, SparkChat opens in its own window and alerts you about calls and messages even when closed.",
+      "promptText": "Tap Install and confirm in the browser dialog.",
+      "manualText": "Open the browser menu and choose \"Install app\" or \"Add to Home screen\". On a computer, look for the install icon in the address bar.",
+      "iosWhy": "On iPhone and iPad, call and message notifications only work with SparkChat added to the Home Screen.",
+      "iosStep1": "Tap Share in the browser toolbar.",
+      "iosStep2": "Choose \"Add to Home Screen\" and tap Add.",
+      "iosStep3": "Open SparkChat from the new icon and turn on notifications.",
+      "stepsLabel": "Steps to install"
+    },
+    "push": {
+      "label": "Notifications",
+      "description": "Calls and messages even when the app is closed, without showing content.",
+      "blocked": "Notifications are blocked in this browser. To allow them, tap the lock or settings icon next to the address, allow Notifications and reload the page. In the installed app, allow them in System Settings > Notifications > SparkChat.",
+      "unsupported": "This browser does not support notifications while the app is closed.",
+      "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
+      "serverDisabled": "Notifications with the app closed are not available on this server yet.",
+      "checking": "Checking…",
+      "error": "Could not turn on notifications right now. Try again in a moment."
+    },
+    "update": {
+      "message": "A new version is available",
+      "reload": "Reload",
+      "dismiss": "Later"
     }
   }
 }

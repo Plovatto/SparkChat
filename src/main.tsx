@@ -4,6 +4,7 @@ import '@lib/i18n/app-i18n';
 import { App } from '@app/App';
 import { AppProvider } from '@app/provider';
 import { installInviteFragmentCapture } from '@app/invite-fragment';
+import { startPwa } from '@features/pwa';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@/styles/globals.css';
@@ -13,6 +14,7 @@ import '@/styles/motion.css';
 import '@/styles/responsive.css';
 
 installInviteFragmentCapture();
+startPwa();
 
 const rootElement = document.getElementById('root');
 

@@ -1,3 +1,4 @@
+import { clearLocalPushSubscription } from '@features/pwa/lib/push-subscription';
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { clearStoredSession } from '../api/session-storage';
 
@@ -28,6 +29,6 @@ export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_
 
 export async function clearLocalAccountData(): Promise<void> {
   clearStoredSession();
-  await Promise.allSettled([clearIdentity(), clearRoomKeys()]);
+  await Promise.allSettled([clearIdentity(), clearRoomKeys(), clearLocalPushSubscription()]);
   await Promise.all(ACCOUNT_INDEXED_DB_NAMES.map((name) => deleteIndexedDatabase(name)));
 }

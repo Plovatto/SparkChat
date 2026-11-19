@@ -38,6 +38,7 @@ import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import { PushNotificationsRow } from '@features/pwa/components/PushNotificationsRow';
 import {
   buildChangePasswordRequest,
   buildRegenerateRecoveryRequest,
@@ -669,6 +670,7 @@ export function EditProfileModal({
 
       {activeTab === 'system' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <PushNotificationsRow />
           <SettingRow
             icon={soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
             labelId={soundsLabelId}
