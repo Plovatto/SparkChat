@@ -757,7 +757,8 @@
         "monitor": "A tela inteira",
         "unknown": "A tela"
       },
-      "volume": "Volume do áudio compartilhado"
+      "volume": "Volume do áudio compartilhado",
+      "yourScreen": "Sua tela"
     },
     "unstable": "Conexão instável",
     "you": "Você",

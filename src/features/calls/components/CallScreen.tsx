@@ -9,12 +9,15 @@ import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
 import { pipMode } from '../lib/picture-in-picture';
+import { isMounted } from '../lib/presence';
+import { selectStageLayout } from '../lib/stage-layout';
 import { describeShareSurface } from '../lib/share-surface';
 import { CallControls } from './CallControls';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
 import { useSpeaking, useStreamOn } from './call-hooks';
 import { usePip } from './use-pip';
+import { usePresence } from './use-presence';
 
 interface CallScreenProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -58,6 +61,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const { state } = snapshot;
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
+  const localScreenTileRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const [needsTap, setNeedsTap] = useState(false);
@@ -71,7 +75,12 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const remoteSharing = running && snapshot.remoteScreenOn && snapshot.remoteScreenStream !== null;
   const isVideo = state.kind === 'video' || snapshot.cameraOn || snapshot.remoteCameraOn || remoteSharing;
   const remoteCamera = snapshot.remoteStream !== null && snapshot.remoteCameraOn;
-  const showRemoteVideo = remoteCamera && !remoteSharing;
+  const localSharing = snapshot.screenSharing && snapshot.localScreenStream !== null;
+  const layout = selectStageLayout({ running, remoteSharing, localSharing });
+  const stageActive = layout.main !== null;
+  const localStage = layout.main === 'local-screen';
+  const stageStream = layout.main === 'remote-screen' ? snapshot.remoteScreenStream : localStage ? snapshot.localScreenStream : null;
+  const showRemoteVideo = remoteCamera && !stageActive;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = useSpeaking(snapshot.localStream, running && !snapshot.muted);
@@ -97,10 +106,16 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         () => setNeedsTap(true),
       );
     }
-  }, [snapshot.remoteStream, videoRef, remoteSharing]);
+  }, [snapshot.remoteStream, videoRef, stageActive]);
 
   useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
-  useStreamOn(screenRef, remoteSharing ? snapshot.remoteScreenStream : null);
+  useEffect(() => {
+    if (screenRef.current) {
+      screenRef.current.muted = localStage;
+    }
+  });
+  useStreamOn(screenRef, stageStream);
+  useStreamOn(localScreenTileRef, layout.localScreenTile ? snapshot.localScreenStream : null);
 
   const chooseOutput = (deviceId: string) => {
     for (const element of [videoRef.current, screenRef.current]) {
@@ -144,31 +159,39 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   })();
 
   const hidden = minimized || state.phase === 'idle' || state.phase === 'incoming-ringing';
+  const screenStage = usePresence(!hidden, 260, 180);
+  const bannerStage = usePresence(snapshot.screenSharing, 240, 180);
   const mutedBadge = (small: boolean) => (
     <span className={`sc-call-muted-badge${small ? ' sc-call-muted-badge--small' : ''}`} role="img" aria-label={t('calls.mutedBadge')}>
       <FaMicrophoneSlash size={small ? 11 : 13} />
     </span>
   );
 
-  const remoteVideoStyle = remoteSharing
+  const remoteVideoStyle = stageActive
     ? { width: '100%', height: '100%', objectFit: 'cover' as const, display: remoteCamera ? 'block' : 'none' }
     : { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'cover' as const, display: showRemoteVideo ? 'block' : 'none' };
 
-  const shareSurface = snapshot.screenSharing ? describeShareSurface(snapshot.localScreenStream) : null;
+  const liveSurface = snapshot.screenSharing ? describeShareSurface(snapshot.localScreenStream) : null;
+  const lastSurfaceRef = useRef(liveSurface);
+  if (liveSurface) {
+    lastSurfaceRef.current = liveSurface;
+  }
+  const shareSurface = liveSurface ?? lastSurfaceRef.current;
+  const ownSurfaceText = `${t(`calls.share.surface.${shareSurface?.kind ?? 'unknown'}`)}${shareSurface?.label ? ` · ${shareSurface.label}` : ''}`;
   const sharePercent = Math.round(snapshot.shareVolume * 100);
   const peerSurfaceText = `${t(`calls.share.peerSurface.${snapshot.remoteScreenSurface ?? 'unknown'}`)}${snapshot.remoteScreenLabel ? ` · ${snapshot.remoteScreenLabel}` : ''}`;
 
   const remoteVideo = <video ref={videoRef} autoPlay playsInline style={remoteVideoStyle} />;
 
   return (
-    <div role="dialog" aria-label={isVideo ? t('calls.start.video') : t('calls.start.voice')} className="sc-call-screen" style={{ display: hidden ? 'none' : 'flex' }}>
-      {!remoteSharing && remoteVideo}
+    <div role="dialog" aria-label={isVideo ? t('calls.start.video') : t('calls.start.voice')} className="sc-call-screen" data-state={screenStage} style={{ display: isMounted(screenStage) ? 'flex' : 'none' }}>
+      {!stageActive && remoteVideo}
       <div className="sc-call-topbar">
         <div className="sc-call-topbar__group">
           <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')} style={{ width: '52px', height: '52px' }}>
             <FaCompressAlt size={22} />
           </button>
-          {(remoteSharing || showRemoteVideo) && (
+          {(stageActive || showRemoteVideo) && (
             <span className={`sc-call-chip${remoteSpeaking ? ' sc-call-speaking' : ''}`} style={{ maxWidth: 'min(260px, 50vw)' }}>
               <span>{peerName}</span>
               {snapshot.remoteMuted && <FaMicrophoneSlash size={11} aria-label={t('calls.mutedBadge')} />}
@@ -193,8 +216,8 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         </div>
       </div>
 
-      {snapshot.screenSharing && (
-        <div className="sc-call-share-banner" role="status">
+      {isMounted(bannerStage) && (
+        <div className="sc-call-share-banner" role="status" data-state={bannerStage}>
           <span className="sc-call-share-banner__icon" aria-hidden="true">
             <MdScreenShare size={18} />
           </span>
@@ -240,12 +263,20 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         </div>
       )}
 
-      {remoteSharing ? (
-        <div ref={stageRef} className="sc-call-stage">
-          <video ref={screenRef} autoPlay playsInline className="sc-call-stage__video" aria-label={t('calls.share.remote', { name: peerName })} />
-          <span className="sc-call-stage__label">
-            <span className="sc-call-stage__label-title">{t('calls.share.peerTitle', { name: peerName })}</span>
-            <span className="sc-call-stage__label-detail">{peerSurfaceText}</span>
+      {stageActive ? (
+        <div ref={stageRef} className="sc-call-stage" data-main={layout.main ?? undefined}>
+          <video
+            key={layout.main ?? 'none'}
+            ref={screenRef}
+            autoPlay
+            playsInline
+            muted={localStage}
+            className="sc-call-stage__video"
+            aria-label={localStage ? t('calls.share.yourScreen') : t('calls.share.remote', { name: peerName })}
+          />
+          <span key={`label-${layout.main ?? 'none'}`} className="sc-call-stage__label">
+            <span className="sc-call-stage__label-title">{localStage ? t('calls.share.yourScreen') : t('calls.share.peerTitle', { name: peerName })}</span>
+            <span className="sc-call-stage__label-detail">{localStage ? ownSurfaceText : peerSurfaceText}</span>
           </span>
           {desktop && fullscreen.supported && (
             <button
@@ -278,6 +309,14 @@ export function CallScreen({ videoRef }: CallScreenProps) {
                   <span>{t('calls.you')}</span>
                 </span>
                 {snapshot.muted && mutedBadge(true)}
+              </div>
+            )}
+            {layout.localScreenTile && (
+              <div className="sc-call-tile sc-call-tile--screen">
+                <video ref={localScreenTileRef} autoPlay playsInline muted style={{ objectFit: 'contain', background: '#000000' }} />
+                <span className="sc-call-chip">
+                  <span>{t('calls.share.yourScreen')}</span>
+                </span>
               </div>
             )}
           </div>
@@ -323,7 +362,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           </button>
         )}
         <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          {snapshot.cameraOn && !remoteSharing && (
+          {snapshot.cameraOn && !stageActive && (
             <div className={`sc-call-self${localSpeaking ? ' sc-call-speaking' : ''}`}>
               <video ref={localRef} autoPlay playsInline muted />
               {snapshot.muted && mutedBadge(true)}
