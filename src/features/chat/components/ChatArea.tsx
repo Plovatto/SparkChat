@@ -30,6 +30,7 @@ import { parseMentionedUserIds } from '../utils/parse-mentions';
 import type { CurrentAudioRef } from './AudioMessageContent';
 import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
+import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
@@ -980,6 +981,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const content = (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.canvas }}>
       <ChatHeader key={room.id} room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
+      <CallStatusBar />
       <ContactKeyBanner key={`${room.id}-key-trust`} room={room} currentUserId={user.id} />
       <RoomInfoPanel
         isOpen={isInfoOpen}

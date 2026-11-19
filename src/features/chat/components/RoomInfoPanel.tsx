@@ -17,6 +17,7 @@ import { isAssistantRoom } from '../utils/assistant';
 import { AppearanceEditor } from './AppearanceEditor';
 import { GroupInviteSection } from './GroupInviteSection';
 import { GroupNameEditor } from './GroupNameEditor';
+import { ContactSecurityLink } from './ContactSecurityLink';
 import { ImageModal } from './ImageModal';
 import { MediaGallery } from './MediaGallery';
 import { PdfPreviewModal } from './PdfPreviewModal';
@@ -246,6 +247,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                     {clipboard.isCopied(COPY_KEY_NICKNAME) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
                   </button>
                 </div>
+                {!isAssistantRoom(room) && <ContactSecurityLink contactId={otherUser.id} contactName={otherUser.nickname} />}
               </div>
 
               <div className="sc-card" style={{ padding: '15px' }}>
