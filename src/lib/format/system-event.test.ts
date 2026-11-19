@@ -87,6 +87,13 @@ describe('call events', () => {
     expect(systemMessageText(missed)).toBe('Missed voice call');
   });
 
+  it('reads the duration the server sends as text in durationSec', () => {
+    const ended = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'voice', durationSec: '125' } } };
+    expect(systemMessageText(ended)).toBe('Chamada de voz encerrada · 2:05');
+    const broken = { content: '', systemEvent: { type: 'call.ended', params: { kind: 'voice', durationSec: 'abc' } } };
+    expect(systemMessageText(broken)).toBe('Chamada de voz encerrada · 0:00');
+  });
+
   it('formats long durations with hours', () => {
     expect(formatCallDuration(3725)).toBe('1:02:05');
     expect(formatCallDuration(-5)).toBe('0:00');

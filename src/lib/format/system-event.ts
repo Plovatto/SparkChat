@@ -31,7 +31,9 @@ function callVariables(event: SystemEvent): Record<string, string> {
     return {};
   }
   const kind = event.params.kind === 'video' ? 'video' : 'voice';
-  const duration = typeof event.params.duration === 'number' ? event.params.duration : 0;
+  const raw = event.params.durationSec ?? event.params.duration;
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : 0;
+  const duration = Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
   return { kind: translate(`calls.kind.${kind}`), duration: formatCallDuration(duration) };
 }
 
