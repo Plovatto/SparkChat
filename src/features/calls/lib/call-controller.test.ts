@@ -15,6 +15,20 @@ import {
 } from './call-controller';
 import { createTabOwnership } from './tab-ownership';
 
+const derivedKeys = vi.hoisted(() => [] as Array<{ send: Uint8Array; receive: Uint8Array }>);
+
+vi.mock('@lib/e2ee/call-crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@lib/e2ee/call-crypto')>();
+  return {
+    ...actual,
+    deriveSessionKeys: async (input: Parameters<typeof actual.deriveSessionKeys>[0]) => {
+      const keys = await actual.deriveSessionKeys(input);
+      derivedKeys.push(keys);
+      return keys;
+    },
+  };
+});
+
 type Handler = (...args: unknown[]) => void;
 
 class FakeSocket implements CallSocket {
@@ -735,6 +749,46 @@ describe('server events', () => {
     expect(w.b.controller.getSnapshot().state.phase).toBe('ended');
     expect(w.b.socket.sent('call:hangup')).toHaveLength(0);
     expect(w.b.peers[0]!.closed).toBe(true);
+  });
+
+  it('wipes the ephemeral key when disposed mid-ring', async () => {
+    const w = await world();
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    const ek = (w.a.controller as unknown as { session: { ownEk: { privateKey: Uint8Array } } }).session.ownEk;
+    expect(ek.privateKey.some((byte) => byte !== 0)).toBe(true);
+
+    w.a.controller.dispose();
+
+    expect(ek.privateKey.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it('wipes the derived session keys when the callee is overtaken while answering', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const w = await world({
+      bob: {
+        acquireMedia: async () => {
+          await gate;
+          return { stream: { getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => [] } as unknown as MediaStream, cameraFailed: false };
+        },
+      },
+    });
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    derivedKeys.length = 0;
+
+    void w.b.controller.accept();
+    await settle();
+    w.b.socket.receive('call:answered-elsewhere', { callId: w.b.controller.getSnapshot().state.callId });
+    release();
+    await settle();
+
+    expect(derivedKeys).toHaveLength(1);
+    expect(derivedKeys[0]!.send.every((byte) => byte === 0)).toBe(true);
+    expect(derivedKeys[0]!.receive.every((byte) => byte === 0)).toBe(true);
   });
 
   it('removes its socket listeners when disposed', async () => {

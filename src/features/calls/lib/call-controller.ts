@@ -483,6 +483,8 @@ export class CallController {
         peerEphemeralPublicKey: session.peerEk ?? '',
       });
       if (this.machine.getState().callId !== session.callId || this.machine.getState().phase !== 'incoming-ringing') {
+        keys.send.fill(0);
+        keys.receive.fill(0);
         return;
       }
       session.channel = new SignalChannel({ callId: session.callId, selfId: identity.userId, peerId: session.peerId, keys });
@@ -1003,6 +1005,9 @@ export class CallController {
     }
     this.session?.peerSession?.close();
     this.session?.channel?.dispose();
+    if (this.session?.ownEk) {
+      zeroEphemeralKeyPair(this.session.ownEk);
+    }
     this.deps.stopMedia(this.session?.media?.stream ?? null);
     this.deps.stopRingtone();
     this.deps.tabs.releaseRingtone();
