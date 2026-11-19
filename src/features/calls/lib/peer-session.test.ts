@@ -32,7 +32,12 @@ class FakeSender {
   constructor(track: { kind: string } | null) {
     this.track = track;
   }
+  failReplaces = 0;
   replaceTrack(track: { kind: string } | null): Promise<void> {
+    if (this.failReplaces > 0) {
+      this.failReplaces -= 1;
+      return Promise.reject(new Error('replace failed'));
+    }
     this.track = track;
     return Promise.resolve();
   }
@@ -760,6 +765,31 @@ describe('privacy before verification', () => {
   });
 });
 
+describe('local media attach', () => {
+  it('retries a failed replaceTrack once and succeeds', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.transceivers[0]!.sender.failReplaces = 1;
+
+    await verify(h);
+
+    expect(h.fatals).toEqual([]);
+    expect(h.connection.transceivers[0]!.sender.track).not.toBeNull();
+  });
+
+  it('fails visibly when replaceTrack fails twice', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.transceivers[0]!.sender.failReplaces = 2;
+
+    await verify(h);
+
+    expect(h.fatals).toEqual(['media-attach-failed']);
+  });
+});
+
 describe('control channel', () => {
   it('delivers valid messages, ignores invalid ones and sends only when open', async () => {
     const h = build('caller');
@@ -780,11 +810,24 @@ describe('control channel', () => {
     expect(h.session.sendControl({ t: 'hangup' })).toBe(false);
   });
 
+  it('sends hangup but no mute or camera state before verification', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    const channel = h.connection.channels[0]!;
+
+    expect(h.session.sendControl({ t: 'mute', on: true })).toBe(false);
+    expect(h.session.sendControl({ t: 'camera', on: true })).toBe(false);
+    expect(h.session.sendControl({ t: 'hangup' })).toBe(true);
+    expect(channel.sent).toEqual(['{"t":"hangup"}']);
+  });
+
   it('mutes the local audio and tells the peer', async () => {
     const stream = localStream(['audio', 'video']);
     const h = build('caller', { localStream: stream });
     h.session.start();
     await settle();
+    await verify(h);
 
     h.session.setMuted(true);
 

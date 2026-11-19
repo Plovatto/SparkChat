@@ -759,7 +759,12 @@ export class CallController {
     }
     if (event === 'call:accept') {
       if (session && session.role === 'callee') {
-        this.machine.dispatch({ type: 'accept-rejected', callId: session.callId });
+        if (code === 'call.invalidState' || code === 'call.notFound') {
+          this.machine.dispatch({ type: 'accept-rejected', callId: session.callId });
+        } else {
+          this.update({ notice: { kind: 'server-error', code } });
+          this.machine.dispatch({ type: 'failure', callId: session.callId, detail: code });
+        }
       }
       return;
     }

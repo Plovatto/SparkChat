@@ -278,13 +278,24 @@ export class PeerSession {
     this.localAttached = true;
     for (const track of stream.getTracks()) {
       const transceiver = this.connection.getTransceivers().find((candidate) => (candidate.receiver.track?.kind ?? candidate.sender.track?.kind) === track.kind);
+      if (transceiver && !(await this.replaceWithRetry(transceiver.sender, track))) {
+        this.fatal('media-attach-failed');
+        return;
+      }
+    }
+    await this.applyCaps();
+  }
+
+  private async replaceWithRetry(sender: RTCRtpSender, track: MediaStreamTrack): Promise<boolean> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        await transceiver?.sender.replaceTrack(track);
+        await sender.replaceTrack(track);
+        return true;
       } catch {
         continue;
       }
     }
-    await this.applyCaps();
+    return false;
   }
 
   private async negotiate(): Promise<void> {
@@ -571,7 +582,7 @@ export class PeerSession {
 
   sendControl(message: ControlMessage): boolean {
     const channel = this.control;
-    if (!channel || channel.readyState !== 'open') {
+    if (!channel || channel.readyState !== 'open' || (!this.verified && message.t !== 'hangup')) {
       return false;
     }
     channel.send(JSON.stringify(message));

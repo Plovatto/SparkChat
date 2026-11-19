@@ -679,7 +679,8 @@
       "invalid-accept": "The call answer could not be verified.",
       "relay-unavailable": "Relay is unavailable and Protect my IP is on.",
       "connect-timeout": "The connection took too long.",
-      "signal-failed": "The call signaling could not be sent."
+      "signal-failed": "The call signaling could not be sent.",
+      "media-attach-failed": "Your audio or video could not be sent in the call."
     },
     "notice": {
       "media-denied": "Allow microphone access to make calls.",

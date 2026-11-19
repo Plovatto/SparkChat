@@ -742,6 +742,23 @@ describe('server events', () => {
     expect(w.b.stopped).toBeGreaterThan(0);
   });
 
+  it('shows the normal error and fails the call for accept errors that are not about the call being taken', async () => {
+    const w = await world();
+    w.b.socket.onEmit = (event) => {
+      if (event === 'call:accept') {
+        w.b.socket.receive('error', { message: 'x', code: 'call.rateLimited', event: 'call:accept' });
+      }
+    };
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+
+    void w.b.controller.accept();
+    await settle();
+
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed', detail: 'call.rateLimited' });
+    expect(w.b.controller.getSnapshot().notice).toEqual({ kind: 'server-error', code: 'call.rateLimited' });
+  });
+
   it('ends the losing callee locally when answered elsewhere while connecting', async () => {
     const w = await world();
     await connectCall(w);
