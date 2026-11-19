@@ -49,18 +49,21 @@ describe('loadComposerLinkPreview', () => {
 describe('finalizeComposerLinkPreview', () => {
   const preview = { url: TYPED_URL, title: 'Artigo', description: null, imageUrl: null, siteName: null };
 
-  it('replaces the image with the encrypted upload URL', async () => {
-    const upload = vi.fn().mockResolvedValue('https://cdn.test/uploads/images/p.webp?e2e=1');
+  it('replaces the image with the encrypted upload URL and carries its key only in the file details', async () => {
+    const upload = vi.fn().mockResolvedValue({ url: 'https://cdn.test/uploads/images/p.webp?e2e=1', key: 'k'.repeat(43) });
 
-    const result = await finalizeComposerLinkPreview({ preview, image: new Blob(['x']) }, upload);
+    const result = await finalizeComposerLinkPreview({ preview, image: new Blob(['x'], { type: 'image/webp' }) }, upload);
 
-    expect(result.imageUrl).toBe('https://cdn.test/uploads/images/p.webp?e2e=1');
+    expect(result.linkPreview.imageUrl).toBe('https://cdn.test/uploads/images/p.webp?e2e=1');
+    expect(result.fileMeta).toEqual({ name: 'link-preview', mimeType: 'image/webp', size: 1, previewKey: 'k'.repeat(43) });
+    expect(JSON.stringify(result.linkPreview)).not.toContain('k'.repeat(43));
   });
 
   it('sends the preview without an image when the upload fails', async () => {
     const result = await finalizeComposerLinkPreview({ preview, image: new Blob(['x']) }, vi.fn().mockRejectedValue(new Error('quota')));
 
-    expect(result.imageUrl).toBeNull();
+    expect(result.linkPreview.imageUrl).toBeNull();
+    expect(result.fileMeta).toBeUndefined();
   });
 
   it('does not upload anything when there is no image', async () => {
@@ -69,6 +72,7 @@ describe('finalizeComposerLinkPreview', () => {
     const result = await finalizeComposerLinkPreview({ preview, image: null }, upload);
 
     expect(upload).not.toHaveBeenCalled();
-    expect(result.imageUrl).toBeNull();
+    expect(result.linkPreview.imageUrl).toBeNull();
+    expect(result.fileMeta).toBeUndefined();
   });
 });
