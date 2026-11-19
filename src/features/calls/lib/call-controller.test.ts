@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as CallCryptoModule from '@lib/e2ee/call-crypto';
 import type { PinnedPeer, SignalType } from '@lib/e2ee/call-crypto';
 import type { CurrentIdentity } from '@lib/e2ee/current-identity';
 import { generateIdentity } from '@lib/e2ee/identity';
@@ -7,6 +8,7 @@ import {
   CallController,
   FALLBACK_STUN,
   HEARTBEAT_INTERVAL_MS,
+  sanitizeEndReason,
   type CallControllerDeps,
   type CallSocket,
   type PeerSessionFactoryOptions,
@@ -18,7 +20,7 @@ import { createTabOwnership } from './tab-ownership';
 const derivedKeys = vi.hoisted(() => [] as Array<{ send: Uint8Array; receive: Uint8Array }>);
 
 vi.mock('@lib/e2ee/call-crypto', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@lib/e2ee/call-crypto')>();
+  const actual = await importOriginal<typeof CallCryptoModule>();
   return {
     ...actual,
     deriveSessionKeys: async (input: Parameters<typeof actual.deriveSessionKeys>[0]) => {
@@ -825,6 +827,16 @@ describe('server events', () => {
     expect(derivedKeys).toHaveLength(1);
     expect(derivedKeys[0]!.send.every((byte) => byte === 0)).toBe(true);
     expect(derivedKeys[0]!.receive.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it('maps an unknown server end reason to failed so it cannot pick an arbitrary translation key', async () => {
+    const w = await world();
+    await connectCall(w);
+
+    w.a.socket.receive('call:ended', { callId: w.a.controller.getSnapshot().state.callId, reason: '../../x', endedAt: '' });
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed' });
+    expect(sanitizeEndReason('declined')).toBe('declined');
   });
 
   it('removes its socket listeners when disposed', async () => {

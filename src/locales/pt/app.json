@@ -678,7 +678,8 @@
       "fingerprint-mismatch": "A verificação de segurança da chamada falhou. A chamada foi encerrada.",
       "invalid-accept": "A resposta da chamada não pôde ser verificada.",
       "relay-unavailable": "A retransmissão está indisponível e a opção Proteger meu IP está ligada.",
-      "connect-timeout": "A conexão demorou demais."
+      "connect-timeout": "A conexão demorou demais.",
+      "signal-failed": "Não foi possível enviar a sinalização da chamada."
     },
     "notice": {
       "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
@@ -690,6 +691,7 @@
       "interrupted": "Uma chamada anterior foi interrompida.",
       "server-error": "Não foi possível completar a chamada."
     },
-    "callBack": "Ligar de volta"
+    "callBack": "Ligar de volta",
+    "close": "Fechar"
   }
 }

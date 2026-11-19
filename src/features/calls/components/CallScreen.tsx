@@ -15,7 +15,6 @@ interface CallScreenProps {
   videoRef: RefObject<HTMLVideoElement | null>;
 }
 
-
 function useElapsed(connectedAt: number | null, running: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -179,7 +178,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         )}
         {state.phase === 'ended' ? (
           <button type="button" className="sc-btn sc-btn--primary" onClick={call.dismissEnded}>
-            OK
+            {t('calls.close')}
           </button>
         ) : (
           <CallControls supportsOutput={supportsOutput} onAudioOutput={chooseOutput} />

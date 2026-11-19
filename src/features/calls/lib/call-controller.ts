@@ -36,6 +36,7 @@ export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
+const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
 const PORT_53 = /:53(?:\?|$)/;
 
 export type CallNoticeKind =
@@ -156,6 +157,10 @@ interface PendingIce {
   timer: ReturnType<typeof setTimeout>;
 }
 
+export function sanitizeEndReason(reason: unknown): CallEndReason {
+  return typeof reason === 'string' && END_REASONS.has(reason) ? (reason as CallEndReason) : 'failed';
+}
+
 function toIceServers(result: CallIceServersResult): RTCIceServer[] {
   const servers: RTCIceServer[] = [];
   for (const entry of result.iceServers) {
@@ -244,7 +249,7 @@ export class CallController {
       ['call:answered-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'answered-elsewhere', callId: payload.callId })],
       ['call:declined-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'declined-elsewhere', callId: payload.callId })],
       ['call:signal', (payload: { callId: string; from: string; envelope: string }) => this.onSignal(payload)],
-      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: payload.reason })],
+      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: sanitizeEndReason(payload.reason) })],
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],

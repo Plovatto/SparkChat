@@ -43,8 +43,8 @@ export function CallNotices() {
     return (
       <div role="alert" style={{ ...bar, background: theme.dangerSoft, color: theme.dangerText }}>
         {text}
-        <button type="button" onClick={dismissNotice} className="sc-btn sc-btn--text" style={{ marginLeft: '8px' }} aria-label="OK">
-          OK
+        <button type="button" onClick={dismissNotice} className="sc-btn sc-btn--text" style={{ marginLeft: '8px' }} aria-label={t('calls.close')}>
+          {t('calls.close')}
         </button>
       </div>
     );
