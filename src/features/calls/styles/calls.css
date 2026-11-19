@@ -787,10 +787,10 @@
 }
 
 .sc-incoming-slot {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin-bottom: 10px;
+  flex-shrink: 0;
+  padding: 10px 8px 12px;
+  border-top: 1px solid var(--sc-border);
+  background: var(--sc-sidebar, transparent);
 }
 
 .sc-incoming-card {
@@ -803,8 +803,8 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
+  gap: 18px;
+  padding: 14px 14px 14px;
   border-radius: 12px;
   background: var(--sc-surface-elevated);
   color: var(--sc-text-primary);
@@ -820,6 +820,7 @@
   z-index: 1;
   width: 100%;
   max-width: none;
+  animation-name: scIncomingRise;
 }
 
 .sc-incoming-card__row {
@@ -965,6 +966,17 @@
 .sc-incoming-card__mute:focus-visible {
   outline: 3px solid var(--sc-focus-ring, var(--sc-accent));
   outline-offset: 2px;
+}
+
+@keyframes scIncomingRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes scIncomingDrop {

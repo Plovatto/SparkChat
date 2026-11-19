@@ -507,7 +507,6 @@ export function Sidebar({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
-        <IncomingCallSlot />
         {rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
             <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
@@ -544,6 +543,8 @@ export function Sidebar({
           </div>
         )}
       </div>
+
+      <IncomingCallSlot />
 
       {isSelectionMode && selectedIds.size > 0 && (
         <div
