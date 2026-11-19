@@ -114,6 +114,7 @@ export interface CallControllerDeps {
   socket: CallSocket;
   getIdentity: () => CurrentIdentity | null;
   resolvePeer: (userId: string) => Promise<ResolvedPeer>;
+  isPrivateRoomWith: (roomId: string, selfId: string, peerId: string) => boolean;
   tabs: TabOwnership;
   acquireMedia: (kind: CallKind) => Promise<LocalMedia>;
   acquireCamera: () => Promise<MediaStreamTrack | null>;
@@ -285,6 +286,9 @@ export class CallController {
       return;
     }
     if (typeof payload.callId !== 'string' || this.knownCallIds.has(payload.callId)) {
+      return;
+    }
+    if (!this.deps.isPrivateRoomWith(payload.roomId, identity.userId, payload.callerId)) {
       return;
     }
     this.preparing = true;

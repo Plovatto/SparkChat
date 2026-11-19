@@ -129,6 +129,7 @@ function makeNode(self: Party, resolve: (userId: string) => Promise<ResolvedPeer
     socket,
     getIdentity: () => self.identity,
     resolvePeer: resolve,
+    isPrivateRoomWith: () => true,
     tabs: createTabOwnership({ locks: null, createChannel: () => null, tabId: self.userId }),
     acquireMedia: (kind) =>
       Promise.resolve({
@@ -531,6 +532,16 @@ describe('incoming call gates', () => {
     expect(w.b.controller.getSnapshot().state.phase).toBe('idle');
     expect(w.b.rings).toEqual([]);
     expect(w.b.socket.emitted.filter((entry) => entry.event !== 'call:sync')).toHaveLength(0);
+  });
+
+  it('drops an invite when there is no local private room with exactly the caller and the signed room id', async () => {
+    const resolve = vi.fn(() => Promise.resolve({ error: 'unverifiable' } as const));
+    const w = await world({ bob: { isPrivateRoomWith: () => false }, bobResolve: resolve });
+
+    await incomingEnvelope(w);
+
+    expect(w.b.controller.getSnapshot().state.phase).toBe('idle');
+    expect(resolve).not.toHaveBeenCalled();
   });
 
   it('drops an invite when the caller key changed', async () => {

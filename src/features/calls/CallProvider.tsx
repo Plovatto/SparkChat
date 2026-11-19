@@ -9,7 +9,7 @@ import { CallNotices } from './components/CallNotices';
 import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
-import { resolvePinnedPeer } from './lib/call-peer';
+import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { getProtectIp } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
@@ -45,6 +45,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       socket: socket as unknown as CallSocket,
       getIdentity: getCurrentIdentity,
       resolvePeer: (userId) => resolvePinnedPeer(socket, userId),
+      isPrivateRoomWith: (roomId, selfId, peerId) => isPrivateRoomWith(roomsRef.current, roomId, selfId, peerId),
       tabs,
       acquireMedia: (kind) => acquireLocalMedia(kind),
       acquireCamera: () => acquireCameraTrack(),
