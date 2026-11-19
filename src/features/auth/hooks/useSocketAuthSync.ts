@@ -24,7 +24,7 @@ export interface AuthFailedPayload extends ApiErrorPayload {
 export interface SocketAuthSyncOptions {
   user: User | null;
   pendingRegistration: PendingRegistration | null;
-  onRegistered: (payload: RegisteredPayload) => void;
+  onRegistered: (payload: RegisteredPayload, registration: PendingRegistration | null) => void;
   onResumed: (payload: ResumedPayload) => void;
   onResumeFailed: () => void;
   onRegisterFailed: (message: string) => void;
@@ -160,7 +160,7 @@ export function useSocketAuthSync({
 
     const handleRegistered = (payload: RegisteredPayload) => {
       clearRetry();
-      onRegistered(payload);
+      onRegistered(payload, credentialsRef.current.pendingRegistration);
     };
 
     const handleResumed = (payload: ResumedPayload) => {

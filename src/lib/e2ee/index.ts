@@ -19,6 +19,8 @@ export {
   type RecoveryFileContents,
 } from './credentials';
 export {
+  buildRecoveryFileOnce,
+  completeRegistration,
   createPasswordMaterial,
   createRecoveryMaterial,
   prepareRegistrationCredentials,

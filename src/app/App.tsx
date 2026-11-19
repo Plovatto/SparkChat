@@ -14,13 +14,13 @@ import {
 import { LoginScreen, rememberAuthParams, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
-  buildRecoveryFile,
+  buildRecoveryFileOnce,
+  completeRegistration,
   ensureIdentityAfterKeyfileLogin,
   ensureIdentityAfterPasswordLogin,
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
-  setupIdentityAfterRegister,
   upgradeLegacyCredentials,
 } from '@lib/e2ee';
 import {
@@ -68,13 +68,8 @@ function restoreIdentityForCredential(socket: AppSocket, userId: string, credent
   }
 }
 
-async function buildRecoveryFilePrompt(userId: string, nickname: string, secret: Uint8Array, isUpgrade: boolean): Promise<RecoveryFilePrompt> {
-  try {
-    const recoveryFile = await buildRecoveryFile({ userId, nickname, secret });
-    return { userId, nickname, recoveryFile, isUpgrade };
-  } finally {
-    secret.fill(0);
-  }
+function toRecoveryFilePrompt(userId: string, nickname: string, isUpgrade: boolean) {
+  return (recoveryFile: string | null): RecoveryFilePrompt | null => (recoveryFile ? { userId, nickname, recoveryFile, isUpgrade } : null);
 }
 
 export function App() {
@@ -141,7 +136,7 @@ function AuthGate({
   useSocketAuthSync({
     user,
     pendingRegistration,
-    onRegistered: ({ user: registered, sessionToken, authMethod }) => {
+    onRegistered: ({ user: registered, sessionToken, authMethod }, registration) => {
       onLogin({
         id: registered.id,
         nickname: registered.nickname,
@@ -156,16 +151,17 @@ function AuthGate({
       setIsSocketReady(true);
       setRegisterError('');
 
-      if (pendingRegistration) {
-        const { credentials } = pendingRegistration;
+      if (registration && socket) {
+        const { credentials } = registration;
         rememberAuthParams(registered.id, { version: 2, salt: credentials.authSalt });
-        if (socket) {
-          void setupIdentityAfterRegister(socket, registered.id, credentials.wrapKey, credentials.recoveryWrapKey).finally(() => {
-            credentials.wrapKey.fill(0);
-            credentials.recoveryWrapKey.fill(0);
-          });
-        }
-        void buildRecoveryFilePrompt(registered.id, registered.nickname, credentials.recoverySecret, false).then(setRecoveryFilePrompt);
+        void completeRegistration(socket, registered.id, registered.nickname, credentials)
+          .then(toRecoveryFilePrompt(registered.id, registered.nickname, false))
+          .then((prompt) => {
+            if (prompt) {
+              setRecoveryFilePrompt(prompt);
+            }
+          })
+          .catch((error: unknown) => console.error('[e2e] registration setup failed', error));
       }
       onRegisterStart(null);
     },
@@ -198,7 +194,14 @@ function AuthGate({
               return;
             }
             rememberAuthParams(resumed.id, { version: 2, salt: upgraded.authSalt });
-            setRecoveryFilePrompt(await buildRecoveryFilePrompt(resumed.id, resumed.nickname, upgraded.recoverySecret, true));
+            const prompt = toRecoveryFilePrompt(
+              resumed.id,
+              resumed.nickname,
+              true,
+            )(await buildRecoveryFileOnce({ userId: resumed.id, nickname: resumed.nickname, secret: upgraded.recoverySecret }));
+            if (prompt) {
+              setRecoveryFilePrompt(prompt);
+            }
           })
           .catch((error: unknown) => console.error('[e2e] credential upgrade failed', error));
       }

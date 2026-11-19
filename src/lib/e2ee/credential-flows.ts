@@ -1,12 +1,14 @@
 import type { AppSocket, SocketErrorPayload } from '@lib/socket';
 import {
+  buildRecoveryFile,
   deriveRecoveryCredentials,
   derivePasswordCredentials,
   generateAuthSalt,
   generateRecoverySecret,
   wrapPrivateKeyV2,
+  type RecoveryFileContents,
 } from './credentials';
-import { resolveIdentityForRewrap, type ResolvedIdentity } from './setup-identity';
+import { resolveIdentityForRewrap, setupIdentityAfterRegister, type ResolvedIdentity } from './setup-identity';
 
 const UPGRADE_TIMEOUT_MS = 20000;
 
@@ -34,6 +36,43 @@ export interface RegistrationCredentials {
 export interface UpgradedCredentials {
   authSalt: string;
   recoverySecret: Uint8Array;
+}
+
+const consumedSecrets = new WeakSet<Uint8Array>();
+
+function claimSecret(secret: Uint8Array): boolean {
+  if (consumedSecrets.has(secret)) {
+    return false;
+  }
+  consumedSecrets.add(secret);
+  return true;
+}
+
+export async function buildRecoveryFileOnce(contents: RecoveryFileContents): Promise<string | null> {
+  if (!claimSecret(contents.secret)) {
+    return null;
+  }
+  try {
+    return await buildRecoveryFile(contents);
+  } finally {
+    contents.secret.fill(0);
+  }
+}
+
+export async function completeRegistration(
+  socket: AppSocket,
+  userId: string,
+  nickname: string,
+  credentials: RegistrationCredentials,
+): Promise<string | null> {
+  if (!claimSecret(credentials.wrapKey)) {
+    return null;
+  }
+  void setupIdentityAfterRegister(socket, userId, credentials.wrapKey, credentials.recoveryWrapKey).finally(() => {
+    credentials.wrapKey.fill(0);
+    credentials.recoveryWrapKey.fill(0);
+  });
+  return buildRecoveryFileOnce({ userId, nickname, secret: credentials.recoverySecret });
 }
 
 export async function prepareRegistrationCredentials(password: string): Promise<RegistrationCredentials> {

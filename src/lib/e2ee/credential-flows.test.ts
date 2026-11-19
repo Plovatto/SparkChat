@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from '@lib/socket';
-import { upgradeLegacyCredentials } from './credential-flows';
+import { buildRecoveryFileOnce, completeRegistration, prepareRegistrationCredentials, upgradeLegacyCredentials } from './credential-flows';
 import {
   deriveRecoveryCredentials,
   derivePasswordCredentials,
@@ -167,6 +167,43 @@ describe('resolveIdentityForRewrap', () => {
     const identity = await resolveIdentityForRewrap(fake.socket, 'user-1');
     expect(identity).not.toBeNull();
     expect(payloadOf(fake, 'e2e:publish-keys')).toEqual({ publicKey: identity?.publicKey });
+  });
+});
+
+describe('recovery file one-shot guards', () => {
+  it('builds a file from a secret only once and never from a zeroed secret', async () => {
+    const secret = await generateRecoverySecret();
+    const original = Array.from(secret);
+
+    const first = await buildRecoveryFileOnce({ userId: 'user-1', nickname: 'alice', secret });
+    const second = await buildRecoveryFileOnce({ userId: 'user-1', nickname: 'alice', secret });
+
+    expect(first).not.toBeNull();
+    const parsed = JSON.parse(atob(first ?? '')) as { secret: string };
+    expect(parsed.secret).not.toBe('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+    expect(original.some((byte) => byte !== 0)).toBe(true);
+    expect(Array.from(secret).every((byte) => byte === 0)).toBe(true);
+    expect(second).toBeNull();
+  });
+
+  it('completes a registration once even when the registered event is handled twice', async () => {
+    const credentials = await prepareRegistrationCredentials('pw-123456');
+    const fake = createSocket(null);
+
+    const [first, second] = await Promise.all([
+      completeRegistration(fake.socket, 'user-1', 'alice', credentials),
+      completeRegistration(fake.socket, 'user-1', 'alice', credentials),
+    ]);
+    await vi.waitFor(() => expect(fake.emitted.filter((entry) => entry.event === 'e2e:publish-keys')).toHaveLength(1));
+
+    expect(first).not.toBeNull();
+    expect(second).toBeNull();
+    const published = payloadOf(fake, 'e2e:publish-keys');
+    const recoverySecret = (JSON.parse(atob(first ?? '')) as { secret: string }).secret;
+    const recovery = await deriveRecoveryCredentials(Uint8Array.from(atob(recoverySecret.replace(/-/g, '+').replace(/_/g, '/')), (char) => char.charCodeAt(0)));
+    expect(recovery.recoveryKey).toBe(credentials.recoveryVerifier);
+    const unwrapped = await unwrapPrivateKeyV2(published.encryptedPrivateKeyByRecovery, recovery.recoveryWrapKey, 'user-1', published.publicKey);
+    expect(unwrapped).toHaveLength(32);
   });
 });
 
