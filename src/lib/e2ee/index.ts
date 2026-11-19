@@ -5,11 +5,24 @@ export {
   ensureIdentityAfterPasswordLogin,
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
+  ensureSigningKeyPublished,
   hydrateCurrentIdentity,
   resolveIdentityForRewrap,
   rewrapIdentityAfterLegacyRecoveryRegenerate,
   setupIdentityAfterRegister,
 } from './setup-identity';
+export {
+  acceptContactKeyChange,
+  getContactTrust,
+  isKeyUsable,
+  observeContactKey,
+  setContactVerified,
+  subscribeContactTrust,
+  type ContactTrust,
+  type ContactTrustStatus,
+} from './contact-trust';
+export { computeSafetyNumber, type SafetyNumber } from './safety-number';
+export { lookupContactKey } from './room-keys';
 export {
   buildRecoveryFile,
   derivePasswordCredentials,

@@ -113,7 +113,9 @@
     },
     "e2e": {
       "lookupTooLarge": "Too many items in one key lookup. Send at most {{maxItems}} at a time.",
-      "keysLocked": "This account's encryption keys are already set and can't be replaced."
+      "keysLocked": "This account's encryption keys are already set and can't be replaced.",
+      "invalidSigningKey": "The signing key is invalid or does not match your public key.",
+      "signingKeyLocked": "The signing key of this account is already set."
     }
   },
   "systemEvents": {
@@ -375,6 +377,28 @@
         "pt": "Portuguese",
         "en": "English"
       }
+    },
+    "keyTrust": {
+      "dialogTitle": "Safety number",
+      "dialogIntro": "Compare this number or QR code with {{name}} using another channel, such as in person or a phone call. If they match, mark the contact as verified.",
+      "unverifiableHint": "This contact has not published a signing key yet, so the keys cannot be verified for now.",
+      "numberLabel": "Safety number",
+      "qrAlt": "Safety number QR code",
+      "markVerified": "Mark as verified",
+      "unmarkVerified": "Remove verification",
+      "statusVerified": "Verified contact",
+      "statusUnverified": "Not verified",
+      "statusUnverifiable": "Not verifiable yet",
+      "openDialog": "Safety number",
+      "changedWarning": "The security key of {{name}} changed. Messages are not encrypted to the new key until you accept it.",
+      "changedVerifiedWarning": "The security key of a verified contact, {{name}}, changed. Compare the safety number again before accepting.",
+      "invalidWarning": "The key received for {{name}} has an invalid signature and was ignored.",
+      "acceptChange": "Accept new key",
+      "reviewChange": "Review",
+      "blockingTitle": "Verified contact key changed",
+      "blockingBody": "The security key of {{name}}, whom you verified, changed. This can happen when they reinstall or sign in on a new device, but it can also mean someone is intercepting the conversation. Verify the new safety number with them before accepting.",
+      "acceptChangeVerified": "Accept the new key anyway",
+      "keepBlocked": "Keep blocked"
     }
   },
   "roomInfo": {

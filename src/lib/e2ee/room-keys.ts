@@ -1,6 +1,8 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomSummary } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
+import { ASSISTANT_NICKNAME } from './assistant';
+import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
 import { getCurrentIdentity } from './current-identity';
 import { clearRoomKeyStore, deleteRoomKey, loadRoomKey, saveRoomKey } from './key-store';
 import { clearDecryptedMediaCache } from './media-cache';
@@ -77,6 +79,31 @@ function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePubli
 
 const lookupSealedRoomKey = createBatchedLookup(fetchRoomKeys, (entry) => entry.roomId);
 const lookupPublicKey = createBatchedLookup(fetchPublicKeys, (entry) => entry.userId);
+
+export async function lookupContactKey(socket: AppSocket, userId: string): Promise<ContactTrust | null> {
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return null;
+  }
+  const entry = await lookupPublicKey(socket, userId);
+  if (!entry) {
+    return null;
+  }
+  return observeContactKey({ userId: identity.userId, publicKey: identity.publicKey }, entry);
+}
+
+async function lookupUsableContactKey(socket: AppSocket, userId: string, serverManaged = false): Promise<string | null> {
+  const identity = getCurrentIdentity();
+  const entry = await lookupPublicKey(socket, userId);
+  if (!identity || !entry) {
+    return null;
+  }
+  if (serverManaged) {
+    return entry.publicKey;
+  }
+  const trust = await observeContactKey({ userId: identity.userId, publicKey: identity.publicKey }, entry);
+  return isKeyUsable(trust.status) ? entry.publicKey : null;
+}
 
 async function unsealRoomKey(sealedKeyBase64: string): Promise<Uint8Array | null> {
   const identity = getCurrentIdentity();
@@ -276,7 +303,7 @@ async function establishPrivateRoomKeyImpl(
     return;
   }
 
-  const otherPublicKey = (await lookupPublicKey(socket, otherParticipant.id))?.publicKey;
+  const otherPublicKey = await lookupUsableContactKey(socket, otherParticipant.id, otherParticipant.nickname === ASSISTANT_NICKNAME);
   if (!otherPublicKey) {
     return;
   }
@@ -400,7 +427,7 @@ async function sealAndPublishForParticipant(socket: AppSocket, roomId: string, t
     return;
   }
 
-  const targetPublicKey = (await lookupPublicKey(socket, targetUserId))?.publicKey;
+  const targetPublicKey = await lookupUsableContactKey(socket, targetUserId);
   if (!targetPublicKey) {
     return;
   }

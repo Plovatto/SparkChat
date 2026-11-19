@@ -1,13 +1,26 @@
 const DB_NAME = 'sparkchat-e2ee';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const IDENTITY_STORE_NAME = 'identity';
 const ROOM_KEYS_STORE_NAME = 'room_keys';
+const CONTACT_PINS_STORE_NAME = 'contact_pins';
 const RECORD_KEY = 'current';
 
 interface StoredIdentity {
   userId: string;
   publicKey: string;
   privateKey: Uint8Array;
+}
+
+export interface ContactPin {
+  id: string;
+  ownerId: string;
+  contactId: string;
+  publicKey: string;
+  signingPublicKey: string | null;
+  ownPublicKey: string;
+  verified: boolean;
+  pinnedAt: number;
+  pending: { publicKey: string; signingPublicKey: string | null; seenAt: number } | null;
 }
 
 interface StoredRoomKey {
@@ -25,6 +38,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!request.result.objectStoreNames.contains(ROOM_KEYS_STORE_NAME)) {
         request.result.createObjectStore(ROOM_KEYS_STORE_NAME, { keyPath: 'roomId' });
+      }
+      if (!request.result.objectStoreNames.contains(CONTACT_PINS_STORE_NAME)) {
+        request.result.createObjectStore(CONTACT_PINS_STORE_NAME, { keyPath: 'id' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -138,6 +154,42 @@ export async function clearRoomKeyStore(): Promise<void> {
       tx.objectStore(ROOM_KEYS_STORE_NAME).clear();
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('Falha ao limpar as chaves de sala.'));
+    });
+    db.close();
+  } catch {
+    return;
+  }
+}
+
+export function contactPinId(ownerId: string, contactId: string): string {
+  return `${ownerId}:${contactId}`;
+}
+
+export async function loadContactPin(ownerId: string, contactId: string): Promise<ContactPin | null> {
+  try {
+    const db = await openDb();
+    const stored = await new Promise<ContactPin | undefined>((resolve, reject) => {
+      const tx = db.transaction(CONTACT_PINS_STORE_NAME, 'readonly');
+      const request = tx.objectStore(CONTACT_PINS_STORE_NAME).get(contactPinId(ownerId, contactId));
+      request.onsuccess = () => resolve(request.result as ContactPin | undefined);
+      request.onerror = () => reject(request.error ?? new Error('Falha ao ler a chave do contato.'));
+    });
+    db.close();
+
+    return stored ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveContactPin(pin: ContactPin): Promise<void> {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(CONTACT_PINS_STORE_NAME, 'readwrite');
+      tx.objectStore(CONTACT_PINS_STORE_NAME).put(pin);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error ?? new Error('Falha ao salvar a chave do contato.'));
     });
     db.close();
   } catch {

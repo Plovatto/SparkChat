@@ -168,6 +168,8 @@ export interface RoomSummary {
 export interface E2ePublicKeyEntry {
   userId: string;
   publicKey: string;
+  signingPublicKey?: string;
+  keySignature?: string;
 }
 
 export interface ServerToClientEvents {
@@ -265,9 +267,12 @@ export interface ClientToServerEvents {
   'user:revoke-session': (payload: { sessionId: string }) => void;
   'e2e:publish-keys': (payload: {
     publicKey?: string;
+    signingPublicKey?: string;
+    keySignature?: string;
     encryptedPrivateKeyByPassword?: string;
     encryptedPrivateKeyByRecovery?: string;
   }) => void;
+  'e2e:publish-signing-key': (payload: { signingPublicKey: string; keySignature: string }) => void;
   'e2e:get-public-keys': (payload: { userIds: string[] }) => void;
   'e2e:get-my-keys': () => void;
   'rooms:get': () => void;
