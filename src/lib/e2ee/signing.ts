@@ -19,13 +19,19 @@ function bindingMessage(userId: string, publicKey: string): Uint8Array {
   return new TextEncoder().encode(`${BINDING_PREFIX}${userId}:${publicKey}`);
 }
 
-export async function buildSigningProof(userId: string, publicKey: string, privateKey: Uint8Array): Promise<SigningProof> {
+export async function deriveSigningKeyPair(privateKey: Uint8Array): Promise<{ publicKey: Uint8Array; privateKey: Uint8Array }> {
   const sodium = await getSodium();
   const seed = sodium.crypto_generichash(sodium.crypto_sign_SEEDBYTES, privateKey, sodium.from_string(SEED_CONTEXT));
   const pair = sodium.crypto_sign_seed_keypair(seed);
+  seed.fill(0);
+  return { publicKey: pair.publicKey, privateKey: pair.privateKey };
+}
+
+export async function buildSigningProof(userId: string, publicKey: string, privateKey: Uint8Array): Promise<SigningProof> {
+  const sodium = await getSodium();
+  const pair = await deriveSigningKeyPair(privateKey);
   const signature = sodium.crypto_sign_detached(bindingMessage(userId, publicKey), pair.privateKey);
   const proof = { signingPublicKey: sodium.to_base64(pair.publicKey), keySignature: sodium.to_base64(signature) };
-  seed.fill(0);
   pair.privateKey.fill(0);
   return proof;
 }
