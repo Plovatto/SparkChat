@@ -58,7 +58,9 @@
       "notFound": "Mensagem não encontrada.",
       "deleteForbidden": "Você não tem permissão para deletar esta mensagem.",
       "invalidMedia": "Conteúdo de mídia inválido.",
-      "blocked": "Você não pode enviar mensagens nesta conversa devido a bloqueios."
+      "blocked": "Você não pode enviar mensagens nesta conversa devido a bloqueios.",
+      "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
+      "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo."
     },
     "upload": {
       "missingFile_image": "Nenhuma imagem enviada.",
@@ -115,7 +117,11 @@
       "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez.",
       "keysLocked": "As chaves de criptografia desta conta já foram definidas e não podem ser substituídas.",
       "invalidSigningKey": "A chave de assinatura é inválida ou não corresponde à sua chave pública.",
-      "signingKeyLocked": "A chave de assinatura desta conta já está configurada."
+      "signingKeyLocked": "A chave de assinatura desta conta já está configurada.",
+      "invalidRoomKeyEnvelope": "A chave de criptografia enviada para a conversa é inválida.",
+      "roomKeyStale": "A chave de criptografia da conversa mudou. Atualizando para a chave atual.",
+      "roomKeyIncomplete": "A nova chave da conversa precisa incluir todos os membros.",
+      "roomKeyConflict": "Outro membro já definiu a chave desta conversa."
     }
   },
   "systemEvents": {

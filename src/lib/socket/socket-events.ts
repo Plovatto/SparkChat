@@ -241,7 +241,17 @@ export interface ServerToClientEvents {
   'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[] }) => void;
   'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string }) => void;
-  'e2e:room-key-rejected': (payload: { roomId: string; epoch: number; message?: string }) => void;
+  'e2e:room-key-rejected': (payload: {
+    roomId: string;
+    epoch: number;
+    keyId: string;
+    message: string;
+    code: string;
+    event: string;
+    currentEpoch: number;
+    currentKeyId: string | null;
+    rotationRequiredEpoch: number | null;
+  }) => void;
   'e2e:rotation-required': (payload: { roomId: string; epoch: number; memberIds?: string[] }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;

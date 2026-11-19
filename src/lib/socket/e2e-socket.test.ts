@@ -17,6 +17,7 @@ const roomKeyHandlers = vi.hoisted(() => ({
   handleKeyRequest: vi.fn(),
   updateRoomParticipants: vi.fn(),
   ensureRoomKeyForSending: vi.fn(),
+  recoverFromStaleRoomKey: vi.fn(),
   encryptOutgoingMessage: vi.fn(),
 }));
 
@@ -248,5 +249,75 @@ describe('wrapSocketWithE2e room key events', () => {
     await vi.waitFor(() => expect(errors).toHaveLength(1));
     expect(originalEmit).not.toHaveBeenCalledWith('message:send', expect.anything());
     expect(roomKeyHandlers.encryptOutgoingMessage).not.toHaveBeenCalled();
+  });
+
+  describe('stale room key on send', () => {
+    const generation = (keyId: string) => ({ keyId: keyId.repeat(22), epoch: 1, key: new Uint8Array(32) });
+    const stale = { message: 'stale', code: 'message.staleRoomKey', clientTempId: 't1' };
+
+    function setup() {
+      const fake = createFakeSocket();
+      const sent = vi.spyOn(fake.socket, 'emit');
+      const appErrors: unknown[] = [];
+      roomKeyHandlers.ensureRoomKeyForSending.mockResolvedValue(generation('a'));
+      roomKeyHandlers.recoverFromStaleRoomKey.mockResolvedValue(generation('b'));
+      roomKeyHandlers.encryptOutgoingMessage.mockImplementation((payload: object) =>
+        Promise.resolve({ ...payload, messageId: crypto.randomUUID(), content: 'sealed' }),
+      );
+      wrapSocketWithE2e(fake.socket);
+      const appHandler = (payload: unknown) => appErrors.push(payload);
+      fake.socket.on('error', appHandler);
+      return { ...fake, sent, appErrors, appHandler };
+    }
+
+    const sends = (sent: { mock: { calls: unknown[][] } }) => sent.mock.calls.filter((call) => call[0] === 'message:send');
+
+    it('recovers the current generation and retries once without surfacing the error', async () => {
+      const { socket, receive, sent, appErrors } = setup();
+      socket.emit('message:send', { roomId: 'room-1', content: 'oi', type: 'text', clientTempId: 't1' });
+      await vi.waitFor(() => expect(sends(sent)).toHaveLength(1));
+
+      receive('error', stale);
+
+      await vi.waitFor(() => expect(sends(sent)).toHaveLength(2));
+      expect(roomKeyHandlers.recoverFromStaleRoomKey).toHaveBeenCalledWith(socket, 'room-1', 'a'.repeat(22));
+      expect(appErrors).toHaveLength(0);
+      const [first, second] = sends(sent).map((call) => call[1] as { messageId: string });
+      expect(first?.messageId).toBeTruthy();
+      expect(second?.messageId).toBeTruthy();
+    });
+
+    it('surfaces a second stale rejection instead of retrying forever', async () => {
+      const { socket, receive, sent, appErrors } = setup();
+      socket.emit('message:send', { roomId: 'room-1', content: 'oi', type: 'text', clientTempId: 't1' });
+      await vi.waitFor(() => expect(sends(sent)).toHaveLength(1));
+      receive('error', { ...stale });
+      await vi.waitFor(() => expect(sends(sent)).toHaveLength(2));
+
+      receive('error', { ...stale });
+
+      expect(appErrors).toHaveLength(1);
+      expect(sends(sent)).toHaveLength(2);
+    });
+
+    it('delivers other errors and forgets messages that were confirmed', async () => {
+      const { socket, receive, sent, appErrors } = setup();
+      socket.emit('message:send', { roomId: 'room-1', content: 'oi', type: 'text', clientTempId: 't1' });
+      await vi.waitFor(() => expect(sends(sent)).toHaveLength(1));
+      receive('message:new', { id: 'm1', clientTempId: 't1' });
+
+      receive('error', stale);
+      receive('error', { message: 'blocked', code: 'message.blocked', clientTempId: 't2' });
+
+      expect(appErrors).toHaveLength(2);
+      expect(roomKeyHandlers.recoverFromStaleRoomKey).not.toHaveBeenCalled();
+    });
+
+    it('stops delivering errors to a handler that was removed', () => {
+      const { socket, receive, appErrors, appHandler } = setup();
+      socket.off('error', appHandler);
+      receive('error', { message: 'x' });
+      expect(appErrors).toHaveLength(0);
+    });
   });
 });

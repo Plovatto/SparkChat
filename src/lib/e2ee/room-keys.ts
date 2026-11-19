@@ -48,6 +48,8 @@ const REQUEST_TIMEOUT_MS = 8000;
 
 const MISSING_GENERATION_RETRY_MS = 30000;
 
+export const MAX_ROOM_KEY_BATCH = 150;
+
 const generationsByRoom = new Map<string, Map<string, RoomKeyGeneration>>();
 const roomViews = new Map<string, RoomView>();
 const persistedLoads = new Map<string, Promise<void>>();
@@ -474,6 +476,11 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
     key: sodium.randombytes_buf(ROOM_KEY_BYTES),
   };
   const recipients = Array.from(view.members);
+  if (recipients.length > MAX_ROOM_KEY_BATCH) {
+    console.warn('[e2e] room has more members than a room key batch can hold', { roomId, epoch });
+    pendingPublishes.delete(roomId);
+    return;
+  }
   try {
     const keys = await sealFor(socket, identity, view, roomId, generation, recipients);
     if (!keys) {
@@ -594,9 +601,11 @@ async function shareCurrentGeneration(socket: AppSocket, roomId: string, targetI
   if (!generation) {
     return;
   }
-  const keys = await sealFor(socket, identity, view, roomId, generation, recipients);
-  if (keys) {
-    socket.emit('e2e:share-room-key', { roomId, keyId: generation.keyId, epoch: generation.epoch, keys });
+  for (let start = 0; start < recipients.length; start += MAX_ROOM_KEY_BATCH) {
+    const keys = await sealFor(socket, identity, view, roomId, generation, recipients.slice(start, start + MAX_ROOM_KEY_BATCH));
+    if (keys) {
+      socket.emit('e2e:share-room-key', { roomId, keyId: generation.keyId, epoch: generation.epoch, keys });
+    }
   }
 }
 
@@ -649,12 +658,50 @@ async function handleRoomKeyPushImpl(socket: AppSocket, entry: SealedRoomKeyEntr
   await acceptEnvelope(socket, entry);
 }
 
-async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: { roomId: string; epoch?: number }): Promise<void> {
+export interface RoomKeyRejection {
+  roomId: string;
+  epoch?: number;
+  code?: string;
+  currentEpoch?: number;
+  currentKeyId?: string | null;
+  rotationRequiredEpoch?: number | null;
+}
+
+const INCOMPLETE_BATCH_CODE = 'e2e.roomKeyIncomplete';
+
+async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: RoomKeyRejection): Promise<void> {
   const pending = pendingPublishes.get(payload.roomId);
   if (pending && (payload.epoch === undefined || pending.epoch === payload.epoch)) {
     pendingPublishes.delete(payload.roomId);
   }
+  const view = roomViews.get(payload.roomId);
+  if (view && typeof payload.currentEpoch === 'number') {
+    view.currentEpoch = Math.max(view.currentEpoch, payload.currentEpoch);
+  }
+  if (view) {
+    applyRotationRequired(view, payload.roomId, payload.rotationRequiredEpoch);
+  }
   await syncRoomKeys(socket, payload.roomId);
+
+  const target = publishTarget(payload.roomId);
+  if (target !== null && target > 1 && target !== payload.epoch && payload.code !== INCOMPLETE_BATCH_CODE) {
+    await publishGeneration(socket, payload.roomId, target);
+  }
+}
+
+async function handleStaleRoomKeyImpl(socket: AppSocket, roomId: string, staleKeyId: string): Promise<void> {
+  missingGenerations.clear();
+  await syncRoomKeys(socket, roomId);
+  const view = roomViews.get(roomId);
+  const latest = latestGeneration(roomId);
+  if (view && latest && latest.keyId === staleKeyId) {
+    applyRotationRequired(view, roomId, latest.epoch + 1);
+  }
+}
+
+export async function recoverFromStaleRoomKey(socket: AppSocket, roomId: string, staleKeyId: string): Promise<RoomKeyGeneration> {
+  await handleStaleRoomKeyImpl(socket, roomId, staleKeyId);
+  return ensureRoomKeyForSending(socket, roomId);
 }
 
 async function handleRotationRequiredImpl(

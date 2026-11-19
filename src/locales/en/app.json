@@ -58,7 +58,9 @@
       "notFound": "Message not found.",
       "deleteForbidden": "You don't have permission to delete this message.",
       "invalidMedia": "Invalid media content.",
-      "blocked": "You can't send messages in this conversation because of a block."
+      "blocked": "You can't send messages in this conversation because of a block.",
+      "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
+      "staleRoomKey": "The conversation encryption key changed. Please try sending again."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
@@ -115,7 +117,11 @@
       "lookupTooLarge": "Too many items in one key lookup. Send at most {{maxItems}} at a time.",
       "keysLocked": "This account's encryption keys are already set and can't be replaced.",
       "invalidSigningKey": "The signing key is invalid or does not match your public key.",
-      "signingKeyLocked": "The signing key of this account is already set."
+      "signingKeyLocked": "The signing key of this account is already set.",
+      "invalidRoomKeyEnvelope": "The encryption key sent for this conversation is invalid.",
+      "roomKeyStale": "The conversation encryption key changed. Updating to the current key.",
+      "roomKeyIncomplete": "The new conversation key must include every member.",
+      "roomKeyConflict": "Another member already set the key for this conversation."
     }
   },
   "systemEvents": {

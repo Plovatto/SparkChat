@@ -694,3 +694,127 @@ describe('envelope acceptance', () => {
     expect(listener).toHaveBeenCalledWith('dm');
   });
 });
+
+describe('server feedback', () => {
+  async function groupWith(memberIds: string[]): Promise<Client[]> {
+    const clients: Client[] = [];
+    for (const id of memberIds) {
+      clients.push(await loadClient(id));
+    }
+    createRoom('group', 'group', memberIds[0] as string, memberIds);
+    await Promise.all(clients.map((client) => track(client, 'group')));
+    await settle();
+    return clients;
+  }
+
+  it('resyncs from a rejection and performs the rotation the server reports as pending', async () => {
+    const [ana] = await groupWith(['ana', 'bia']);
+    if (!ana) {
+      throw new Error('client missing');
+    }
+    const room = server.rooms.get('group') as ServerRoom;
+    room.rotationRequired = 2;
+    ana.socket.emitted.length = 0;
+
+    await ana.roomKeys.handleRoomKeyRejected(ana.socket.asAppSocket(), {
+      roomId: 'group',
+      epoch: 1,
+      code: 'e2e.roomKeyStale',
+      currentEpoch: 1,
+      currentKeyId: room.currentKeyId,
+      rotationRequiredEpoch: 2,
+    });
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:publish-room-key')).toEqual([expect.objectContaining({ epoch: 2 })]);
+    expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
+  });
+
+  it('does not republish right away after an incomplete batch', async () => {
+    const [ana] = await groupWith(['ana', 'bia']);
+    if (!ana) {
+      throw new Error('client missing');
+    }
+    ana.socket.emitted.length = 0;
+
+    await ana.roomKeys.handleRoomKeyRejected(ana.socket.asAppSocket(), {
+      roomId: 'group',
+      epoch: 2,
+      code: 'e2e.roomKeyIncomplete',
+      currentEpoch: 1,
+      currentKeyId: server.rooms.get('group')?.currentKeyId ?? null,
+      rotationRequiredEpoch: 3,
+    });
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:publish-room-key')).toHaveLength(0);
+  });
+
+  it('recovers from a stale send by rotating when it holds no newer generation', async () => {
+    const [ana] = await groupWith(['ana', 'bia']);
+    if (!ana) {
+      throw new Error('client missing');
+    }
+    const staleKeyId = ana.roomKeys.getCurrentRoomKey('group')?.keyId as string;
+    (server.rooms.get('group') as ServerRoom).rotationRequired = 2;
+
+    const generation = await ana.roomKeys.recoverFromStaleRoomKey(ana.socket.asAppSocket(), 'group', staleKeyId);
+
+    expect(generation.epoch).toBe(2);
+    expect(generation.keyId).not.toBe(staleKeyId);
+  });
+
+  it('recovers from a stale send by adopting a newer generation it had missed', async () => {
+    const [ana, bia] = await groupWith(['ana', 'bia']);
+    if (!ana || !bia) {
+      throw new Error('clients missing');
+    }
+    const staleKeyId = bia.roomKeys.getCurrentRoomKey('group')?.keyId as string;
+    server.sockets.delete('bia');
+    server.requireRotation('group');
+    await settle();
+    server.sockets.set('bia', bia.socket);
+    bia.socket.emitted.length = 0;
+
+    const generation = await bia.roomKeys.recoverFromStaleRoomKey(bia.socket.asAppSocket(), 'group', staleKeyId);
+
+    expect(generation.keyId).toBe(server.rooms.get('group')?.currentKeyId);
+    expect(bia.socket.emittedOf('e2e:publish-room-key')).toHaveLength(0);
+  });
+
+  it('never publishes a batch larger than the server accepts', async () => {
+    const ana = await loadClient('ana');
+    const members = ['ana', ...Array.from({ length: 150 }, (_, index) => `member-${index}`)];
+    createRoom('big', 'group', 'ana', members);
+
+    await track(ana, 'big');
+
+    expect(ana.socket.emittedOf('e2e:publish-room-key')).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith('[e2e] room has more members than a room key batch can hold', expect.anything());
+  });
+
+  it('splits key shares for many new members into batches of at most 150', async () => {
+    const ana = await loadClient('ana');
+    createRoom('group', 'group', 'ana', ['ana']);
+    await track(ana, 'group');
+    await settle();
+    const sodium = await (await import('./sodium')).getSodium();
+    const signing = await import('./signing');
+    const newcomers = Array.from({ length: 151 }, (_, index) => `new-${index}`);
+    for (const userId of newcomers) {
+      const pair = sodium.crypto_box_keypair();
+      const publicKey = sodium.to_base64(pair.publicKey);
+      server.directory.set(userId, { userId, publicKey, ...(await signing.buildSigningProof(userId, publicKey, pair.privateKey)) });
+    }
+    const room = server.rooms.get('group') as ServerRoom;
+    room.members.push(...newcomers);
+
+    await ana.roomKeys.handleGroupUserJoined(ana.socket.asAppSocket(), {
+      roomId: 'group',
+      participants: room.members.map((id) => ({ id, nickname: id })) as never,
+    });
+
+    const shares = ana.socket.emittedOf('e2e:share-room-key') as { keys: unknown[] }[];
+    expect(shares.map((share) => share.keys.length)).toEqual([150, 1]);
+  });
+});

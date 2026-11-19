@@ -319,6 +319,9 @@ export interface OutgoingMessageFields {
 }
 
 export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T & { messageId: string }> {
+  if ((message.type ?? 'text') !== 'text' && !message.fileMeta) {
+    throw new Error('Attachment messages need file details');
+  }
   const generation = requireCurrentRoomKey(message.roomId);
   const identity = getCurrentIdentity();
   if (!identity) {

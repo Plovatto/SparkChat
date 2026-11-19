@@ -50,11 +50,13 @@ export {
   handleRoomKeyRejected,
   handleRotationRequired,
   MissingRoomKeyError,
+  recoverFromStaleRoomKey,
   subscribeRoomKeyAvailable,
   trackRoom,
   updateRoomParticipants,
   type RoomKeyAvailableListener,
   type RoomKeyGeneration,
+  type RoomKeyRejection,
 } from './room-keys';
 export {
   decryptMediaContentIfNeeded,

@@ -13,13 +13,22 @@ import {
   handleRoomKeyRejected,
   handleRotationRequired,
   MissingRoomKeyError,
+  recoverFromStaleRoomKey,
   subscribeCurrentIdentity,
   trackRoom,
   updateRoomParticipants,
 } from '@lib/e2ee';
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from './socket-client';
-import type { ClientToServerEvents, MessageView, RoomParticipant, RoomSummary, SealedRoomKeyEntry } from './socket-events';
+import type {
+  ClientToServerEvents,
+  MessageView,
+  RoomParticipant,
+  RoomSummary,
+  SealedRoomKeyEntry,
+  ServerToClientEvents,
+  SocketErrorPayload,
+} from './socket-events';
 
 type AnyHandler = (...args: never[]) => void;
 type GenericOn = (event: string, handler: AnyHandler) => AppSocket;
@@ -27,6 +36,16 @@ type GenericOff = (event?: string, handler?: AnyHandler) => AppSocket;
 type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
+
+type RoomKeyRejectedPayload = Parameters<ServerToClientEvents['e2e:room-key-rejected']>[0];
+
+const STALE_ROOM_KEY_CODE = 'message.staleRoomKey';
+
+interface PendingSend {
+  payload: OutgoingMessage;
+  keyId: string;
+  retried: boolean;
+}
 
 function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, error: unknown): void {
   const message = error instanceof MissingRoomKeyError ? error.message : translate('errors.e2ee.encryptFailed');
@@ -114,7 +133,59 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   let dispatchQueue: Promise<void> = Promise.resolve();
 
+  const pendingSends = new Map<string, PendingSend>();
+  const staleRetryDecisions = new WeakMap<object, boolean>();
+
+  const sendEncrypted = (payload: OutgoingMessage, staleKeyId: string | null) => {
+    const obtainKey = staleKeyId
+      ? recoverFromStaleRoomKey(socket, payload.roomId, staleKeyId)
+      : ensureRoomKeyForSending(socket, payload.roomId);
+    void obtainKey
+      .then(async (generation) => {
+        const encrypted = await encryptOutgoingMessage(payload);
+        if (payload.clientTempId) {
+          pendingSends.set(payload.clientTempId, { payload, keyId: generation.keyId, retried: staleKeyId !== null });
+        }
+        originalEmit('message:send', encrypted);
+      })
+      .catch((error: unknown) => {
+        console.error('[e2e] failed to encrypt outgoing message, not sending it', error);
+        notifySendFailure(socket, payload.clientTempId, error);
+      });
+  };
+
+  const retriesStaleSend = (payload: unknown): boolean => {
+    if (typeof payload !== 'object' || payload === null) {
+      return false;
+    }
+    const decided = staleRetryDecisions.get(payload);
+    if (decided !== undefined) {
+      return decided;
+    }
+    const { code, clientTempId } = payload as SocketErrorPayload;
+    const pending = clientTempId ? pendingSends.get(clientTempId) : undefined;
+    let retry = false;
+    if (clientTempId && pending) {
+      pendingSends.delete(clientTempId);
+      if (code === STALE_ROOM_KEY_CODE && !pending.retried) {
+        retry = true;
+        sendEncrypted(pending.payload, pending.keyId);
+      }
+    }
+    staleRetryDecisions.set(payload, retry);
+    return retry;
+  };
+
   genericSocket.on = (event: string, handler: AnyHandler) => {
+    if (event === 'error') {
+      const filtered = ((payload: unknown) => {
+        if (!retriesStaleSend(payload)) {
+          (handler as (value: unknown) => void)(payload);
+        }
+      }) as AnyHandler;
+      getBucket(event).set(handler, filtered);
+      return originalOn(event, filtered);
+    }
     if (!DECRYPT_EVENTS.has(event)) {
       return originalOn(event, handler);
     }
@@ -136,7 +207,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   };
 
   genericSocket.off = (event?: string, handler?: AnyHandler) => {
-    if (event && handler && DECRYPT_EVENTS.has(event)) {
+    if (event && handler && (DECRYPT_EVENTS.has(event) || event === 'error')) {
       const bucket = wrappedHandlers.get(event);
       const wrapped = bucket?.get(handler);
       if (bucket && wrapped) {
@@ -149,16 +220,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   genericSocket.emit = (event: string, ...args: unknown[]) => {
     if (event === 'message:send') {
-      const payload = args[0] as OutgoingMessage;
-      void ensureRoomKeyForSending(socket, payload.roomId)
-        .then(() => encryptOutgoingMessage(payload))
-        .then((encrypted) => {
-          originalEmit(event, encrypted);
-        })
-        .catch((error: unknown) => {
-          console.error('[e2e] failed to encrypt outgoing message, not sending it', error);
-          notifySendFailure(socket, payload.clientTempId, error);
-        });
+      sendEncrypted(args[0] as OutgoingMessage, null);
       return socket;
     }
     return originalEmit(event, ...args);
@@ -229,7 +291,17 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     void handleKeyRequest(socket, payload);
   });
 
-  originalOn('e2e:room-key-rejected', (payload: { roomId: string; epoch: number }) => {
+  originalOn('error', (payload: unknown) => {
+    retriesStaleSend(payload);
+  });
+
+  originalOn('message:new', (payload: { clientTempId?: string }) => {
+    if (payload.clientTempId) {
+      pendingSends.delete(payload.clientTempId);
+    }
+  });
+
+  originalOn('e2e:room-key-rejected', (payload: RoomKeyRejectedPayload) => {
     void handleRoomKeyRejected(socket, payload);
   });
 

@@ -135,8 +135,16 @@ describe('encryptOutgoingMessage', () => {
 
   it('keeps the url of media that was encrypted on upload', async () => {
     const url = 'https://cdn.test/uploads/images/abc.png?e2e=1';
-    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'image', content: url });
+    const fileMeta = { name: 'abc.png', mimeType: 'image/png', size: 1 };
+    const encrypted = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'image', content: url, fileMeta });
     expect(encrypted.content).toBe(url);
+    expect(encrypted.messageId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('refuses attachment messages without file details', async () => {
+    for (const type of ['image', 'audio', 'file']) {
+      await expect(encryptOutgoingMessage({ roomId: ROOM_ID, type, content: 'https://cdn.test/uploads/x?e2e=1' })).rejects.toThrow();
+    }
   });
 
   it('never sends the plaintext and decrypts back to it', async () => {
