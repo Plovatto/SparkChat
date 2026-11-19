@@ -649,6 +649,12 @@ export class CallController {
       }
       return;
     }
+    if (this.getSnapshot().degrade === 'audio-only-relay') {
+      this.deps.stopMedia(stream);
+      await peer.setScreenTracks(null);
+      this.update({ notice: { kind: 'screen-degraded' } });
+      return;
+    }
     session.screen = stream;
     const shared = stream;
     video.addEventListener(
@@ -1081,6 +1087,8 @@ export class CallController {
       this.update({ remoteMuted: message.on });
     } else if (message.t === 'screen') {
       this.update({ remoteScreenOn: message.on });
+    } else if (message.t === 'caps') {
+      this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
     } else {
       this.update({ remoteCameraOn: message.on });
     }

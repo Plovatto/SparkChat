@@ -270,6 +270,10 @@ function build(role: CallRole, overrides: Partial<PeerSessionOptions> = {}, hash
   return harness;
 }
 
+function peerCaps(h: Harness, screen = true): void {
+  h.connection.channels[0]?.onmessage?.({ data: JSON.stringify({ t: 'caps', screen }) });
+}
+
 function relayed(connection: FakeConnection): void {
   connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local' });
   connection.stats.set('local', { type: 'local-candidate', candidateType: 'relay' });
@@ -315,6 +319,8 @@ describe('helpers', () => {
     expect(parseControlMessage('{"t":"mute","on":true}')).toEqual({ t: 'mute', on: true });
     expect(parseControlMessage('{"t":"camera","on":false}')).toEqual({ t: 'camera', on: false });
     expect(parseControlMessage('{"t":"screen","on":true}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"caps","screen":true}')).toEqual({ t: 'caps', screen: true });
+    expect(parseControlMessage('{"t":"caps","screen":"yes"}')).toBeNull();
     for (const raw of ['', 'x', '{"t":"mute"}', '{"t":"screen"}', '{"t":"screen","on":1}', '{"t":"mute","on":"yes"}', '{"t":"other"}', '[]', 5, `{"t":"hangup","pad":"${'a'.repeat(300)}"}`]) {
       expect(parseControlMessage(raw)).toBeNull();
     }
@@ -857,7 +863,7 @@ describe('control channel', () => {
     expect(h.controls).toEqual([{ t: 'hangup' }]);
 
     expect(h.session.sendControl({ t: 'mute', on: true })).toBe(true);
-    expect(channel.sent).toEqual(['{"t":"mute","on":true}']);
+    expect(channel.sent).toEqual(['{"t":"caps","screen":true}', '{"t":"mute","on":true}']);
     channel.readyState = 'connecting';
     expect(h.session.sendControl({ t: 'hangup' })).toBe(false);
   });
@@ -885,7 +891,7 @@ describe('control channel', () => {
     h.session.setMuted(true);
 
     expect(stream.getAudioTracks()[0]?.enabled).toBe(false);
-    expect(h.connection.channels[0]?.sent).toEqual(['{"t":"mute","on":true}']);
+    expect(h.connection.channels[0]?.sent).toEqual(['{"t":"caps","screen":true}', '{"t":"mute","on":true}']);
   });
 });
 
@@ -1094,6 +1100,7 @@ describe('screen share transport', () => {
     h.session.start();
     await settle();
     await verify(h);
+    peerCaps(h);
     return h;
   }
 
@@ -1173,6 +1180,7 @@ describe('screen share transport', () => {
     h.session.start();
     await settle();
     await verify(h);
+    peerCaps(h);
     await h.session.setScreenTracks(track('video'), track('audio'));
     relayed(h.connection);
 
@@ -1267,5 +1275,60 @@ describe('screen share transport', () => {
     expect(plain).not.toHaveProperty('degradationPreference');
     expect(plain.encodings[0]).toEqual({ active: true, maxBitrate: 1 });
     expect(base.encodings[0]).toEqual({ active: true });
+  });
+});
+
+describe('screen share capabilities', () => {
+  async function verifiedWithoutCaps() {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await verify(h);
+    return h;
+  }
+
+  it('announces its own screen capability only after verification', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    expect(h.connection.channels[0]?.sent).toEqual([]);
+
+    await verify(h);
+
+    expect(h.connection.channels[0]?.sent).toEqual(['{"t":"caps","screen":true}']);
+  });
+
+  it('announces again when the control channel opens after verification', async () => {
+    const h = await verifiedWithoutCaps();
+    const channel = h.connection.channels[0] as unknown as { onopen?: () => void; sent: string[] };
+    channel.onopen?.();
+    expect(channel.sent.filter((message) => message.includes('caps'))).toHaveLength(2);
+  });
+
+  it('never attaches screen tracks toward a peer that has not announced screen support', async () => {
+    const h = await verifiedWithoutCaps();
+
+    expect(h.session.canShareScreen()).toBe(false);
+    expect(await h.session.setScreenTracks(track('video'), track('audio'))).toBe(false);
+    expect(h.connection.transceivers[2]?.sender.track).toBeNull();
+    expect(h.connection.transceivers[3]?.sender.track).toBeNull();
+
+    peerCaps(h, false);
+    expect(h.session.canShareScreen()).toBe(false);
+
+    peerCaps(h);
+    expect(h.session.canShareScreen()).toBe(true);
+    expect(h.controls).toContainEqual({ t: 'caps', screen: true });
+    expect(await h.session.setScreenTracks(track('video'))).toBe(true);
+  });
+
+  it('ignores capability messages received before verification', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    peerCaps(h);
+    await verify(h);
+
+    expect(h.session.canShareScreen()).toBe(false);
   });
 });

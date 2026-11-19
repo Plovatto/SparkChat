@@ -2,7 +2,7 @@ import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | { t: 'screen'; on: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | { t: 'screen'; on: boolean } | { t: 'caps'; screen: boolean };
 
 export type ConnectionStatus = 'connected' | 'interrupted';
 
@@ -143,6 +143,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     if (message.t === 'hangup') {
       return { t: 'hangup' };
     }
+    if (message.t === 'caps' && typeof message.screen === 'boolean') {
+      return { t: 'caps', screen: message.screen };
+    }
     if ((message.t === 'mute' || message.t === 'camera' || message.t === 'screen') && typeof message.on === 'boolean') {
       return { t: message.t, on: message.on };
     }
@@ -232,6 +235,7 @@ export class PeerSession {
   private remoteScreen: MediaStream | null = null;
   private remoteScreenExposed = false;
   private unstable = false;
+  private peerScreenCaps = false;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -676,6 +680,7 @@ export class PeerSession {
       this.exposeRemoteScreen();
     }
     void this.attachLocalTracks();
+    this.announceCaps();
     const state = this.connection.iceConnectionState;
     if (state === 'connected' || state === 'completed') {
       this.options.onConnection('connected');
@@ -689,11 +694,22 @@ export class PeerSession {
         return;
       }
       const message = parseControlMessage(event.data);
-      if (message) {
-        this.options.onControl(message);
+      if (!message) {
+        return;
       }
+      if (message.t === 'caps') {
+        this.peerScreenCaps = message.screen;
+      }
+      this.options.onControl(message);
     };
+    channel.onopen = () => this.announceCaps();
     this.control = channel;
+  }
+
+  private announceCaps(): void {
+    if (this.verified && !this.closed) {
+      this.sendControl({ t: 'caps', screen: this.screenTransceiver() !== undefined });
+    }
   }
 
   sendControl(message: ControlMessage): boolean {
@@ -733,12 +749,15 @@ export class PeerSession {
   }
 
   canShareScreen(): boolean {
-    return this.verified && !this.closed && this.screenTransceiver() !== undefined;
+    return this.verified && !this.closed && this.peerScreenCaps && this.screenTransceiver() !== undefined;
   }
 
   async setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null): Promise<boolean> {
     const transceiver = this.screenTransceiver();
     if (!transceiver || !this.verified || this.closed) {
+      return false;
+    }
+    if (video && !this.peerScreenCaps) {
       return false;
     }
     if (video && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {

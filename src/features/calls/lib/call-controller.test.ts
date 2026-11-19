@@ -1149,3 +1149,40 @@ describe('unstable connection', () => {
     expect(w.a.controller.getSnapshot().unstable).toBe(true);
   });
 });
+
+describe('screen share review fixes', () => {
+  it('enables sharing when the peer announces screen support after connecting', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.shareable = false;
+    peer.options.onConnection('connected');
+    expect(w.a.controller.getSnapshot().canShareScreen).toBe(false);
+
+    peer.shareable = true;
+    peer.options.onControl({ t: 'caps', screen: true });
+
+    expect(w.a.controller.getSnapshot().canShareScreen).toBe(true);
+  });
+
+  it('stops the capture when attaching it switches the call to audio only', async () => {
+    const share = screenStream();
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(share.stream), stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    peer.setScreenTracks = (video, audio = null) => {
+      peer.screenTracks.push({ video, audio });
+      if (video) {
+        peer.options.onDegrade('audio-only-relay');
+      }
+      return Promise.resolve(true);
+    };
+
+    await w.a.controller.toggleScreenShare();
+
+    expect(share.video.stopped).toBe(true);
+    expect(peer.screenTracks.at(-1)).toEqual({ video: null, audio: null });
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, localScreenStream: null, notice: { kind: 'screen-degraded' } });
+  });
+});
