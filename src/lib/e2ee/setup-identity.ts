@@ -1,9 +1,12 @@
+import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from '@lib/socket';
 import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
 import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
 import {
   generateIdentity,
+  IdentityKeyMismatchError,
+  privateKeyMatchesPublicKey,
   unwrapPrivateKeyWithPassword,
   unwrapPrivateKeyWithRecoveryToken,
   wrapPrivateKeyWithPassword,
@@ -37,6 +40,17 @@ function requestMyKeys(socket: AppSocket): Promise<MyKeysPayload | null> {
     socket.emit('e2e:get-my-keys');
     setTimeout(() => finish(null), MY_KEYS_TIMEOUT_MS);
   });
+}
+
+async function assertPrivateKeyMatches(privateKey: Uint8Array, publicKey: string): Promise<void> {
+  if (await privateKeyMatchesPublicKey(privateKey, publicKey)) {
+    return;
+  }
+  privateKey.fill(0);
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(translate('errors.e2ee.identityKeyMismatch'));
+  }
+  throw new IdentityKeyMismatchError();
 }
 
 async function setupIdentityAfterRegisterImpl(
@@ -80,6 +94,7 @@ async function ensureIdentityAfterPasswordLoginImpl(socket: AppSocket, userId: s
   }
 
   const privateKey = await unwrapPrivateKeyWithPassword(myKeys.encryptedPrivateKeyByPassword, password);
+  await assertPrivateKeyMatches(privateKey, myKeys.publicKey);
   await savePrivateKey(userId, myKeys.publicKey, privateKey);
   setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
 }
@@ -97,6 +112,7 @@ async function ensureIdentityAfterKeyfileLoginImpl(socket: AppSocket, userId: st
   }
 
   const privateKey = await unwrapPrivateKeyWithRecoveryToken(myKeys.encryptedPrivateKeyByRecovery, recoveryToken);
+  await assertPrivateKeyMatches(privateKey, myKeys.publicKey);
   await savePrivateKey(userId, myKeys.publicKey, privateKey);
   setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
 }

@@ -1,43 +1,38 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { toSafeMediaUrl } from './safe-media-url';
+import { toLocalMediaUrl } from './safe-media-url';
 
-describe('toSafeMediaUrl', () => {
-  it('accepts https and blob urls', () => {
-    expect(toSafeMediaUrl('https://cdn.test/uploads/files/abc.pdf?e2e=1')).toBe('https://cdn.test/uploads/files/abc.pdf?e2e=1');
-    expect(toSafeMediaUrl('blob:https://plovatto.github.io/3f1b2c')).toBe('blob:https://plovatto.github.io/3f1b2c');
+describe('toLocalMediaUrl', () => {
+  it('accepts blob urls', () => {
+    expect(toLocalMediaUrl('blob:https://plovatto.github.io/3f1b2c')).toBe('blob:https://plovatto.github.io/3f1b2c');
   });
 
-  it('rejects script, data, insecure and relative urls', () => {
-    expect(toSafeMediaUrl('javascript:/uploads/files/abc.pdf')).toBeNull();
-    expect(toSafeMediaUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
-    expect(toSafeMediaUrl('http://cdn.test/uploads/files/abc.pdf')).toBeNull();
-    expect(toSafeMediaUrl('/uploads/files/abc.pdf')).toBeNull();
+  it('never auto-loads remote, script, data or relative urls', () => {
+    expect(toLocalMediaUrl('https://cdn.test/uploads/files/abc.pdf?e2e=1')).toBeUndefined();
+    expect(toLocalMediaUrl('https://cdn.test/uploads/images/abc.png')).toBeUndefined();
+    expect(toLocalMediaUrl('javascript:/uploads/files/abc.pdf')).toBeUndefined();
+    expect(toLocalMediaUrl('data:text/html,<script>alert(1)</script>')).toBeUndefined();
+    expect(toLocalMediaUrl('http://cdn.test/uploads/files/abc.pdf')).toBeUndefined();
+    expect(toLocalMediaUrl('/uploads/files/abc.pdf')).toBeUndefined();
+    expect(toLocalMediaUrl('')).toBeUndefined();
+    expect(toLocalMediaUrl(null)).toBeUndefined();
   });
 
-  it('keeps every https url', () => {
+  it('rejects every https url', () => {
     fc.assert(
       fc.property(fc.webUrl({ validSchemes: ['https'], withQueryParameters: true, withFragments: true }), (url) => {
-        expect(toSafeMediaUrl(url)).toBe(new URL(url).href);
+        expect(toLocalMediaUrl(url)).toBeUndefined();
       }),
     );
   });
 
-  it('never returns a url with a protocol other than https or blob', () => {
+  it('never returns a url with a protocol other than blob', () => {
     fc.assert(
       fc.property(fc.string(), (input) => {
-        const result = toSafeMediaUrl(input);
-        if (result !== null) {
-          expect(['https:', 'blob:']).toContain(new URL(result).protocol);
+        const result = toLocalMediaUrl(input);
+        if (result !== undefined) {
+          expect(new URL(result).protocol).toBe('blob:');
         }
-      }),
-    );
-  });
-
-  it('rejects any javascript or data url', () => {
-    fc.assert(
-      fc.property(fc.constantFrom('javascript:', 'JavaScript:', 'data:', ' javascript:'), fc.string(), (scheme, rest) => {
-        expect(toSafeMediaUrl(scheme + rest)).toBeNull();
       }),
     );
   });

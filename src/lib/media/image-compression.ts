@@ -29,7 +29,7 @@ function drawScaled(bitmap: ImageBitmap, maxDimension: number): HTMLCanvasElemen
   return canvas;
 }
 
-async function recompress(file: File, maxDimension: number, quality: number): Promise<Blob | null> {
+async function recompress(file: Blob, maxDimension: number, quality: number): Promise<Blob | null> {
   try {
     const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
     try {
@@ -59,4 +59,8 @@ export async function buildImageVariants(file: File): Promise<ImageVariants> {
 
   const original = compressedOriginal && compressedOriginal.size < file.size ? compressedOriginal : file;
   return { original, thumbnail };
+}
+
+export function buildLinkPreviewThumbnail(image: Blob): Promise<Blob | null> {
+  return recompress(image, THUMBNAIL_MAX_DIMENSION, THUMBNAIL_QUALITY);
 }

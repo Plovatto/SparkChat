@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { collapseStretchedLetters, hasTranslatableText, MIN_TRANSLATABLE_LETTERS, splitSegments, translatableText, translatePreservingSegments } from './segments';
+import { collapseStretchedLetters, hasTranslatableText, isUppercaseWord, MAX_ANALYSED_TEXT_LENGTH, MAX_ANALYSED_TOKEN_LENGTH, MIN_TRANSLATABLE_LETTERS, splitSegments, translatableText, translatePreservingSegments } from './segments';
 
 describe('segments', () => {
   it('splits mentions and urls into protected segments', () => {
@@ -64,5 +64,54 @@ describe('collapseStretchedLetters leaves non-words alone', () => {
 describe('collapseStretchedLetters with trailing punctuation', () => {
   it('collapses words followed by punctuation', () => {
     expect(collapseStretchedLetters('sooo... simmm.')).toBe('so... sim.');
+  });
+});
+
+describe('isUppercaseWord', () => {
+  it.each([['HMMMM', true], ['AAA', true], ['VIII', true], ['A1B', true], ['Ab', false], ['A', false], ['A1', false], ['ÉÇ', true], ['', false]])(
+    '"%s" -> %s',
+    (word, expected) => {
+      expect(isUppercaseWord(word)).toBe(expected);
+    },
+  );
+});
+
+describe('peer text cannot trigger catastrophic backtracking', () => {
+  const BUDGET_MS = 250;
+
+  function elapsed(run: () => unknown): number {
+    const start = performance.now();
+    run();
+    return performance.now() - start;
+  }
+
+  it('checks a huge run of capitals ending in a lowercase letter in linear time', () => {
+    const word = `${'A'.repeat(200_000)}a`;
+    expect(elapsed(() => isUppercaseWord(word))).toBeLessThan(BUDGET_MS);
+    expect(isUppercaseWord(word)).toBe(false);
+  });
+
+  it('collapses a long uppercase token without hanging', () => {
+    const text = `${'A'.repeat(MAX_ANALYSED_TOKEN_LENGTH - 1)}a ${'A'.repeat(1_500)}a`;
+    expect(elapsed(() => collapseStretchedLetters(text))).toBeLessThan(BUDGET_MS);
+  });
+
+  it('strips a long run of trailing punctuation candidates in linear time', () => {
+    const text = `${'.'.repeat(60_000)}a ${'!'.repeat(60_000)}`;
+    expect(elapsed(() => collapseStretchedLetters(text))).toBeLessThan(BUDGET_MS);
+    expect(elapsed(() => hasTranslatableText(text))).toBeLessThan(BUDGET_MS);
+  });
+
+  it('keeps surrounding whitespace for a segment with a huge inner gap in linear time', async () => {
+    const text = `a${' '.repeat(60_000)}b`;
+    const translate = vi.fn((chunk: string) => Promise.resolve(chunk));
+    const start = performance.now();
+    expect(await translatePreservingSegments(` ${text}  `, translate)).toBe(` ${text}  `);
+    expect(performance.now() - start).toBeLessThan(BUDGET_MS);
+    expect(translate).toHaveBeenCalledWith(text);
+  });
+
+  it('caps the text analysed for translatability', () => {
+    expect(hasTranslatableText(`${'😂 '.repeat(MAX_ANALYSED_TEXT_LENGTH)}good morning`)).toBe(false);
   });
 });

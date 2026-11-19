@@ -2,12 +2,16 @@ import { env } from '@config/env';
 import type { MessageLinkPreview } from '@lib/socket';
 import { buildAuthHeader, type SessionAuth } from './session-auth';
 
-export async function fetchLinkPreview(url: string, auth: SessionAuth): Promise<MessageLinkPreview | null> {
-  const response = await fetch(`${env.apiUrl}/api/link-preview`, {
+function postJson(path: string, body: unknown, auth: SessionAuth): Promise<Response> {
+  return fetch(`${env.apiUrl}${path}`, {
     method: 'POST',
     headers: { ...buildAuthHeader(auth), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(body),
   });
+}
+
+export async function fetchLinkPreview(url: string, auth: SessionAuth): Promise<MessageLinkPreview | null> {
+  const response = await postJson('/api/link-preview', { url }, auth);
 
   if (!response.ok) {
     return null;
@@ -17,9 +21,7 @@ export async function fetchLinkPreview(url: string, auth: SessionAuth): Promise<
 }
 
 export async function fetchLinkPreviewImageBlob(imageUrl: string, auth: SessionAuth): Promise<Blob | null> {
-  const response = await fetch(`${env.apiUrl}/api/link-preview/image?url=${encodeURIComponent(imageUrl)}`, {
-    headers: buildAuthHeader(auth),
-  });
+  const response = await postJson('/api/link-preview/image', { url: imageUrl }, auth);
 
   if (!response.ok) {
     return null;

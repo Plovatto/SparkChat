@@ -58,10 +58,23 @@ function getSenderIcon(sender: MessageView['sender']): Promise<string> {
   return icon;
 }
 
-export async function buildNotificationContent(message: MessageView, room: RoomSummary): Promise<NotificationContent> {
-  const preview = getMessagePreview(message);
+export interface NotificationContentOptions {
+  hideContent: boolean;
+}
+
+export async function buildNotificationContent(
+  message: MessageView,
+  room: RoomSummary,
+  { hideContent }: NotificationContentOptions = { hideContent: true },
+): Promise<NotificationContent> {
   const senderName = message.sender.unknown ? translate('common.unknownUser') : message.sender.nickname;
   const icon = await getSenderIcon(message.sender);
+
+  if (hideContent) {
+    return { title: senderName, body: translate('notifications.newMessage'), icon };
+  }
+
+  const preview = getMessagePreview(message);
   const image = message.type === 'image' && !message.deletedForEveryone ? message.content : undefined;
 
   if (room.type === 'group') {

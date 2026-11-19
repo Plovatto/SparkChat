@@ -38,7 +38,9 @@
       "nicknameInvalid": "Nickname deve ter entre {{minLength}} e {{maxLength}} caracteres, usando apenas letras e números, com pelo menos {{minLetters}} letras.",
       "nicknameTaken": "Esse nickname já está em uso.",
       "passwordTooShort": "A senha deve ter pelo menos {{minLength}} caracteres.",
-      "currentPasswordIncorrect": "Senha atual incorreta."
+      "currentPasswordIncorrect": "Senha atual incorreta.",
+      "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
+      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
     },
     "room": {
       "notFound": "Sala não encontrada.",
@@ -69,7 +71,8 @@
       "invalidType_file": "Tipo de arquivo inválido. Envie PDF, vídeo (MP4, WEBM, MOV, AVI), documento do Office, ZIP, TXT ou CSV.",
       "invalidType": "Tipo de arquivo inválido.",
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
-      "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde."
+      "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
+      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos."
     },
     "linkPreview": {
       "invalidUrl": "URL inválida.",
@@ -82,7 +85,12 @@
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
       "loginAttempts": "Muitas tentativas de login. Tente novamente mais tarde.",
       "registrations": "Muitas contas criadas a partir deste endereço. Tente novamente mais tarde.",
-      "messages": "Você está enviando mensagens muito rápido. Aguarde um instante."
+      "messages": "Você está enviando mensagens muito rápido. Aguarde um instante.",
+      "passwordAttempts": "Muitas tentativas de senha. Tente novamente mais tarde.",
+      "resumeAttempts": "Muitas tentativas de reconexão. Aguarde um instante.",
+      "roomJoin": "Muitas tentativas de entrar com código. Tente novamente mais tarde.",
+      "roomCreate": "Você criou muitos grupos em pouco tempo. Tente novamente mais tarde.",
+      "socket": "Muitas ações em pouco tempo. Aguarde um instante."
     },
     "internal": {
       "unexpected": "Erro inesperado.",
@@ -91,7 +99,8 @@
     "e2ee": {
       "encryptFailed": "Não foi possível criptografar a mensagem.",
       "missingRoomKey": "A chave de criptografia desta conversa ainda não chegou. Tente de novo em instantes.",
-      "mediaUndecryptable": "Não foi possível descriptografar este arquivo. Tente de novo em instantes."
+      "mediaUndecryptable": "Não foi possível descriptografar este arquivo. Tente de novo em instantes.",
+      "identityKeyMismatch": "A chave de criptografia recebida do servidor não corresponde à sua chave pública. Por segurança, ela não foi usada. Entre de novo ou use seu arquivo de recuperação."
     },
     "download": {
       "failed": "Não foi possível baixar o arquivo."
@@ -245,6 +254,13 @@
       "removeAttachment": "Remover",
       "discard": "Descartar",
       "removePreview": "Remover preview",
+      "linkPreview": {
+        "generate": "Gerar prévia do link",
+        "generating": "Gerando prévia…",
+        "disclosure": "Para gerar a prévia, o servidor do SparkChat verá o endereço deste link.",
+        "failed": "Não foi possível gerar a prévia deste link.",
+        "dismiss": "Não gerar prévia"
+      },
       "tooLong": "A mensagem está longa demais. Divida em partes menores."
     },
     "message": {
@@ -274,7 +290,10 @@
       "defaultFileName": "arquivo",
       "defaultImageName": "imagem.jpg",
       "readMore": "Ler mais",
-      "encryptedUnavailable": "🔒 Mensagem criptografada — sem chave local ainda."
+      "encryptedUnavailable": "🔒 Mensagem criptografada — sem chave local ainda.",
+      "notEncrypted": "Não criptografada",
+      "notEncryptedHint": "Esta mensagem chegou sem criptografia de ponta a ponta. Mídias dela não são carregadas automaticamente.",
+      "mediaNotLoaded": "Não foi possível carregar esta mídia com segurança."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -457,7 +476,7 @@
     "avatar": "Avatar",
     "saveChanges": "Salvar Alterações",
     "currentPassword": "Senha atual",
-    "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — pode trocar a senha sem informar a atual.",
+    "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — nos primeiros 10 minutos pode trocar a senha uma vez sem informar a atual.",
     "newPasswordPlaceholder": "Nova senha (mín. {{minLength}} caracteres)",
     "confirmNewPassword": "Confirmar nova senha",
     "forgotPassword": "Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da atual.",
@@ -465,6 +484,7 @@
     "changePassword": "Trocar senha",
     "downloadRecovery": "Baixar arquivo de recuperação",
     "sounds": "Sons do app",
+    "hideNotificationContent": "Ocultar conteúdo nas notificações",
     "activeSessions": "Dispositivos com sessão ativa",
     "revokeOthers": "Encerrar todas as outras",
     "noOtherSessions": "Nenhuma outra sessão ativa.",
@@ -474,17 +494,30 @@
       "keyfile": "Entrou com arquivo de recuperação"
     },
     "lastUsed": "Último uso: {{date}}",
-    "revokeSession": "Encerrar esta sessão"
+    "revokeSession": "Encerrar esta sessão",
+    "nicknamePasswordHint": "Trocar o username gera um novo arquivo de recuperação e encerra as outras sessões. Confirme com a sua senha atual.",
+    "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
+    "confirmRegenerate": "Gerar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
     "sentAudio": "Enviou um áudio",
     "sentFile": "Enviou um arquivo",
-    "sentNamedFile": "Enviou um arquivo: {{name}}"
+    "sentNamedFile": "Enviou um arquivo: {{name}}",
+    "newMessage": "Nova mensagem"
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
-    "connecting": "Conectando ao servidor..."
+    "connecting": "Conectando ao servidor...",
+    "deepLink": {
+      "joinTitle": "Entrar no grupo?",
+      "joinMessage": "Um link pediu para você entrar no grupo com o código {{code}}. Quer entrar?",
+      "chatTitle": "Iniciar conversa?",
+      "chatMessage": "Um link pediu para você iniciar uma conversa com {{nickname}}. Quer continuar?",
+      "notice": "Só confirme se você confia em quem enviou o link.",
+      "confirmJoin": "Entrar no grupo",
+      "confirmChat": "Iniciar conversa"
+    }
   },
   "avatars": {
     "User": "Pessoa",

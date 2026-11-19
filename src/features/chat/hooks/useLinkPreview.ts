@@ -1,67 +1,80 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchLinkPreview } from '@lib/api/link-preview';
+import { useCallback, useRef, useState } from 'react';
+import { fetchLinkPreview, fetchLinkPreviewImageBlob } from '@lib/api/link-preview';
 import type { SessionAuth } from '@lib/api/session-auth';
-import type { MessageLinkPreview } from '@lib/socket';
+import { buildLinkPreviewThumbnail } from '@lib/media/image-compression';
+import { loadComposerLinkPreview, type ComposerLinkPreview } from '../utils/composer-link-preview';
 import { extractFirstUrl } from '../utils/extract-first-url';
 
-const DEBOUNCE_MS = 600;
+export type LinkPreviewStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 export interface LinkPreviewControls {
-  preview: MessageLinkPreview | null;
+  url: string | null;
+  status: LinkPreviewStatus;
+  preview: ComposerLinkPreview | null;
+  generate: () => void;
   dismiss: () => void;
   reset: () => void;
 }
 
+interface LinkPreviewEntry {
+  sourceUrl: string;
+  status: Exclude<LinkPreviewStatus, 'idle'>;
+  preview: ComposerLinkPreview | null;
+}
+
+const PREVIEW_DEPS = {
+  fetchPreview: fetchLinkPreview,
+  fetchImage: fetchLinkPreviewImageBlob,
+  normalizeImage: buildLinkPreviewThumbnail,
+};
+
 export function useLinkPreview(text: string, auth: SessionAuth): LinkPreviewControls {
-  const [entry, setEntry] = useState<{ sourceUrl: string; preview: MessageLinkPreview } | null>(null);
-  const dismissedUrlRef = useRef<string | null>(null);
-  const preview = entry?.preview ?? null;
-  const sourceUrl = entry?.sourceUrl ?? null;
+  const [entry, setEntry] = useState<LinkPreviewEntry | null>(null);
+  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
   const { userId, sessionToken } = auth;
 
-  useEffect(() => {
-    const url = extractFirstUrl(text);
+  const typedUrl = extractFirstUrl(text);
+  const url = typedUrl && typedUrl !== dismissedUrl ? typedUrl : null;
+  const current = entry && url && entry.sourceUrl === url ? entry : null;
 
-    if (!url || url === dismissedUrlRef.current) {
-      setEntry(null);
+  const generate = useCallback(() => {
+    if (!url) {
       return;
     }
 
-    if (url === sourceUrl) {
-      return;
-    }
-    setEntry(null);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    setEntry({ sourceUrl: url, status: 'loading', preview: null });
 
-    let cancelled = false;
-    const timeoutId = setTimeout(() => {
-      fetchLinkPreview(url, { userId, sessionToken })
-        .then((result) => {
-          if (!cancelled) {
-            setEntry(result ? { sourceUrl: url, preview: result } : null);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setEntry(null);
-          }
-        });
-    }, DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
-  }, [text, userId, sessionToken, sourceUrl]);
+    void loadComposerLinkPreview(url, { userId, sessionToken }, PREVIEW_DEPS)
+      .catch(() => null)
+      .then((preview) => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+        setEntry({ sourceUrl: url, status: preview ? 'ready' : 'failed', preview });
+      });
+  }, [url, userId, sessionToken]);
 
   const dismiss = useCallback(() => {
-    dismissedUrlRef.current = sourceUrl ?? extractFirstUrl(text);
+    requestIdRef.current += 1;
+    setDismissedUrl(url);
     setEntry(null);
-  }, [sourceUrl, text]);
+  }, [url]);
 
   const reset = useCallback(() => {
-    dismissedUrlRef.current = null;
+    requestIdRef.current += 1;
+    setDismissedUrl(null);
     setEntry(null);
   }, []);
 
-  return { preview, dismiss, reset };
+  return {
+    url,
+    status: current?.status ?? 'idle',
+    preview: current?.status === 'ready' ? current.preview : null,
+    generate,
+    dismiss,
+    reset,
+  };
 }

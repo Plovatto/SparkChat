@@ -1,4 +1,4 @@
-import { SESSION_STORAGE_KEY as SESSION_KEY } from '@constants/storage-keys';
+import { APP_STORAGE_PREFIX, DEVICE_PREFERENCE_STORAGE_KEYS, SESSION_STORAGE_KEY as SESSION_KEY } from '@constants/storage-keys';
 import { getItem, setItem } from '@lib/storage';
 import type { User } from '../types';
 
@@ -23,16 +23,25 @@ export function getStoredSession(): User | null {
   return getItem<User>(SESSION_KEY);
 }
 
+function isAccountStorageKey(key: string): boolean {
+  if (ACCOUNT_STORAGE_KEYS.includes(key)) {
+    return true;
+  }
+  return key.startsWith(APP_STORAGE_PREFIX) && !DEVICE_PREFERENCE_STORAGE_KEYS.includes(key);
+}
+
 export function clearStoredSession(): void {
   try {
     localStorage.removeItem(SESSION_KEY);
-    for (const key of ACCOUNT_STORAGE_KEYS) {
-      localStorage.removeItem(key);
-    }
-    for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('sparkchat:last-room:')) {
-        localStorage.removeItem(key);
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key !== null && isAccountStorageKey(key)) {
+        keys.push(key);
       }
+    }
+    for (const key of keys) {
+      localStorage.removeItem(key);
     }
   } catch (error) {
     console.error(error);

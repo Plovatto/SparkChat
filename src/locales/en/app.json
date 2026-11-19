@@ -38,7 +38,9 @@
       "nicknameInvalid": "Usernames must be {{minLength}} to {{maxLength}} characters long, using only letters and numbers, with at least {{minLetters}} letters.",
       "nicknameTaken": "That username is already taken.",
       "passwordTooShort": "Your password must be at least {{minLength}} characters long.",
-      "currentPasswordIncorrect": "Current password is incorrect."
+      "currentPasswordIncorrect": "Current password is incorrect.",
+      "passwordTooLong": "Your password must be at most {{maxLength}} characters long.",
+      "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file."
     },
     "room": {
       "notFound": "Conversation not found.",
@@ -69,7 +71,8 @@
       "invalidType_file": "Invalid file type. Send a PDF, video (MP4, WEBM, MOV, AVI), Office document, ZIP, TXT or CSV.",
       "invalidType": "Invalid file type.",
       "contentMismatch": "The file content doesn't match its declared type.",
-      "quotaExceeded": "The server storage limit was reached. Please try again later."
+      "quotaExceeded": "The server storage limit was reached. Please try again later.",
+      "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones."
     },
     "linkPreview": {
       "invalidUrl": "Invalid URL.",
@@ -82,7 +85,12 @@
       "upload": "Too many file uploads. Please wait a moment and try again.",
       "loginAttempts": "Too many sign-in attempts. Please try again later.",
       "registrations": "Too many accounts created from this address. Please try again later.",
-      "messages": "You're sending messages too fast. Please wait a moment."
+      "messages": "You're sending messages too fast. Please wait a moment.",
+      "passwordAttempts": "Too many password attempts. Please try again later.",
+      "resumeAttempts": "Too many reconnection attempts. Please wait a moment.",
+      "roomJoin": "Too many attempts to join with a code. Try again later.",
+      "roomCreate": "You created too many groups in a short time. Try again later.",
+      "socket": "Too many actions in a short time. Wait a moment."
     },
     "internal": {
       "unexpected": "Unexpected error.",
@@ -91,7 +99,8 @@
     "e2ee": {
       "encryptFailed": "Couldn't encrypt the message.",
       "missingRoomKey": "This conversation's encryption key hasn't arrived yet. Please try again in a moment.",
-      "mediaUndecryptable": "Couldn't decrypt this file. Please try again in a moment."
+      "mediaUndecryptable": "Couldn't decrypt this file. Please try again in a moment.",
+      "identityKeyMismatch": "The encryption key received from the server doesn't match your public key. For your safety it wasn't used. Sign in again or use your recovery file."
     },
     "download": {
       "failed": "Couldn't download the file."
@@ -245,6 +254,13 @@
       "removeAttachment": "Remove",
       "discard": "Discard",
       "removePreview": "Remove preview",
+      "linkPreview": {
+        "generate": "Generate link preview",
+        "generating": "Generating preview…",
+        "disclosure": "To build the preview, the SparkChat server will see this link's address.",
+        "failed": "Couldn't generate a preview for this link.",
+        "dismiss": "Don't generate a preview"
+      },
       "tooLong": "This message is too long. Please split it into smaller parts."
     },
     "message": {
@@ -274,7 +290,10 @@
       "defaultFileName": "file",
       "defaultImageName": "image.jpg",
       "readMore": "Read more",
-      "encryptedUnavailable": "🔒 Encrypted message — no local key yet."
+      "encryptedUnavailable": "🔒 Encrypted message — no local key yet.",
+      "notEncrypted": "Not encrypted",
+      "notEncryptedHint": "This message arrived without end-to-end encryption. Its media is not loaded automatically.",
+      "mediaNotLoaded": "This media could not be loaded safely."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -457,7 +476,7 @@
     "avatar": "Avatar",
     "saveChanges": "Save Changes",
     "currentPassword": "Current password",
-    "keyfileNoCurrent": "You signed in with your recovery file — you can change your password without entering the current one.",
+    "keyfileNoCurrent": "You signed in with your recovery file — for the first 10 minutes you can change your password once without entering the current one.",
     "newPasswordPlaceholder": "New password (min. {{minLength}} characters)",
     "confirmNewPassword": "Confirm new password",
     "forgotPassword": "Forgot your password? Sign out and sign back in with your recovery file — then you can change your password without the current one.",
@@ -465,6 +484,7 @@
     "changePassword": "Change password",
     "downloadRecovery": "Download recovery file",
     "sounds": "App sounds",
+    "hideNotificationContent": "Hide message content in notifications",
     "activeSessions": "Devices with an active session",
     "revokeOthers": "Sign out all other sessions",
     "noOtherSessions": "No other active sessions.",
@@ -474,17 +494,30 @@
       "keyfile": "Signed in with recovery file"
     },
     "lastUsed": "Last used: {{date}}",
-    "revokeSession": "Sign out this session"
+    "revokeSession": "Sign out this session",
+    "nicknamePasswordHint": "Changing your username issues a new recovery file and signs out your other sessions. Confirm with your current password.",
+    "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
+    "confirmRegenerate": "Generate new file"
   },
   "notifications": {
     "sentImage": "Sent an image",
     "sentAudio": "Sent a voice message",
     "sentFile": "Sent a file",
-    "sentNamedFile": "Sent a file: {{name}}"
+    "sentNamedFile": "Sent a file: {{name}}",
+    "newMessage": "New message"
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connecting": "Connecting to the server..."
+    "connecting": "Connecting to the server...",
+    "deepLink": {
+      "joinTitle": "Join group?",
+      "joinMessage": "A link asked you to join the group with code {{code}}. Do you want to join?",
+      "chatTitle": "Start chat?",
+      "chatMessage": "A link asked you to start a chat with {{nickname}}. Do you want to continue?",
+      "notice": "Only confirm if you trust whoever sent you the link.",
+      "confirmJoin": "Join group",
+      "confirmChat": "Start chat"
+    }
   },
   "avatars": {
     "User": "Person",

@@ -10,13 +10,13 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
-import type { MessageLinkPreview } from '@lib/socket';
 import { useTheme } from '@features/theme';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
-import { useLinkPreview } from '../hooks/useLinkPreview';
+import { useLinkPreview, type LinkPreviewStatus } from '../hooks/useLinkPreview';
+import type { ComposerLinkPreview } from '../utils/composer-link-preview';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { PendingAttachmentTile } from './PendingAttachmentTile';
 
@@ -29,7 +29,7 @@ export interface MessageInputSubmitPayload {
   text: string;
   imageFiles: File[];
   documentFiles: File[];
-  linkPreview?: MessageLinkPreview;
+  linkPreview?: ComposerLinkPreview;
 }
 
 const TEXT_MAX_LENGTH = 20000;
@@ -126,6 +126,55 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+interface LinkPreviewOfferProps {
+  status: LinkPreviewStatus;
+  onGenerate: () => void;
+  onDismiss: () => void;
+}
+
+function LinkPreviewOffer({ status, onGenerate, onDismiss }: LinkPreviewOfferProps) {
+  const { t } = useTranslation();
+  const { theme } = useTheme();
+  const isLoading = status === 'loading';
+  const noteId = 'link-preview-disclosure';
+
+  return (
+    <div
+      className="sc-anim-rise-in"
+      style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px 0', background: theme.surface }}
+    >
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={isLoading}
+        aria-describedby={noteId}
+        className="sc-btn sc-btn--soft"
+        style={{ padding: '6px 12px', fontSize: '0.8rem', flexShrink: 0 }}
+      >
+        <FaLink size={12} />
+        {isLoading ? t('chat.input.linkPreview.generating') : t('chat.input.linkPreview.generate')}
+      </button>
+      <span
+        id={noteId}
+        role={status === 'failed' ? 'status' : undefined}
+        style={{ flex: 1, minWidth: 0, fontSize: '0.72rem', lineHeight: 1.4, color: theme.textSecondary }}
+      >
+        {status === 'failed' ? t('chat.input.linkPreview.failed') : t('chat.input.linkPreview.disclosure')}
+      </span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        title={t('chat.input.linkPreview.dismiss')}
+        aria-label={t('chat.input.linkPreview.dismiss')}
+        className="sc-icon-btn sc-icon-btn--ghost"
+        style={{ width: '28px', height: '28px', flexShrink: 0 }}
+      >
+        <FaTimes size={12} />
+      </button>
     </div>
   );
 }
@@ -449,8 +498,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
-          <LinkPreviewCard preview={linkPreview.preview} auth={auth} variant="composer" onDismiss={linkPreview.dismiss} />
+          <LinkPreviewCard
+            preview={linkPreview.preview.preview}
+            imageBlob={linkPreview.preview.image}
+            variant="composer"
+            onDismiss={linkPreview.dismiss}
+          />
         </div>
+      )}
+      {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
+        <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
       <form
         onSubmit={handleSubmit}

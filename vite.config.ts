@@ -1,4 +1,5 @@
 import { build, defineConfig, type Plugin } from 'vite';
+import { createHash } from 'node:crypto';
 import react from '@vitejs/plugin-react';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -9,10 +10,14 @@ import ptLanding from './src/locales/pt/landing.json';
 import { languageFromPath, LANGUAGES, type Language } from './src/lib/i18n/language';
 import { landingBootScript } from './src/features/landing/lib/boot-script';
 import { LANDING_BOOT_PLACEHOLDER, renderLandingDocument, type LandingHeadCopy } from './src/features/landing/lib/landing-head';
+import { buildContentSecurityPolicy, contentSecurityPolicyMetaTag } from './src/config/content-security-policy';
 
 const LANDING_SERVER_ENTRY = 'src/features/landing/entry-server.tsx';
 const LANDING_ROOT_PLACEHOLDER = '<div id="root"></div>';
 const LANDING_THEME_PLACEHOLDER = '<style id="sc-landing-theme"></style>';
+const CHARSET_META = '<meta charset="UTF-8" />';
+const LANDING_BOOT_SCRIPT = landingBootScript();
+const LANDING_BOOT_SCRIPT_HASH = `sha256-${createHash('sha256').update(LANDING_BOOT_SCRIPT).digest('base64')}`;
 
 const LANDING_COPY: Record<Language, LandingHeadCopy> = { pt: ptLanding, en: enLanding };
 const LANDING_OUTPUT: Record<Language, string> = { pt: 'index.html', en: 'en/index.html' };
@@ -85,16 +90,41 @@ function pruneUnusedBootstrapCss(): Plugin {
   };
 }
 
+function injectContentSecurityPolicy(html: string, env: Record<string, string>, scriptHashes: string[]): string {
+  if (!html.includes(CHARSET_META)) {
+    throw new Error('HTML entry is missing its charset meta tag');
+  }
+  const policy = buildContentSecurityPolicy({
+    apiUrl: env.VITE_API_URL,
+    socketUrl: env.VITE_SOCKET_URL,
+    mediaOrigin: env.VITE_MEDIA_ORIGIN,
+    translationModelsUrl: env.VITE_TRANSLATION_MODELS_URL,
+    scriptHashes,
+  });
+  return html.replace(CHARSET_META, () => `${CHARSET_META}
+    ${contentSecurityPolicyMetaTag(policy)}`);
+}
+
 function landingDocument(): Plugin {
+  let env: Record<string, string> = {};
+
   return {
     name: 'sparkchat:landing-document',
-    transformIndexHtml(html, context) {
-      if (!html.includes(LANDING_BOOT_PLACEHOLDER)) {
-        return html;
+    configResolved(config) {
+      env = config.env;
+      const isProductionApi = (env.VITE_API_URL ?? '').startsWith('https://');
+      if (config.command === 'build' && !config.build.ssr && isProductionApi && !env.VITE_MEDIA_ORIGIN) {
+        throw new Error('VITE_MEDIA_ORIGIN must be set when building against an https API');
       }
-      const withBoot = html.replace(LANDING_BOOT_PLACEHOLDER, () => `<script>${landingBootScript()}</script>`);
+    },
+    transformIndexHtml(html, context) {
+      const isLanding = html.includes(LANDING_BOOT_PLACEHOLDER);
+      const withBoot = isLanding ? html.replace(LANDING_BOOT_PLACEHOLDER, () => `<script>${LANDING_BOOT_SCRIPT}</script>`) : html;
       if (!context.server) {
-        return withBoot;
+        return injectContentSecurityPolicy(withBoot, env, isLanding ? [LANDING_BOOT_SCRIPT_HASH] : []);
+      }
+      if (!isLanding) {
+        return html;
       }
       const language = languageFromPath(context.originalUrl ?? context.path);
       return renderLandingDocument(withBoot, language, LANDING_COPY[language]);

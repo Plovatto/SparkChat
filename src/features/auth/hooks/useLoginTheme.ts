@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LOGIN_DARK_MODE_STORAGE_KEY as DARK_MODE_KEY } from '@constants/storage-keys';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { buildTheme, mix, type ThemeTokens } from '@features/theme';
 import { getItem, setItem } from '@lib/storage';
 
-const DARK_MODE_KEY = 'sparkchat:login-dark-mode';
 const WHITE = '#ffffff';
 const THEME_TRANSITION_CLASS = 'sc-theme-transition';
 

@@ -18,12 +18,16 @@ function openDb(): Promise<IDBDatabase> {
 async function getStoredHandle(userId: string): Promise<FileSystemFileHandle | null> {
   try {
     const db = await openDb();
-    return await new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const request = transaction.objectStore(STORE_NAME).get(userId);
-      request.onsuccess = () => resolve((request.result as FileSystemFileHandle | undefined) ?? null);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed.'));
-    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readonly');
+        const request = transaction.objectStore(STORE_NAME).get(userId);
+        request.onsuccess = () => resolve((request.result as FileSystemFileHandle | undefined) ?? null);
+        request.onerror = () => reject(request.error ?? new Error('IndexedDB request failed.'));
+      });
+    } finally {
+      db.close();
+    }
   } catch {
     return null;
   }
@@ -32,12 +36,16 @@ async function getStoredHandle(userId: string): Promise<FileSystemFileHandle | n
 async function setStoredHandle(userId: string, handle: FileSystemFileHandle): Promise<void> {
   try {
     const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      transaction.objectStore(STORE_NAME).put(handle, userId);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB transaction failed.'));
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        transaction.objectStore(STORE_NAME).put(handle, userId);
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error ?? new Error('IndexedDB transaction failed.'));
+      });
+    } finally {
+      db.close();
+    }
   } catch {
     return;
   }

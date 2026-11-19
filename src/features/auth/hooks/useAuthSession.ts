@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { clearTranslationCache, disposeTranslationEngines } from '@lib/translation';
-import { clearStoredSession, getStoredSession, saveSession } from '../api/session-storage';
+import { getStoredSession, saveSession } from '../api/session-storage';
+import { clearLocalAccountData } from '../lib/clear-local-account-data';
 import type { PendingE2eCredential, User } from '../types';
 
 const INITIAL_LOAD_DELAY_MS = 800;
@@ -40,12 +40,10 @@ export function useAuthSession(): AuthSession {
   const logout = useCallback(() => {
     setIsRestoring(true);
     setUser(null);
-    clearStoredSession();
-    void clearIdentity();
-    void clearRoomKeys();
     clearTranslationCache();
     disposeTranslationEngines();
-    setTimeout(() => setIsRestoring(false), LOGOUT_TRANSITION_DELAY_MS);
+    const transition = new Promise<void>((resolve) => setTimeout(resolve, LOGOUT_TRANSITION_DELAY_MS));
+    void Promise.allSettled([clearLocalAccountData(), transition]).then(() => setIsRestoring(false));
   }, []);
 
   const updateUser = useCallback((patch: Partial<User>) => {

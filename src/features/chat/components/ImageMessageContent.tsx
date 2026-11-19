@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
+import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
 
 interface ImageMessageContentProps {
@@ -43,7 +44,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
           />
         )}
         <img
-          src={message.fileMeta?.thumbnailUrl ?? message.content}
+          src={toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content)}
           alt={t('chat.message.sentImage')}
           onLoad={(event) => {
             const { naturalWidth, naturalHeight } = event.currentTarget;

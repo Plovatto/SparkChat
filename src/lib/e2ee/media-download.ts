@@ -1,6 +1,7 @@
 import { downloadFromUrl, withFileExtension } from '@lib/download-file';
 import { translate } from '@lib/i18n/app-i18n';
-import type { AppSocket, MessageFileMeta } from '@lib/socket';
+import { isStorageMediaUrl } from '@lib/media/media-origin';
+import type { AppSocket, MessageFileMeta, MessageType } from '@lib/socket';
 import { decryptMediaContentIfNeeded, isEncryptedMediaUrl } from './message-crypto';
 
 export class UndecryptableMediaError extends Error {
@@ -10,11 +11,23 @@ export class UndecryptableMediaError extends Error {
   }
 }
 
+export class UntrustedMediaSourceError extends Error {
+  constructor() {
+    super(translate('errors.download.failed'));
+    this.name = 'UntrustedMediaSourceError';
+  }
+}
+
 export interface MessageMediaDownload {
   content: string;
   roomId: string | null | undefined;
   fileMeta: MessageFileMeta | null | undefined;
   fileName: string;
+  messageType: MessageType;
+}
+
+function isLocalObjectUrl(content: string): boolean {
+  return content.startsWith('blob:');
 }
 
 export async function resolveDownloadableMediaUrl(
@@ -22,7 +35,14 @@ export async function resolveDownloadableMediaUrl(
   content: string,
   roomId: string | null | undefined,
   fileMeta: MessageFileMeta | null | undefined,
+  messageType: MessageType,
 ): Promise<string> {
+  if (isLocalObjectUrl(content)) {
+    return content;
+  }
+  if (!isStorageMediaUrl(content)) {
+    throw new UntrustedMediaSourceError();
+  }
   if (!isEncryptedMediaUrl(content)) {
     return content;
   }
@@ -30,8 +50,8 @@ export async function resolveDownloadableMediaUrl(
     throw new UndecryptableMediaError();
   }
 
-  const resolved = await decryptMediaContentIfNeeded(socket, content, roomId, fileMeta ?? null);
-  if (isEncryptedMediaUrl(resolved)) {
+  const resolved = await decryptMediaContentIfNeeded(socket, content, roomId, fileMeta ?? null, messageType);
+  if (!isLocalObjectUrl(resolved)) {
     throw new UndecryptableMediaError();
   }
   return resolved;
@@ -39,7 +59,7 @@ export async function resolveDownloadableMediaUrl(
 
 export async function downloadMessageMedia(socket: AppSocket | null | undefined, download: MessageMediaDownload): Promise<boolean> {
   try {
-    const url = await resolveDownloadableMediaUrl(socket, download.content, download.roomId, download.fileMeta);
+    const url = await resolveDownloadableMediaUrl(socket, download.content, download.roomId, download.fileMeta, download.messageType);
     await downloadFromUrl(url, withFileExtension(download.fileName, download.fileMeta?.mimeType));
     return true;
   } catch (error) {

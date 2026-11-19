@@ -2,86 +2,41 @@ import { useEffect, useState } from 'react';
 import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
-import { fetchLinkPreviewImageBlob } from '@lib/api/link-preview';
-import type { SessionAuth } from '@lib/api/session-auth';
-import { BoundedMap } from '@lib/cache/bounded-map';
 import type { MessageLinkPreview } from '@lib/socket';
+import { hasDisplayableLinkPreviewImage, resolveLinkPreviewTarget } from '../utils/link-preview-target';
 
 interface LinkPreviewCardProps {
   preview: MessageLinkPreview;
-  auth: SessionAuth;
   variant: 'composer' | 'bubble';
   bubble?: ResolvedBubbleStyle;
+  messageText?: string;
+  imageBlob?: Blob | null;
   onDismiss?: () => void;
 }
 
-const MAX_CACHED_PREVIEW_IMAGES = 60;
-const previewImageCache = new BoundedMap<string, Blob>(MAX_CACHED_PREVIEW_IMAGES);
-const pendingPreviewImages = new Map<string, Promise<Blob | null>>();
-
-function loadPreviewImage(imageUrl: string, auth: SessionAuth): Promise<Blob | null> {
-  const cached = previewImageCache.get(imageUrl);
-  if (cached) {
-    return Promise.resolve(cached);
-  }
-
-  const pending = pendingPreviewImages.get(imageUrl);
-  if (pending) {
-    return pending;
-  }
-
-  const task = fetchLinkPreviewImageBlob(imageUrl, auth)
-    .then((blob) => {
-      if (blob) {
-        previewImageCache.set(imageUrl, blob);
-      }
-      return blob;
-    })
-    .catch(() => null)
-    .finally(() => {
-      pendingPreviewImages.delete(imageUrl);
-    });
-
-  pendingPreviewImages.set(imageUrl, task);
-  return task;
-}
-
-function useLinkPreviewImage(imageUrl: string | null, auth: SessionAuth): string | null {
+function useBlobObjectUrl(blob: Blob | null | undefined): string | null {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const { userId, sessionToken } = auth;
 
   useEffect(() => {
-    if (!imageUrl) {
+    if (!blob) {
       setObjectUrl(null);
       return;
     }
 
-    let cancelled = false;
-    let createdUrl: string | null = null;
-
-    void loadPreviewImage(imageUrl, { userId, sessionToken }).then((blob) => {
-      if (cancelled || !blob) {
-        return;
-      }
-      createdUrl = URL.createObjectURL(blob);
-      setObjectUrl(createdUrl);
-    });
-
+    const createdUrl = URL.createObjectURL(blob);
+    setObjectUrl(createdUrl);
     return () => {
-      cancelled = true;
-      if (createdUrl) {
-        URL.revokeObjectURL(createdUrl);
-      }
+      URL.revokeObjectURL(createdUrl);
     };
-  }, [imageUrl, userId, sessionToken]);
+  }, [blob]);
 
   return objectUrl;
 }
 
-export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: LinkPreviewCardProps) {
+export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBlob, onDismiss }: LinkPreviewCardProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const imageObjectUrl = useLinkPreviewImage(preview.imageUrl, auth);
+  const composerImageUrl = useBlobObjectUrl(imageBlob);
   const isComposer = variant === 'composer';
 
   const cardBackground = isComposer || !bubble ? theme.surfaceSunken : bubble.innerBackground;
@@ -89,7 +44,9 @@ export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: L
   const siteNameColor = isComposer || !bubble ? theme.textSecondary : bubble.mutedTextColor;
   const iconBackground = isComposer || !bubble ? theme.accentSoft : bubble.innerStrongBackground;
   const iconColor = isComposer || !bubble ? theme.accentText : bubble.accentColor;
-  const openPreview = isComposer ? undefined : () => window.open(preview.url, '_blank', 'noopener,noreferrer');
+  const imageObjectUrl = isComposer ? composerImageUrl : hasDisplayableLinkPreviewImage(preview.imageUrl) ? preview.imageUrl : null;
+  const linkTarget = isComposer ? null : resolveLinkPreviewTarget(preview.url, messageText ?? '');
+  const openPreview = linkTarget ? () => window.open(linkTarget, '_blank', 'noopener,noreferrer') : undefined;
 
   const textBlock = (
     <div style={{ minWidth: 0, flex: 1 }}>
@@ -139,7 +96,7 @@ export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: L
     return (
       <div
         onClick={openPreview}
-        className="sc-bubble-card"
+        className={openPreview ? 'sc-bubble-card' : undefined}
         style={{
           background: cardBackground,
           border: 'none',
@@ -165,7 +122,7 @@ export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: L
   return (
     <div
       onClick={openPreview}
-      className={isComposer ? undefined : 'sc-bubble-card'}
+      className={openPreview ? 'sc-bubble-card' : undefined}
       style={{
         display: 'flex',
         gap: '10px',
@@ -174,7 +131,7 @@ export function LinkPreviewCard({ preview, auth, variant, bubble, onDismiss }: L
         border: isComposer ? `1px solid ${theme.border}` : 'none',
         borderRadius: '10px',
         padding: '8px 10px',
-        cursor: isComposer ? 'default' : 'pointer',
+        cursor: openPreview ? 'pointer' : 'default',
         maxWidth: '100%',
         position: 'relative',
       }}
