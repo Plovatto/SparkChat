@@ -1,4 +1,4 @@
-export type DeepLinkIntent = { kind: 'join'; code: string } | { kind: 'chat'; nickname: string };
+export type DeepLinkIntent = { kind: 'invite'; roomId: string; secret: Uint8Array } | { kind: 'chat'; nickname: string };
 
 export const DEEP_LINK_PARAMS = ['join', 'startChat'] as const;
 export const MAX_DEEP_LINK_VALUE_LENGTH = 64;
@@ -18,17 +18,9 @@ export function hasDeepLinkParams(search: string): boolean {
 
 export function readDeepLinkIntents(search: string, ownNickname: string): DeepLinkIntent[] {
   const params = new URLSearchParams(search);
-  const intents: DeepLinkIntent[] = [];
-
   const nickname = readParam(params, 'startChat');
   if (nickname && nickname.toLowerCase() !== ownNickname.toLowerCase()) {
-    intents.push({ kind: 'chat', nickname });
+    return [{ kind: 'chat', nickname }];
   }
-
-  const code = readParam(params, 'join');
-  if (code) {
-    intents.push({ kind: 'join', code: code.toUpperCase() });
-  }
-
-  return intents;
+  return [];
 }

@@ -21,6 +21,8 @@ import {
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
+  parseInviteFragment,
+  prepareInviteJoin,
   upgradeLegacyCredentials,
 } from '@lib/e2ee';
 import {
@@ -42,6 +44,7 @@ import { SocketProvider, useSocket, type AppSocket, type RoomSummary, type Socke
 import { AppBackground } from './AppBackground';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
 import { hasDeepLinkParams, readDeepLinkIntents, type DeepLinkIntent } from './deep-link';
+import { subscribeInviteFragment, takeInviteFragment } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
@@ -368,6 +371,36 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   useEffect(() => () => stopDeepLinkErrorWatchRef.current?.(), []);
 
+  useEffect(() => {
+    let active = true;
+    const consumeInviteFragment = () => {
+      const fragment = takeInviteFragment();
+      if (!fragment) {
+        return;
+      }
+      void parseInviteFragment(fragment).then((target) => {
+        if (!active) {
+          target?.secret.fill(0);
+          return;
+        }
+        if (!target) {
+          window.alert(t('app.deepLink.invalidInvite'));
+          return;
+        }
+        setDeepLinkIntents((previous) => [
+          ...previous.filter((intent) => intent.kind !== 'invite'),
+          { kind: 'invite', roomId: target.roomId, secret: target.secret },
+        ]);
+      });
+    };
+    consumeInviteFragment();
+    const unsubscribe = subscribeInviteFragment(consumeInviteFragment);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [t]);
+
   const dismissDeepLink = useCallback(() => setDeepLinkIntents((previous) => previous.slice(1)), []);
 
   const confirmDeepLink = useCallback(
@@ -400,11 +433,19 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       if (intent.kind === 'chat') {
         socket.emit('room:create-private', { targetNickname: intent.nickname });
       } else {
-        socket.emit('room:join-by-code', { roomCode: intent.code });
+        void prepareInviteJoin(intent.roomId, intent.secret).then((request) => {
+          intent.secret.fill(0);
+          if (!request) {
+            stopListening();
+            window.alert(t('app.deepLink.inviteUnavailable'));
+            return;
+          }
+          socket.emit('room:join-by-invite', request);
+        });
       }
       dismissDeepLink();
     },
-    [socket, dismissDeepLink],
+    [socket, dismissDeepLink, t],
   );
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import '@lib/i18n/app-i18n';
 import { App } from '@app/App';
 import { AppProvider } from '@app/provider';
+import { installInviteFragmentCapture } from '@app/invite-fragment';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@/styles/globals.css';
@@ -10,6 +11,8 @@ import '@/styles/theme.css';
 import '@/styles/cursor.css';
 import '@/styles/motion.css';
 import '@/styles/responsive.css';
+
+installInviteFragmentCapture();
 
 const rootElement = document.getElementById('root');
 
