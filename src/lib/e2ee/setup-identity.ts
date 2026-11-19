@@ -4,7 +4,7 @@ import { buildSigningProof } from './signing';
 import { unwrapPrivateKeyV2, wrapPrivateKeyV2 } from './credentials';
 import { resetContactTrustState } from './contact-trust';
 import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
-import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
+import { clearPrivateKey, clearWrappingKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
 import { generateIdentity, IdentityKeyMismatchError, privateKeyMatchesPublicKey } from './identity';
 
@@ -171,6 +171,7 @@ async function clearIdentityImpl(): Promise<void> {
   setCurrentIdentity(null);
   resetContactTrustState();
   await clearPrivateKey();
+  await clearWrappingKey();
 }
 
 export const setupIdentityAfterRegister = safeAsync('setupIdentityAfterRegister', setupIdentityAfterRegisterImpl);
