@@ -7,7 +7,7 @@ import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { translateError } from '@lib/api/api-error';
 import { useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { login, loginWithKeyfile } from '../api/auth-api';
+import { loginWithPassword, loginWithRecoveryFile } from '../lib/login-flows';
 import type { PendingE2eCredential, User } from '../types';
 import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
@@ -47,8 +47,8 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
     setError('');
 
     try {
-      const user = await login({ nickname: nickname.trim(), password });
-      onSubmit(user, { type: 'password', password });
+      const { user, credential } = await loginWithPassword(nickname.trim(), password);
+      onSubmit(user, credential);
     } catch (err) {
       setError(translateError(err, 'errors.connection'));
       setIsLoading(false);
@@ -68,8 +68,8 @@ export function LoginForm({ darkMode, theme, onToggleTheme, onBack, onSubmit }: 
     setError('');
 
     try {
-      const { user, recoveryToken } = await loginWithKeyfile(file);
-      onSubmit(user, { type: 'keyfile', recoveryToken });
+      const { user, credential } = await loginWithRecoveryFile(file);
+      onSubmit(user, credential);
     } catch (err) {
       setError(translateError(err, 'errors.connection'));
       setIsLoading(false);

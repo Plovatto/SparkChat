@@ -6,8 +6,8 @@ import type { PendingRegistration, User } from '../types';
 export interface RegisteredPayload {
   user: SocketUser;
   sessionToken: string;
-  recoveryFile: string;
-  recoveryToken: string;
+  recoveryFile?: string | null;
+  recoveryToken?: string | null;
   authMethod: AuthMethod;
 }
 
@@ -24,7 +24,7 @@ export interface AuthFailedPayload extends ApiErrorPayload {
 export interface SocketAuthSyncOptions {
   user: User | null;
   pendingRegistration: PendingRegistration | null;
-  onRegistered: (payload: RegisteredPayload) => void;
+  onRegistered: (payload: RegisteredPayload, registration: PendingRegistration | null) => void;
   onResumed: (payload: ResumedPayload) => void;
   onResumeFailed: () => void;
   onRegisterFailed: (message: string) => void;
@@ -78,7 +78,9 @@ export function useSocketAuthSync({
           mode: 'register',
           nickname: currentRegistration.nickname,
           avatar: currentRegistration.avatar,
-          password: currentRegistration.password,
+          password: currentRegistration.credentials.authKey,
+          authSalt: currentRegistration.credentials.authSalt,
+          recoveryVerifier: currentRegistration.credentials.recoveryVerifier,
         });
       }
     };
@@ -158,7 +160,7 @@ export function useSocketAuthSync({
 
     const handleRegistered = (payload: RegisteredPayload) => {
       clearRetry();
-      onRegistered(payload);
+      onRegistered(payload, credentialsRef.current.pendingRegistration);
     };
 
     const handleResumed = (payload: ResumedPayload) => {
