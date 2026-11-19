@@ -48,6 +48,7 @@ export interface StoredRoomKeyGeneration {
   key: Uint8Array;
   roomType?: 'private' | 'group';
   encryptedRoster?: string;
+  historyOnly?: boolean;
 }
 
 interface WrappedRoomKeyRecord {
@@ -57,6 +58,7 @@ interface WrappedRoomKeyRecord {
   wrappedKey: WrappedSecret;
   roomType?: 'private' | 'group';
   encryptedRoster?: string;
+  historyOnly?: boolean;
 }
 
 type RoomKeyRecord = StoredRoomKeyGeneration | WrappedRoomKeyRecord;
@@ -234,6 +236,7 @@ async function wrapRoomKey(generation: StoredRoomKeyGeneration): Promise<Wrapped
     wrappedKey: await wrapSecret(generation.key, roomKeyAssociatedData(generation.roomId, generation.keyId, generation.epoch)),
     ...(generation.roomType ? { roomType: generation.roomType } : {}),
     ...(typeof generation.encryptedRoster === 'string' ? { encryptedRoster: generation.encryptedRoster } : {}),
+    ...(generation.historyOnly ? { historyOnly: true } : {}),
   };
 }
 
@@ -347,6 +350,7 @@ async function unwrapRoomKeyRecord(record: RoomKeyRecord): Promise<StoredRoomKey
     key,
     ...(record.roomType ? { roomType: record.roomType } : {}),
     ...(typeof record.encryptedRoster === 'string' ? { encryptedRoster: record.encryptedRoster } : {}),
+    ...(record.historyOnly === true ? { historyOnly: true } : {}),
   };
 }
 

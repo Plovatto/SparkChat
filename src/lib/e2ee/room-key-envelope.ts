@@ -63,7 +63,8 @@ export type EnvelopeRejection =
   | 'unpinned-sender'
   | 'bad-signature'
   | 'bad-box'
-  | 'key-mismatch';
+  | 'key-mismatch'
+  | 'unattested-sender';
 
 export class RoomKeyEnvelopeError extends Error {
   readonly reason: EnvelopeRejection;

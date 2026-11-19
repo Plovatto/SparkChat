@@ -1,5 +1,6 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
+import type { RoomEncryptedName } from '@lib/socket/socket-events';
 import { createBatchedLookup } from './batched-lookup';
 import { ASSISTANT_USER_ID } from './assistant';
 import { getContactTrust, isKeyUsable, observeContactKey, subscribeContactTrust, type ContactTrust } from './contact-trust';
@@ -10,7 +11,10 @@ import {
   deriveInviteProof,
   deriveInviteToken,
   openInviteSecret,
+  openRoomName,
   openRoster,
+  ROOM_NAME_MAX_LENGTH,
+  sealRoomName,
   sealRoster,
   verifyInviteProof,
   type GroupRoster,
@@ -33,6 +37,7 @@ export interface RoomKeyGeneration {
   keyId: string;
   epoch: number;
   key: Uint8Array;
+  historyOnly?: boolean;
 }
 
 interface RoomView {
@@ -122,40 +127,87 @@ const INVITE_RESET_TIMEOUT_MS = 30000;
 const MAX_INVITE_PROOFS = 500;
 const MAX_PROOF_LENGTH = 128;
 const ownSigningPublicKeys = new WeakMap<Uint8Array, string>();
+export const MAX_KEY_IDS_PER_ROOM = 50;
+const MAX_ROSTER_BLOB_LENGTH = 262144;
+const MAX_NAME_BLOB_LENGTH = 2048;
+const generationRosters = new Map<string, Map<string, string>>();
+const roomNameBlobs = new Map<string, RoomEncryptedName>();
+const roomNames = new Map<string, string>();
+const pendingCreationNames = new Map<string, string>();
+const publishedNames = new Map<string, RoomEncryptedName>();
+const roomNameListeners = new Set<RoomNameListener>();
+const rotationBlockListeners = new Set<RotationBlockListener>();
+let roomKeyFetchQueue: Promise<unknown> = Promise.resolve();
+const missingHistoryContext = new Set<string>();
 
-function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
-  return new Promise((resolve) => {
-    const requested = new Set(roomIds);
-    let settled = false;
-    let timeoutId = 0;
+export type RoomNameListener = (roomId: string) => void;
+export type RotationBlockListener = (roomId: string) => void;
 
-    const finish = (value: RoomKeyBundle[]) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      window.clearTimeout(timeoutId);
-      socket.off('e2e:room-keys', handleKeys);
-      resolve(value);
-    };
+function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<SealedRoomKeyEntry[]> {
+  const run = () =>
+    new Promise<SealedRoomKeyEntry[]>((resolve) => {
+      const requested = new Set(roomIds);
+      let settled = false;
+      let timeoutId = 0;
 
-    const handleKeys = (payload: { keys: SealedRoomKeyEntry[] }) => {
-      const bundles = new Map<string, RoomKeyBundle>();
-      for (const entry of payload.keys) {
-        if (!requested.has(entry.roomId)) {
-          continue;
+      const finish = (value: SealedRoomKeyEntry[]) => {
+        if (settled) {
+          return;
         }
-        const bundle = bundles.get(entry.roomId) ?? { roomId: entry.roomId, keys: [] };
-        bundle.keys.push(entry);
-        bundles.set(entry.roomId, bundle);
-      }
-      finish(Array.from(bundles.values()));
-    };
+        settled = true;
+        window.clearTimeout(timeoutId);
+        socket.off('e2e:room-keys', handleKeys);
+        resolve(value);
+      };
 
-    socket.on('e2e:room-keys', handleKeys);
-    socket.emit('e2e:get-room-keys', { roomIds });
-    timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
-  });
+      const handleKeys = (payload: { keys: SealedRoomKeyEntry[] }) => {
+        finish(
+          (Array.isArray(payload?.keys) ? payload.keys : []).filter(
+            (entry) => requested.has(entry.roomId) && (!keyIds || keyIds.get(entry.roomId)?.has(entry.keyId) === true),
+          ),
+        );
+      };
+
+      socket.on('e2e:room-keys', handleKeys);
+      if (keyIds) {
+        socket.emit('e2e:get-room-keys', {
+          roomIds,
+          keyIds: Object.fromEntries(Array.from(keyIds, ([roomId, ids]) => [roomId, Array.from(ids).slice(0, MAX_KEY_IDS_PER_ROOM)])),
+        });
+      } else {
+        socket.emit('e2e:get-room-keys', { roomIds });
+      }
+      timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
+    });
+  const task = roomKeyFetchQueue.then(run, run);
+  roomKeyFetchQueue = task.catch(() => undefined);
+  return task;
+}
+
+async function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
+  const bundles = new Map<string, RoomKeyBundle>();
+  for (const entry of await requestRoomKeys(socket, roomIds)) {
+    const bundle = bundles.get(entry.roomId) ?? { roomId: entry.roomId, keys: [] };
+    bundle.keys.push(entry);
+    bundles.set(entry.roomId, bundle);
+  }
+  return Array.from(bundles.values());
+}
+
+function splitGenerationId(id: string): [string, string] {
+  const separator = id.indexOf('\n');
+  return [id.slice(0, separator), id.slice(separator + 1)];
+}
+
+function fetchRoomKeyGenerations(socket: AppSocket, ids: string[]): Promise<SealedRoomKeyEntry[]> {
+  const keyIds = new Map<string, Set<string>>();
+  for (const id of ids) {
+    const [roomId, keyId] = splitGenerationId(id);
+    const forRoom = keyIds.get(roomId) ?? new Set<string>();
+    forRoom.add(keyId);
+    keyIds.set(roomId, forRoom);
+  }
+  return requestRoomKeys(socket, Array.from(keyIds.keys()), keyIds);
 }
 
 function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePublicKeyEntry[]> {
@@ -185,6 +237,11 @@ function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePubli
 }
 
 const lookupRoomKeyBundle = createBatchedLookup(fetchRoomKeys, (bundle) => bundle.roomId);
+const lookupRoomKeyGeneration = createBatchedLookup(
+  fetchRoomKeyGenerations,
+  (entry) => missingKey(entry.roomId, entry.keyId),
+  MAX_KEY_IDS_PER_ROOM,
+);
 const lookupPublicKey = createBatchedLookup(fetchPublicKeys, (entry) => entry.userId);
 
 export async function lookupContactKey(socket: AppSocket, userId: string): Promise<ContactTrust | null> {
@@ -335,6 +392,9 @@ function setRoomRoster(roomId: string, roster: RoomRoster | null): void {
     return;
   }
   roomRosters.set(roomId, roster ? { encryptedRoster: roster.encryptedRoster, keyId: roster.keyId } : null);
+  if (roster) {
+    rememberGenerationRoster(roomId, roster.keyId, roster.encryptedRoster);
+  }
   notifyRoomInvite(roomId);
 }
 
@@ -545,6 +605,33 @@ async function rosterEntryMatchesPin(
   );
 }
 
+function notifyRotationBlock(roomId: string): void {
+  for (const listener of Array.from(rotationBlockListeners)) {
+    try {
+      listener(roomId);
+    } catch (error) {
+      console.error('[e2e] rotation block listener failed', error);
+    }
+  }
+}
+
+export function subscribeRotationBlocks(listener: RotationBlockListener): () => void {
+  rotationBlockListeners.add(listener);
+  return () => {
+    rotationBlockListeners.delete(listener);
+  };
+}
+
+export function isRotationBlockedBy(roomId: string, userId: string): boolean {
+  return keyChangeBlocks.get(roomId)?.members.has(userId) === true;
+}
+
+function forgetKeyChangeBlock(roomId: string): void {
+  if (keyChangeBlocks.delete(roomId)) {
+    notifyRotationBlock(roomId);
+  }
+}
+
 function rememberKeyChangeBlock(socket: AppSocket, roomId: string, view: RoomView): void {
   const blocked = Array.from(view.members).filter((userId) => getContactTrust(userId)?.status === 'changed');
   if (blocked.length === 0) {
@@ -552,6 +639,7 @@ function rememberKeyChangeBlock(socket: AppSocket, roomId: string, view: RoomVie
   }
   keyChangeBlocks.set(roomId, { socket, members: new Set(blocked) });
   ensureKeyChangeListener();
+  notifyRotationBlock(roomId);
 }
 
 function ensureKeyChangeListener(): void {
@@ -565,10 +653,14 @@ function ensureKeyChangeListener(): void {
         return status !== undefined && isKeyUsable(status);
       });
       const target = publishTarget(roomId);
-      if (!resolved || target === null) {
+      if (target === null) {
+        forgetKeyChangeBlock(roomId);
         continue;
       }
-      keyChangeBlocks.delete(roomId);
+      if (!resolved) {
+        continue;
+      }
+      forgetKeyChangeBlock(roomId);
       void safeRetryPublish(block.socket, roomId, target);
     }
   });
@@ -780,6 +872,9 @@ function generationsOf(roomId: string): Map<string, RoomKeyGeneration> {
 function latestGeneration(roomId: string): RoomKeyGeneration | null {
   let latest: RoomKeyGeneration | null = null;
   for (const generation of generationsByRoom.get(roomId)?.values() ?? []) {
+    if (generation.historyOnly) {
+      continue;
+    }
     if (!latest || generation.epoch > latest.epoch) {
       latest = generation;
     }
@@ -793,6 +888,192 @@ function missingKey(roomId: string, keyId: string): string {
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.length === right.length && left.every((byte, index) => byte === right[index]);
+}
+
+function persistGeneration(roomId: string, generation: RoomKeyGeneration): void {
+  const encryptedRoster = generationRosters.get(roomId)?.get(generation.keyId);
+  void saveRoomKeyGeneration({
+    roomId,
+    keyId: generation.keyId,
+    epoch: generation.epoch,
+    key: generation.key,
+    ...(knownGroups.has(roomId) ? { roomType: 'group' as const } : {}),
+    ...(encryptedRoster ? { encryptedRoster } : {}),
+    ...(generation.historyOnly ? { historyOnly: true } : {}),
+  });
+}
+
+function rememberGenerationRoster(roomId: string, keyId: string, encryptedRoster: unknown): void {
+  if (typeof encryptedRoster !== 'string' || encryptedRoster.length === 0 || encryptedRoster.length > MAX_ROSTER_BLOB_LENGTH) {
+    return;
+  }
+  let rosters = generationRosters.get(roomId);
+  if (!rosters) {
+    rosters = new Map();
+    generationRosters.set(roomId, rosters);
+  }
+  if (rosters.get(keyId) === encryptedRoster) {
+    return;
+  }
+  rosters.set(keyId, encryptedRoster);
+  const generation = generationsByRoom.get(roomId)?.get(keyId);
+  if (generation) {
+    persistGeneration(roomId, generation);
+  }
+}
+
+function generationAtEpoch(roomId: string, epoch: number): RoomKeyGeneration | null {
+  for (const generation of generationsByRoom.get(roomId)?.values() ?? []) {
+    if (generation.epoch === epoch) {
+      return generation;
+    }
+  }
+  return null;
+}
+
+async function rosterListsSender(
+  roomId: string,
+  generation: RoomKeyGeneration,
+  encryptedRoster: string | undefined,
+  sender: EnvelopeSender,
+  senderId: string,
+): Promise<boolean> {
+  if (!encryptedRoster) {
+    return false;
+  }
+  const roster = await openRoster(encryptedRoster, generation.key, roomId, generation.keyId, generation.epoch);
+  return roster?.members.some((member) => member.userId === senderId && member.signingPublicKey === sender.signingPublicKey) === true;
+}
+
+async function isHistoricalSenderAttested(
+  socket: AppSocket,
+  identity: CurrentIdentity,
+  roomId: string,
+  senderId: string,
+  generation: RoomKeyGeneration,
+): Promise<boolean> {
+  const sender = await resolveEnvelopeSender(socket, identity, senderId);
+  if (!sender) {
+    return false;
+  }
+  const previous = generationAtEpoch(roomId, generation.epoch - 1);
+  return previous !== null && (await rosterListsSender(roomId, previous, generationRosters.get(roomId)?.get(previous.keyId), sender, senderId));
+}
+
+function notifyRoomName(roomId: string): void {
+  for (const listener of Array.from(roomNameListeners)) {
+    try {
+      listener(roomId);
+    } catch (error) {
+      console.error('[e2e] room name listener failed', error);
+    }
+  }
+}
+
+export function subscribeRoomName(listener: RoomNameListener): () => void {
+  roomNameListeners.add(listener);
+  return () => {
+    roomNameListeners.delete(listener);
+  };
+}
+
+export function getRoomName(roomId: string): string | null {
+  return roomNames.get(roomId) ?? null;
+}
+
+function setDecryptedRoomName(roomId: string, name: string): void {
+  if (roomNames.get(roomId) === name) {
+    return;
+  }
+  roomNames.set(roomId, name);
+  notifyRoomName(roomId);
+}
+
+function normalizeGroupName(name: unknown): string | null {
+  if (typeof name !== 'string') {
+    return null;
+  }
+  const trimmed = name.trim();
+  return trimmed.length > 0 && trimmed.length <= ROOM_NAME_MAX_LENGTH ? trimmed : null;
+}
+
+function isEncryptedName(value: unknown): value is RoomEncryptedName {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Partial<RoomEncryptedName>;
+  return (
+    typeof candidate.encryptedName === 'string' &&
+    candidate.encryptedName.length > 0 &&
+    candidate.encryptedName.length <= MAX_NAME_BLOB_LENGTH &&
+    typeof candidate.keyId === 'string' &&
+    candidate.keyId.length > 0
+  );
+}
+
+function applyRoomNameBlob(roomId: string, blob: unknown): void {
+  if (!isEncryptedName(blob)) {
+    return;
+  }
+  const previous = roomNameBlobs.get(roomId);
+  if (previous?.encryptedName === blob.encryptedName && previous.keyId === blob.keyId) {
+    return;
+  }
+  roomNameBlobs.set(roomId, { encryptedName: blob.encryptedName, keyId: blob.keyId });
+}
+
+async function openKnownRoomName(roomId: string): Promise<void> {
+  const blob = roomNameBlobs.get(roomId);
+  const roomKey = blob ? getRoomKeyGeneration(roomId, blob.keyId) : null;
+  if (!blob || !roomKey) {
+    return;
+  }
+  const name = await openRoomName(blob.encryptedName, roomKey, roomId, blob.keyId);
+  if (roomNameBlobs.get(roomId) !== blob) {
+    return;
+  }
+  if (name === null) {
+    console.warn('[e2e] discarded a group name that does not open with its room key', { roomId });
+    return;
+  }
+  pendingCreationNames.delete(roomId);
+  setDecryptedRoomName(roomId, name);
+}
+
+export async function resolveRoomName(socket: AppSocket, room: Pick<RoomSummary, 'id' | 'type' | 'encryptedName'>): Promise<string | null> {
+  if (room.type !== 'group') {
+    return null;
+  }
+  applyRoomNameBlob(room.id, room.encryptedName);
+  const blob = roomNameBlobs.get(room.id);
+  if (blob && !getRoomKeyGeneration(room.id, blob.keyId)) {
+    await ensureRoomKeyGeneration(socket, room.id, blob.keyId);
+  }
+  await openKnownRoomName(room.id);
+  return getRoomName(room.id);
+}
+
+async function handleRoomNameUpdatedImpl(socket: AppSocket, payload: { roomId: string; encryptedName?: unknown; keyId?: unknown }): Promise<void> {
+  if (typeof payload?.roomId !== 'string' || roomViews.get(payload.roomId)?.type !== 'group') {
+    return;
+  }
+  await resolveRoomName(socket, { id: payload.roomId, type: 'group', encryptedName: { encryptedName: payload.encryptedName, keyId: payload.keyId } as RoomEncryptedName });
+}
+
+async function groupNameForPublish(roomId: string): Promise<string | null> {
+  await openKnownRoomName(roomId);
+  return roomNames.get(roomId) ?? pendingCreationNames.get(roomId) ?? null;
+}
+
+export async function renameGroup(socket: AppSocket, roomId: string, name: string): Promise<boolean> {
+  const normalized = normalizeGroupName(name);
+  if (!normalized || roomViews.get(roomId)?.type !== 'group') {
+    return false;
+  }
+  const generation = await ensureRoomKeyForSending(socket, roomId);
+  const encryptedName = await sealRoomName(normalized, generation.key, roomId, generation.keyId);
+  socket.emit('room:rename', { roomId, name: encryptedName, keyId: generation.keyId });
+  return true;
 }
 
 function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist: boolean): boolean {
@@ -810,6 +1091,13 @@ function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist:
 
   generations.set(generation.keyId, generation);
   missingGenerations.delete(missingKey(roomId, generation.keyId));
+  if (generation.historyOnly) {
+    if (persist) {
+      persistGeneration(roomId, generation);
+    }
+    notifyRoomKeyAvailable(roomId);
+    return true;
+  }
   const view = roomViews.get(roomId);
   if (view) {
     view.currentEpoch = Math.max(view.currentEpoch, generation.epoch);
@@ -826,14 +1114,19 @@ function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist:
   if (invite && invite.keyId === generation.keyId) {
     void openInviteLocally(roomId, invite);
   }
+  const publishedName = publishedNames.get(roomId);
+  if (publishedName && publishedName.keyId === generation.keyId) {
+    publishedNames.delete(roomId);
+    applyRoomNameBlob(roomId, publishedName);
+  }
+  if (roomNameBlobs.get(roomId)?.keyId === generation.keyId) {
+    void openKnownRoomName(roomId);
+  }
+  if (keyChangeBlocks.has(roomId) && publishTarget(roomId) === null) {
+    forgetKeyChangeBlock(roomId);
+  }
   if (persist) {
-    void saveRoomKeyGeneration({
-      roomId,
-      keyId: generation.keyId,
-      epoch: generation.epoch,
-      key: generation.key,
-      ...(knownGroups.has(roomId) ? { roomType: 'group' as const } : {}),
-    });
+    persistGeneration(roomId, generation);
   }
   notifyRoomKeyAvailable(roomId);
   return true;
@@ -869,8 +1162,9 @@ function loadPersistedGenerations(roomId: string): Promise<void> {
         markGroup(roomId);
       }
       for (const entry of stored) {
+        rememberGenerationRoster(roomId, entry.keyId, entry.encryptedRoster);
         if (entry.key.length === ROOM_KEY_BYTES) {
-          adoptGeneration(roomId, { keyId: entry.keyId, epoch: entry.epoch, key: entry.key }, false);
+          adoptGeneration(roomId, { keyId: entry.keyId, epoch: entry.epoch, key: entry.key, ...(entry.historyOnly ? { historyOnly: true } : {}) }, false);
         }
       }
     });
@@ -934,10 +1228,20 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
     if (opened.keyId !== entry.keyId || opened.epoch !== entry.epoch || opened.senderId !== entry.senderId) {
       throw new RoomKeyEnvelopeError('malformed');
     }
+    const historyOnly = !view.members.has(opened.senderId);
+    const generation: RoomKeyGeneration = { keyId: opened.keyId, epoch: opened.epoch, key: opened.roomKey, ...(historyOnly ? { historyOnly } : {}) };
+    if (historyOnly && !(await isHistoricalSenderAttested(socket, identity, entry.roomId, opened.senderId, generation))) {
+      if (!generationAtEpoch(entry.roomId, opened.epoch - 1)) {
+        missingHistoryContext.add(entry.roomId);
+      }
+      opened.roomKey.fill(0);
+      throw new RoomKeyEnvelopeError('unattested-sender');
+    }
     if (getCurrentIdentity() !== identity) {
       return false;
     }
-    return adoptGeneration(entry.roomId, { keyId: opened.keyId, epoch: opened.epoch, key: opened.roomKey }, true);
+    rememberGenerationRoster(entry.roomId, entry.keyId, entry.roster);
+    return adoptGeneration(entry.roomId, generation, true);
   } catch (error) {
     if (error instanceof RoomKeyEnvelopeError) {
       console.warn('[e2e] discarded room key envelope', { roomId: entry.roomId, senderId: entry.senderId, reason: error.reason });
@@ -970,6 +1274,23 @@ function syncRoomKeys(socket: AppSocket, roomId: string): Promise<void> {
   return sync;
 }
 
+function syncRoomGeneration(socket: AppSocket, roomId: string, keyId: string): Promise<void> {
+  const marker = missingKey(roomId, keyId);
+  let sync = pendingSyncs.get(marker);
+  if (!sync) {
+    sync = (async () => {
+      const entry = await lookupRoomKeyGeneration(socket, marker);
+      if (entry) {
+        await acceptEnvelopes(socket, [entry]);
+      }
+    })().finally(() => {
+      pendingSyncs.delete(marker);
+    });
+    pendingSyncs.set(marker, sync);
+  }
+  return sync;
+}
+
 export function getRoomKeyGeneration(roomId: string, keyId: string): Uint8Array | null {
   return generationsByRoom.get(roomId)?.get(keyId)?.key ?? null;
 }
@@ -989,7 +1310,10 @@ export async function ensureRoomKeyGeneration(socket: AppSocket, roomId: string,
   if (missingSince !== undefined && Date.now() - missingSince < MISSING_GENERATION_RETRY_MS) {
     return null;
   }
-  await syncRoomKeys(socket, roomId);
+  await syncRoomGeneration(socket, roomId, keyId);
+  if (!getRoomKeyGeneration(roomId, keyId) && missingHistoryContext.delete(roomId)) {
+    await syncRoomKeys(socket, roomId);
+  }
   const fetched = getRoomKeyGeneration(roomId, keyId);
   if (!fetched) {
     missingGenerations.set(marker, Date.now());
@@ -1126,6 +1450,13 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
       pendingPublishes.delete(roomId);
       return;
     }
+    const groupName = isGroup ? await groupNameForPublish(roomId) : null;
+    if (isGroup && !groupName) {
+      console.warn('[e2e] cannot re-encrypt the group name for a new generation', { roomId, epoch });
+      pendingPublishes.delete(roomId);
+      return;
+    }
+    const encryptedName = groupName ? await sealRoomName(groupName, generation.key, roomId, generation.keyId) : null;
     const invite = isGroup ? await createInviteBundle(generation.key, roomId, generation.keyId) : null;
     const encryptedRoster = roster ? await sealRoster(roster, generation.key, roomId, generation.keyId) : null;
     if (publishTarget(roomId) !== epoch || getCurrentIdentity() !== identity) {
@@ -1133,7 +1464,9 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
       pendingPublishes.delete(roomId);
       return;
     }
-    if (invite && encryptedRoster) {
+    if (invite && encryptedRoster && encryptedName) {
+      publishedNames.set(roomId, { encryptedName, keyId: generation.keyId });
+      rememberGenerationRoster(roomId, generation.keyId, encryptedRoster);
       rememberPublishedInvite(roomId, {
         encryptedInvite: invite.encryptedInvite,
         keyId: generation.keyId,
@@ -1148,6 +1481,7 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
         keys,
         invite: { tokenHash: invite.tokenHash, encryptedInvite: invite.encryptedInvite },
         roster: encryptedRoster,
+        name: encryptedName,
       });
     } else {
       socket.emit('e2e:publish-room-key', { roomId, keyId: generation.keyId, epoch, keys });
@@ -1264,6 +1598,7 @@ async function shareCurrentGeneration(socket: AppSocket, roomId: string, targetI
 
 export interface TrackRoomOptions {
   activeCreation?: boolean;
+  groupName?: string;
 }
 
 async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: TrackRoomOptions = {}): Promise<void> {
@@ -1276,8 +1611,24 @@ async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: Trac
   applyInviteProofs(room.id, view, room.inviteProofs);
   view.currentEpoch = Math.max(view.currentEpoch, room.currentEpoch ?? 0);
   applyRotationRequired(view, room.id, room.rotationRequiredEpoch);
+  if (view.type === 'group') {
+    applyRoomNameBlob(room.id, room.encryptedName);
+  }
 
   const identity = getCurrentIdentity();
+  const creationName = normalizeGroupName(options.groupName);
+  if (
+    creationName &&
+    identity &&
+    view.type === 'group' &&
+    room.creatorId === identity.userId &&
+    view.currentEpoch === 0 &&
+    !roomNameBlobs.has(room.id) &&
+    !roomNames.has(room.id)
+  ) {
+    pendingCreationNames.set(room.id, creationName);
+    setDecryptedRoomName(room.id, creationName);
+  }
   if (!identity || !view.members.has(identity.userId)) {
     return;
   }
@@ -1289,7 +1640,14 @@ async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: Trac
 
   await loadPersistedGenerations(room.id);
   if (!sendableGeneration(room.id) && view.currentEpoch > (latestGeneration(room.id)?.epoch ?? 0)) {
-    await syncRoomKeys(socket, room.id);
+    const currentKeyId = room.currentKeyId;
+    if (typeof currentKeyId === 'string' && currentKeyId.length > 0) {
+      if (!generationsOf(room.id).has(currentKeyId)) {
+        await syncRoomGeneration(socket, room.id, currentKeyId);
+      }
+    } else {
+      await syncRoomKeys(socket, room.id);
+    }
   }
 
   const target = publishTarget(room.id);
@@ -1436,6 +1794,12 @@ async function clearRoomKeysImpl(): Promise<void> {
   publishedInvites.clear();
   roomInvites.clear();
   roomRosters.clear();
+  generationRosters.clear();
+  missingHistoryContext.clear();
+  roomNameBlobs.clear();
+  roomNames.clear();
+  pendingCreationNames.clear();
+  publishedNames.clear();
   knownGroups.clear();
   keyChangeBlocks.clear();
   stopKeyChangeListener?.();
@@ -1457,3 +1821,4 @@ export const handleRotationRequired = safeAsync('handleRotationRequired', handle
 export const handleGroupUserJoined = safeAsync('handleGroupUserJoined', handleGroupUserJoinedImpl);
 export const handleKeyRequest = safeAsync('handleKeyRequest', handleKeyRequestImpl);
 export const clearRoomKeys = safeAsync('clearRoomKeys', clearRoomKeysImpl);
+export const handleRoomNameUpdated = safeAsync('handleRoomNameUpdated', handleRoomNameUpdatedImpl);

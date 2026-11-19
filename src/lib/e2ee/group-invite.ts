@@ -9,6 +9,8 @@ const SERVER_TOKEN_CONTEXT = 'sparkchat:invite-server:v1';
 const PROOF_CONTEXT = 'sparkchat:invite-proof:v1';
 const AEAD_CONTEXT = 'sparkchat:invite:v1';
 const ROSTER_CONTEXT = 'sparkchat:roster:v1';
+const ROOM_NAME_CONTEXT = 'sparkchat:room-name:v1';
+export const ROOM_NAME_MAX_LENGTH = 64;
 const MAX_ROSTER_MEMBERS = 500;
 const FIELD_SEPARATOR = '|';
 const KEY_ID_SEPARATOR = ':';
@@ -183,6 +185,32 @@ export async function openInviteSecret(
 
 export async function sealRoster(roster: GroupRoster, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
   return sealGroupField(encoder.encode(JSON.stringify(roster)), ROSTER_CONTEXT, roomKey, roomId, keyId);
+}
+
+function normalizeRoomName(name: string): string | null {
+  const trimmed = name.trim();
+  return trimmed.length > 0 && trimmed.length <= ROOM_NAME_MAX_LENGTH ? trimmed : null;
+}
+
+export async function sealRoomName(name: string, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
+  const normalized = normalizeRoomName(name);
+  if (!normalized) {
+    throw new Error('Invalid group name.');
+  }
+  return sealGroupField(encoder.encode(normalized), ROOM_NAME_CONTEXT, roomKey, roomId, keyId);
+}
+
+export async function openRoomName(encryptedName: string, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string | null> {
+  const plaintext = await openGroupField(encryptedName, ROOM_NAME_CONTEXT, roomKey, roomId, keyId);
+  if (!plaintext) {
+    return null;
+  }
+  try {
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(plaintext);
+    return decoded === normalizeRoomName(decoded) ? decoded : null;
+  } catch {
+    return null;
+  }
 }
 
 function isRosterMember(value: unknown): value is RosterMember {
