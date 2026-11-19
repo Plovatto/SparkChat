@@ -96,15 +96,18 @@
   flex-shrink: 0;
   background: var(--sc-surface-elevated);
   color: var(--sc-text-primary);
-  transition: transform var(--sc-dur-fast, 120ms) ease, background-color var(--sc-dur-fast, 120ms) ease, box-shadow var(--sc-dur-fast, 120ms) ease;
+  transition: transform 160ms var(--sc-ease-spring-soft), background-color 180ms ease, color 180ms ease, box-shadow 220ms ease, opacity 180ms ease;
 }
 
-.sc-call-round:hover:not(:disabled) {
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .sc-call-round:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
 }
 
 .sc-call-round:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.94);
+  transition-duration: 100ms;
 }
 
 .sc-call-round:disabled {
@@ -143,7 +146,7 @@
 
 .sc-call-speaking {
   box-shadow: 0 0 0 3px var(--sc-success), 0 0 18px 4px color-mix(in srgb, var(--sc-success) 55%, transparent);
-  animation: scCallSpeak 1.2s ease-in-out infinite alternate;
+  animation: scCallSpeak 1.2s ease-in-out 240ms infinite alternate;
 }
 
 @keyframes scCallSpeak {
@@ -481,7 +484,8 @@
   box-shadow: var(--sc-shadow-lg, var(--sc-shadow-md));
   box-sizing: border-box;
   z-index: 5;
-  animation: scCallPanelIn 160ms ease-out;
+  transform-origin: bottom center;
+  animation: scCallPanelIn 180ms var(--sc-ease-enter);
 }
 
 .sc-call-panel__body {
@@ -777,7 +781,7 @@
     max-height: 70vh;
     transform: none;
     border-radius: 16px;
-    animation: scCallSheetIn 180ms ease-out;
+    animation: scCallSheetIn 220ms var(--sc-ease-enter);
   }
 
 }
@@ -1076,5 +1080,335 @@
   .sc-call-round,
   .sc-incoming__circle {
     transition: none;
+  }
+}
+
+.sc-call-avatar,
+.sc-call-tile,
+.sc-call-self,
+.sc-call-chip,
+.sc-call-pip__name {
+  transition: box-shadow 260ms var(--sc-ease-spring-soft);
+}
+
+.sc-call-screen[data-state='entering'] {
+  animation: scCallScreenIn 260ms var(--sc-ease-enter);
+}
+
+.sc-call-screen[data-state='exiting'] {
+  animation: scCallScreenOut 180ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-call-panel[data-state='exiting'] {
+  animation: scCallPanelOut 140ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-call-segmented {
+  position: relative;
+}
+
+.sc-call-segmented__indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 6px);
+  border-radius: 9px;
+  background: var(--sc-surface-elevated);
+  box-shadow: var(--sc-shadow-sm);
+  transition: transform 240ms var(--sc-ease-spring-soft);
+  pointer-events: none;
+}
+
+.sc-call-segmented__indicator[data-tab='audio'] {
+  transform: translateX(calc(100% + 4px));
+}
+
+.sc-call-segmented button {
+  position: relative;
+  z-index: 1;
+  transition: color 180ms ease;
+}
+
+.sc-call-segmented button[aria-selected='true'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.sc-call-tab-content {
+  animation: scCallFadeRise 200ms var(--sc-ease-enter);
+}
+
+.sc-call-icon-swap {
+  display: inline-flex;
+  animation: scCallIconSwap 180ms var(--sc-ease-spring-soft);
+}
+
+.sc-call-share-banner[data-state='entering'] {
+  animation: scCallDropIn 240ms var(--sc-ease-enter);
+}
+
+.sc-call-share-banner[data-state='exiting'] {
+  animation: scCallDropOut 180ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-call-share-volume {
+  transform-origin: top right;
+  animation: scCallPopIn 180ms var(--sc-ease-enter);
+}
+
+.sc-call-stage {
+  animation: scCallStageIn 280ms var(--sc-ease-enter);
+}
+
+.sc-call-stage__label {
+  animation: scCallFadeRise 240ms var(--sc-ease-enter) 80ms both;
+}
+
+.sc-call-tile {
+  animation: scCallTileIn 260ms var(--sc-ease-spring-soft) 120ms both;
+}
+
+.sc-call-tile + .sc-call-tile {
+  animation-delay: 170ms;
+}
+
+.sc-call-muted-badge {
+  animation: scBadgePop 260ms var(--sc-ease-spring-soft);
+}
+
+.sc-call-warning {
+  animation: scCallFadeRise 220ms var(--sc-ease-enter);
+}
+
+.sc-call-bar {
+  animation: scCallBarReveal 240ms var(--sc-ease-enter);
+}
+
+.sc-call-bar > * {
+  animation: scCallFadeIn 200ms ease-out 60ms both;
+}
+
+.sc-call-pip {
+  animation: scCallFadeIn 200ms ease-out;
+}
+
+.sc-call-quality-bar {
+  transition: background-color 300ms ease;
+}
+
+.sc-incoming[data-state='exiting'],
+.sc-incoming-card[data-state='exiting'] {
+  animation: scCallIncomingOut 180ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-incoming-card__btn--answer,
+.sc-incoming__circle--answer {
+  position: relative;
+}
+
+.sc-incoming-card__btn--answer::after,
+.sc-incoming__circle--answer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc-success) 45%, transparent), 0 0 18px 2px color-mix(in srgb, var(--sc-success) 50%, transparent);
+  opacity: 0;
+  animation: scCallBreathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes scCallScreenIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallScreenOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98) translateY(8px);
+  }
+}
+
+@keyframes scCallPanelOut {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
+@keyframes scCallFadeRise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scCallIconSwap {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-30deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallDropOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+
+@keyframes scCallPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallStageIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallTileIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallBarReveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes scCallIncomingOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(16px) scale(0.98);
+  }
+}
+
+@keyframes scCallBreathe {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-screen[data-state],
+  .sc-call-panel,
+  .sc-call-panel[data-state='exiting'],
+  .sc-call-tab-content,
+  .sc-call-icon-swap,
+  .sc-call-share-banner[data-state],
+  .sc-call-share-volume,
+  .sc-call-stage,
+  .sc-call-stage__label,
+  .sc-call-tile,
+  .sc-call-muted-badge,
+  .sc-call-warning,
+  .sc-call-bar,
+  .sc-call-bar > *,
+  .sc-call-pip,
+  .sc-incoming[data-state],
+  .sc-incoming-card[data-state],
+  .sc-incoming-card--docked,
+  .sc-incoming-card__btn--answer::after,
+  .sc-incoming__circle--answer::after {
+    animation: none;
+  }
+
+  .sc-call-avatar,
+  .sc-call-tile,
+  .sc-call-self,
+  .sc-call-chip,
+  .sc-call-pip__name,
+  .sc-call-segmented__indicator,
+  .sc-call-segmented button,
+  .sc-call-quality-bar {
+    transition: none;
+  }
+
+  .sc-call-round:hover:not(:disabled),
+  .sc-call-round:active:not(:disabled) {
+    transform: none;
   }
 }

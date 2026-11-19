@@ -7,7 +7,10 @@ import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translate } from '@lib/i18n/app-i18n';
+import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useCall } from '../call-context';
+import { isMounted } from '../lib/presence';
+import { usePresence } from './use-presence';
 import { getIncomingSlot, isSlotVisible, releaseIncomingSlot, setIncomingSlot, subscribeIncomingSlot } from '../lib/incoming-slot';
 
 export function IncomingCallSlot() {
@@ -37,6 +40,11 @@ export function IncomingCallModal() {
   const ringing = state.phase === 'incoming-ringing' && state.kind !== null;
   const { silence } = call;
   const docked = wide && isSlotVisible(slot);
+  const stage = usePresence(ringing, 240, 180);
+  const lastRef = useRef<{ kind: CallKind; peerId: string | null } | null>(null);
+  if (ringing && state.kind) {
+    lastRef.current = { kind: state.kind, peerId: state.peerId };
+  }
 
   useEffect(() => {
     if (!ringing) {
@@ -52,14 +60,16 @@ export function IncomingCallModal() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [ringing, silence, docked, wide]);
 
-  if (!ringing || !state.kind) {
+  const shown = lastRef.current;
+  if (!isMounted(stage) || !shown) {
     return null;
   }
-  const peer = call.peerDisplay(state.peerId);
+  const visualStage = ringing ? stage : 'exiting';
+  const peer = call.peerDisplay(shown.peerId);
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const titleId = 'sc-incoming-title';
   const kindId = 'sc-incoming-kind';
-  const kindLabel = translate(`calls.incomingKind.${state.kind}`);
+  const kindLabel = translate(`calls.incomingKind.${shown.kind}`);
   const answer = () => {
     call.primePlayback();
     call.accept();
@@ -72,7 +82,7 @@ export function IncomingCallModal() {
 
   if (wide) {
     const card = (
-      <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className={`sc-incoming-card${docked ? ' sc-incoming-card--docked' : ''}`} onKeyDown={onKeyDown}>
+      <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className={`sc-incoming-card${docked ? ' sc-incoming-card--docked' : ''}`} data-state={visualStage} onKeyDown={onKeyDown}>
         <div className="sc-incoming-card__row">
           <div className="sc-incoming-card__avatar" style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
             {avatar ? <avatar.icon size={24} color={AVATAR_ICON_COLOR} /> : null}
@@ -82,7 +92,7 @@ export function IncomingCallModal() {
               {peer?.name ?? ''}
             </h2>
             <span id={kindId} className="sc-incoming-card__meta">
-              {state.kind === 'video' ? <FaVideo size={12} aria-hidden="true" /> : <FaPhone size={11} aria-hidden="true" />}
+              {shown.kind === 'video' ? <FaVideo size={12} aria-hidden="true" /> : <FaPhone size={11} aria-hidden="true" />}
               <span>
                 {kindLabel} · <span aria-live="polite">{t('calls.status.ringing')}</span>
               </span>
@@ -108,7 +118,7 @@ export function IncomingCallModal() {
   }
 
   return (
-    <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className="sc-incoming" onKeyDown={onKeyDown}>
+    <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className="sc-incoming" data-state={visualStage} onKeyDown={onKeyDown}>
       <div className="sc-incoming__head">
         <div className="sc-incoming__avatar" style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
           {avatar ? <avatar.icon size={44} color={AVATAR_ICON_COLOR} style={{ width: '50%', height: '50%' }} /> : null}
@@ -134,7 +144,7 @@ export function IncomingCallModal() {
             {t('calls.decline')}
           </button>
           <button ref={answerRef} type="button" className="sc-incoming__action" onClick={answer}>
-            <span className="sc-incoming__circle" style={{ background: theme.success }} aria-hidden="true">
+            <span className="sc-incoming__circle sc-incoming__circle--answer" style={{ background: theme.success }} aria-hidden="true">
               <FaPhone size={22} />
             </span>
             {t('calls.answer')}

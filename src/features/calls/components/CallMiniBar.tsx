@@ -64,6 +64,7 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   return (
     <div
       role="status"
+      className="sc-call-bar"
       onClick={(event) => {
         if (!(event.target instanceof Element) || event.target.closest('[data-bar-action]') === null) {
           call.setMinimized(false);

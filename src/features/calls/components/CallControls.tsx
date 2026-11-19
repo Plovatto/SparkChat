@@ -4,6 +4,8 @@ import { FaCog, FaDesktop, FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlas
 import { MdCallEnd } from 'react-icons/md';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useCall } from '../call-context';
+import { isMounted } from '../lib/presence';
+import { usePresence } from './use-presence';
 import { DevicePicker, type DeviceSelection } from './DevicePicker';
 
 interface CallControlsProps {
@@ -21,6 +23,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
   const { t } = useTranslation();
   const call = useCall();
   const [showDevices, setShowDevices] = useState(false);
+  const panelStage = usePresence(showDevices, 180, 140);
   const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined);
   const [panelBottom, setPanelBottom] = useState<number | undefined>(undefined);
   const [selected, setSelected] = useState<DeviceSelection>({ audioInput: '', videoInput: '', audioOutput: '' });
@@ -63,11 +66,15 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
   return (
     <div className="sc-call-controls" role="toolbar" aria-label={t('calls.settings')}>
       <button type="button" className="sc-call-round" onClick={call.toggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={snapshot.muted}>
-        {snapshot.muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+        <span key={snapshot.muted ? 'muted' : 'live'} className="sc-call-icon-swap">
+          {snapshot.muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+        </span>
       </button>
       {connected && (
         <button type="button" className="sc-call-round" onClick={call.toggleCamera} title={cameraLabel} aria-label={cameraLabel} aria-pressed={snapshot.cameraOn}>
-          {snapshot.cameraOn ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
+          <span key={snapshot.cameraOn ? 'on' : 'off'} className="sc-call-icon-swap">
+            {snapshot.cameraOn ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
+          </span>
         </button>
       )}
       {connected && call.canShareScreen && (
@@ -98,8 +105,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
         >
           <FaCog size={20} />
         </button>
-        {showDevices && (
+        {isMounted(panelStage) && (
           <DevicePicker
+            stage={panelStage}
             cameraOn={snapshot.cameraOn}
             supportsOutput={supportsOutput}
             selected={selected}

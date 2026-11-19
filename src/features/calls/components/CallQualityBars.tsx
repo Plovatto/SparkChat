@@ -12,7 +12,7 @@ export function CallQualityBars({ bars }: { bars: QualityBars | null }) {
   return (
     <span role="img" aria-label={t('calls.quality', { bars })} style={{ display: 'inline-flex', alignItems: 'flex-end', gap: '2px', height: '14px' }}>
       {[1, 2, 3].map((level) => (
-        <span key={level} style={{ width: '4px', height: `${level * 4 + 2}px`, borderRadius: '1px', background: level <= bars ? color : theme.borderStrong }} />
+        <span key={level} className="sc-call-quality-bar" style={{ width: '4px', height: `${level * 4 + 2}px`, borderRadius: '1px', background: level <= bars ? color : theme.borderStrong }} />
       ))}
     </span>
   );

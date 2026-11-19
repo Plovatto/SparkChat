@@ -6,6 +6,7 @@ import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
 import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
 import { listDevices, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
+import type { PresenceStage } from '../lib/presence';
 import { isOutside } from './call-hooks';
 
 export interface DeviceSelection {
@@ -25,6 +26,7 @@ interface DevicePickerProps {
   maxHeight?: number | undefined;
   bottom?: number | undefined;
   trigger?: RefObject<HTMLElement | null>;
+  stage?: PresenceStage;
 }
 
 type PanelTab = 'devices' | 'audio';
@@ -118,7 +120,7 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
   );
 }
 
-export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger }: DevicePickerProps) {
+export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger, stage = 'open' }: DevicePickerProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const call = useCall();
@@ -179,6 +181,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
       role="dialog"
       aria-labelledby={titleId}
       className="sc-call-panel"
+      data-state={stage}
       style={{ ...(maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : {}), ...(bottom !== undefined ? { bottom: `${bottom}px` } : {}) }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px 10px' }}>
@@ -196,12 +199,13 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
         </button>
       </div>
       <div className="sc-call-segmented" role="tablist" aria-label={t('calls.settings')}>
+        <span className="sc-call-segmented__indicator" data-tab={tab} aria-hidden="true" />
         {tabButton('devices', t('calls.tabs.devices'))}
         {tabButton('audio', t('calls.tabs.audio'))}
       </div>
       <div className="sc-call-panel__body" role="tabpanel" id={`${titleId}-panel`} aria-labelledby={`${titleId}-${tab}`}>
         {tab === 'devices' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div key="devices" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <DeviceField
               icon={<FaMicrophone size={13} />}
               label={t('calls.microphone')}
@@ -234,7 +238,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
             />
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
+          <div key="audio" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
             <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
             <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
             <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
