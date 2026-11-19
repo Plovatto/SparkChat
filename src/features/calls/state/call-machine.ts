@@ -39,6 +39,7 @@ export type CallEvent =
   | { type: 'remote-ended'; callId: string; reason: CallEndReason }
   | { type: 'answered-elsewhere'; callId: string }
   | { type: 'declined-elsewhere'; callId: string }
+  | { type: 'accept-rejected'; callId: string }
   | { type: 'media'; callId: string; status: 'connected' | 'interrupted'; at?: number }
   | { type: 'failure'; callId: string; detail: string; reason?: CallEndReason }
   | { type: 'timeout'; callId: string; timer: CallTimer }
@@ -82,6 +83,10 @@ export function isCallLive(state: CallState): boolean {
 
 export function hasCallMedia(state: CallState): boolean {
   return MEDIA_PHASES.has(state.phase);
+}
+
+function losesAcceptRace(state: CallState): boolean {
+  return state.phase === 'incoming-ringing' || (state.role === 'callee' && state.phase === 'connecting');
 }
 
 function unchanged(state: CallState): Transition {
@@ -168,10 +173,13 @@ export function transition(state: CallState, event: CallEvent): Transition {
       return isCallLive(state) ? finish(state, event.reason, []) : unchanged(state);
 
     case 'answered-elsewhere':
-      return state.phase === 'incoming-ringing' ? finish(state, 'answered-elsewhere', []) : unchanged(state);
+      return losesAcceptRace(state) ? finish(state, 'answered-elsewhere', []) : unchanged(state);
 
     case 'declined-elsewhere':
-      return state.phase === 'incoming-ringing' ? finish(state, 'declined', []) : unchanged(state);
+      return losesAcceptRace(state) ? finish(state, 'declined', []) : unchanged(state);
+
+    case 'accept-rejected':
+      return state.role === 'callee' && state.phase === 'connecting' ? finish(state, 'answered-elsewhere', []) : unchanged(state);
 
     case 'media':
       if (event.status === 'connected') {

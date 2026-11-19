@@ -731,7 +731,13 @@ export class CallController {
       });
       return;
     }
-    if (event === 'call:accept' || event === 'call:hangup' || event === 'call:decline') {
+    if (event === 'call:accept') {
+      if (session && session.role === 'callee') {
+        this.machine.dispatch({ type: 'accept-rejected', callId: session.callId });
+      }
+      return;
+    }
+    if (event === 'call:hangup' || event === 'call:decline') {
       return;
     }
     this.update({ notice: { kind: 'server-error', code } });

@@ -686,6 +686,36 @@ describe('server events', () => {
     expect(w.a.peers).toHaveLength(0);
   });
 
+  it('ends the losing callee locally without hanging up when call:accept is rejected', async () => {
+    const w = await world();
+    w.b.socket.onEmit = (event) => {
+      if (event === 'call:accept') {
+        w.b.socket.receive('error', { message: 'x', code: 'call.invalidState', event: 'call:accept' });
+      }
+    };
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+
+    void w.b.controller.accept();
+    await settle();
+
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'answered-elsewhere' });
+    expect(w.b.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.b.peers.every((peer) => peer.closed)).toBe(true);
+    expect(w.b.stopped).toBeGreaterThan(0);
+  });
+
+  it('ends the losing callee locally when answered elsewhere while connecting', async () => {
+    const w = await world();
+    await connectCall(w);
+
+    w.b.socket.receive('call:answered-elsewhere', { callId: w.b.controller.getSnapshot().state.callId });
+
+    expect(w.b.controller.getSnapshot().state.phase).toBe('ended');
+    expect(w.b.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.b.peers[0]!.closed).toBe(true);
+  });
+
   it('removes its socket listeners when disposed', async () => {
     const w = await world();
     const before = Array.from(w.a.socket.handlers.values()).reduce((sum, set) => sum + set.size, 0);

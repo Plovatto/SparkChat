@@ -119,10 +119,22 @@ describe('transition table', () => {
     expect(run([incoming, { type: 'declined-elsewhere', callId: A }]).state).toMatchObject({ phase: 'ended', reason: 'declined' });
   });
 
-  it('does not let answered-elsewhere end a call this device already answered', () => {
+  it('ends the losing callee without hanging up when answered or declined elsewhere while connecting', () => {
     const base = run([incoming, { type: 'accept-local', callId: A }]);
 
-    expect(run([{ type: 'answered-elsewhere', callId: A }], base.state).state.phase).toBe('connecting');
+    for (const event of [{ type: 'answered-elsewhere', callId: A }, { type: 'declined-elsewhere', callId: A }, { type: 'accept-rejected', callId: A }] as const) {
+      const result = run([event], base.state);
+      expect(result.state.phase).toBe('ended');
+      expect(effectTypes(result.effects)).toEqual(['close-peer']);
+    }
+  });
+
+  it('does not let answered-elsewhere end an active call or a call this device started', () => {
+    const active = run([incoming, { type: 'accept-local', callId: A }, { type: 'media', callId: A, status: 'connected' }]);
+    const caller = run([outgoing, { type: 'remote-accepted', callId: A }]);
+
+    expect(run([{ type: 'answered-elsewhere', callId: A }], active.state).state.phase).toBe('active');
+    expect(run([{ type: 'accept-rejected', callId: A }], caller.state).state).toBe(caller.state);
   });
 
   it('ends with the failure detail and hangs up', () => {
@@ -276,6 +288,7 @@ const eventArbitrary: fc.Arbitrary<CallEvent> = fc.oneof(
   fc.record({ type: fc.constant('remote-accepted' as const), callId: callIds }),
   fc.record({ type: fc.constant('remote-ended' as const), callId: callIds, reason: fc.constantFrom('completed' as const, 'missed' as const, 'failed' as const, 'busy' as const) }),
   fc.record({ type: fc.constant('answered-elsewhere' as const), callId: callIds }),
+  fc.record({ type: fc.constant('accept-rejected' as const), callId: callIds }),
   fc.record({ type: fc.constant('declined-elsewhere' as const), callId: callIds }),
   fc.record({ type: fc.constant('media' as const), callId: callIds, status: fc.constantFrom('connected' as const, 'interrupted' as const) }),
   fc.record({ type: fc.constant('failure' as const), callId: callIds, detail: fc.constant('x') }),
