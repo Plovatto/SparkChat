@@ -50,6 +50,7 @@ export {
   handleRoomInviteResetRejected,
   handleRoomInviteUpdated,
   handleRoomKeyPush,
+  isGroupInviteAvailable,
   isGroupInviteCleared,
   handleRoomKeyRejected,
   handleRotationRequired,

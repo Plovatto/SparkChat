@@ -8,6 +8,8 @@ export const INVITE_APP_PATH = '/app/';
 const SERVER_TOKEN_CONTEXT = 'sparkchat:invite-server:v1';
 const PROOF_CONTEXT = 'sparkchat:invite-proof:v1';
 const AEAD_CONTEXT = 'sparkchat:invite:v1';
+const ROSTER_CONTEXT = 'sparkchat:roster:v1';
+const MAX_ROSTER_MEMBERS = 500;
 const FIELD_SEPARATOR = '|';
 const KEY_ID_SEPARATOR = ':';
 const ROOM_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
@@ -16,6 +18,16 @@ const SECRET_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 export interface InviteLinkTarget {
   roomId: string;
   secret: Uint8Array;
+}
+
+export interface RosterMember {
+  userId: string;
+  signingPublicKey: string;
+}
+
+export interface GroupRoster {
+  epoch: number;
+  members: RosterMember[];
 }
 
 export interface InviteBundle {
@@ -105,20 +117,54 @@ export async function verifyInviteProof(
   return sodium.memcmp(encoder.encode(expected), encoder.encode(proof));
 }
 
-function inviteAssociatedData(roomId: string, keyId: string): Uint8Array {
+function fieldAssociatedData(context: string, roomId: string, keyId: string): Uint8Array {
   assertNoSeparator(roomId, keyId);
-  return encoder.encode([AEAD_CONTEXT, roomId, keyId].join(FIELD_SEPARATOR));
+  return encoder.encode([context, roomId, keyId].join(FIELD_SEPARATOR));
 }
 
-export async function sealInviteSecret(secret: Uint8Array, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
-  assertSecret(secret);
+async function sealGroupField(plaintext: Uint8Array, context: string, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
   const sodium = await getSodium();
   const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
-  const sealed = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(secret, inviteAssociatedData(roomId, keyId), null, nonce, roomKey);
+  const sealed = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, fieldAssociatedData(context, roomId, keyId), null, nonce, roomKey);
   const combined = new Uint8Array(nonce.length + sealed.length);
   combined.set(nonce, 0);
   combined.set(sealed, nonce.length);
   return E2E_V2_PREFIX + keyId + KEY_ID_SEPARATOR + sodium.to_base64(combined);
+}
+
+async function openGroupField(
+  payload: string,
+  context: string,
+  roomKey: Uint8Array,
+  roomId: string,
+  keyId: string,
+): Promise<Uint8Array | null> {
+  const parsed = parseAuthenticatedField(payload);
+  if (!parsed || parsed.keyId !== keyId) {
+    return null;
+  }
+  try {
+    const sodium = await getSodium();
+    const combined = sodium.from_base64(parsed.body);
+    const nonceLength = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+    if (combined.length < nonceLength + sodium.crypto_aead_xchacha20poly1305_ietf_ABYTES) {
+      return null;
+    }
+    return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+      null,
+      combined.subarray(nonceLength),
+      fieldAssociatedData(context, roomId, keyId),
+      combined.subarray(0, nonceLength),
+      roomKey,
+    );
+  } catch {
+    return null;
+  }
+}
+
+export async function sealInviteSecret(secret: Uint8Array, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
+  assertSecret(secret);
+  return sealGroupField(secret, AEAD_CONTEXT, roomKey, roomId, keyId);
 }
 
 export async function openInviteSecret(
@@ -127,24 +173,48 @@ export async function openInviteSecret(
   roomId: string,
   keyId: string,
 ): Promise<Uint8Array | null> {
-  const parsed = parseAuthenticatedField(encryptedInvite);
-  if (!parsed || parsed.keyId !== keyId) {
+  const secret = await openGroupField(encryptedInvite, AEAD_CONTEXT, roomKey, roomId, keyId);
+  if (secret && secret.length !== INVITE_SECRET_BYTES) {
+    secret.fill(0);
+    return null;
+  }
+  return secret;
+}
+
+export async function sealRoster(roster: GroupRoster, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
+  return sealGroupField(encoder.encode(JSON.stringify(roster)), ROSTER_CONTEXT, roomKey, roomId, keyId);
+}
+
+function isRosterMember(value: unknown): value is RosterMember {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const candidate = value as Partial<RosterMember>;
+  return typeof candidate.userId === 'string' && typeof candidate.signingPublicKey === 'string';
+}
+
+export async function openRoster(
+  encryptedRoster: string,
+  roomKey: Uint8Array,
+  roomId: string,
+  keyId: string,
+  epoch: number,
+): Promise<GroupRoster | null> {
+  const plaintext = await openGroupField(encryptedRoster, ROSTER_CONTEXT, roomKey, roomId, keyId);
+  if (!plaintext) {
     return null;
   }
   try {
-    const sodium = await getSodium();
-    const combined = sodium.from_base64(parsed.body);
-    const nonceLength = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
-    if (combined.length !== nonceLength + INVITE_SECRET_BYTES + sodium.crypto_aead_xchacha20poly1305_ietf_ABYTES) {
+    const parsed = JSON.parse(new TextDecoder().decode(plaintext)) as Partial<GroupRoster>;
+    if (
+      parsed.epoch !== epoch ||
+      !Array.isArray(parsed.members) ||
+      parsed.members.length > MAX_ROSTER_MEMBERS ||
+      !parsed.members.every(isRosterMember)
+    ) {
       return null;
     }
-    return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
-      null,
-      combined.subarray(nonceLength),
-      inviteAssociatedData(roomId, keyId),
-      combined.subarray(0, nonceLength),
-      roomKey,
-    );
+    return { epoch, members: parsed.members.map((member) => ({ userId: member.userId, signingPublicKey: member.signingPublicKey })) };
   } catch {
     return null;
   }
@@ -164,10 +234,18 @@ export async function buildInviteLink(origin: string, roomId: string, secret: Ui
   return `${origin}${INVITE_APP_PATH}#${INVITE_FRAGMENT_KEY}=${roomId}.${await toBase64Url(secret)}`;
 }
 
-export async function parseInviteFragment(hash: string): Promise<InviteLinkTarget | null> {
+function decodeSecret(encoded: string): Uint8Array | null {
+  try {
+    const binary = atob(encoded.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (encoded.length % 4)) % 4));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
+export function parseInviteFragment(hash: string): InviteLinkTarget | null {
   const fragment = hash.startsWith('#') ? hash.slice(1) : hash;
-  const params = new URLSearchParams(fragment);
-  const value = params.get(INVITE_FRAGMENT_KEY);
+  const value = new URLSearchParams(fragment).get(INVITE_FRAGMENT_KEY);
   if (!value) {
     return null;
   }
@@ -180,13 +258,8 @@ export async function parseInviteFragment(hash: string): Promise<InviteLinkTarge
   if (!ROOM_ID_PATTERN.test(roomId) || !SECRET_PATTERN.test(encodedSecret)) {
     return null;
   }
-  try {
-    const sodium = await getSodium();
-    const secret = sodium.from_base64(encodedSecret, sodium.base64_variants.URLSAFE_NO_PADDING);
-    return secret.length === INVITE_SECRET_BYTES ? { roomId, secret } : null;
-  } catch {
-    return null;
-  }
+  const secret = decodeSecret(encodedSecret);
+  return secret && secret.length === INVITE_SECRET_BYTES ? { roomId, secret } : null;
 }
 
 export function hasInviteFragment(hash: string): boolean {

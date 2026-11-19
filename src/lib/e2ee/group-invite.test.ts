@@ -9,8 +9,10 @@ import {
   hasInviteFragment,
   INVITE_SECRET_BYTES,
   openInviteSecret,
+  openRoster,
   parseInviteFragment,
   sealInviteSecret,
+  sealRoster,
   verifyInviteProof,
 } from './group-invite';
 
@@ -114,6 +116,41 @@ describe('encrypted invite', () => {
   });
 });
 
+describe('encrypted roster', () => {
+  const roomKey = Uint8Array.from({ length: 32 }, (_, index) => index * 3);
+  const roster = { epoch: 2, members: [{ userId: 'user-1', signingPublicKey: SIGNING_KEY }] };
+
+  it('opens only with the same key, room, key id and epoch', async () => {
+    const sealed = await sealRoster(roster, roomKey, ROOM_ID, KEY_ID);
+    expect(sealed.startsWith(`e2e:v2:${KEY_ID}:`)).toBe(true);
+    expect(await openRoster(sealed, roomKey, ROOM_ID, KEY_ID, 2)).toEqual(roster);
+    expect(await openRoster(sealed, roomKey, ROOM_ID, KEY_ID, 3)).toBeNull();
+    expect(await openRoster(sealed, roomKey, 'other-room', KEY_ID, 2)).toBeNull();
+    expect(await openRoster(sealed, new Uint8Array(32), ROOM_ID, KEY_ID, 2)).toBeNull();
+    expect(await openRoster(sealed, roomKey, ROOM_ID, 'BAECAwQFBgcICQoLDA0ODw', 2)).toBeNull();
+  });
+
+  it('binds the ad to the roster label, room id and key id', async () => {
+    const sodium = await (await import('./sodium')).getSodium();
+    const sealed = await sealRoster(roster, roomKey, ROOM_ID, KEY_ID);
+    const combined = sodium.from_base64(sealed.slice(`e2e:v2:${KEY_ID}:`.length));
+    const nonceLength = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+    const opened = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+      null,
+      combined.subarray(nonceLength),
+      new TextEncoder().encode(`sparkchat:roster:v1|${ROOM_ID}|${KEY_ID}`),
+      combined.subarray(0, nonceLength),
+      roomKey,
+    );
+    expect(JSON.parse(new TextDecoder().decode(opened))).toEqual(roster);
+  });
+
+  it('rejects a roster whose members are malformed', async () => {
+    const malformed = await sealRoster({ epoch: 2, members: [{ userId: 'user-1' }] } as never, roomKey, ROOM_ID, KEY_ID);
+    expect(await openRoster(malformed, roomKey, ROOM_ID, KEY_ID, 2)).toBeNull();
+  });
+});
+
 describe('invite link', () => {
   it('puts the room id and the secret only in the fragment of the app url', async () => {
     const link = await buildInviteLink('https://sparkchat.example', ROOM_ID, SECRET);
@@ -125,7 +162,7 @@ describe('invite link', () => {
 
   it('round-trips through the fragment parser', async () => {
     const link = await buildInviteLink('https://sparkchat.example', ROOM_ID, SECRET);
-    const parsed = await parseInviteFragment(new URL(link).hash);
+    const parsed = parseInviteFragment(new URL(link).hash);
     expect(parsed?.roomId).toBe(ROOM_ID);
     expect(parsed?.secret).toEqual(SECRET);
   });
@@ -140,8 +177,8 @@ describe('invite link', () => {
     [`#join=${ROOM_ID}.AAECAwQFBgcICQoLDA0ODw==`, 'a padded secret'],
     [`#join=${ROOM_ID}.AAECAwQFBgcICQoLDA0OD+`, 'a non url-safe secret'],
     ['#join=bad%20room.AAECAwQFBgcICQoLDA0ODw', 'an invalid room id'],
-  ])('rejects %s (%s)', async (hash) => {
-    expect(await parseInviteFragment(hash)).toBeNull();
+  ])('rejects %s (%s)', (hash) => {
+    expect(parseInviteFragment(hash)).toBeNull();
   });
 
   it('detects the invite fragment key', () => {

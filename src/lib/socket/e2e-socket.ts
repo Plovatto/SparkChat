@@ -273,7 +273,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     void handleRoomKeyPush(socket, payload);
   });
 
-  originalOn('e2e:rotation-required', (payload: { roomId: string; epoch: number; memberIds?: string[] }) => {
+  originalOn('e2e:rotation-required', (payload: { roomId: string; epoch: number; memberIds?: string[]; inviteProofs?: unknown }) => {
     void handleRotationRequired(socket, payload);
   });
 
@@ -289,18 +289,18 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     updateRoomParticipants(payload.roomId, payload.participants);
   });
 
-  originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string }) => {
+  originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string | null }) => {
     void handleKeyRequest(socket, payload);
   });
 
-  originalOn('room:invite-updated', (payload: { roomId: string; invite: unknown }) => {
+  originalOn('room:invite-updated', (payload: { roomId: string; invite: unknown; roster?: unknown }) => {
     handleRoomInviteUpdated(payload);
   });
 
   originalOn('error', (payload: unknown) => {
     retriesStaleSend(payload);
     if (typeof payload === 'object' && payload !== null && (payload as SocketErrorPayload).event === 'room:reset-invite') {
-      handleRoomInviteResetRejected();
+      handleRoomInviteResetRejected(payload);
     }
   });
 

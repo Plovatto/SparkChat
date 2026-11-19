@@ -166,6 +166,18 @@ export interface RoomSummary {
   currentKeyId?: string | null;
   rotationRequiredEpoch?: number | null;
   invite?: RoomInviteSummary | null;
+  roster?: RoomRosterSummary | null;
+  inviteProofs?: RoomInviteProof[];
+}
+
+export interface RoomRosterSummary {
+  encryptedRoster: string;
+  keyId: string;
+}
+
+export interface RoomInviteProof {
+  userId: string;
+  proof: string;
 }
 
 export interface RoomInviteSummary {
@@ -195,6 +207,7 @@ export interface RoomKeyBatch {
 
 export interface PublishRoomKeyBatch extends RoomKeyBatch {
   invite?: RoomInviteUpdate;
+  roster?: string;
 }
 
 export interface E2ePublicKeyEntry {
@@ -253,8 +266,8 @@ export interface ServerToClientEvents {
   'user:unblocked': (payload: BlockStatusPayload) => void;
   'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[] }) => void;
   'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
-  'e2e:key-request': (payload: { roomId: string; requesterId: string; proof?: string }) => void;
-  'room:invite-updated': (payload: { roomId: string; invite: RoomInviteSummary | null }) => void;
+  'e2e:key-request': (payload: { roomId: string; requesterId: string; proof?: string | null }) => void;
+  'room:invite-updated': (payload: { roomId: string; invite: RoomInviteSummary | null; roster?: RoomRosterSummary | null }) => void;
   'e2e:room-key-rejected': (payload: {
     roomId: string;
     epoch: number;
@@ -266,7 +279,7 @@ export interface ServerToClientEvents {
     currentKeyId: string | null;
     rotationRequiredEpoch: number | null;
   }) => void;
-  'e2e:rotation-required': (payload: { roomId: string; epoch: number; memberIds?: string[] }) => void;
+  'e2e:rotation-required': (payload: { roomId: string; epoch: number; memberIds?: string[]; inviteProofs?: RoomInviteProof[] }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
@@ -322,7 +335,7 @@ export interface ClientToServerEvents {
   'room:create-private': (payload: { targetNickname: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
   'room:join-by-invite': (payload: { roomId: string; inviteToken: string; proof: string }) => void;
-  'room:reset-invite': (payload: { roomId: string; invite: RoomInviteUpdate & { keyId: string } }) => void;
+  'room:reset-invite': (payload: { roomId: string }) => void;
   'room:delete': (payload: { roomId: string }) => void;
   'group:leave': (payload: { roomId: string }) => void;
   'group:remove-member': (payload: { roomId: string; userId: string }) => void;
@@ -332,7 +345,7 @@ export interface ClientToServerEvents {
   'e2e:publish-room-key': (payload: PublishRoomKeyBatch) => void;
   'e2e:share-room-key': (payload: RoomKeyBatch) => void;
   'e2e:get-room-keys': (payload: { roomIds: string[] }) => void;
-  'e2e:request-room-key': (payload: { roomId: string; proof?: string }) => void;
+  'e2e:request-room-key': (payload: { roomId: string }) => void;
   'message:send': (payload: {
     roomId: string;
     content: string;
