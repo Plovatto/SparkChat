@@ -751,6 +751,42 @@ describe('server events', () => {
     expect(w.b.peers[0]!.closed).toBe(true);
   });
 
+  it('ignores errors that belong to another call or arrive with no call', async () => {
+    const w = await world();
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+
+    w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:start', params: { callId: 'someone-else' } });
+    expect(w.a.controller.getSnapshot().state.phase).toBe('outgoing-ringing');
+
+    w.a.controller.hangup();
+    await settle();
+    w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:start' });
+    w.a.socket.receive('error', { message: 'x', code: 'call.relayUnavailable', event: 'call:ice-servers' });
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
+  });
+
+  it('lets a renewed ice request outlive the timer of the request it replaced', async () => {
+    const w = await world();
+    await connectCall(w);
+    const callId = w.a.controller.getSnapshot().state.callId;
+    const originalEmit = w.a.socket.onEmit;
+    w.a.socket.onEmit = (event, payload) => {
+      if (event !== 'call:ice-servers') {
+        originalEmit?.(event, payload);
+      }
+    };
+    const refresh = w.a.peers[0]!.options.refreshIceServers;
+
+    void refresh();
+    await vi.advanceTimersByTimeAsync(5_000);
+    const second = refresh();
+    await vi.advanceTimersByTimeAsync(4_000);
+    w.a.socket.receive('call:ice-servers-result', { callId, ...SERVER_ICE });
+
+    expect(await second).not.toBeNull();
+  });
+
   it('wipes the ephemeral key when disposed mid-ring', async () => {
     const w = await world();
     void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });

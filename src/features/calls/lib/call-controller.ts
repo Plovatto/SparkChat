@@ -698,7 +698,12 @@ export class CallController {
   }
 
   private requestIce(session: Session): Promise<CallIceServersResult | null> {
-    this.pendingIce.get(session.callId)?.resolve(null);
+    const previous = this.pendingIce.get(session.callId);
+    if (previous) {
+      clearTimeout(previous.timer);
+      this.pendingIce.delete(session.callId);
+      previous.resolve(null);
+    }
     return new Promise<CallIceServersResult | null>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingIce.delete(session.callId);
@@ -716,6 +721,13 @@ export class CallController {
     }
     const code = payload.code ?? 'call.error';
     const session = this.session;
+    const errorCallId = payload.params?.callId;
+    if (typeof errorCallId === 'string' && errorCallId !== session?.callId) {
+      return;
+    }
+    if (!session && (event === 'call:start' || event === 'call:ice-servers' || event === 'call:accept')) {
+      return;
+    }
     if (event === 'call:ice-servers' && session) {
       const pending = this.pendingIce.get(session.callId);
       if (pending) {
