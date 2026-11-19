@@ -21,7 +21,6 @@ import {
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
-  parseInviteFragment,
   prepareInviteJoin,
   upgradeLegacyCredentials,
 } from '@lib/e2ee';
@@ -43,8 +42,8 @@ import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type AppSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
-import { hasDeepLinkParams, readDeepLinkIntents, type DeepLinkIntent } from './deep-link';
-import { subscribeInviteFragment, takeInviteFragment } from './invite-fragment';
+import { hasDeepLinkParams, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
+import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
@@ -129,6 +128,14 @@ function AuthGate({
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<RecoveryFilePrompt | null>(null);
   const [isSocketReady, setIsSocketReady] = useState(false);
   const [registerError, setRegisterError] = useState('');
+
+  useEffect(() => {
+    if (user) {
+      return;
+    }
+    window.addEventListener('pagehide', discardPendingInvite);
+    return () => window.removeEventListener('pagehide', discardPendingInvite);
+  }, [user]);
 
   useEffect(() => {
     if (!user) {
@@ -372,36 +379,26 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   useEffect(() => () => stopDeepLinkErrorWatchRef.current?.(), []);
 
   useEffect(() => {
-    let active = true;
     const consumeInviteFragment = () => {
-      const fragment = takeInviteFragment();
-      if (!fragment) {
+      const target = takePendingInvite();
+      if (!target) {
         return;
       }
-      void parseInviteFragment(fragment).then((target) => {
-        if (!active) {
-          target?.secret.fill(0);
-          return;
-        }
-        if (!target) {
-          window.alert(t('app.deepLink.invalidInvite'));
-          return;
-        }
-        setDeepLinkIntents((previous) => [
-          ...previous.filter((intent) => intent.kind !== 'invite'),
-          { kind: 'invite', roomId: target.roomId, secret: target.secret },
-        ]);
-      });
+      if (target === 'invalid') {
+        window.alert(t('app.deepLink.invalidInvite'));
+        return;
+      }
+      const invite = { kind: 'invite' as const, roomId: target.roomId, secret: target.secret };
+      setDeepLinkIntents((previous) => withInviteIntent(previous, invite));
     };
     consumeInviteFragment();
     const unsubscribe = subscribeInviteFragment(consumeInviteFragment);
     return () => {
-      active = false;
       unsubscribe();
     };
   }, [t]);
 
-  const dismissDeepLink = useCallback(() => setDeepLinkIntents((previous) => previous.slice(1)), []);
+  const dismissDeepLink = useCallback(() => setDeepLinkIntents(withoutFirstIntent), []);
 
   const confirmDeepLink = useCallback(
     (intent: DeepLinkIntent) => {
@@ -433,8 +430,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       if (intent.kind === 'chat') {
         socket.emit('room:create-private', { targetNickname: intent.nickname });
       } else {
-        void prepareInviteJoin(intent.roomId, intent.secret).then((request) => {
-          intent.secret.fill(0);
+        const secret = intent.secret.slice();
+        void prepareInviteJoin(intent.roomId, secret).then((request) => {
+          secret.fill(0);
           if (!request) {
             stopListening();
             window.alert(t('app.deepLink.inviteUnavailable'));

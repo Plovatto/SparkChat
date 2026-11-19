@@ -24,3 +24,23 @@ export function readDeepLinkIntents(search: string, ownNickname: string): DeepLi
   }
   return [];
 }
+
+function zeroInviteIntent(intent: DeepLinkIntent | undefined): void {
+  if (intent?.kind === 'invite') {
+    intent.secret.fill(0);
+  }
+}
+
+export function withInviteIntent(previous: DeepLinkIntent[], invite: Extract<DeepLinkIntent, { kind: 'invite' }>): DeepLinkIntent[] {
+  for (const intent of previous) {
+    if (intent.kind === 'invite' && intent.secret !== invite.secret) {
+      zeroInviteIntent(intent);
+    }
+  }
+  return [...previous.filter((intent) => intent.kind !== 'invite'), invite];
+}
+
+export function withoutFirstIntent(previous: DeepLinkIntent[]): DeepLinkIntent[] {
+  zeroInviteIntent(previous[0]);
+  return previous.slice(1);
+}

@@ -1,10 +1,19 @@
-import { hasInviteFragment } from '@lib/e2ee/group-invite';
+import { hasInviteFragment, parseInviteFragment, type InviteLinkTarget } from '@lib/e2ee/group-invite';
+
+export type PendingInvite = InviteLinkTarget | 'invalid';
 
 type InviteFragmentListener = () => void;
 
-let pendingFragment: string | null = null;
+let pendingInvite: PendingInvite | null = null;
 let installed = false;
 const listeners = new Set<InviteFragmentListener>();
+
+export function discardPendingInvite(): void {
+  if (pendingInvite && pendingInvite !== 'invalid') {
+    pendingInvite.secret.fill(0);
+  }
+  pendingInvite = null;
+}
 
 export function captureInviteFragment(): boolean {
   const { hash, pathname, search } = window.location;
@@ -12,7 +21,8 @@ export function captureInviteFragment(): boolean {
     return false;
   }
   window.history.replaceState(window.history.state, '', pathname + search);
-  pendingFragment = hash;
+  discardPendingInvite();
+  pendingInvite = parseInviteFragment(hash) ?? 'invalid';
   for (const listener of Array.from(listeners)) {
     listener();
   }
@@ -30,10 +40,10 @@ export function installInviteFragmentCapture(): void {
   });
 }
 
-export function takeInviteFragment(): string | null {
-  const fragment = pendingFragment;
-  pendingFragment = null;
-  return fragment;
+export function takePendingInvite(): PendingInvite | null {
+  const invite = pendingInvite;
+  pendingInvite = null;
+  return invite;
 }
 
 export function subscribeInviteFragment(listener: InviteFragmentListener): () => void {
