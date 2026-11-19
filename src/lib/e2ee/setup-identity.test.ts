@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from '@lib/socket';
 import { generateIdentity, wrapPrivateKeyWithRecoveryToken } from './identity';
-import { ensureIdentityAfterKeyfileLogin } from './setup-identity';
+import { ensureIdentityAfterKeyfileLogin, ensureSigningKeyPublished, setupIdentityAfterRegister } from './setup-identity';
+import { verifyKeyBinding } from './signing';
 
 const saved = vi.hoisted(() => [] as { userId: string; publicKey: string }[]);
 const current = vi.hoisted((): { identity: unknown } => ({ identity: null }));
@@ -75,5 +76,75 @@ describe('identity unwrap verification', () => {
     expect(saved).toEqual([]);
     expect(current.identity).toBeNull();
     expect(alert).toHaveBeenCalledWith('errors.e2ee.identityKeyMismatch');
+  });
+});
+
+function recordingSocket(myKeys: Record<string, string | null>) {
+  const emitted: { event: string; payload: unknown }[] = [];
+  const handlers = new Map<string, (value: unknown) => void>();
+  const socket = {
+    on: (event: string, handler: (value: unknown) => void) => handlers.set(event, handler),
+    off: (event: string) => handlers.delete(event),
+    emit: (event: string, payload?: unknown) => {
+      emitted.push({ event, payload });
+      if (event === 'e2e:get-my-keys') {
+        queueMicrotask(() => handlers.get('e2e:my-keys')?.(myKeys));
+      }
+    },
+  } as unknown as AppSocket;
+  return { socket, emitted };
+}
+
+describe('signing key publication', () => {
+  beforeEach(() => {
+    current.identity = null;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('includes a verifiable signing proof when registering', async () => {
+    const { socket, emitted } = recordingSocket({});
+
+    await setupIdentityAfterRegister(socket, 'me', new Uint8Array(32).fill(1), new Uint8Array(32).fill(2));
+
+    const published = emitted.find((entry) => entry.event === 'e2e:publish-keys')?.payload as {
+      publicKey: string;
+      signingPublicKey: string;
+      keySignature: string;
+    };
+    expect(await verifyKeyBinding({ userId: 'me', ...published })).toBe(true);
+  });
+
+  it('publishes the signing key for an existing identity that has none', async () => {
+    const identity = await generateIdentity();
+    current.identity = { userId: 'me', publicKey: identity.publicKey, privateKey: identity.privateKey };
+    const { socket, emitted } = recordingSocket({ publicKey: identity.publicKey, signingPublicKey: null });
+
+    await ensureSigningKeyPublished(socket);
+
+    const published = emitted.find((entry) => entry.event === 'e2e:publish-signing-key')?.payload as {
+      signingPublicKey: string;
+      keySignature: string;
+    };
+    expect(await verifyKeyBinding({ userId: 'me', publicKey: identity.publicKey, ...published })).toBe(true);
+  });
+
+  it('does nothing when the server already has the signing key, another public key, or no identity exists', async () => {
+    const identity = await generateIdentity();
+    current.identity = { userId: 'me', publicKey: identity.publicKey, privateKey: identity.privateKey };
+    const published = recordingSocket({ publicKey: identity.publicKey, signingPublicKey: 'already' });
+    const mismatch = recordingSocket({ publicKey: 'someone-elses', signingPublicKey: null });
+    await ensureSigningKeyPublished(published.socket);
+    await ensureSigningKeyPublished(mismatch.socket);
+    current.identity = null;
+    const signedOut = recordingSocket({ publicKey: identity.publicKey, signingPublicKey: null });
+    await ensureSigningKeyPublished(signedOut.socket);
+
+    for (const { emitted } of [published, mismatch, signedOut]) {
+      expect(emitted.some((entry) => entry.event === 'e2e:publish-signing-key')).toBe(false);
+    }
   });
 });

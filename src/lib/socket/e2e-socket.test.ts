@@ -8,6 +8,7 @@ const identityState = vi.hoisted(() => ({
 }));
 
 const establishPrivateRoomKey = vi.hoisted(() => vi.fn());
+const ensureSigningKeyPublished = vi.hoisted(() => vi.fn());
 
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 
@@ -19,6 +20,7 @@ vi.mock('@lib/e2ee', () => ({
   encryptOutgoingMessage: (payload: unknown) => Promise.resolve(payload),
   ensureRoomKeyForDecryption: () => Promise.resolve(null),
   establishGroupRoomKeyOnCreate: vi.fn(),
+  ensureSigningKeyPublished,
   establishPrivateRoomKey,
   getCurrentIdentity: () => identityState.current,
   subscribeCurrentIdentity: (listener: (identity: unknown) => void) => {
@@ -83,6 +85,18 @@ describe('wrapSocketWithE2e room key setup', () => {
     identityState.current = null;
     identityState.listeners.clear();
     establishPrivateRoomKey.mockClear();
+    ensureSigningKeyPublished.mockClear();
+  });
+
+  it('publishes the signing key when an identity becomes available and not when it is cleared', () => {
+    const { socket } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+
+    setIdentity('me');
+    expect(ensureSigningKeyPublished).toHaveBeenCalledExactlyOnceWith(socket);
+
+    setIdentity(null);
+    expect(ensureSigningKeyPublished).toHaveBeenCalledOnce();
   });
 
   it('establishes the key right away when the identity is ready', () => {

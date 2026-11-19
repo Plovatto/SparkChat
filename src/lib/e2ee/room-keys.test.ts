@@ -24,6 +24,9 @@ vi.mock('./key-store', () => ({
     return Promise.resolve();
   },
   clearRoomKeyStore: () => Promise.resolve(),
+  contactPinId: (ownerId: string, contactId: string) => `${ownerId}:${contactId}`,
+  loadContactPin: () => Promise.resolve(null),
+  saveContactPin: () => Promise.resolve(),
 }));
 
 vi.mock('./current-identity', () => ({
@@ -129,7 +132,11 @@ describe('room key pushes', () => {
     expect(new TextDecoder().decode(getCachedRoomKey('room-2') ?? new Uint8Array())).toBe('stored');
   });
 
-  function fakeSocket(storedKeys: { roomId: string; sealedKey: string }[], beforePublicKeys: () => Promise<void> = () => Promise.resolve()) {
+  function fakeSocket(
+    storedKeys: { roomId: string; sealedKey: string }[],
+    beforePublicKeys: () => Promise<void> = () => Promise.resolve(),
+    publicKeyOf: (userId: string) => string = (userId) => `pk-${userId}`,
+  ) {
     const listeners = new Map<string, (payload: unknown) => void>();
     const emit = vi.fn((event: string, payload?: { userIds?: string[] }) => {
       if (event === 'e2e:get-room-keys') {
@@ -137,7 +144,7 @@ describe('room key pushes', () => {
       }
       if (event === 'e2e:get-public-keys') {
         void beforePublicKeys().then(() =>
-          listeners.get('e2e:public-keys')?.({ keys: (payload?.userIds ?? []).map((userId) => ({ userId, publicKey: `pk-${userId}` })) }),
+          listeners.get('e2e:public-keys')?.({ keys: (payload?.userIds ?? []).map((userId) => ({ userId, publicKey: publicKeyOf(userId) })) }),
         );
       }
     });
@@ -175,6 +182,19 @@ describe('room key pushes', () => {
 
     await handleIncomingRoomKeyPush({ roomId: 'private-2', sealedKey: 'late' });
     expect(decodeCached('private-2')).toBe('winner');
+  });
+
+  it('never seals a room key to a contact whose key changed', async () => {
+    const trustRoom = { ...privateRoom, participants: [{ id: 'me' }, { id: 'peer-trust' }] } as typeof privateRoom;
+    const trusted = fakeSocket([], undefined, () => 'pk-trusted');
+    await establishPrivateRoomKey(trusted.socket, { ...trustRoom, id: 'private-trust-1' }, 'me', true);
+    expect(trusted.emit).toHaveBeenCalledWith('e2e:publish-room-key', expect.anything());
+
+    const swapped = fakeSocket([], undefined, () => 'pk-swapped');
+    await establishPrivateRoomKey(swapped.socket, { ...trustRoom, id: 'private-trust-2' }, 'me', true);
+
+    expect(swapped.emit.mock.calls.some(([event]) => event === 'e2e:publish-room-key')).toBe(false);
+    expect(getCachedRoomKey('private-trust-2')).toBeNull();
   });
 
   it('stops treating a created key as provisional after the window', async () => {

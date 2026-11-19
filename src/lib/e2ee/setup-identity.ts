@@ -1,6 +1,8 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from '@lib/socket';
+import { buildSigningProof } from './signing';
 import { unwrapPrivateKeyV2, wrapPrivateKeyV2 } from './credentials';
+import { resetContactTrustState } from './contact-trust';
 import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
 import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
@@ -17,6 +19,7 @@ const MY_KEYS_TIMEOUT_MS = 8000;
 
 interface MyKeysPayload {
   publicKey: string | null;
+  signingPublicKey?: string | null;
   encryptedPrivateKeyByPassword: string | null;
   encryptedPrivateKeyByRecovery: string | null;
 }
@@ -72,10 +75,12 @@ async function setupIdentityAfterRegisterImpl(
     wrapPrivateKeyV2(identity.privateKey, recoveryWrapKey, userId, identity.publicKey),
   ]);
 
+  const proof = await buildSigningProof(userId, identity.publicKey, identity.privateKey);
   await savePrivateKey(userId, identity.publicKey, identity.privateKey);
   setCurrentIdentity({ userId, publicKey: identity.publicKey, privateKey: identity.privateKey });
   socket.emit('e2e:publish-keys', {
     publicKey: identity.publicKey,
+    ...proof,
     encryptedPrivateKeyByPassword,
     encryptedPrivateKeyByRecovery,
   });
@@ -156,7 +161,8 @@ export async function resolveIdentityForRewrap(socket: AppSocket, userId: string
   const identity = await generateIdentity();
   await savePrivateKey(userId, identity.publicKey, identity.privateKey);
   setCurrentIdentity({ userId, publicKey: identity.publicKey, privateKey: identity.privateKey });
-  socket.emit('e2e:publish-keys', { publicKey: identity.publicKey });
+  const proof = await buildSigningProof(userId, identity.publicKey, identity.privateKey);
+  socket.emit('e2e:publish-keys', { publicKey: identity.publicKey, ...proof });
   return identity;
 }
 
@@ -175,8 +181,29 @@ async function rewrapIdentityAfterLegacyRecoveryRegenerateImpl(
   socket.emit('e2e:publish-keys', { encryptedPrivateKeyByRecovery });
 }
 
+async function ensureSigningKeyPublishedImpl(socket: AppSocket): Promise<void> {
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return;
+  }
+
+  const myKeys = await requestMyKeys(socket);
+  if (!myKeys || myKeys.publicKey !== identity.publicKey || myKeys.signingPublicKey) {
+    return;
+  }
+
+  const current = getCurrentIdentity();
+  if (current?.userId !== identity.userId || current.publicKey !== identity.publicKey) {
+    return;
+  }
+
+  const proof = await buildSigningProof(identity.userId, identity.publicKey, identity.privateKey);
+  socket.emit('e2e:publish-signing-key', proof);
+}
+
 async function clearIdentityImpl(): Promise<void> {
   setCurrentIdentity(null);
+  resetContactTrustState();
   await clearPrivateKey();
 }
 
@@ -190,4 +217,5 @@ export const rewrapIdentityAfterLegacyRecoveryRegenerate = safeAsync(
   'rewrapIdentityAfterLegacyRecoveryRegenerate',
   rewrapIdentityAfterLegacyRecoveryRegenerateImpl,
 );
+export const ensureSigningKeyPublished = safeAsync('ensureSigningKeyPublished', ensureSigningKeyPublishedImpl);
 export const clearIdentity = safeAsync('clearIdentity', clearIdentityImpl);

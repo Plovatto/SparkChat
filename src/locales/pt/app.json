@@ -375,6 +375,28 @@
         "pt": "português",
         "en": "inglês"
       }
+    },
+    "keyTrust": {
+      "dialogTitle": "Número de segurança",
+      "dialogIntro": "Compare este número ou QR code com {{name}} por outro canal, como pessoalmente ou por ligação. Se forem iguais, marque o contato como verificado.",
+      "unverifiableHint": "Este contato ainda não publicou uma chave de assinatura, então as chaves não podem ser verificadas por enquanto.",
+      "numberLabel": "Número de segurança",
+      "qrAlt": "QR code do número de segurança",
+      "markVerified": "Marcar como verificado",
+      "unmarkVerified": "Remover verificação",
+      "statusVerified": "Contato verificado",
+      "statusUnverified": "Não verificado",
+      "statusUnverifiable": "Ainda não verificável",
+      "openDialog": "Número de segurança",
+      "changedWarning": "A chave de segurança de {{name}} mudou. As mensagens não são cifradas para a nova chave até você aceitá-la.",
+      "changedVerifiedWarning": "A chave de segurança de {{name}}, um contato verificado, mudou. Compare o número de segurança novamente antes de aceitar.",
+      "invalidWarning": "A chave recebida para {{name}} tem assinatura inválida e foi ignorada.",
+      "acceptChange": "Aceitar nova chave",
+      "reviewChange": "Revisar",
+      "blockingTitle": "Chave de contato verificado mudou",
+      "blockingBody": "A chave de segurança de {{name}}, que você verificou, mudou. Isso pode acontecer quando a pessoa reinstala o app ou entra em outro aparelho, mas também pode indicar que alguém está interceptando a conversa. Verifique o novo número de segurança com ela antes de aceitar.",
+      "acceptChangeVerified": "Aceitar a nova chave mesmo assim",
+      "keepBlocked": "Manter bloqueado"
     }
   },
   "roomInfo": {

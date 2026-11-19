@@ -6,6 +6,7 @@ import {
   encryptOutgoingMessage,
   ensureRoomKeyForDecryption,
   establishGroupRoomKeyOnCreate,
+  ensureSigningKeyPublished,
   establishPrivateRoomKey,
   getCurrentIdentity,
   handleGroupUserJoined,
@@ -183,6 +184,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       deferredRoomEvents.clear();
       return;
     }
+    void ensureSigningKeyPublished(socket);
     const pending = Array.from(deferredRoomEvents.values());
     deferredRoomEvents.clear();
     for (const { room, event } of pending) {

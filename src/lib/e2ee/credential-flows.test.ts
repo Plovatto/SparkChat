@@ -21,6 +21,8 @@ const FIXED_SALT = 'AAECAwQFBgcICQoLDA0ODw';
 const stored = vi.hoisted(() => ({ entry: null as { userId: string; publicKey: string; privateKey: Uint8Array } | null }));
 const current = vi.hoisted((): { identity: { userId: string; publicKey: string; privateKey: Uint8Array } | null } => ({ identity: null }));
 
+import { verifyKeyBinding } from './signing';
+
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 vi.mock('./key-store', () => ({
   loadPrivateKey: () => Promise.resolve(stored.entry),
@@ -166,7 +168,9 @@ describe('resolveIdentityForRewrap', () => {
     const fake = createSocket({ publicKey: null, encryptedPrivateKeyByPassword: null, encryptedPrivateKeyByRecovery: null });
     const identity = await resolveIdentityForRewrap(fake.socket, 'user-1');
     expect(identity).not.toBeNull();
-    expect(payloadOf(fake, 'e2e:publish-keys')).toEqual({ publicKey: identity?.publicKey });
+    const payload = payloadOf(fake, 'e2e:publish-keys') as unknown as { publicKey: string; signingPublicKey: string; keySignature: string };
+    expect(payload.publicKey).toBe(identity?.publicKey);
+    expect(await verifyKeyBinding({ userId: 'user-1', ...payload })).toBe(true);
   });
 });
 
