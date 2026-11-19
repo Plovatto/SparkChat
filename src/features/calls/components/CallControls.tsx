@@ -1,76 +1,124 @@
-import { useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCog, FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash } from 'react-icons/fa';
+import { FaCog, FaDesktop, FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
-import { useTheme } from '@features/theme';
+import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useCall } from '../call-context';
 import { DevicePicker, type DeviceSelection } from './DevicePicker';
 
 interface CallControlsProps {
   supportsOutput: boolean;
   onAudioOutput: (deviceId: string) => void;
+  infoRef?: RefObject<HTMLElement | null>;
 }
 
-export function CallControls({ supportsOutput, onAudioOutput }: CallControlsProps) {
+const PANEL_GAP_PX = 24;
+const MIN_PANEL_HEIGHT_PX = 220;
+
+export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallControlsProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const call = useCall();
   const [showDevices, setShowDevices] = useState(false);
+  const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined);
   const [selected, setSelected] = useState<DeviceSelection>({ audioInput: '', videoInput: '', audioOutput: '' });
+  const settingsRef = useRef<HTMLButtonElement>(null);
+  const popover = useMediaQuery('(min-width: 600px)');
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
-  const round = {
-    width: '52px',
-    height: '52px',
-    borderRadius: '50%',
-    border: 'none',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-  } as const;
-  const neutral = { ...round, background: theme.surfaceElevated, color: theme.textPrimary };
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
+  const shareBlocked = !snapshot.canShareScreen || snapshot.degrade === 'audio-only-relay';
+  const shareLabel = snapshot.screenSharing ? t('calls.share.stop') : shareBlocked ? t('calls.share.unavailable') : t('calls.share.start');
+
+  useLayoutEffect(() => {
+    if (!showDevices || !popover) {
+      setPanelHeight(undefined);
+      return;
+    }
+    const measure = () => {
+      const button = settingsRef.current?.getBoundingClientRect();
+      if (!button) {
+        return;
+      }
+      const top = infoRef?.current?.getBoundingClientRect().bottom ?? 84;
+      setPanelHeight(Math.max(MIN_PANEL_HEIGHT_PX, Math.floor(button.top - top - PANEL_GAP_PX)));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [showDevices, popover, infoRef]);
+
+  const closeDevices = useCallback((restoreFocus: boolean) => {
+    setShowDevices(false);
+    if (restoreFocus) {
+      settingsRef.current?.focus();
+    }
+  }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-      {showDevices && (
-        <DevicePicker
-          cameraOn={snapshot.cameraOn}
-          supportsOutput={supportsOutput}
-          selected={selected}
-          onAudioInput={(deviceId) => {
-            setSelected((current) => ({ ...current, audioInput: deviceId }));
-            call.changeAudioInput(deviceId);
-          }}
-          onVideoInput={(deviceId) => {
-            setSelected((current) => ({ ...current, videoInput: deviceId }));
-            call.changeVideoInput(deviceId);
-          }}
-          onAudioOutput={(deviceId) => {
-            setSelected((current) => ({ ...current, audioOutput: deviceId }));
-            onAudioOutput(deviceId);
-          }}
-          onClose={() => setShowDevices(false)}
-        />
-      )}
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <button type="button" style={neutral} onClick={call.toggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={snapshot.muted}>
-          {snapshot.muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+    <div className="sc-call-controls" role="toolbar" aria-label={t('calls.settings')}>
+      <button type="button" className="sc-call-round" onClick={call.toggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={snapshot.muted}>
+        {snapshot.muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+      </button>
+      {connected && (
+        <button type="button" className="sc-call-round" onClick={call.toggleCamera} title={cameraLabel} aria-label={cameraLabel} aria-pressed={snapshot.cameraOn}>
+          {snapshot.cameraOn ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
         </button>
-        {connected && (
-          <button type="button" style={neutral} onClick={call.toggleCamera} title={cameraLabel} aria-label={cameraLabel} aria-pressed={snapshot.cameraOn}>
-            {snapshot.cameraOn ? <FaVideo size={20} /> : <FaVideoSlash size={20} />}
-          </button>
-        )}
-        <button type="button" style={neutral} onClick={() => setShowDevices((value) => !value)} title={t('calls.devices')} aria-label={t('calls.devices')} aria-expanded={showDevices}>
+      )}
+      {connected && call.canShareScreen && (
+        <button
+          type="button"
+          className="sc-call-round"
+          onClick={call.toggleScreenShare}
+          title={shareLabel}
+          aria-label={shareLabel}
+          aria-pressed={snapshot.screenSharing}
+          data-active={snapshot.screenSharing}
+          disabled={!snapshot.screenSharing && shareBlocked}
+        >
+          <FaDesktop size={19} />
+        </button>
+      )}
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <button
+          ref={settingsRef}
+          type="button"
+          className="sc-call-round"
+          onClick={() => setShowDevices((value) => !value)}
+          title={t('calls.settings')}
+          aria-label={t('calls.settings')}
+          aria-expanded={showDevices}
+          aria-haspopup="dialog"
+          data-active={showDevices}
+        >
           <FaCog size={20} />
         </button>
-        <button type="button" style={{ ...round, background: theme.danger, color: theme.textOnAccent }} onClick={call.hangup} title={t('calls.hangup')} aria-label={t('calls.hangup')}>
-          <MdCallEnd size={26} />
-        </button>
-      </div>
+        {showDevices && (
+          <DevicePicker
+            cameraOn={snapshot.cameraOn}
+            supportsOutput={supportsOutput}
+            selected={selected}
+            maxHeight={panelHeight}
+            trigger={settingsRef}
+            onAudioInput={(deviceId) => {
+              setSelected((current) => ({ ...current, audioInput: deviceId }));
+              call.changeAudioInput(deviceId);
+            }}
+            onVideoInput={(deviceId) => {
+              setSelected((current) => ({ ...current, videoInput: deviceId }));
+              call.changeVideoInput(deviceId);
+            }}
+            onAudioOutput={(deviceId) => {
+              setSelected((current) => ({ ...current, audioOutput: deviceId }));
+              onAudioOutput(deviceId);
+            }}
+            onClose={closeDevices}
+          />
+        )}
+      </span>
+      <button type="button" className="sc-call-round sc-call-round--danger" onClick={call.hangup} title={t('calls.hangup')} aria-label={t('calls.hangup')}>
+        <MdCallEnd size={26} />
+      </button>
     </div>
   );
 }

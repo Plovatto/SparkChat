@@ -23,6 +23,8 @@ export interface CallApi {
   hangup: () => void;
   toggleMute: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => void;
+  canShareScreen: boolean;
   dismissNotice: () => void;
   dismissEnded: () => void;
   changeAudioInput: (deviceId: string) => void;

@@ -39,6 +39,7 @@ export function copyStyles(source: Document, target: Document): void {
   for (const node of Array.from(source.querySelectorAll('style, link[rel="stylesheet"]'))) {
     target.head.appendChild(node.cloneNode(true));
   }
+  target.documentElement.setAttribute('style', source.documentElement.getAttribute('style') ?? '');
   target.documentElement.setAttribute('data-theme', source.documentElement.getAttribute('data-theme') ?? '');
   target.documentElement.lang = source.documentElement.lang;
 }

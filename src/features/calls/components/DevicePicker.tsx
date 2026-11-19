@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaChevronDown, FaMicrophone, FaTimes, FaVideo, FaVolumeUp } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
@@ -6,6 +6,7 @@ import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
 import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
 import { listDevices, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
+import { isOutside } from './call-hooks';
 
 export interface DeviceSelection {
   audioInput: string;
@@ -20,8 +21,12 @@ interface DevicePickerProps {
   onAudioInput: (deviceId: string) => void;
   onVideoInput: (deviceId: string) => void;
   onAudioOutput: (deviceId: string) => void;
-  onClose: () => void;
+  onClose: (restoreFocus: boolean) => void;
+  maxHeight?: number | undefined;
+  trigger?: RefObject<HTMLElement | null>;
 }
+
+type PanelTab = 'devices' | 'audio';
 
 interface DeviceFieldProps {
   icon: ReactNode;
@@ -44,21 +49,21 @@ function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel,
       <span
         aria-hidden="true"
         style={{
-          width: '36px',
-          height: '36px',
+          width: '32px',
+          height: '32px',
           borderRadius: '50%',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          marginTop: '18px',
+          marginTop: '27px',
           background: theme.surfaceSunken,
           color: theme.accentText,
         }}
       >
         {icon}
       </span>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
+      <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', lineHeight: '18px', flex: 1, minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
         {label}
         <span style={{ position: 'relative', display: 'block' }}>
           <select
@@ -73,7 +78,8 @@ function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel,
               color: theme.textPrimary,
               border: `1px solid ${theme.border}`,
               borderRadius: '10px',
-              padding: '10px 34px 10px 12px',
+              height: '40px',
+              padding: '0 34px 0 12px',
               fontSize: '0.9rem',
               fontWeight: 500,
               cursor: empty ? 'not-allowed' : 'pointer',
@@ -127,13 +133,16 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
   );
 }
 
-export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose }: DevicePickerProps) {
+export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, trigger }: DevicePickerProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const call = useCall();
   const [processing] = useAudioProcessing();
   const voiceIsolation = supportsVoiceIsolation();
+  const [tab, setTab] = useState<PanelTab>('devices');
   const [devices, setDevices] = useState<DeviceLists>({ audioInputs: [], videoInputs: [], audioOutputs: [] });
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
   const toggle = (key: keyof AudioProcessing) => call.changeAudioProcessing({ [key]: !processing[key] });
 
   useEffect(() => {
@@ -153,77 +162,98 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
     };
   }, []);
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      if (isOutside(event.target, panelRef.current, trigger?.current ?? null)) {
+        onClose(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose(true);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose, trigger]);
+
+  const tabButton = (id: PanelTab, label: string) => (
+    <button type="button" role="tab" id={`${titleId}-${id}`} aria-selected={tab === id} aria-controls={`${titleId}-panel`} onClick={() => setTab(id)}>
+      {label}
+    </button>
+  );
+
   return (
-    <div
-      role="dialog"
-      aria-label={t('calls.devices')}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
-        padding: '14px 16px 16px',
-        width: 'min(380px, 92vw)',
-        maxHeight: '60vh',
-        overflowY: 'auto',
-        background: theme.surfaceElevated,
-        color: theme.textPrimary,
-        border: `1px solid ${theme.border}`,
-        borderRadius: '16px',
-        boxShadow: theme.shadowLg ?? theme.shadowSm,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: '1rem' }}>{t('calls.devices')}</strong>
+    <div ref={panelRef} role="dialog" aria-labelledby={titleId} className="sc-call-panel" style={maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : undefined}>
+      <span className="sc-call-panel__handle" aria-hidden="true" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px 10px' }}>
+        <strong id={titleId} style={{ fontSize: '1rem' }}>
+          {t('calls.settings')}
+        </strong>
         <button
           type="button"
-          onClick={onClose}
+          onClick={() => onClose(true)}
           aria-label={t('calls.closeDevices')}
           title={t('calls.closeDevices')}
-          style={{ width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: theme.surfaceSunken, color: theme.textSecondary, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: '30px', height: '30px', flexShrink: 0, borderRadius: '50%', border: 'none', background: theme.surfaceSunken, color: theme.textSecondary, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <FaTimes size={13} />
         </button>
       </div>
-      <DeviceField
-        icon={<FaMicrophone size={14} />}
-        label={t('calls.microphone')}
-        emptyLabel={t('calls.noMicrophone')}
-        defaultLabel={t('calls.defaultDevice')}
-        value={selected.audioInput}
-        list={devices.audioInputs}
-        onChange={onAudioInput}
-      />
-      <DeviceField
-        icon={<FaVideo size={14} />}
-        label={t('calls.camera')}
-        hint={cameraOn ? undefined : t('calls.cameraHint')}
-        emptyLabel={t('calls.noCamera')}
-        defaultLabel={t('calls.defaultDevice')}
-        value={selected.videoInput}
-        list={devices.videoInputs}
-        onChange={onVideoInput}
-      />
-      <div style={{ height: '1px', background: theme.border }} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <strong style={{ fontSize: '0.8rem', letterSpacing: '0.3px', textTransform: 'uppercase', color: theme.textSecondary }}>{t('calls.audio.title')}</strong>
-        <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
-        <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
-        <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
-        {voiceIsolation && (
-          <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+      <div className="sc-call-segmented" role="tablist" aria-label={t('calls.settings')}>
+        {tabButton('devices', t('calls.tabs.devices'))}
+        {tabButton('audio', t('calls.tabs.audio'))}
+      </div>
+      <div className="sc-call-panel__body" role="tabpanel" id={`${titleId}-panel`} aria-labelledby={`${titleId}-${tab}`}>
+        {tab === 'devices' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <DeviceField
+              icon={<FaMicrophone size={13} />}
+              label={t('calls.microphone')}
+              emptyLabel={t('calls.noMicrophone')}
+              defaultLabel={t('calls.defaultDevice')}
+              value={selected.audioInput}
+              list={devices.audioInputs}
+              onChange={onAudioInput}
+            />
+            {supportsOutput && (
+              <DeviceField
+                icon={<FaVolumeUp size={13} />}
+                label={t('calls.speaker')}
+                emptyLabel={t('calls.noSpeaker')}
+                defaultLabel={t('calls.defaultDevice')}
+                value={selected.audioOutput}
+                list={devices.audioOutputs}
+                onChange={onAudioOutput}
+              />
+            )}
+            <DeviceField
+              icon={<FaVideo size={13} />}
+              label={t('calls.camera')}
+              hint={cameraOn ? undefined : t('calls.cameraHint')}
+              emptyLabel={t('calls.noCamera')}
+              defaultLabel={t('calls.defaultDevice')}
+              value={selected.videoInput}
+              list={devices.videoInputs}
+              onChange={onVideoInput}
+            />
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
+            <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
+            <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
+            <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
+            {voiceIsolation && (
+              <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+            )}
+          </div>
         )}
       </div>
-      {supportsOutput && (
-        <DeviceField
-          icon={<FaVolumeUp size={14} />}
-          label={t('calls.speaker')}
-          emptyLabel={t('calls.noSpeaker')}
-          defaultLabel={t('calls.defaultDevice')}
-          value={selected.audioOutput}
-          list={devices.audioOutputs}
-          onChange={onAudioOutput}
-        />
-      )}
     </div>
   );
 }
