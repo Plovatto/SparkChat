@@ -227,6 +227,39 @@ export interface E2ePublicKeyEntry {
   keySignature?: string;
 }
 
+export type CallKindWire = 'voice' | 'video';
+export type CallEndReasonWire = 'completed' | 'missed' | 'declined' | 'cancelled' | 'busy' | 'failed' | 'connection-lost';
+export type CallDegradeWire = 'video-360' | 'audio-only-relay';
+
+export interface CallConfigPayload {
+  enabled: boolean;
+  relayAvailable: boolean;
+  degrade?: CallDegradeWire | null;
+}
+
+export interface CallIceServerEntry {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface CallIceServersResult {
+  callId: string;
+  iceServers: CallIceServerEntry[];
+  expiresAt: string | number;
+  relayOnly: boolean;
+  degrade?: CallDegradeWire | null;
+}
+
+export interface CallStatePayload {
+  callId: string;
+  state: 'ringing' | 'accepted' | 'active';
+  roomId: string;
+  kind: CallKindWire;
+  peerId: string;
+  role: 'caller' | 'callee';
+}
+
 export interface ServerToClientEvents {
   'user:registered': (payload: {
     user: SocketUser;
@@ -295,6 +328,15 @@ export interface ServerToClientEvents {
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
   'message:updated': (payload: MessageView) => void;
+  'call:config': (payload: CallConfigPayload) => void;
+  'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string | number }) => void;
+  'call:accepted': (payload: { callId: string; envelope: string; deviceId: string }) => void;
+  'call:answered-elsewhere': (payload: { callId: string }) => void;
+  'call:declined-elsewhere': (payload: { callId: string }) => void;
+  'call:signal': (payload: { callId: string; from: string; envelope: string }) => void;
+  'call:ended': (payload: { callId: string; reason: CallEndReasonWire; endedAt: string | number }) => void;
+  'call:state': (payload: CallStatePayload | null) => void;
+  'call:ice-servers-result': (payload: CallIceServersResult) => void;
 }
 
 export interface ClientToServerEvents {
@@ -369,4 +411,13 @@ export interface ClientToServerEvents {
   'message:delete': (payload: { messageId: string }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;
+  'call:start': (payload: { callId: string; roomId: string; kind: CallKindWire; envelope: string }) => void;
+  'call:accept': (payload: { callId: string; envelope: string }) => void;
+  'call:decline': (payload: { callId: string }) => void;
+  'call:silence': (payload: { callId: string }) => void;
+  'call:hangup': (payload: { callId: string }) => void;
+  'call:signal': (payload: { callId: string; to: string; envelope: string }) => void;
+  'call:heartbeat': (payload: { callId: string }) => void;
+  'call:sync': (payload: Record<string, never>) => void;
+  'call:ice-servers': (payload: { callId: string; protectIp: boolean }) => void;
 }
