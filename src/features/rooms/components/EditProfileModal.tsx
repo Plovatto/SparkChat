@@ -26,18 +26,17 @@ import { PasswordField, PasswordFieldHint } from '@features/auth/components/Pass
 import { AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
-import { resolveAuthParams } from '@features/auth/lib/auth-params';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
-import { buildRecoveryFile, rewrapIdentityAfterLegacyRecoveryRegenerate } from '@lib/e2ee';
+import { buildRecoveryFile } from '@lib/e2ee';
 import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { shareLinkNatively } from '@lib/share-link';
 import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { useSocket, type AuthVersion, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
 import {
   buildChangePasswordRequest,
   buildRegenerateRecoveryRequest,
@@ -138,11 +137,9 @@ export function EditProfileModal({
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [recoveryFilePrompt, setRecoveryFilePrompt] = useState<string | null>(null);
-  const [pendingLogoutAfterDownload, setPendingLogoutAfterDownload] = useState(false);
   const pendingActionRef = useRef<PendingAction | null>(null);
   const pendingRecoverySecretRef = useRef<Uint8Array | null>(null);
   const [isDeriving, setIsDeriving] = useState(false);
-  const [authVersion, setAuthVersion] = useState<AuthVersion | null>(null);
   const isRevokingOwnSessionRef = useRef(false);
 
   useEffect(() => {
@@ -160,7 +157,6 @@ export function EditProfileModal({
       setIsConfirmingRegenerate(false);
       setRegeneratePassword('');
       setIsCurrentPasswordRequired(false);
-      setAuthVersion(null);
       socket?.emit('user:list-sessions');
     }
   }, [isOpen, user.nickname, user.avatar, socket]);
@@ -196,64 +192,27 @@ export function EditProfileModal({
       }
     };
 
-    const handleProfileUpdated = async ({
-      user: updated,
-      recoveryFile,
-      recoveryToken,
-    }: {
-      user: SocketUser;
-      recoveryFile: string | null;
-      recoveryToken: string | null;
-    }) => {
+    const handleProfileUpdated = ({ user: updated }: { user: SocketUser }) => {
       pendingActionRef.current = null;
       setProfilePassword('');
       onUserUpdate({ nickname: updated.nickname, avatar: updated.avatar });
-      if (!recoveryFile || !recoveryToken) {
-        onClose();
-        return;
-      }
-      void rewrapIdentityAfterLegacyRecoveryRegenerate(socket, user.id, recoveryToken);
-      if (await trySilentRecoveryFileUpdate(recoveryFile, updated.nickname)) {
-        onClose();
-        return;
-      }
-      setRecoveryFilePrompt(recoveryFile);
+      onClose();
     };
 
-    const handlePasswordChanged = async () => {
+    const handlePasswordChanged = () => {
       pendingActionRef.current = null;
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
-      const recoveryFile = await takeLocalRecoveryFile();
-      if (!recoveryFile) {
-        setAutoSaveFeedback(translate('profile.passwordChangedSigningOut'));
-        setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
-        return;
-      }
-      if (await trySilentRecoveryFileUpdate(recoveryFile, user.nickname)) {
-        setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
-        return;
-      }
-      setPendingLogoutAfterDownload(true);
-      setRecoveryFilePrompt(recoveryFile);
+      setAutoSaveFeedback(translate('profile.passwordChangedSigningOut'));
+      setTimeout(onLogout, LOGOUT_AFTER_PASSWORD_CHANGE_MS);
     };
 
-    const handleRecoveryFileRegenerated = async ({
-      recoveryFile: serverRecoveryFile,
-      recoveryToken,
-    }: {
-      recoveryFile: string | null;
-      recoveryToken?: string | null;
-    }) => {
+    const handleRecoveryFileRegenerated = async () => {
       pendingActionRef.current = null;
       setIsConfirmingRegenerate(false);
       setRegeneratePassword('');
-      let recoveryFile = await takeLocalRecoveryFile();
-      if (!recoveryFile && serverRecoveryFile && recoveryToken) {
-        void rewrapIdentityAfterLegacyRecoveryRegenerate(socket, user.id, recoveryToken);
-        recoveryFile = serverRecoveryFile;
-      }
+      const recoveryFile = await takeLocalRecoveryFile();
       if (!recoveryFile) {
         return;
       }
@@ -278,7 +237,7 @@ export function EditProfileModal({
       const message = translateErrorPayload(payload, 'errors.generic');
       const action = pendingActionRef.current;
       pendingActionRef.current = null;
-      if (action === 'password' || action === 'regenerate') {
+      if (action === 'regenerate') {
         discardPendingRecoverySecret();
       }
       if (action === 'password') {
@@ -312,23 +271,6 @@ export function EditProfileModal({
   const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
   const isNicknameChanging = isNicknameChange(user.nickname, nickname);
   const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving;
-
-  useEffect(() => {
-    if (!isOpen || !isNicknameChanging || authVersion !== null) {
-      return;
-    }
-    let cancelled = false;
-    resolveAuthParams(user.id, user.nickname)
-      .then((params) => {
-        if (!cancelled) {
-          setAuthVersion(params.version);
-        }
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, isNicknameChanging, authVersion, user.id, user.nickname]);
 
   const credentialErrorMessage = (error: unknown): string =>
     error instanceof IdentityUnavailableError ? t('profile.identityUnavailable') : translateError(error, 'errors.generic');
@@ -379,12 +321,9 @@ export function EditProfileModal({
       return;
     }
 
-    void ensureAutoSavePermission(user.id);
     setIsDeriving(true);
     try {
       const request = await buildChangePasswordRequest({ socket, userId: user.id, nickname: user.nickname }, currentPassword, newPassword);
-      pendingRecoverySecretRef.current?.fill(0);
-      pendingRecoverySecretRef.current = request.upgradeRecoverySecret;
       pendingActionRef.current = 'password';
       socket.emit('user:change-password', request.payload);
     } catch (error) {
@@ -438,11 +377,6 @@ export function EditProfileModal({
 
   const handleRecoveryDialogClose = () => {
     setRecoveryFilePrompt(null);
-    if (pendingLogoutAfterDownload) {
-      setPendingLogoutAfterDownload(false);
-      onLogout();
-      return;
-    }
     onClose();
   };
 
@@ -567,7 +501,7 @@ export function EditProfileModal({
           {hasChanges && isNicknameChanging && (
             <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-                {t(authVersion === 1 ? 'profile.nicknamePasswordHint' : 'profile.nicknamePasswordHintV2')}
+                {t('profile.nicknamePasswordHint')}
               </InfoNotice>
               <PasswordField
                 value={profilePassword}

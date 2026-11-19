@@ -6,7 +6,7 @@ import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { Spinner } from '@components/common/Spinner';
 import { decryptMediaContentIfNeeded, downloadMessageMedia } from '@lib/e2ee';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
-import { useSocket, type MessageFileMeta } from '@lib/socket';
+import type { MessageFileMeta } from '@lib/socket';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { MEDIA_VIEWER_BACKDROP_STYLE, MEDIA_VIEWER_CHROME_STYLE, MEDIA_VIEWER_CONTENT_SHADOW, MEDIA_VIEWER_DIVIDER_STYLE } from './media-viewer-styles';
 
@@ -15,6 +15,7 @@ interface ImageModalProps {
   images: string[];
   fileNames?: string[];
   roomId?: string;
+  messageIds?: string[];
   fileMetas?: (MessageFileMeta | null)[];
   startIndex?: number;
   onClose: () => void;
@@ -33,9 +34,8 @@ const NAV_BUTTON_STYLE: CSSProperties = {
   fontSize: '18px',
 };
 
-export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, startIndex = 0, onClose }: ImageModalProps) {
+export function ImageModal({ isOpen, images, fileNames, roomId, messageIds, fileMetas, startIndex = 0, onClose }: ImageModalProps) {
   const { t } = useTranslation();
-  const { socket } = useSocket();
   const [zoom, setZoom] = useState(1);
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [resolvedSrc, setResolvedSrc] = useState<Record<string, string>>({});
@@ -88,12 +88,13 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
   const showsMultiple = displayImages.length > 1;
 
   useEffect(() => {
-    if (!isOpen || !roomId || !socket || !currentRaw || resolvedSrc[currentRaw] !== undefined) {
+    const messageId = messageIds?.[currentIndex];
+    if (!isOpen || !roomId || !messageId || !currentRaw || resolvedSrc[currentRaw] !== undefined) {
       return;
     }
     let cancelled = false;
     const fileMeta = fileMetas?.[currentIndex] ?? null;
-    void decryptMediaContentIfNeeded(socket, currentRaw, roomId, fileMeta, 'image').then((resolved) => {
+    void decryptMediaContentIfNeeded(currentRaw, { roomId, messageId, fileMeta, messageType: 'image' }).then((resolved) => {
       if (!cancelled) {
         setResolvedSrc((previous) => ({ ...previous, [currentRaw]: resolved }));
       }
@@ -101,7 +102,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
     return () => {
       cancelled = true;
     };
-  }, [isOpen, roomId, socket, currentRaw, currentIndex, fileMetas, resolvedSrc]);
+  }, [isOpen, roomId, messageIds, currentRaw, currentIndex, fileMetas, resolvedSrc]);
 
   const resolvedCurrent = currentRaw ? (roomId ? resolvedSrc[currentRaw] : currentRaw) : undefined;
   const currentSrc = toLocalMediaUrl(resolvedCurrent);
@@ -120,7 +121,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, fileMetas, start
   const handleDownload = () => {
     const fileMeta = fileMetas?.[currentIndex] ?? null;
     const fileName = fileNames?.[currentIndex] ?? fileMeta?.name ?? t('chat.message.defaultImageName');
-    void downloadMessageMedia(socket, { content: currentRaw, roomId, fileMeta, fileName, messageType: 'image' });
+    void downloadMessageMedia({ content: currentRaw, roomId, messageId: messageIds?.[currentIndex], fileMeta, fileName, messageType: 'image' });
   };
 
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {

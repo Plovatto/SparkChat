@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { withAlpha, type ResolvedBubbleStyle } from '@features/theme';
 import { downloadMessageMedia } from '@lib/e2ee';
 import { formatFileSize } from '@lib/format';
-import { useSocket } from '@lib/socket';
 import type { ChatMessage } from '../types';
 import type { FileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail, type PdfThumbnail } from '../utils/render-pdf-thumbnail';
@@ -21,7 +20,6 @@ interface FileMessageContentProps {
 
 export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessageContentProps) {
   const { t } = useTranslation();
-  const { socket } = useSocket();
   const isPdf = message.fileMeta?.mimeType === 'application/pdf';
   const [pdfThumbnail, setPdfThumbnail] = useState<PdfThumbnail | null>(null);
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
@@ -47,7 +45,7 @@ export function FileMessageContent({ message, bubble, fileTypeIcon }: FileMessag
   }, [isPdf, message.content]);
 
   const download = () =>
-    void downloadMessageMedia(socket, { content: message.content, roomId: message.roomId, fileMeta: message.fileMeta, fileName, messageType: message.type });
+    void downloadMessageMedia({ content: message.content, roomId: message.roomId, messageId: message.id, fileMeta: message.fileMeta, fileName, messageType: message.type });
 
   return (
     <div style={{ padding: '0 9px' }}>

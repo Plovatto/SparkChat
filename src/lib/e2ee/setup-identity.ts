@@ -6,14 +6,7 @@ import { resetContactTrustState } from './contact-trust';
 import { getCurrentIdentity, setCurrentIdentity } from './current-identity';
 import { clearPrivateKey, loadPrivateKey, savePrivateKey } from './key-store';
 import { safeAsync } from './safe-async';
-import {
-  generateIdentity,
-  IdentityKeyMismatchError,
-  privateKeyMatchesPublicKey,
-  unwrapPrivateKeyWithPassword,
-  unwrapPrivateKeyWithRecoveryToken,
-  wrapPrivateKeyWithRecoveryToken,
-} from './identity';
+import { generateIdentity, IdentityKeyMismatchError, privateKeyMatchesPublicKey } from './identity';
 
 const MY_KEYS_TIMEOUT_MS = 8000;
 
@@ -117,21 +110,9 @@ async function restoreIdentityFromServer(
   setCurrentIdentity({ userId, publicKey: myKeys.publicKey, privateKey });
 }
 
-function ensureIdentityAfterPasswordLoginImpl(socket: AppSocket, userId: string, password: string): Promise<void> {
-  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByPassword', (wrapped) =>
-    unwrapPrivateKeyWithPassword(wrapped, password),
-  );
-}
-
 function ensureIdentityAfterPasswordLoginV2Impl(socket: AppSocket, userId: string, wrapKey: Uint8Array): Promise<void> {
   return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByPassword', (wrapped, publicKey) =>
     unwrapPrivateKeyV2(wrapped, wrapKey, userId, publicKey),
-  );
-}
-
-function ensureIdentityAfterKeyfileLoginImpl(socket: AppSocket, userId: string, recoveryToken: string): Promise<void> {
-  return restoreIdentityFromServer(socket, userId, 'encryptedPrivateKeyByRecovery', (wrapped) =>
-    unwrapPrivateKeyWithRecoveryToken(wrapped, recoveryToken),
   );
 }
 
@@ -166,21 +147,6 @@ export async function resolveIdentityForRewrap(socket: AppSocket, userId: string
   return identity;
 }
 
-async function rewrapIdentityAfterLegacyRecoveryRegenerateImpl(
-  socket: AppSocket,
-  userId: string,
-  newRecoveryToken: string,
-): Promise<void> {
-  const active = getCurrentIdentity();
-  const cached = active?.userId === userId ? { publicKey: active.publicKey, privateKey: active.privateKey } : await loadPrivateKey(userId);
-  if (!cached) {
-    return;
-  }
-
-  const encryptedPrivateKeyByRecovery = await wrapPrivateKeyWithRecoveryToken(cached.privateKey, newRecoveryToken);
-  socket.emit('e2e:publish-keys', { encryptedPrivateKeyByRecovery });
-}
-
 async function ensureSigningKeyPublishedImpl(socket: AppSocket): Promise<void> {
   const identity = getCurrentIdentity();
   if (!identity) {
@@ -209,13 +175,7 @@ async function clearIdentityImpl(): Promise<void> {
 
 export const setupIdentityAfterRegister = safeAsync('setupIdentityAfterRegister', setupIdentityAfterRegisterImpl);
 export const hydrateCurrentIdentity = safeAsync('hydrateCurrentIdentity', hydrateCurrentIdentityImpl);
-export const ensureIdentityAfterPasswordLogin = safeAsync('ensureIdentityAfterPasswordLogin', ensureIdentityAfterPasswordLoginImpl);
 export const ensureIdentityAfterPasswordLoginV2 = safeAsync('ensureIdentityAfterPasswordLoginV2', ensureIdentityAfterPasswordLoginV2Impl);
-export const ensureIdentityAfterKeyfileLogin = safeAsync('ensureIdentityAfterKeyfileLogin', ensureIdentityAfterKeyfileLoginImpl);
 export const ensureIdentityAfterRecoveryLogin = safeAsync('ensureIdentityAfterRecoveryLogin', ensureIdentityAfterRecoveryLoginImpl);
-export const rewrapIdentityAfterLegacyRecoveryRegenerate = safeAsync(
-  'rewrapIdentityAfterLegacyRecoveryRegenerate',
-  rewrapIdentityAfterLegacyRecoveryRegenerateImpl,
-);
 export const ensureSigningKeyPublished = safeAsync('ensureSigningKeyPublished', ensureSigningKeyPublishedImpl);
 export const clearIdentity = safeAsync('clearIdentity', clearIdentityImpl);

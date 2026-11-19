@@ -6,8 +6,6 @@ import type { PendingRegistration, User } from '../types';
 export interface RegisteredPayload {
   user: SocketUser;
   sessionToken: string;
-  recoveryFile?: string | null;
-  recoveryToken?: string | null;
   authMethod: AuthMethod;
 }
 

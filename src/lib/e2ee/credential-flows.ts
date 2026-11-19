@@ -1,4 +1,4 @@
-import type { AppSocket, SocketErrorPayload } from '@lib/socket';
+import type { AppSocket } from '@lib/socket';
 import {
   buildRecoveryFile,
   deriveRecoveryCredentials,
@@ -8,9 +8,7 @@ import {
   wrapPrivateKeyV2,
   type RecoveryFileContents,
 } from './credentials';
-import { resolveIdentityForRewrap, setupIdentityAfterRegister, type ResolvedIdentity } from './setup-identity';
-
-const UPGRADE_TIMEOUT_MS = 20000;
+import { setupIdentityAfterRegister, type ResolvedIdentity } from './setup-identity';
 
 export interface PasswordMaterial {
   authSalt: string;
@@ -31,11 +29,6 @@ export interface RegistrationCredentials {
   recoverySecret: Uint8Array;
   recoveryVerifier: string;
   recoveryWrapKey: Uint8Array;
-}
-
-export interface UpgradedCredentials {
-  authSalt: string;
-  recoverySecret: Uint8Array;
 }
 
 const consumedSecrets = new WeakSet<Uint8Array>();
@@ -101,66 +94,5 @@ export async function createRecoveryMaterial(identity: ResolvedIdentity, userId:
     return { secret, recoveryVerifier: recoveryKey, encryptedPrivateKeyByRecovery };
   } finally {
     recoveryWrapKey.fill(0);
-  }
-}
-
-function waitForCredentialsUpgrade(socket: AppSocket): Promise<boolean> {
-  return new Promise((resolve) => {
-    let settled = false;
-
-    const finish = (value: boolean) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timer);
-      socket.off('user:credentials-upgraded', handleUpgraded);
-      socket.off('error', handleError);
-      resolve(value);
-    };
-
-    const handleUpgraded = () => finish(true);
-    const handleError = (payload: SocketErrorPayload) => {
-      if (payload.event !== 'user:upgrade-credentials') {
-        return;
-      }
-      finish(false);
-    };
-
-    socket.on('user:credentials-upgraded', handleUpgraded);
-    socket.on('error', handleError);
-    const timer = setTimeout(() => finish(false), UPGRADE_TIMEOUT_MS);
-  });
-}
-
-export async function upgradeLegacyCredentials(socket: AppSocket, userId: string, password: string): Promise<UpgradedCredentials | null> {
-  try {
-    const identity = await resolveIdentityForRewrap(socket, userId);
-    if (!identity) {
-      return null;
-    }
-
-    const [passwordMaterial, recoveryMaterial] = await Promise.all([
-      createPasswordMaterial(identity, userId, password),
-      createRecoveryMaterial(identity, userId),
-    ]);
-
-    const upgraded = waitForCredentialsUpgrade(socket);
-    socket.emit('user:upgrade-credentials', {
-      currentPassword: password,
-      newAuthSalt: passwordMaterial.authSalt,
-      newAuthKey: passwordMaterial.authKey,
-      encryptedPrivateKeyByPassword: passwordMaterial.encryptedPrivateKeyByPassword,
-      recoveryVerifier: recoveryMaterial.recoveryVerifier,
-      encryptedPrivateKeyByRecovery: recoveryMaterial.encryptedPrivateKeyByRecovery,
-    });
-
-    if (!(await upgraded)) {
-      return null;
-    }
-    return { authSalt: passwordMaterial.authSalt, recoverySecret: recoveryMaterial.secret };
-  } catch (error) {
-    console.error('[e2e] upgradeLegacyCredentials failed', error);
-    return null;
   }
 }

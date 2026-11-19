@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AppSocket } from '@lib/socket';
+import type * as attachmentCrypto from '@lib/e2ee/attachment-crypto';
+import { openAttachment } from '@lib/e2ee/attachment-crypto';
+import type { AppSocket, MessageFileMeta } from '@lib/socket';
 import type { ChatMessage } from '../types';
 import { forwardMessage } from './forward-message';
 
@@ -8,18 +10,25 @@ vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key, hasTrans
 vi.mock('@lib/media/image-compression', () => ({
   buildImageVariants: (file: File) => Promise.resolve({ original: file, thumbnail: new Blob(['thumb'], { type: 'image/webp' }) }),
 }));
-vi.mock('@lib/e2ee', () => {
+const decryptSources = vi.hoisted(() => [] as { roomId: string; messageId: string; fileMeta: unknown }[]);
+
+vi.mock('@lib/e2ee', async () => {
+  const attachments = await vi.importActual<typeof attachmentCrypto>('@lib/e2ee/attachment-crypto');
   return {
     ensureRoomKeyForSending: () => Promise.resolve({ keyId: 'k'.repeat(22), epoch: 1, key: new Uint8Array(32) }),
     isEncryptedMediaUrl: (url: string) => url.includes('e2e=1'),
-    decryptMediaContentIfNeeded: (_socket: unknown, content: string) => Promise.resolve(content.replace('https://cdn.test/', 'blob:').replace('?e2e=1', '')),
-    encryptAttachment: async (_roomId: string, blob: Blob) => new Blob([new Uint8Array(24), await blob.arrayBuffer()], { type: 'application/octet-stream' }),
+    decryptMediaContentIfNeeded: (content: string, source: { roomId: string; messageId: string; fileMeta: unknown }) => {
+      decryptSources.push(source);
+      return Promise.resolve(content.replace('https://cdn.test/', 'blob:').replace('?e2e=1', ''));
+    },
+    sealAttachment: attachments.sealAttachment,
   };
 });
 
 interface CapturedUpload {
   url: string;
   file: File;
+  publishedUrl: string;
 }
 
 let uploads: CapturedUpload[] = [];
@@ -62,6 +71,7 @@ function buildMessage(overrides: Partial<ChatMessage>): ChatMessage {
 beforeEach(() => {
   uploads = [];
   sent = [];
+  decryptSources.length = 0;
   vi.stubGlobal('window', globalThis);
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
     if (url.startsWith('blob:')) {
@@ -69,10 +79,9 @@ beforeEach(() => {
     }
     const body = init?.body as FormData;
     const file = [...body.values()].find((value): value is File => value instanceof File);
-    uploads.push({ url, file: file as File });
-    return Promise.resolve(
-      Response.json({ url: `https://cdn.test/uploads/new/${uploads.length}.bin?e2e=1`, name: 'leak.exe', mimeType: 'text/html' }, { status: 201 }),
-    );
+    const publishedUrl = `https://cdn.test/uploads/new/${uploads.length + 1}.bin?e2e=1`;
+    uploads.push({ url, file: file as File, publishedUrl });
+    return Promise.resolve(Response.json({ url: publishedUrl, name: 'leak.exe', mimeType: 'text/html' }, { status: 201 }));
   });
 });
 
@@ -88,7 +97,46 @@ function expectOnlyNeutralUploads(): void {
   }
 }
 
+async function openUploaded(publishedUrl: unknown, key: string | undefined, roomId: string, messageId: unknown, slot: 'content' | 'thumbnail') {
+  const upload = uploads.find((candidate) => candidate.publishedUrl === publishedUrl);
+  if (!upload || !key || typeof messageId !== 'string') {
+    return null;
+  }
+  return openAttachment(await upload.file.arrayBuffer(), key, { roomId, messageId, slot }, 'application/octet-stream');
+}
+
 describe('forwardMessage', () => {
+  it('decrypts with the original binding and re-encrypts under new keys bound to a new message id', async () => {
+    const originalKey = 'o'.repeat(43);
+    const message = buildMessage({ id: 'original-id', fileMeta: { name: 'contrato.pdf', mimeType: 'application/pdf', size: 10, key: originalKey } });
+
+    await forwardMessage(createSocket(), { userId: 'u', sessionToken: 't' }, message, 'target-room');
+
+    expect(decryptSources[0]).toMatchObject({ roomId: 'source-room', messageId: 'original-id' });
+    const payload = sent[0] as { messageId: string; content: string; fileMeta: MessageFileMeta };
+    expect(payload.messageId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(payload.messageId).not.toBe('original-id');
+    expect(payload.fileMeta.key).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(payload.fileMeta.key).not.toBe(originalKey);
+
+    const opened = await openUploaded(payload.content, payload.fileMeta.key, 'target-room', payload.messageId, 'content');
+    expect(await opened?.text()).toBe('plain blob:uploads/files/abc.bin');
+    await expect(openUploaded(payload.content, payload.fileMeta.key, 'source-room', payload.messageId, 'content')).resolves.toBeNull();
+    await expect(openUploaded(payload.content, payload.fileMeta.key, 'target-room', 'original-id', 'content')).resolves.toBeNull();
+  });
+
+  it('gives a forwarded image and its thumbnail separate keys in their own slots', async () => {
+    const message = buildMessage({ type: 'image', content: 'https://cdn.test/uploads/images/pic.bin?e2e=1', fileMeta: { name: 'f.png', mimeType: 'image/png', size: 10 } });
+
+    await forwardMessage(createSocket(), { userId: 'u', sessionToken: 't' }, message, 'target-room');
+
+    const payload = sent[0] as { messageId: string; content: string; fileMeta: MessageFileMeta };
+    expect(payload.fileMeta.key).not.toBe(payload.fileMeta.thumbnailKey);
+    expect(await openUploaded(payload.content, payload.fileMeta.key, 'target-room', payload.messageId, 'content')).not.toBeNull();
+    expect(await openUploaded(payload.fileMeta.thumbnailUrl, payload.fileMeta.thumbnailKey, 'target-room', payload.messageId, 'thumbnail')).not.toBeNull();
+    expect(await openUploaded(payload.fileMeta.thumbnailUrl, payload.fileMeta.thumbnailKey, 'target-room', payload.messageId, 'content')).toBeNull();
+  });
+
   it('re-uploads a pdf as neutral ciphertext and keeps the decrypted name and type in fileMeta', async () => {
     const message = buildMessage({ fileMeta: { name: 'contrato.pdf', mimeType: 'application/pdf', size: 10 } });
 

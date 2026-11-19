@@ -1,4 +1,4 @@
-import { deriveCurrentPasswordProof, resolveAuthParams } from '@features/auth/lib/auth-params';
+import { deriveCurrentPasswordProof } from '@features/auth/lib/auth-params';
 import { createPasswordMaterial, createRecoveryMaterial, resolveIdentityForRewrap } from '@lib/e2ee';
 import type { AppSocket, ClientToServerEvents } from '@lib/socket';
 
@@ -21,12 +21,11 @@ interface AccountContext {
 export interface ChangePasswordRequest {
   payload: ChangePasswordPayload;
   authSalt: string;
-  upgradeRecoverySecret: Uint8Array | null;
 }
 
 export interface RegenerateRecoveryRequest {
   payload: RegenerateRecoveryPayload;
-  recoverySecret: Uint8Array | null;
+  recoverySecret: Uint8Array;
 }
 
 async function requireIdentity(socket: AppSocket, userId: string) {
@@ -43,26 +42,17 @@ export async function buildChangePasswordRequest(
   newPassword: string,
 ): Promise<ChangePasswordRequest> {
   const identity = await requireIdentity(socket, userId);
-  const current = currentPassword ? await deriveCurrentPasswordProof(userId, nickname, currentPassword) : null;
-  const params = current?.params ?? (await resolveAuthParams(userId, nickname));
+  const currentProof = currentPassword ? await deriveCurrentPasswordProof(userId, nickname, currentPassword) : undefined;
   const passwordMaterial = await createPasswordMaterial(identity, userId, newPassword);
-  const recoveryMaterial = params.version === 1 ? await createRecoveryMaterial(identity, userId) : null;
 
   return {
     payload: {
-      currentPassword: current?.proof,
+      currentPassword: currentProof,
       newPassword: passwordMaterial.authKey,
       newAuthSalt: passwordMaterial.authSalt,
       encryptedPrivateKeyByPassword: passwordMaterial.encryptedPrivateKeyByPassword,
-      ...(recoveryMaterial
-        ? {
-            recoveryVerifier: recoveryMaterial.recoveryVerifier,
-            encryptedPrivateKeyByRecovery: recoveryMaterial.encryptedPrivateKeyByRecovery,
-          }
-        : {}),
     },
     authSalt: passwordMaterial.authSalt,
-    upgradeRecoverySecret: recoveryMaterial?.secret ?? null,
   };
 }
 
@@ -70,11 +60,7 @@ export async function buildRegenerateRecoveryRequest(
   { socket, userId, nickname }: AccountContext,
   currentPassword: string,
 ): Promise<RegenerateRecoveryRequest> {
-  const { proof, params } = await deriveCurrentPasswordProof(userId, nickname, currentPassword);
-  if (params.version === 1) {
-    return { payload: { currentPassword: proof }, recoverySecret: null };
-  }
-
+  const proof = await deriveCurrentPasswordProof(userId, nickname, currentPassword);
   const identity = await requireIdentity(socket, userId);
   const recoveryMaterial = await createRecoveryMaterial(identity, userId);
   return {
@@ -88,6 +74,5 @@ export async function buildRegenerateRecoveryRequest(
 }
 
 export async function resolveProfileUpdateProof(userId: string, nickname: string, currentPassword: string): Promise<string> {
-  const { proof } = await deriveCurrentPasswordProof(userId, nickname, currentPassword);
-  return proof;
+  return deriveCurrentPasswordProof(userId, nickname, currentPassword);
 }

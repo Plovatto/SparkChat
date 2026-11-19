@@ -1,19 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@lib/api/api-error';
-import { uploadChatAudio, uploadChatFile, uploadChatImage } from './chat-api';
+import { uploadChatAudio, uploadChatFile, uploadChatImage, uploadLinkPreviewImage } from './chat-api';
 
 const variants = vi.hoisted(() => ({ original: null as Blob | null, thumbnail: null as Blob | null }));
 
 vi.mock('@config/env', () => ({ env: { apiUrl: 'https://api.test' } }));
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key, hasTranslation: () => false }));
+const sealed = vi.hoisted(() => [] as { roomId: string; messageId: string; slot: string }[]);
+
 vi.mock('@lib/e2ee', () => ({
-  encryptAttachment: async (_roomId: string, blob: Blob) => new Blob([new Uint8Array(24), await blob.arrayBuffer()], { type: 'application/octet-stream' }),
+  sealAttachment: async (blob: Blob, binding: { roomId: string; messageId: string; slot: string }) => {
+    sealed.push(binding);
+    return {
+      ciphertext: new Blob([new Uint8Array(24), await blob.arrayBuffer()], { type: 'application/octet-stream' }),
+      key: `key-${binding.slot}-${sealed.length}`,
+    };
+  },
 }));
 vi.mock('@lib/media/image-compression', () => ({
   buildImageVariants: (file: File) => Promise.resolve({ original: variants.original ?? file, thumbnail: variants.thumbnail }),
 }));
 
 const auth = { userId: 'user-1', sessionToken: 'token' };
+const TARGET = { roomId: 'room-1', messageId: '11111111-1111-4111-8111-111111111111' };
 
 interface CapturedUpload {
   url: string;
@@ -25,6 +34,7 @@ let nextResponse: (index: number) => Response = (index) => Response.json({ url: 
 
 beforeEach(() => {
   uploads = [];
+  sealed.length = 0;
   variants.original = null;
   variants.thumbnail = null;
   nextResponse = (index) =>
@@ -55,18 +65,25 @@ describe('chat attachment uploads', () => {
   it('sends a file as neutral ciphertext and keeps its real name and type local', async () => {
     const file = new File(['%PDF-1.4'], 'relatório secreto.pdf', { type: 'application/pdf' });
 
-    const uploaded = await uploadChatFile(file, auth, 'room-1');
+    const uploaded = await uploadChatFile(file, auth, TARGET);
 
     expect(uploads).toHaveLength(1);
     expect(uploads[0]?.url).toBe('https://api.test/api/messages/upload-file');
     expectNeutralUpload(uploads[0], 'file');
-    expect(uploaded).toEqual({ url: 'https://cdn.test/uploads/x/0.bin?e2e=1', name: 'relatório secreto.pdf', mimeType: 'application/pdf', size: file.size });
+    expect(uploaded).toEqual({
+      url: 'https://cdn.test/uploads/x/0.bin?e2e=1',
+      key: 'key-content-1',
+      name: 'relatório secreto.pdf',
+      mimeType: 'application/pdf',
+      size: file.size,
+    });
+    expect(sealed).toEqual([{ ...TARGET, slot: 'content' }]);
   });
 
   it('sends plain text files the same way', async () => {
     const file = new File(['hello'], 'notes.txt', { type: 'text/plain' });
 
-    const uploaded = await uploadChatFile(file, auth, 'room-1');
+    const uploaded = await uploadChatFile(file, auth, TARGET);
 
     expectNeutralUpload(uploads[0], 'file');
     expect(uploaded).toMatchObject({ name: 'notes.txt', mimeType: 'text/plain' });
@@ -77,7 +94,7 @@ describe('chat attachment uploads', () => {
     variants.thumbnail = new Blob(['thumb'], { type: 'image/webp' });
     const file = new File(['big png'], 'vacation.png', { type: 'image/png' });
 
-    const uploaded = await uploadChatImage(file, auth, 'room-1');
+    const uploaded = await uploadChatImage(file, auth, TARGET);
 
     expect(uploads).toHaveLength(2);
     for (const upload of uploads) {
@@ -86,28 +103,40 @@ describe('chat attachment uploads', () => {
     }
     expect(uploaded).toEqual({
       url: 'https://cdn.test/uploads/x/0.bin?e2e=1',
+      key: expect.stringMatching(/^key-content-/) as unknown,
       mimeType: 'image/webp',
       thumbnailUrl: 'https://cdn.test/uploads/x/1.bin?e2e=1',
+      thumbnailKey: expect.stringMatching(/^key-thumbnail-/) as unknown,
     });
+    expect(sealed).toEqual(expect.arrayContaining([{ ...TARGET, slot: 'content' }, { ...TARGET, slot: 'thumbnail' }]));
+    expect(uploaded.key).not.toBe(uploaded.thumbnailKey);
   });
 
   it('sends recorded audio as neutral ciphertext and keeps the recorder type', async () => {
-    const uploaded = await uploadChatAudio(new Blob(['voice']), 'audio/webm;codecs=opus', auth, 'room-1');
+    const uploaded = await uploadChatAudio(new Blob(['voice']), 'audio/webm;codecs=opus', auth, TARGET);
 
     expect(uploads[0]?.url).toBe('https://api.test/api/messages/upload-audio');
     expectNeutralUpload(uploads[0], 'audio');
-    expect(uploaded).toEqual({ url: 'https://cdn.test/uploads/x/0.bin?e2e=1', mimeType: 'audio/webm;codecs=opus' });
+    expect(uploaded).toEqual({ url: 'https://cdn.test/uploads/x/0.bin?e2e=1', key: 'key-content-1', mimeType: 'audio/webm;codecs=opus' });
+  });
+
+  it('seals a link preview image in the preview slot of its message', async () => {
+    const uploaded = await uploadLinkPreviewImage(new Blob(['img'], { type: 'image/webp' }), auth, TARGET);
+
+    expectNeutralUpload(uploads[0], 'image');
+    expect(sealed).toEqual([{ ...TARGET, slot: 'preview' }]);
+    expect(uploaded).toEqual({ url: 'https://cdn.test/uploads/x/0.bin?e2e=1', key: 'key-preview-1' });
   });
 
   it('refuses file types the server never accepted without uploading anything', async () => {
-    await expect(uploadChatFile(new File(['MZ'], 'setup.exe', { type: 'application/x-msdownload' }), auth, 'room-1')).rejects.toMatchObject({
+    await expect(uploadChatFile(new File(['MZ'], 'setup.exe', { type: 'application/x-msdownload' }), auth, TARGET)).rejects.toMatchObject({
       payload: { code: 'upload.invalidType', params: { kind: 'file' } },
     });
-    await expect(uploadChatFile(new File(['x'], 'fake.exe', { type: 'application/pdf' }), auth, 'room-1')).rejects.toBeInstanceOf(ApiError);
-    await expect(uploadChatImage(new File(['x'], 'vector.svg', { type: 'image/svg+xml' }), auth, 'room-1')).rejects.toMatchObject({
+    await expect(uploadChatFile(new File(['x'], 'fake.exe', { type: 'application/pdf' }), auth, TARGET)).rejects.toBeInstanceOf(ApiError);
+    await expect(uploadChatImage(new File(['x'], 'vector.svg', { type: 'image/svg+xml' }), auth, TARGET)).rejects.toMatchObject({
       payload: { code: 'upload.invalidType', params: { kind: 'image' } },
     });
-    await expect(uploadChatAudio(new Blob(['x']), 'video/x-flv', auth, 'room-1')).rejects.toMatchObject({
+    await expect(uploadChatAudio(new Blob(['x']), 'video/x-flv', auth, TARGET)).rejects.toMatchObject({
       payload: { code: 'upload.invalidType', params: { kind: 'audio' } },
     });
     expect(uploads).toHaveLength(0);
@@ -116,7 +145,7 @@ describe('chat attachment uploads', () => {
   it('surfaces the server error payload when the upload fails', async () => {
     nextResponse = () => Response.json({ code: 'upload.userQuotaExceeded', message: 'quota' }, { status: 507 });
 
-    await expect(uploadChatFile(new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }), auth, 'room-1')).rejects.toMatchObject({
+    await expect(uploadChatFile(new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }), auth, TARGET)).rejects.toMatchObject({
       payload: { code: 'upload.userQuotaExceeded' },
       fallbackKey: 'chat.upload.fileFailed',
     });
@@ -125,6 +154,6 @@ describe('chat attachment uploads', () => {
   it('rejects a response without a url', async () => {
     nextResponse = () => Response.json({ name: 'x' }, { status: 201 });
 
-    await expect(uploadChatAudio(new Blob(['voice']), 'audio/ogg', auth, 'room-1')).rejects.toBeInstanceOf(ApiError);
+    await expect(uploadChatAudio(new Blob(['voice']), 'audio/ogg', auth, TARGET)).rejects.toBeInstanceOf(ApiError);
   });
 });

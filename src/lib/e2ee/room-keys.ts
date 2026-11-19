@@ -997,14 +997,6 @@ export async function ensureRoomKeyGeneration(socket: AppSocket, roomId: string,
   return fetched;
 }
 
-export async function ensureAnyRoomKey(socket: AppSocket, roomId: string): Promise<boolean> {
-  await loadPersistedGenerations(roomId);
-  if (!latestGeneration(roomId)) {
-    await syncRoomKeys(socket, roomId);
-  }
-  return latestGeneration(roomId) !== null;
-}
-
 function sendableGeneration(roomId: string): RoomKeyGeneration | null {
   const latest = latestGeneration(roomId);
   if (!latest) {

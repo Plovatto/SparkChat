@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from '@lib/socket';
-import { buildRecoveryFileOnce, completeRegistration, prepareRegistrationCredentials, upgradeLegacyCredentials } from './credential-flows';
+import { buildRecoveryFileOnce, completeRegistration, prepareRegistrationCredentials } from './credential-flows';
 import {
   deriveRecoveryCredentials,
   derivePasswordCredentials,
@@ -211,73 +211,9 @@ describe('recovery file one-shot guards', () => {
   });
 });
 
-describe('upgradeLegacyCredentials', () => {
-  it('sends v2 credentials derived on the device and returns the new secrets', async () => {
-    const identity = await generateIdentity();
-    current.identity = { userId: 'user-1', ...identity };
-    const fake = createSocket(null, (event, fire) => {
-      if (event === 'user:upgrade-credentials') {
-        queueMicrotask(() => fire('user:credentials-upgraded', { authVersion: 2 }));
-      }
-    });
-
-    const upgraded = await upgradeLegacyCredentials(fake.socket, 'user-1', 'legacy-password');
-
-    expect(upgraded).not.toBeNull();
-    const sent = payloadOf(fake, 'user:upgrade-credentials');
-    expect(Object.keys(sent).sort()).toEqual(
-      ['currentPassword', 'encryptedPrivateKeyByPassword', 'encryptedPrivateKeyByRecovery', 'newAuthKey', 'newAuthSalt', 'recoveryVerifier'].sort(),
-    );
-    expect(sent.currentPassword).toBe('legacy-password');
-    expect(sent.newAuthSalt).toBe(upgraded?.authSalt);
-    expect(sent.newAuthKey).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(sent.newAuthKey).not.toContain('legacy-password');
-
-    const { authKey, wrapKey } = await derivePasswordCredentials('legacy-password', upgraded?.authSalt ?? '');
-    expect(sent.newAuthKey).toBe(authKey);
-    const byPassword = await unwrapPrivateKeyV2(sent.encryptedPrivateKeyByPassword, wrapKey, 'user-1', identity.publicKey);
-    expect(Array.from(byPassword)).toEqual(Array.from(identity.privateKey));
-
-    const recovery = await deriveRecoveryCredentials(upgraded?.recoverySecret ?? new Uint8Array());
-    expect(sent.recoveryVerifier).toBe(recovery.recoveryKey);
-    const byRecovery = await unwrapPrivateKeyV2(sent.encryptedPrivateKeyByRecovery, recovery.recoveryWrapKey, 'user-1', identity.publicKey);
-    expect(Array.from(byRecovery)).toEqual(Array.from(identity.privateKey));
-  });
-
-  it('returns null when the server rejects the upgrade', async () => {
-    const identity = await generateIdentity();
-    current.identity = { userId: 'user-1', ...identity };
-    const fake = createSocket(null, (event, fire) => {
-      if (event === 'user:upgrade-credentials') {
-        queueMicrotask(() => fire('error', { message: 'nope', code: 'user.currentPasswordIncorrect', event: 'user:upgrade-credentials' }));
-      }
-    });
-
-    await expect(upgradeLegacyCredentials(fake.socket, 'user-1', 'legacy-password')).resolves.toBeNull();
-  });
-
-  it('ignores errors that belong to other events', async () => {
-    const identity = await generateIdentity();
-    current.identity = { userId: 'user-1', ...identity };
-    const fake = createSocket(null, (event, fire) => {
-      if (event === 'user:upgrade-credentials') {
-        queueMicrotask(() => {
-          fire('error', { message: 'x', event: 'e2e:get-room-keys' });
-          fire('error', { message: 'y', clientTempId: 'tmp' });
-          fire('error', { message: 'z', code: 'user.currentPasswordIncorrect' });
-          fire('user:credentials-upgraded', { authVersion: 2 });
-        });
-      }
-    });
-
-    await expect(upgradeLegacyCredentials(fake.socket, 'user-1', 'legacy-password')).resolves.not.toBeNull();
-  });
-
-  it('gives up without an identity to wrap', async () => {
-    const identity = await generateIdentity();
-    const fake = createSocket({ publicKey: identity.publicKey, encryptedPrivateKeyByPassword: null, encryptedPrivateKeyByRecovery: null });
-
-    await expect(upgradeLegacyCredentials(fake.socket, 'user-1', 'legacy-password')).resolves.toBeNull();
-    expect(fake.emitted.some((entry) => entry.event === 'user:upgrade-credentials')).toBe(false);
+describe('legacy credential upgrade', () => {
+  it('is no longer exported', async () => {
+    const flows = await import('./credential-flows');
+    expect(Object.keys(flows)).not.toContain('upgradeLegacyCredentials');
   });
 });

@@ -12,7 +12,6 @@ interface RecoveryFileDownloadDialogProps {
   recoveryFile: string;
   onClose: () => void;
   isFirstDownload?: boolean;
-  isUpgrade?: boolean;
 }
 
 export function RecoveryFileDownloadDialog({
@@ -22,7 +21,6 @@ export function RecoveryFileDownloadDialog({
   recoveryFile,
   onClose,
   isFirstDownload = false,
-  isUpgrade = false,
 }: RecoveryFileDownloadDialogProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -52,13 +50,7 @@ export function RecoveryFileDownloadDialog({
           <span>{t('recovery.noPassword')}</span>
         </div>
 
-        {isUpgrade && (
-          <div className="sc-notice sc-notice--danger">
-            {t('recovery.upgraded')}
-          </div>
-        )}
-
-        {!isFirstDownload && !isUpgrade && (
+        {!isFirstDownload && (
           <div className="sc-notice sc-notice--danger">
             {t('recovery.replaceOld')}
           </div>

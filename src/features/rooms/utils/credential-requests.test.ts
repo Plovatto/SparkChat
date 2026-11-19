@@ -51,7 +51,6 @@ describe('buildChangePasswordRequest', () => {
     expect(request.authSalt).not.toBe(SALT);
     expect(request.payload).not.toHaveProperty('recoveryVerifier');
     expect(request.payload).not.toHaveProperty('encryptedPrivateKeyByRecovery');
-    expect(request.upgradeRecoverySecret).toBeNull();
     const unwrapped = await unwrapPrivateKeyV2(request.payload.encryptedPrivateKeyByPassword ?? '', next.wrapKey, 'user-1', identity.publicKey);
     expect(Array.from(unwrapped)).toEqual(Array.from(identity.privateKey));
     expect(JSON.stringify(request.payload)).not.toMatch(/old-password|new-password/);
@@ -63,23 +62,12 @@ describe('buildChangePasswordRequest', () => {
     expect(request.payload.currentPassword).toBeUndefined();
   });
 
-  it('upgrades v1 accounts with a recovery pair and the legacy current password', async () => {
-    rememberAuthParams('user-1', { version: 1 });
+  it('refuses a server that reports a legacy v1 account instead of sending the plaintext password', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ version: 1 }), { status: 200 })));
+    vi.stubGlobal('fetch', fetchMock);
 
-    const request = await buildChangePasswordRequest(account, 'old-password', 'new-password');
-
-    expect(request.payload.currentPassword).toBe('old-password');
-    expect(request.payload.newPassword).toBe((await derivePasswordCredentials('new-password', request.authSalt)).authKey);
-    expect(request.upgradeRecoverySecret).not.toBeNull();
-    const recovery = await deriveRecoveryCredentials(request.upgradeRecoverySecret ?? new Uint8Array());
-    expect(request.payload.recoveryVerifier).toBe(recovery.recoveryKey);
-    const unwrapped = await unwrapPrivateKeyV2(
-      request.payload.encryptedPrivateKeyByRecovery ?? '',
-      recovery.recoveryWrapKey,
-      'user-1',
-      identity.publicKey,
-    );
-    expect(Array.from(unwrapped)).toEqual(Array.from(identity.privateKey));
+    await expect(buildChangePasswordRequest(account, 'old-password', 'new-password')).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('fetches auth params when they are not in memory', async () => {
@@ -112,18 +100,15 @@ describe('buildRegenerateRecoveryRequest', () => {
     expect(Array.from(unwrapped)).toEqual(Array.from(identity.privateKey));
   });
 
-  it('keeps the legacy request for v1 accounts', async () => {
-    rememberAuthParams('user-1', { version: 1 });
-    const request = await buildRegenerateRecoveryRequest(account, 'my-password');
-    expect(request).toEqual({ payload: { currentPassword: 'my-password' }, recoverySecret: null });
+  it('never builds a legacy request with the plaintext password', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ version: 1 }), { status: 200 }))));
+    await expect(buildRegenerateRecoveryRequest(account, 'my-password')).rejects.toThrow();
   });
 });
 
 describe('resolveProfileUpdateProof', () => {
-  it('derives the auth key for v2 accounts and keeps the password for v1', async () => {
+  it('derives the auth key and never returns the password', async () => {
     rememberAuthParams('user-1', { version: 2, salt: SALT });
     await expect(resolveProfileUpdateProof('user-1', 'alice', 'pw')).resolves.toBe((await derivePasswordCredentials('pw', SALT)).authKey);
-    rememberAuthParams('user-1', { version: 1 });
-    await expect(resolveProfileUpdateProof('user-1', 'alice', 'pw')).resolves.toBe('pw');
   });
 });

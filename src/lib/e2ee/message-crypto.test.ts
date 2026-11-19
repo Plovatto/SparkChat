@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket, MessageView } from '@lib/socket';
 import { translate } from '@lib/i18n/app-i18n';
-import { encryptAttachment } from './attachment-crypto';
+import { sealAttachment, type AttachmentBinding } from './attachment-crypto';
 import { sealAuthenticatedField } from './authenticated-field';
 import { setCurrentIdentity } from './current-identity';
 import { clearDecryptedMediaCache } from './media-cache';
@@ -27,7 +27,6 @@ vi.mock('./room-keys', () => {
     },
     ensureRoomKeyGeneration: (_socket: unknown, roomId: string, keyId: string) =>
       Promise.resolve(roomKeys.get(roomId)?.find((generation) => generation.keyId === keyId)?.key ?? null),
-    ensureAnyRoomKey: (_socket: unknown, roomId: string) => Promise.resolve((roomKeys.get(roomId)?.length ?? 0) > 0),
     lookupContactKey: (_socket: unknown, userId: string) => {
       const signingPublicKey = contactSigningKeys.get(userId);
       return Promise.resolve(signingPublicKey ? { contactId: userId, status: 'verified', pin: { signingPublicKey } } : null);
@@ -36,6 +35,8 @@ vi.mock('./room-keys', () => {
 });
 
 const ROOM_ID = 'room-1';
+const MESSAGE_ID = '0f8fad5b-d9cb-469f-a165-70867728950e';
+const OTHER_MESSAGE_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 
 function randomKeyId(): string {
   return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))))
@@ -141,6 +142,35 @@ describe('encryptOutgoingMessage', () => {
     expect(encrypted.messageId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it('uses the message id chosen before the upload and seals every attachment key', async () => {
+    const fileMeta = {
+      name: 'foto.png',
+      mimeType: 'image/png',
+      size: 10,
+      thumbnailUrl: 'https://cdn.test/uploads/images/t.bin?e2e=1',
+      key: 'a'.repeat(43),
+      thumbnailKey: 'b'.repeat(43),
+    };
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      type: 'image',
+      content: 'https://cdn.test/uploads/images/abc.bin?e2e=1',
+      fileMeta,
+      messageId: MESSAGE_ID,
+    });
+
+    expect(encrypted.messageId).toBe(MESSAGE_ID);
+    expect(encrypted.fileMeta?.key).toMatch(/^e2e:v2:/);
+    expect(encrypted.fileMeta?.thumbnailKey).toMatch(/^e2e:v2:/);
+    expect(encrypted.fileMeta?.thumbnailUrl).toBe(fileMeta.thumbnailUrl);
+    expect(JSON.stringify(encrypted)).not.toContain('a'.repeat(43));
+    expect(JSON.stringify(encrypted)).not.toContain('b'.repeat(43));
+  });
+
+  it('refuses a caller supplied message id that is not a UUID', async () => {
+    await expect(encryptOutgoingMessage({ roomId: ROOM_ID, content: 'olá', messageId: 'not-a-uuid' })).rejects.toThrow();
+  });
+
   it('refuses attachment messages without file details', async () => {
     for (const type of ['image', 'audio', 'file']) {
       await expect(encryptOutgoingMessage({ roomId: ROOM_ID, type, content: 'https://cdn.test/uploads/x?e2e=1' })).rejects.toThrow();
@@ -170,14 +200,20 @@ describe('decryptMessageView link preview image', () => {
     vi.unstubAllGlobals();
   });
 
-  async function encryptedPreviewMessage(imageUrl: string | null): Promise<MessageView> {
+  async function encryptedPreviewMessage(imageUrl: string | null, previewKey?: string): Promise<MessageView> {
     const encrypted = await encryptOutgoingMessage({
       roomId: ROOM_ID,
       type: 'text',
       content: 'veja https://site.test',
+      messageId: MESSAGE_ID,
       linkPreview: { url: 'https://site.test', title: 'Site', description: null, imageUrl, siteName: null },
+      ...(previewKey ? { fileMeta: { name: 'link-preview', mimeType: 'image/webp', size: 3, previewKey } } : {}),
     });
-    return { ...viewOf({ messageId: encrypted.messageId, content: encrypted.content }), linkPreview: encrypted.linkPreview ?? null };
+    return {
+      ...viewOf({ messageId: encrypted.messageId, content: encrypted.content }),
+      linkPreview: encrypted.linkPreview ?? null,
+      fileMeta: encrypted.fileMeta ?? null,
+    };
   }
 
   it('drops a legacy plain image URL without fetching it', async () => {
@@ -191,16 +227,28 @@ describe('decryptMessageView link preview image', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('decrypts an image that the sender uploaded encrypted with the room key', async () => {
+  it('decrypts an image uploaded with its own preview key bound to the message', async () => {
     const imageUrl = 'https://cdn.test/uploads/images/preview.webp?e2e=1';
-    const ciphertext = await encryptAttachment(ROOM_ID, new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' }));
+    const { ciphertext, key } = await sealAttachment(new Blob([new Uint8Array([1, 2, 3])]), { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'preview' });
     const fetchSpy = vi.fn().mockResolvedValue(new Response(ciphertext));
     vi.stubGlobal('fetch', fetchSpy);
 
-    const decrypted = await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl));
+    const decrypted = await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl, key));
 
     expect(fetchSpy).toHaveBeenCalledWith(imageUrl, expect.objectContaining({ credentials: 'omit' }));
     expect(decrypted.linkPreview?.imageUrl).toMatch(/^blob:/);
+    expect(decrypted.fileMeta?.previewKey).toBe(key);
+    clearDecryptedMediaCache();
+  });
+
+  it('drops a preview image sealed for another slot or without a preview key', async () => {
+    const imageUrl = 'https://cdn.test/uploads/images/preview.webp?e2e=1';
+    const { ciphertext, key } = await sealAttachment(new Blob([new Uint8Array([1, 2, 3])]), { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'thumbnail' });
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(ciphertext.slice(0)))));
+
+    expect((await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl, key))).linkPreview?.imageUrl).toBeNull();
+    clearDecryptedMediaCache();
+    expect((await decryptMessageView(socket, await encryptedPreviewMessage(imageUrl))).linkPreview?.imageUrl).toBeNull();
   });
 });
 
@@ -228,6 +276,20 @@ describe('hasUnencryptedFields', () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  it('flags attachment keys that travel in plaintext', () => {
+    for (const field of ['key', 'thumbnailKey', 'previewKey']) {
+      expect(
+        hasUnencryptedFields(
+          toMessageView({
+            content: 'https://cdn.test/uploads/images/a.png?e2e=1',
+            type: 'image',
+            fileMeta: { name: ENCRYPTED_TEXT, mimeType: ENCRYPTED_TEXT, size: 1, [field]: 'k'.repeat(43) },
+          }),
+        ),
+      ).toBe(true);
+    }
   });
 
   it('flags media urls that were not encrypted on upload', () => {
@@ -276,15 +338,24 @@ describe('decryptMediaContentIfNeeded', () => {
   const createdBlobs: Blob[] = [];
   const fetchMock = vi.fn<typeof fetch>();
   let ciphertext: ArrayBuffer;
+  let contentKey: string;
 
-  const fileMeta = (mimeType: string) => ({ name: 'x', mimeType, size: 1 });
+  const fileMeta = (mimeType: string) => ({ name: 'x', mimeType, size: 1, key: contentKey });
+  const source = (mimeType: string, messageType: MessageView['type'], messageId = MESSAGE_ID) => ({
+    roomId: ROOM_ID,
+    messageId,
+    fileMeta: fileMeta(mimeType),
+    messageType,
+  });
 
   beforeEach(async () => {
     roomKeys.clear();
     addGeneration(ROOM_ID);
     createdBlobs.length = 0;
     const html = new Blob(['<script>alert(1)</script>'], { type: 'text/html' });
-    ciphertext = await (await encryptAttachment(ROOM_ID, html)).arrayBuffer();
+    const sealed = await sealAttachment(html, { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'content' });
+    ciphertext = await sealed.ciphertext.arrayBuffer();
+    contentKey = sealed.key;
     fetchMock.mockReset();
     fetchMock.mockImplementation(() => Promise.resolve(new Response(ciphertext.slice(0))));
     vi.stubGlobal('fetch', fetchMock);
@@ -302,38 +373,53 @@ describe('decryptMediaContentIfNeeded', () => {
   });
 
   it('never creates an active blob type from the sender-chosen mime type', async () => {
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('text/html'), 'file');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('text/html', 'file'));
     clearDecryptedMediaCache();
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('image/svg+xml'), 'image');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('image/svg+xml', 'image'));
     clearDecryptedMediaCache();
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'image');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('application/pdf', 'image'));
 
     expect(createdBlobs.map((blob) => blob.type)).toEqual(['application/octet-stream', 'application/octet-stream', 'application/octet-stream']);
   });
 
   it('keeps passive types that match the message type', async () => {
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('image/png'), 'image');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('image/png', 'image'));
     clearDecryptedMediaCache();
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('audio/webm;codecs=opus'), 'audio');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('audio/webm;codecs=opus', 'audio'));
     clearDecryptedMediaCache();
-    await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'file');
+    await decryptMediaContentIfNeeded(MEDIA_URL, source('application/pdf', 'file'));
 
     expect(createdBlobs.map((blob) => blob.type)).toEqual(['image/png', 'audio/webm', 'application/pdf']);
   });
 
   it('does not let a second message reusing the url inherit the first message type', async () => {
-    const first = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('text/html'), 'file');
-    const second = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, fileMeta('application/pdf'), 'file');
+    const first = await decryptMediaContentIfNeeded(MEDIA_URL, source('text/html', 'file'));
+    const second = await decryptMediaContentIfNeeded(MEDIA_URL, source('application/pdf', 'file'));
 
     expect(first).not.toBe(second);
     expect(createdBlobs.map((blob) => blob.type)).toEqual(['application/octet-stream', 'application/pdf']);
   });
 
+  it('does not let another message reuse a cached object of the first message', async () => {
+    const first = await decryptMediaContentIfNeeded(MEDIA_URL, source('application/pdf', 'file'));
+    const replayed = await decryptMediaContentIfNeeded(MEDIA_URL, source('application/pdf', 'file', OTHER_MESSAGE_ID));
+
+    expect(first).toMatch(/^blob:/);
+    expect(replayed).toBe(MEDIA_URL);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fetch anything when the message carries no attachment key', async () => {
+    const withoutKey = { roomId: ROOM_ID, messageId: MESSAGE_ID, fileMeta: { name: 'x', mimeType: 'application/pdf', size: 1 }, messageType: 'file' as const };
+    await expect(decryptMediaContentIfNeeded(MEDIA_URL, withoutKey)).resolves.toBe(MEDIA_URL);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('never fetches media outside the storage upload paths', async () => {
     const outside = 'https://evil.test/payload.bin?e2e=1';
-    await expect(decryptMediaContentIfNeeded(socket, outside, ROOM_ID, fileMeta('image/png'), 'image')).resolves.toBe(outside);
+    await expect(decryptMediaContentIfNeeded(outside, source('image/png', 'image'))).resolves.toBe(outside);
     const insecure = 'http://cdn.test/uploads/images/a.png?e2e=1';
-    await expect(decryptMediaContentIfNeeded(socket, insecure, ROOM_ID, fileMeta('image/png'), 'image')).resolves.toBe(insecure);
+    await expect(decryptMediaContentIfNeeded(insecure, source('image/png', 'image'))).resolves.toBe(insecure);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -538,15 +624,18 @@ describe('room key generations in message fields', () => {
 
 });
 
-describe('attachments across room key generations', () => {
-  const MEDIA_URL = 'https://cdn.test/uploads/images/photo.webp?e2e=1';
+describe('per-attachment keys in messages', () => {
+  const MEDIA_URL = 'https://cdn.test/uploads/images/photo.bin?e2e=1';
+  const THUMB_URL = 'https://cdn.test/uploads/images/thumb.bin?e2e=1';
   const fetchMock = vi.fn<typeof fetch>();
+  let objectUrls = 0;
 
   beforeEach(() => {
     roomKeys.clear();
+    objectUrls = 0;
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
-    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:https://app.test/decrypted');
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:https://app.test/${++objectUrls}`);
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
   });
 
@@ -556,33 +645,87 @@ describe('attachments across room key generations', () => {
     vi.restoreAllMocks();
   });
 
-  it('decrypts an attachment from an older generation after a rotation', async () => {
-    addGeneration(ROOM_ID);
-    const ciphertext = await (await encryptAttachment(ROOM_ID, new Blob([new Uint8Array([7, 7, 7])]))).arrayBuffer();
-    addGeneration(ROOM_ID);
-    fetchMock.mockResolvedValue(new Response(ciphertext));
+  function binding(slot: AttachmentBinding['slot'], messageId = MESSAGE_ID): AttachmentBinding {
+    return { roomId: ROOM_ID, messageId, slot };
+  }
 
-    const resolved = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, { name: 'p', mimeType: 'image/webp', size: 3 }, 'image');
+  async function sealedImageMessage(messageId = MESSAGE_ID) {
+    const content = await sealAttachment(new Blob([new Uint8Array([7, 7, 7])]), binding('content', messageId));
+    const thumbnail = await sealAttachment(new Blob([new Uint8Array([8, 8])]), binding('thumbnail', messageId));
+    const objects = new Map([
+      [MEDIA_URL, await content.ciphertext.arrayBuffer()],
+      [THUMB_URL, await thumbnail.ciphertext.arrayBuffer()],
+    ]);
+    fetchMock.mockImplementation((input) => Promise.resolve(new Response(objects.get(input as string)?.slice(0) ?? null, { status: 200 })));
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      type: 'image',
+      content: MEDIA_URL,
+      messageId,
+      fileMeta: { name: 'p.webp', mimeType: 'image/webp', size: 3, thumbnailUrl: THUMB_URL, key: content.key, thumbnailKey: thumbnail.key },
+    });
+    return { encrypted, contentKey: content.key, thumbnailKey: thumbnail.key };
+  }
 
-    expect(resolved).toBe('blob:https://app.test/decrypted');
+  it('decrypts the thumbnail and keeps both keys for the deferred original after a room key rotation', async () => {
+    addGeneration(ROOM_ID);
+    const { encrypted, contentKey, thumbnailKey } = await sealedImageMessage();
+    addGeneration(ROOM_ID);
+
+    const view = toMessageView({ id: MESSAGE_ID, type: 'image', content: encrypted.content, fileMeta: encrypted.fileMeta ?? null });
+    const decrypted = await decryptMessageView(socket, view);
+
+    expect(decrypted.content).toBe(MEDIA_URL);
+    expect(decrypted.fileMeta?.thumbnailUrl).toMatch(/^blob:/);
+    expect(decrypted.fileMeta).toMatchObject({ name: 'p.webp', mimeType: 'image/webp', key: contentKey, thumbnailKey });
+    expect(decrypted.unencrypted).toBe(false);
+
+    const original = await decryptMediaContentIfNeeded(MEDIA_URL, { roomId: ROOM_ID, messageId: MESSAGE_ID, fileMeta: decrypted.fileMeta, messageType: 'image' });
+    expect(original).toMatch(/^blob:/);
   });
 
-  it('does not decrypt a legacy attachment without a key id header', async () => {
+  it('ignores keys that were swapped between fields or sent in plaintext', async () => {
+    addGeneration(ROOM_ID);
+    const { encrypted, contentKey } = await sealedImageMessage();
+    const swapped = { ...encrypted.fileMeta, name: 'x', mimeType: 'x', size: 1, key: encrypted.fileMeta?.thumbnailKey, thumbnailKey: encrypted.fileMeta?.key };
+    const swappedView = await decryptMessageView(socket, toMessageView({ id: MESSAGE_ID, type: 'image', content: MEDIA_URL, fileMeta: swapped }));
+    expect(swappedView.fileMeta?.key).toBeUndefined();
+    expect(swappedView.fileMeta?.thumbnailKey).toBeUndefined();
+
+    const plain = { ...encrypted.fileMeta, name: 'x', mimeType: 'x', size: 1, key: contentKey };
+    const plainView = await decryptMessageView(socket, toMessageView({ id: MESSAGE_ID, type: 'image', content: MEDIA_URL, fileMeta: plain }));
+    expect(plainView.fileMeta?.key).toBeUndefined();
+    expect(plainView.unencrypted).toBe(true);
+  });
+
+  it('does not open a message whose sealed fields were moved to another message id', async () => {
+    addGeneration(ROOM_ID);
+    const { encrypted } = await sealedImageMessage();
+    const moved = await decryptMessageView(
+      socket,
+      toMessageView({ id: OTHER_MESSAGE_ID, type: 'image', content: MEDIA_URL, fileMeta: encrypted.fileMeta ?? null }),
+    );
+    expect(moved.fileMeta?.key).toBeUndefined();
+    expect(moved.fileMeta?.thumbnailUrl).toBe(THUMB_URL);
+  });
+
+  it('does not decrypt the old room key attachment format', async () => {
     const sodium = await getSodium();
-    const { key } = addGeneration(ROOM_ID);
+    const { key, keyId } = addGeneration(ROOM_ID);
+    const keyIdBytes = sodium.from_base64(keyId, sodium.base64_variants.URLSAFE_NO_PADDING);
     const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
     const sealed = sodium.crypto_secretbox_easy(new Uint8Array(64), nonce, key);
-    const legacy = new Uint8Array(nonce.length + sealed.length);
-    legacy.set(nonce, 0);
-    legacy.set(sealed, nonce.length);
+    const legacy = new Uint8Array([...keyIdBytes, ...nonce, ...sealed]);
     fetchMock.mockResolvedValue(new Response(legacy));
 
-    const resolved = await decryptMediaContentIfNeeded(socket, MEDIA_URL, ROOM_ID, { name: 'p', mimeType: 'image/webp', size: 3 }, 'image');
+    const roomKeyAsFileKey = sodium.to_base64(key, sodium.base64_variants.URLSAFE_NO_PADDING);
+    const resolved = await decryptMediaContentIfNeeded(MEDIA_URL, {
+      roomId: ROOM_ID,
+      messageId: MESSAGE_ID,
+      fileMeta: { name: 'p', mimeType: 'image/webp', size: 3, key: roomKeyAsFileKey },
+      messageType: 'image',
+    });
 
     expect(resolved).toBe(MEDIA_URL);
-  });
-
-  it('refuses to encrypt an attachment without a current generation', async () => {
-    await expect(encryptAttachment(ROOM_ID, new Blob([new Uint8Array([1])]))).rejects.toBeInstanceOf(MissingRoomKeyError);
   });
 });

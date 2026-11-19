@@ -797,17 +797,25 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     const uploadGeneration = beginUpload(type);
     for (const file of files) {
       try {
+        const target = { roomId: targetRoomId, messageId: crypto.randomUUID() };
         const uploaded: UploadedFile =
           type === 'image'
-            ? { ...(await uploadChatImage(file, auth, targetRoomId)), name: file.name, size: file.size }
-            : await uploadChatFile(file, auth, targetRoomId);
+            ? { ...(await uploadChatImage(file, auth, target)), name: file.name, size: file.size }
+            : await uploadChatFile(file, auth, target);
         sendMessage({
+          messageId: target.messageId,
           content: uploaded.url,
           type,
           replyTo: isFirstSent ? replyTo : null,
           caption: isFirstSent ? caption : undefined,
           mentionedUserIds: isFirstSent ? captionMentionedUserIds : undefined,
-          fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size, thumbnailUrl: uploaded.thumbnailUrl },
+          fileMeta: {
+            name: uploaded.name,
+            mimeType: uploaded.mimeType,
+            size: uploaded.size,
+            key: uploaded.key,
+            ...(uploaded.thumbnailUrl && uploaded.thumbnailKey ? { thumbnailUrl: uploaded.thumbnailUrl, thumbnailKey: uploaded.thumbnailKey } : {}),
+          },
         });
         isFirstSent = false;
       } catch (error) {
@@ -828,13 +836,15 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     }
     const audioUploadGeneration = beginUpload('audio');
     try {
-      const uploaded = await uploadChatAudio(blob, mimeType, auth, room.id);
+      const messageId = crypto.randomUUID();
+      const uploaded = await uploadChatAudio(blob, mimeType, auth, { roomId: room.id, messageId });
       sendMessage({
+        messageId,
         content: uploaded.url,
         type: 'audio',
         duration,
         replyTo: audioReplyTo,
-        fileMeta: { name: `audio-${Date.now()}`, mimeType: uploaded.mimeType, size: blob.size },
+        fileMeta: { name: `audio-${Date.now()}`, mimeType: uploaded.mimeType, size: blob.size, key: uploaded.key },
       });
       setRepliedMessage((current) => (current && audioReplyTo && current.id === audioReplyTo.id ? null : current));
     } catch (error) {
@@ -876,10 +886,21 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       const textReplyTo = repliedMessage;
       const targetRoomId = room.id;
       if (linkPreview?.image) {
+        const messageId = crypto.randomUUID();
         uploads.push(
-          finalizeComposerLinkPreview(linkPreview, (image) => uploadLinkPreviewImage(image, auth, targetRoomId)).then((outgoingPreview) => {
-            sendMessage({ content: trimmed, type: 'text', replyTo: textReplyTo, mentionedUserIds, linkPreview: outgoingPreview });
-          }),
+          finalizeComposerLinkPreview(linkPreview, (image) => uploadLinkPreviewImage(image, auth, { roomId: targetRoomId, messageId })).then(
+            (outgoing) => {
+              sendMessage({
+                messageId,
+                content: trimmed,
+                type: 'text',
+                replyTo: textReplyTo,
+                mentionedUserIds,
+                linkPreview: outgoing.linkPreview,
+                fileMeta: outgoing.fileMeta,
+              });
+            },
+          ),
         );
       } else {
         sendMessage({ content: trimmed, type: 'text', replyTo: textReplyTo, mentionedUserIds, linkPreview: linkPreview?.preview });

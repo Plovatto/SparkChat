@@ -65,16 +65,14 @@ describe('loginWithPassword', () => {
     await expect(resolveAuthParams('user-1', 'alice')).resolves.toEqual({ version: 2, salt: FIXED_SALT });
   });
 
-  it('keeps the legacy plaintext login for v1 accounts', async () => {
+  it('refuses legacy v1 auth params and never sends the plaintext password', async () => {
     const calls = mockFetch({
       '/api/users/auth-params': () => jsonResponse({ version: 1 }),
-      '/api/users/login': () => jsonResponse({ message: 'ok', user: USER, sessionToken: 'tok', authVersion: 1 }),
+      '/api/users/login': () => jsonResponse({ message: 'ok', user: USER, sessionToken: 'tok' }),
     });
 
-    const outcome = await loginWithPassword('alice', 'secret-password');
-
-    expect(bodyOf(calls[1])).toEqual({ nickname: 'alice', password: 'secret-password' });
-    expect(outcome.credential).toEqual({ type: 'password', password: 'secret-password' });
+    await expect(loginWithPassword('alice', 'secret-password')).rejects.toThrow();
+    expect(calls).toHaveLength(1);
   });
 
   it('never falls back to sending the password when auth params fail', async () => {
@@ -114,19 +112,14 @@ describe('loginWithRecoveryFile', () => {
     expect(outcome.user.authMethod).toBe('keyfile');
   });
 
-  it('uploads legacy files to the legacy endpoint', async () => {
+  it('rejects legacy files locally without uploading them', async () => {
     const file = new File([new Uint8Array([1, 2, 3, 250, 251])], 'old.sparkkey');
     const calls = mockFetch({
       '/api/users/login-with-keyfile': () => jsonResponse({ message: 'ok', user: USER, sessionToken: 'tok', recoveryToken: 'legacy-token' }),
     });
 
-    const outcome = await loginWithRecoveryFile(file);
-
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe('https://api.test/api/users/login-with-keyfile');
-    expect(calls[0]?.init?.body).toBeInstanceOf(FormData);
-    expect(outcome.credential).toEqual({ type: 'keyfile', recoveryToken: 'legacy-token' });
-    await expect(resolveAuthParams('user-1', 'alice')).resolves.toEqual({ version: 1 });
+    await expect(loginWithRecoveryFile(file)).rejects.toMatchObject({ code: 'auth.keyfileInvalid' });
+    expect(calls).toHaveLength(0);
   });
 
   it('surfaces a rejected v2 recovery login', async () => {

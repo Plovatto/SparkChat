@@ -72,6 +72,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
         isOpen={isModalOpen}
         images={[message.content]}
         roomId={message.roomId}
+        messageIds={[message.id]}
         fileMetas={[message.fileMeta]}
         onClose={() => setIsModalOpen(false)}
       />

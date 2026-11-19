@@ -14,15 +14,11 @@ import {
 import { LoginScreen, rememberAuthParams, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
-  buildRecoveryFileOnce,
   completeRegistration,
-  ensureIdentityAfterKeyfileLogin,
-  ensureIdentityAfterPasswordLogin,
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
   hydrateCurrentIdentity,
   prepareInviteJoin,
-  upgradeLegacyCredentials,
 } from '@lib/e2ee';
 import {
   useAudioContextPrimer,
@@ -52,17 +48,12 @@ interface RecoveryFilePrompt {
   userId: string;
   nickname: string;
   recoveryFile: string;
-  isUpgrade: boolean;
 }
 
 function restoreIdentityForCredential(socket: AppSocket, userId: string, credential: PendingE2eCredential | null): Promise<void> {
   switch (credential?.type) {
-    case 'password':
-      return ensureIdentityAfterPasswordLogin(socket, userId, credential.password);
     case 'password-v2':
       return ensureIdentityAfterPasswordLoginV2(socket, userId, credential.wrapKey).finally(() => credential.wrapKey.fill(0));
-    case 'keyfile':
-      return ensureIdentityAfterKeyfileLogin(socket, userId, credential.recoveryToken);
     case 'recovery-v2':
       return ensureIdentityAfterRecoveryLogin(socket, userId, credential.recoveryWrapKey).finally(() => credential.recoveryWrapKey.fill(0));
     default:
@@ -70,8 +61,8 @@ function restoreIdentityForCredential(socket: AppSocket, userId: string, credent
   }
 }
 
-function toRecoveryFilePrompt(userId: string, nickname: string, isUpgrade: boolean) {
-  return (recoveryFile: string | null): RecoveryFilePrompt | null => (recoveryFile ? { userId, nickname, recoveryFile, isUpgrade } : null);
+function toRecoveryFilePrompt(userId: string, nickname: string) {
+  return (recoveryFile: string | null): RecoveryFilePrompt | null => (recoveryFile ? { userId, nickname, recoveryFile } : null);
 }
 
 export function App() {
@@ -165,7 +156,7 @@ function AuthGate({
         const { credentials } = registration;
         rememberAuthParams(registered.id, { version: 2, salt: credentials.authSalt });
         void completeRegistration(socket, registered.id, registered.nickname, credentials)
-          .then(toRecoveryFilePrompt(registered.id, registered.nickname, false))
+          .then(toRecoveryFilePrompt(registered.id, registered.nickname))
           .then((prompt) => {
             if (prompt) {
               setRecoveryFilePrompt(prompt);
@@ -195,26 +186,6 @@ function AuthGate({
       const restoreIdentity = restoreIdentityForCredential(socket, resumed.id, credential);
 
       void restoreIdentity.finally(() => setIsSocketReady(true));
-
-      if (credential?.type === 'password') {
-        void restoreIdentity
-          .then(() => upgradeLegacyCredentials(socket, resumed.id, credential.password))
-          .then(async (upgraded) => {
-            if (!upgraded) {
-              return;
-            }
-            rememberAuthParams(resumed.id, { version: 2, salt: upgraded.authSalt });
-            const prompt = toRecoveryFilePrompt(
-              resumed.id,
-              resumed.nickname,
-              true,
-            )(await buildRecoveryFileOnce({ userId: resumed.id, nickname: resumed.nickname, secret: upgraded.recoverySecret }));
-            if (prompt) {
-              setRecoveryFilePrompt(prompt);
-            }
-          })
-          .catch((error: unknown) => console.error('[e2e] credential upgrade failed', error));
-      }
     },
     onResumeFailed: onLogout,
     onSessionRevoked: onLogout,
@@ -277,8 +248,7 @@ function AuthGate({
         nickname={recoveryFilePrompt?.nickname ?? ''}
         recoveryFile={recoveryFilePrompt?.recoveryFile ?? ''}
         onClose={() => setRecoveryFilePrompt(null)}
-        isFirstDownload={!recoveryFilePrompt?.isUpgrade}
-        isUpgrade={recoveryFilePrompt?.isUpgrade ?? false}
+        isFirstDownload
       />
     </AppBackground>
   );

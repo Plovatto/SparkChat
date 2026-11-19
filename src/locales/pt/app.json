@@ -41,7 +41,6 @@
       "currentPasswordIncorrect": "Senha atual incorreta.",
       "credentialsInvalid": "Os dados de segurança enviados são inválidos. Tente novamente.",
       "credentialsIncomplete": "Faltam dados de segurança. Tente novamente.",
-      "credentialsAlreadyUpgraded": "A segurança da sua conta já está atualizada.",
       "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
       "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
     },
@@ -62,7 +61,8 @@
       "invalidMedia": "Conteúdo de mídia inválido.",
       "blocked": "Você não pode enviar mensagens nesta conversa devido a bloqueios.",
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
-      "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo."
+      "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
+      "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo."
     },
     "upload": {
       "missingFile_image": "Nenhuma imagem enviada.",
@@ -210,7 +210,6 @@
     "title": "Seu arquivo de recuperação",
     "intro": "Esse arquivo é a sua chave reserva para entrar na conta caso esqueça sua senha. Guarde em um lugar seguro — se você perder o arquivo e a senha ao mesmo tempo, ninguém consegue recuperar sua conta.",
     "noPassword": "O arquivo não contém sua senha. Quem tiver o arquivo consegue entrar na sua conta, então guarde-o só com você.",
-    "upgraded": "Atualizamos a segurança da sua conta. O arquivo de recuperação anterior deixou de funcionar — baixe este novo e substitua o antigo.",
     "replaceOld": "Se você já tinha um arquivo salvo, substitua-o por este — o anterior deixou de funcionar.",
     "download": "Baixar arquivo",
     "downloadAgain": "Baixar novamente",
@@ -544,8 +543,7 @@
     },
     "lastUsed": "Último uso: {{date}}",
     "revokeSession": "Encerrar esta sessão",
-    "nicknamePasswordHint": "Trocar o username gera um novo arquivo de recuperação e encerra as outras sessões. Confirme com a sua senha atual.",
-    "nicknamePasswordHintV2": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
+    "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
     "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
     "confirmRegenerate": "Gerar novo arquivo"
   },

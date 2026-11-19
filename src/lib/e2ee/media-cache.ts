@@ -2,12 +2,12 @@ const objectUrlsByKey = new Map<string, string>();
 const pendingByKey = new Map<string, Promise<string>>();
 let generation = 0;
 
-function cacheKeyOf(content: string, mimeType: string): string {
-  return `${mimeType}\n${content}`;
+function cacheKeyOf(content: string, scope: string): string {
+  return `${scope}\n${content}`;
 }
 
-export function resolveDecryptedMediaUrl(content: string, mimeType: string, decrypt: () => Promise<string | null>): Promise<string> {
-  const key = cacheKeyOf(content, mimeType);
+export function resolveDecryptedMediaUrl(content: string, scope: string, decrypt: () => Promise<string | null>): Promise<string> {
+  const key = cacheKeyOf(content, scope);
   const cached = objectUrlsByKey.get(key);
   if (cached) {
     return Promise.resolve(cached);

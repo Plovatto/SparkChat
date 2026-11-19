@@ -73,6 +73,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
         url={message.content}
         fileName={message.fileMeta?.name ?? t('chat.message.defaultVideoName')}
         roomId={message.roomId}
+        messageId={message.id}
         fileMeta={message.fileMeta}
       />
     </div>
