@@ -10,7 +10,7 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { getAudioProcessing, getProtectIp, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
 import { startRingtone, stopRingtone } from './lib/ringtone';
@@ -37,6 +37,10 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   roomsRef.current = rooms;
 
   useEffect(() => {
+    clearLegacyCallSettings();
+  }, []);
+
+  useEffect(() => {
     if (!socket) {
       return;
     }
@@ -51,7 +55,6 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
-      getProtectIp,
       isMobile: isMobileDevice,
       startRingtone,
       stopRingtone,

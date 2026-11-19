@@ -23,7 +23,6 @@ const MAX_FINGERPRINTS = 4;
 const MIN_RESTART_GAP_MS = 1_000;
 const FINGERPRINT_PATTERN = /^[a-z0-9-]+ (?:[0-9A-Fa-f]{2}:)*[0-9A-Fa-f]{2}$/;
 const SDP_FINGERPRINT = /^a=fingerprint:(\S+) (\S+)\s*$/gm;
-const CANDIDATE_TYPE = / typ (\w+)/;
 
 export interface PeerSessionDeps {
   createConnection: (config: RTCConfiguration) => RTCPeerConnection;
@@ -40,7 +39,6 @@ export interface IceRefresh {
 export interface PeerSessionOptions {
   role: CallRole;
   kind: CallKind;
-  protectIp: boolean;
   mobile: boolean;
   iceServers: RTCIceServer[];
   degrade?: DegradeStep | null;
@@ -76,17 +74,6 @@ export function extractSdpFingerprints(sdp: string): string[] {
     found.add(`${(match[1] ?? '').toLowerCase()} ${(match[2] ?? '').toUpperCase()}`);
   }
   return Array.from(found);
-}
-
-export function candidateType(candidate: string): string | null {
-  return CANDIDATE_TYPE.exec(candidate)?.[1] ?? null;
-}
-
-export function hasRelayServer(servers: readonly RTCIceServer[]): boolean {
-  return servers.some((server) => {
-    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-    return urls.some((url) => /^turns?:/i.test(url));
-  });
 }
 
 export function parseControlMessage(raw: unknown): ControlMessage | null {
@@ -171,7 +158,7 @@ export class PeerSession {
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
       iceCandidatePoolSize: 1,
-      iceTransportPolicy: options.protectIp ? 'relay' : 'all',
+      iceTransportPolicy: 'all',
     });
     this.bind();
   }
@@ -192,10 +179,6 @@ export class PeerSession {
   }
 
   start(): void {
-    if (this.options.protectIp && !hasRelayServer(this.options.iceServers)) {
-      this.fatal('relay-unavailable');
-      return;
-    }
     this.connectTimer = setTimeout(() => {
       this.connectTimer = null;
       if (!this.connected) {
@@ -332,9 +315,6 @@ export class PeerSession {
       this.options.sendSignal('end-of-candidates', {});
       return;
     }
-    if (this.options.protectIp && candidateType(candidate.candidate) !== 'relay') {
-      return;
-    }
     this.options.sendSignal('candidate', {
       candidate: {
         candidate: candidate.candidate,
@@ -351,9 +331,6 @@ export class PeerSession {
     }
     const raw = value as Record<string, unknown>;
     if (typeof raw.candidate !== 'string' || raw.candidate.length === 0 || raw.candidate.length > MAX_CANDIDATE_LENGTH) {
-      return;
-    }
-    if (this.options.protectIp && candidateType(raw.candidate) !== 'relay') {
       return;
     }
     if (this.receivedCandidates >= MAX_REMOTE_CANDIDATES) {
@@ -641,9 +618,6 @@ export class PeerSession {
   }
 
   private async isRelayed(): Promise<boolean> {
-    if (this.options.protectIp) {
-      return true;
-    }
     try {
       const report = await this.connection.getStats();
       let relayed = false;

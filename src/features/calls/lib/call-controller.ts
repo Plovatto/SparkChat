@@ -47,7 +47,6 @@ export type CallNoticeKind =
   | 'media-denied'
   | 'key-changed'
   | 'unverifiable'
-  | 'relay-unavailable'
   | 'other-tab'
   | 'disabled'
   | 'interrupted'
@@ -61,7 +60,6 @@ export interface CallNotice {
 export interface CallSnapshot {
   state: CallState;
   enabled: boolean;
-  relayAvailable: boolean;
   muted: boolean;
   cameraOn: boolean;
   cameraFailed: boolean;
@@ -92,7 +90,6 @@ export interface PeerSessionLike {
 export interface PeerSessionFactoryOptions {
   role: 'caller' | 'callee';
   kind: CallKind;
-  protectIp: boolean;
   mobile: boolean;
   iceServers: RTCIceServer[];
   degrade: DegradeStep | null;
@@ -125,7 +122,6 @@ export interface CallControllerDeps {
   acquireCamera: () => Promise<MediaStreamTrack | null>;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
-  getProtectIp: () => boolean;
   isMobile: () => boolean;
   startRingtone: (pattern: 'incoming' | 'outgoing') => void;
   stopRingtone: () => void;
@@ -150,7 +146,6 @@ interface Session {
   pendingSignals: OpenedSignal[];
   signalChain: Promise<void>;
   sendChain: Promise<void>;
-  protectIp: boolean;
   handledAccept: boolean;
   acceptConfirmed: boolean;
   acceptWaiters: Array<() => void>;
@@ -187,7 +182,6 @@ export function initialSnapshot(): CallSnapshot {
   return {
     state: IDLE_CALL_STATE,
     enabled: false,
-    relayAvailable: false,
     muted: false,
     cameraOn: false,
     cameraFailed: false,
@@ -282,7 +276,7 @@ export class CallController {
   }
 
   private onConfig(payload: CallConfigPayload): void {
-    this.update({ enabled: payload.enabled === true, relayAvailable: payload.relayAvailable === true });
+    this.update({ enabled: payload.enabled === true });
   }
 
   private async onIncoming(payload: {
@@ -340,7 +334,6 @@ export class CallController {
         pendingSignals: [],
         signalChain: Promise.resolve(),
         sendChain: Promise.resolve(),
-        protectIp: this.deps.getProtectIp(),
         handledAccept: false,
         acceptConfirmed: false,
         acceptWaiters: [],
@@ -374,11 +367,6 @@ export class CallController {
     }
     const identity = this.deps.getIdentity();
     if (!identity) {
-      return;
-    }
-    const protectIp = this.deps.getProtectIp();
-    if (protectIp && !this.snapshot.relayAvailable) {
-      this.update({ notice: { kind: 'relay-unavailable' } });
       return;
     }
     this.preparing = true;
@@ -431,7 +419,6 @@ export class CallController {
         pendingSignals: [],
         signalChain: Promise.resolve(),
         sendChain: Promise.resolve(),
-        protectIp,
         handledAccept: false,
         acceptConfirmed: false,
         acceptWaiters: [],
@@ -732,7 +719,7 @@ export class CallController {
         resolve(null);
       }, ICE_SERVERS_TIMEOUT_MS);
       this.pendingIce.set(session.callId, { resolve, reject, timer });
-      this.deps.socket.emit('call:ice-servers', { callId: session.callId, protectIp: session.protectIp });
+      this.deps.socket.emit('call:ice-servers', { callId: session.callId, protectIp: false });
     });
   }
 
@@ -931,11 +918,6 @@ export class CallController {
         this.machine.dispatch({ type: 'failure', callId: session.callId, detail: code });
         return;
       }
-      if (session.protectIp || code === 'call.relayUnavailable') {
-        this.update({ notice: { kind: 'relay-unavailable', code } });
-        this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'relay-unavailable' });
-        return;
-      }
     }
     if (this.session !== session) {
       return;
@@ -946,7 +928,6 @@ export class CallController {
     const peerSession = this.deps.createPeerSession({
       role: session.role,
       kind: session.kind,
-      protectIp: session.protectIp,
       mobile: this.deps.isMobile(),
       iceServers,
       degrade,

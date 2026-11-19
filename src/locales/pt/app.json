@@ -562,8 +562,7 @@
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
     "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
-    "confirmRegenerate": "Gerar novo arquivo",
-    "callProtectIp": "Proteger meu IP nas chamadas"
+    "confirmRegenerate": "Gerar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
@@ -642,7 +641,7 @@
     "remoteMuted": "Microfone desligado",
     "remoteCameraOff": "Câmera desligada",
     "cameraFailed": "Não foi possível usar a câmera. Seguindo só com áudio.",
-    "relayDegraded": "Vídeo desligado para economizar dados da conexão protegida.",
+    "relayDegraded": "Vídeo desligado para economizar dados na conexão retransmitida.",
     "videoDegraded": "Qualidade de vídeo reduzida.",
     "otherTab": "Chamada em outra aba",
     "otherTabHint": "Use a aba onde a chamada está ocorrendo.",
@@ -666,7 +665,6 @@
     "detail": {
       "fingerprint-mismatch": "A verificação de segurança da chamada falhou. A chamada foi encerrada.",
       "invalid-accept": "A resposta da chamada não pôde ser verificada.",
-      "relay-unavailable": "A retransmissão está indisponível e a opção Proteger meu IP está ligada.",
       "connect-timeout": "A conexão demorou demais.",
       "signal-failed": "Não foi possível enviar a sinalização da chamada.",
       "media-attach-failed": "Não foi possível enviar seu áudio ou vídeo na chamada."
@@ -675,7 +673,6 @@
       "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
       "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
       "unverifiable": "Não foi possível verificar este contato para chamadas.",
-      "relay-unavailable": "A retransmissão está indisponível. Desligue Proteger meu IP ou tente mais tarde.",
       "other-tab": "Já existe uma chamada em outra aba.",
       "disabled": "As chamadas estão indisponíveis no momento.",
       "interrupted": "Uma chamada anterior foi interrompida.",

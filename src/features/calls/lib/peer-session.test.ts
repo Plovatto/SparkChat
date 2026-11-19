@@ -12,9 +12,7 @@ import {
   PeerSession,
   VIDEO_DEGRADED_MAX_BITRATE,
   VIDEO_MAX_BITRATE,
-  candidateType,
   extractSdpFingerprints,
-  hasRelayServer,
   parseControlMessage,
   type ControlMessage,
   type DegradeStep,
@@ -182,8 +180,10 @@ class FakeConnection {
     return this.configuration;
   }
 
+  stats = new Map<string, Record<string, unknown>>();
+
   getStats(): Promise<Map<string, Record<string, unknown>>> {
-    return Promise.resolve(new Map<string, Record<string, unknown>>());
+    return Promise.resolve(this.stats);
   }
 
   close(): void {
@@ -224,7 +224,6 @@ function build(role: CallRole, overrides: Partial<PeerSessionOptions> = {}, hash
   const session = new PeerSession({
     role,
     kind: 'video',
-    protectIp: false,
     mobile: false,
     iceServers: TURN_SERVERS,
     localStream: localStream(['audio', 'video']),
@@ -247,6 +246,11 @@ function build(role: CallRole, overrides: Partial<PeerSessionOptions> = {}, hash
   harness.session = session;
   harness.connection = connection;
   return harness;
+}
+
+function relayed(connection: FakeConnection): void {
+  connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local' });
+  connection.stats.set('local', { type: 'local-candidate', candidateType: 'relay' });
 }
 
 function remoteDescription(type: 'offer' | 'answer', fingerprint = REMOTE_FP) {
@@ -282,18 +286,6 @@ afterEach(() => {
 describe('helpers', () => {
   it('extracts normalized fingerprints from an sdp', () => {
     expect(extractSdpFingerprints('a=fingerprint:SHA-256 aa:bb\r\nx\r\na=fingerprint:sha-256 aa:bb\r\n')).toEqual(['sha-256 AA:BB']);
-  });
-
-  it('reads the candidate type', () => {
-    expect(candidateType(HOST)).toBe('host');
-    expect(candidateType(RELAY)).toBe('relay');
-    expect(candidateType('garbage')).toBeNull();
-  });
-
-  it('detects relay servers', () => {
-    expect(hasRelayServer(TURN_SERVERS)).toBe(true);
-    expect(hasRelayServer([{ urls: 'stun:stun.example:3478' }])).toBe(false);
-    expect(hasRelayServer([{ urls: 'turns:turn.example:443' }])).toBe(true);
   });
 
   it('parses only well formed control messages', () => {
@@ -440,29 +432,29 @@ describe('callee negotiation', () => {
   });
 });
 
-describe('protect my IP', () => {
-  it('uses the relay transport policy and filters candidates in both directions', async () => {
-    const h = build('caller', { protectIp: true });
+describe('normal ice policy', () => {
+  it('always uses the normal transport policy and forwards every candidate type in both directions', async () => {
+    const h = build('caller');
     h.session.start();
     await settle();
 
-    expect(h.connection.configuration.iceTransportPolicy).toBe('relay');
+    expect(h.connection.configuration.iceTransportPolicy).toBe('all');
     h.connection.onicecandidate?.({ candidate: { candidate: HOST, sdpMid: '0', sdpMLineIndex: 0 } });
     h.connection.onicecandidate?.({ candidate: { candidate: RELAY, sdpMid: '0', sdpMLineIndex: 0 } });
-    expect(h.signals.filter((signal) => signal.type === 'candidate')).toHaveLength(1);
+    expect(h.signals.filter((signal) => signal.type === 'candidate')).toHaveLength(2);
 
     await h.session.receiveSignal('answer', remoteDescription('answer'));
     await h.session.receiveSignal('candidate', candidatePayload(HOST));
     await h.session.receiveSignal('candidate', candidatePayload(RELAY));
-    expect(h.connection.added.map((candidate) => candidate.candidate)).toEqual([RELAY]);
+    expect(h.connection.added.map((candidate) => candidate.candidate)).toEqual([HOST, RELAY]);
   });
 
-  it('fails instead of exposing the IP when no relay server is available', () => {
-    const h = build('caller', { protectIp: true, iceServers: [{ urls: 'stun:stun.example:3478' }] });
+  it('starts without a relay server instead of failing', () => {
+    const h = build('caller', { iceServers: [{ urls: 'stun:stun.example:3478' }] });
     h.session.start();
 
-    expect(h.fatals).toEqual(['relay-unavailable']);
-    expect(h.connection.transceivers).toHaveLength(0);
+    expect(h.fatals).toEqual([]);
+    expect(h.connection.transceivers.length).toBeGreaterThan(0);
   });
 });
 
@@ -898,7 +890,11 @@ describe('bitrate caps and degrade', () => {
   });
 
   it('drops video for audio-only-relay when the call is relayed', async () => {
-    const h = await connected({ degrade: 'audio-only-relay', protectIp: true });
+    const h = build('caller', { degrade: 'audio-only-relay' });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    await verify(h);
 
     expect(h.connection.transceivers[1]?.sender.track).toBeNull();
     expect(h.degrades).toContain('audio-only-relay');

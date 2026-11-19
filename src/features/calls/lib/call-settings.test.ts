@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAudioProcessing, setAudioProcessing } from './call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, setAudioProcessing } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -41,5 +41,27 @@ describe('audio processing settings', () => {
   it('ignores stored values that are not booleans', () => {
     localStorage.setItem('chatCallAudioProcessing', JSON.stringify({ noiseSuppression: 'no', echoCancellation: false, autoGainControl: 3 }));
     expect(getAudioProcessing()).toEqual({ noiseSuppression: true, echoCancellation: false, autoGainControl: true, voiceIsolation: false });
+  });
+});
+
+describe('legacy protect my IP setting', () => {
+  it('deletes the stored protect my IP key and keeps the other settings', () => {
+    localStorage.setItem('chatCallProtectIp', 'true');
+    setAudioProcessing({ voiceIsolation: true });
+
+    clearLegacyCallSettings();
+
+    expect(localStorage.getItem('chatCallProtectIp')).toBeNull();
+    expect(getAudioProcessing().voiceIsolation).toBe(true);
+  });
+
+  it('does not throw when storage is unavailable', () => {
+    vi.stubGlobal('localStorage', {
+      removeItem: () => {
+        throw new Error('blocked');
+      },
+    });
+
+    expect(() => clearLegacyCallSettings()).not.toThrow();
   });
 });

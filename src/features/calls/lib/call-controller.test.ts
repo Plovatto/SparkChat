@@ -165,7 +165,6 @@ function makeNode(self: Party, resolve: (userId: string) => Promise<ResolvedPeer
       node.peers.push(peer);
       return peer;
     },
-    getProtectIp: () => false,
     isMobile: () => false,
     startRingtone: (pattern) => node.rings.push(pattern),
     stopRingtone: () => node.rings.push('stop'),
@@ -257,7 +256,7 @@ describe('availability', () => {
     expect(node.controller.getSnapshot().notice).toEqual({ kind: 'disabled' });
     expect(node.socket.sent('call:start')).toHaveLength(0);
     node.socket.receive('call:config', { enabled: true, relayAvailable: false });
-    expect(node.controller.getSnapshot()).toMatchObject({ enabled: true, relayAvailable: false });
+    expect(node.controller.getSnapshot()).toMatchObject({ enabled: true });
     expect(node.socket.sent('call:sync')).toHaveLength(0);
   });
 
@@ -274,7 +273,7 @@ describe('availability', () => {
     const node = makeNode(alice, () => Promise.resolve({ error: 'unverifiable' }), { socket });
 
     expect(node.socket.sent('call:sync')).toHaveLength(1);
-    expect(node.controller.getSnapshot()).toMatchObject({ enabled: true, relayAvailable: true });
+    expect(node.controller.getSnapshot()).toMatchObject({ enabled: true });
 
     socket.receive('connect', undefined);
     socket.receive('user:resumed', {});
@@ -289,14 +288,22 @@ describe('availability', () => {
     expect(node.socket.sent('call:sync')).toHaveLength(0);
   });
 
-  it('refuses protect-my-IP calls when relay is unavailable instead of exposing the IP', async () => {
-    const w = await world({ alice: { getProtectIp: () => true } });
+  it('calls even when the server has no relay and never asks for relay-only ice', async () => {
+    const w = await world();
     w.a.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    w.b.socket.receive('call:config', { enabled: true, relayAvailable: false });
 
-    await w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await connectCall(w);
 
-    expect(w.a.controller.getSnapshot().notice).toEqual({ kind: 'relay-unavailable' });
-    expect(w.a.socket.sent('call:start')).toHaveLength(0);
+    expect(w.a.socket.sent('call:start')).toHaveLength(1);
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
+    expect('relayAvailable' in w.a.controller.getSnapshot()).toBe(false);
+    for (const node of [w.a, w.b]) {
+      const requests = node.socket.sent('call:ice-servers');
+      expect(requests.length).toBeGreaterThan(0);
+      expect(requests.every((request) => request.protectIp === false)).toBe(true);
+      expect(node.peers[0]?.options).not.toHaveProperty('protectIp');
+    }
   });
 });
 
@@ -664,8 +671,8 @@ describe('server events', () => {
     expect(w.a.controller.getSnapshot().notice).toBeNull();
   });
 
-  it('fails the call when relay is required but the server says it is unavailable', async () => {
-    const w = await world({ alice: { getProtectIp: () => true } });
+  it('keeps connecting with the fallback stun server when the server says relay is unavailable', async () => {
+    const w = await world();
     w.b.socket.onEmit = () => undefined;
     const original = w.a.socket.onEmit;
     w.a.socket.onEmit = (event, payload) => {
@@ -685,9 +692,10 @@ describe('server events', () => {
     w.a.socket.receive('call:accepted', { callId, envelope: w.b.socket.sent('call:accept')[0]!.envelope, deviceId: 'd' });
     await settle();
 
-    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed', detail: 'relay-unavailable' });
-    expect(w.a.controller.getSnapshot().notice).toMatchObject({ kind: 'relay-unavailable' });
-    expect(w.a.peers).toHaveLength(0);
+    expect(w.a.controller.getSnapshot().state.phase).not.toBe('ended');
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
+    expect(w.a.peers).toHaveLength(1);
+    expect(w.a.peers[0]!.options.iceServers).toEqual([FALLBACK_STUN]);
   });
 
   it('ends a live call locally when the server reports no active call after reconnecting', async () => {
