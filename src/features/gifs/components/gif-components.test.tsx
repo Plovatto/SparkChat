@@ -62,6 +62,27 @@ describe('GifPanel', () => {
 });
 
 describe('GifTile', () => {
+  it('enters with a staggered tile animation and marks the picked gif', () => {
+    const html = renderToStaticMarkup(
+      <GifTile
+        item={ITEM}
+        index={27}
+        auth={AUTH}
+        scrollRoot={null}
+        isFocusTarget={false}
+        isPicked
+        onPick={() => undefined}
+        onKeyNavigate={() => undefined}
+        registerTile={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('sc-anim-tile-in sc-stagger');
+    expect(html).toContain('--sc-stagger-index:3');
+    expect(html).toContain('data-picked="true"');
+    expect(html).toContain('sc-gif-tile');
+  });
+
   it('labels each gif with its title and reserves its proportion before loading', () => {
     const html = renderTile();
 
@@ -83,6 +104,17 @@ describe('GifTile', () => {
     expect(html).toContain('data-loaded="true"');
     expect(html).toContain('data-shown="false"');
     expect(html).toContain('aria-disabled="true"');
+  });
+});
+
+describe('GifPanel motion', () => {
+  it('animates in and switches to the exit animation while closing', () => {
+    const open = renderToStaticMarkup(<GifPanel auth={AUTH} locale="br" onPick={() => undefined} onClose={() => undefined} />);
+    const closing = renderToStaticMarkup(<GifPanel auth={AUTH} locale="br" onPick={() => undefined} onClose={() => undefined} isExiting />);
+
+    expect(open).toContain('sc-gif-panel');
+    expect(open).not.toContain('is-exiting');
+    expect(closing).toContain('sc-gif-panel is-exiting');
   });
 });
 

@@ -9,18 +9,21 @@ import { useVisibleOnce } from '../hooks/useVisibleOnce';
 import { pickDisplayedGif } from '../utils/gif-media-cache';
 import { tileAspectRatio } from '../utils/masonry-layout';
 
+const GIF_STAGGER_WINDOW = 24;
+
 interface GifTileProps {
   item: GifItem;
   index: number;
   auth: SessionAuth;
   scrollRoot: Element | null;
   isFocusTarget: boolean;
+  isPicked?: boolean;
   onPick: (item: GifItem, displayedBlob: Blob | null) => void;
   onKeyNavigate: (index: number, event: KeyboardEvent<HTMLButtonElement>) => void;
   registerTile: (index: number, element: HTMLButtonElement | null) => void;
 }
 
-export const GifTile = memo(function GifTile({ item, index, auth, scrollRoot, isFocusTarget, onPick, onKeyNavigate, registerTile }: GifTileProps) {
+export const GifTile = memo(function GifTile({ item, index, auth, scrollRoot, isFocusTarget, isPicked = false, onPick, onKeyNavigate, registerTile }: GifTileProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -32,7 +35,19 @@ export const GifTile = memo(function GifTile({ item, index, auth, scrollRoot, is
   const label = item.title.trim() || t('gifs.untitled');
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', aspectRatio: `1 / ${tileAspectRatio(item)}` }}>
+    <div
+      ref={wrapperRef}
+      className="sc-anim-tile-in sc-stagger"
+      style={
+        {
+          position: 'relative',
+          width: '100%',
+          aspectRatio: `1 / ${tileAspectRatio(item)}`,
+          '--sc-stagger-index': index % GIF_STAGGER_WINDOW,
+          '--sc-stagger-step': '28ms',
+        } as CSSProperties
+      }
+    >
       <button
         ref={(element) => registerTile(index, element)}
         type="button"
@@ -40,13 +55,14 @@ export const GifTile = memo(function GifTile({ item, index, auth, scrollRoot, is
         data-gif-id={item.id}
         data-loaded={entry ? 'true' : 'false'}
         data-shown={isShown ? 'true' : 'false'}
+        data-picked={isPicked ? 'true' : undefined}
         aria-label={label}
         aria-disabled={isShown ? undefined : true}
         title={label}
         tabIndex={isFocusTarget ? 0 : -1}
         onClick={() => onPick(item, pickDisplayedGif(entry, isShown))}
         onKeyDown={(event) => onKeyNavigate(index, event)}
-        className={isShown ? 'sc-media-thumb' : failed ? undefined : 'shimmer-bg'}
+        className={isShown || failed ? 'sc-gif-tile' : 'sc-gif-tile shimmer-bg'}
         style={
           {
             position: 'absolute',
@@ -67,7 +83,7 @@ export const GifTile = memo(function GifTile({ item, index, auth, scrollRoot, is
             alt=""
             draggable={false}
             onLoad={() => setShownUrl(objectUrl)}
-            className="sc-anim-fade-in"
+            className="sc-gif-reveal"
             style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
           />
         )}

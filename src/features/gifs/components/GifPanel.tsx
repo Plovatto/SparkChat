@@ -25,9 +25,10 @@ interface GifPanelProps {
   onDismiss?: () => void;
   ignoreOutsideRef?: RefObject<HTMLElement | null>;
   autoFocusSearch?: boolean;
+  isExiting?: boolean;
 }
 
-export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsideRef, autoFocusSearch = true }: GifPanelProps) {
+export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsideRef, autoFocusSearch = true, isExiting = false }: GifPanelProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { state, controller } = useGifGallery(auth, locale);
@@ -38,6 +39,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
   const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const [focusIndex, setFocusIndex] = useState(0);
   const [notReadyNotice, setNotReadyNotice] = useState(false);
+  const [pickedId, setPickedId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const gridWidth = useElementWidth(gridRef);
   const columnCount = gifColumnCount(gridWidth);
@@ -107,12 +109,13 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
   }, []);
 
   const handlePick = useCallback(
-    (_item: GifItem, displayedBlob: Blob | null) => {
+    (item: GifItem, displayedBlob: Blob | null) => {
       const blob = displayedBlob;
       if (!blob) {
         setNotReadyNotice(true);
         return;
       }
+      setPickedId(item.id);
       onPick(blob);
       onClose();
     },
@@ -158,6 +161,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
                 auth={auth}
                 scrollRoot={scrollRoot}
                 isFocusTarget={index === focusIndex}
+                isPicked={item.id === pickedId}
                 onPick={handlePick}
                 onKeyNavigate={handleTileKeyDown}
                 registerTile={registerTile}
@@ -170,7 +174,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
   );
 
   const renderSkeleton = () => (
-    <div data-testid="gif-loading" aria-busy="true" style={{ display: 'flex', gap: '6px' }}>
+    <div data-testid="gif-loading" aria-busy="true" className="sc-anim-fade-in" style={{ display: 'flex', gap: '6px' }}>
       {[0, 1].map((columnIndex) => (
         <div key={columnIndex} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {SKELETON_TILES.filter((_, index) => index % 2 === columnIndex).map((ratio, index) => (
@@ -186,6 +190,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
     <div
       data-testid={testId}
       role={withRetry ? 'alert' : 'status'}
+      className="sc-anim-rise-in"
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '32px 12px', textAlign: 'center', color: theme.textSecondary, fontSize: '0.85rem' }}
     >
       <span>{text}</span>
@@ -224,7 +229,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
       data-testid="gif-panel"
       role="dialog"
       aria-label={t('gifs.panelLabel')}
-      className="chat-preview-bar sc-anim-rise-in"
+      className={`chat-preview-bar sc-gif-panel${isExiting ? ' is-exiting' : ''}`}
       style={{
         display: 'flex',
         flexDirection: 'column',

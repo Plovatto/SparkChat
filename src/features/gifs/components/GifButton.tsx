@@ -30,7 +30,7 @@ export const GifButton = forwardRef<HTMLButtonElement, GifButtonProps>(function 
       aria-label={label}
       aria-expanded={isOpen}
       aria-haspopup="dialog"
-      className={`sc-icon-btn ${isOpen ? 'sc-icon-btn--soft' : 'sc-icon-btn--muted'} sc-anim-pop-in`}
+      className={`sc-gif-btn sc-icon-btn ${isOpen ? 'sc-icon-btn--soft' : 'sc-icon-btn--muted'} sc-anim-pop-in`}
       style={{ width: '44px', height: '44px', flexShrink: 0 }}
     >
       <MdGifBox size={24} />

@@ -21,6 +21,7 @@ export function GifExpiredBlock() {
     <div style={{ padding: '0 10px' }}>
       <div
         data-testid="gif-expired"
+        className="sc-anim-fade-in"
         role="note"
         style={{
           display: 'flex',

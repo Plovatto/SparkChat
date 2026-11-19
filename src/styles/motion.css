@@ -1011,3 +1011,112 @@ html.sc-theme-transition *::after {
     transition-duration: 1ms !important;
   }
 }
+
+@keyframes scGifPanelIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scGifPanelOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.99);
+  }
+}
+
+@keyframes scGifReveal {
+  from {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.sc-gif-panel {
+  transform-origin: 50% 100%;
+  animation: scGifPanelIn var(--sc-dur-normal) var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-gif-panel.is-exiting {
+  pointer-events: none;
+  animation: scGifPanelOut var(--sc-dur-fast) var(--sc-ease-exit) forwards;
+}
+
+.sc-gif-tile {
+  transition:
+    transform var(--sc-dur-fast) var(--sc-ease-spring-soft),
+    box-shadow var(--sc-dur-fast) var(--sc-ease-standard),
+    filter var(--sc-dur-fast) var(--sc-ease-standard);
+}
+
+.sc-gif-tile[data-shown='true']:active {
+  transform: scale(var(--sc-scale-press));
+}
+
+.sc-gif-tile[data-picked='true'] {
+  transform: scale(0.94);
+  box-shadow: 0 0 0 3px var(--sc-accent);
+}
+
+.sc-gif-tile:focus-visible {
+  box-shadow: 0 0 0 3px var(--sc-accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sc-gif-tile[data-shown='true']:hover {
+    transform: scale(var(--sc-scale-hover));
+    filter: brightness(1.06) saturate(1.05);
+  }
+}
+
+.sc-gif-reveal {
+  animation: scGifReveal var(--sc-dur-slow) var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-gif-btn svg {
+  transition: transform var(--sc-dur-normal) var(--sc-ease-spring);
+}
+
+.sc-gif-btn[aria-expanded='true'] svg {
+  transform: scale(1.1) rotate(-8deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-gif-panel,
+  .sc-gif-reveal {
+    animation-name: scFadeIn;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+  }
+
+  .sc-gif-panel.is-exiting {
+    animation-name: scFadeOut;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+  }
+
+  .sc-gif-tile,
+  .sc-gif-btn svg {
+    transition-duration: 1ms;
+  }
+
+  .sc-gif-tile[data-shown='true']:hover,
+  .sc-gif-tile[data-shown='true']:active,
+  .sc-gif-tile[data-picked='true'],
+  .sc-gif-btn[aria-expanded='true'] svg {
+    transform: none;
+  }
+}

@@ -15,6 +15,7 @@ import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
@@ -301,6 +302,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const isGifEnabled = isGifStatusEnabled && Boolean(onSendGif);
   const [isGifPanelOpen, setIsGifPanelOpen] = useState(false);
   const gifButtonRef = useRef<HTMLButtonElement>(null);
+  const gifPanelPresence = usePresence(isGifEnabled && isGifPanelOpen && !isBlockedBy && !userBlocked, MOTION_DURATION_MS.fast);
   const { language } = useAppLanguage();
 
   const closeGifPanel = useCallback(() => {
@@ -521,7 +523,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   return (
     <>
-      {isGifEnabled && isGifPanelOpen && !isBlocked && (
+      {gifPanelPresence.isPresent && (
         <GifPanel
           auth={auth}
           locale={gifLocaleFor(language)}
@@ -530,6 +532,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           onDismiss={dismissGifPanel}
           ignoreOutsideRef={gifButtonRef}
           autoFocusSearch={shouldAutoFocus}
+          isExiting={gifPanelPresence.isExiting}
         />
       )}
       {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
