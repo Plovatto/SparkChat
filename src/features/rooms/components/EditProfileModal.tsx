@@ -88,6 +88,32 @@ function InfoNotice({ icon, tone, children }: InfoNoticeProps) {
   );
 }
 
+interface SettingRowProps {
+  icon: ReactNode;
+  labelId: string;
+  label: string;
+  checked: boolean;
+  onChange: () => void;
+}
+
+function SettingRow({ icon, labelId, label, checked, onChange }: SettingRowProps) {
+  const { theme } = useTheme();
+
+  return (
+    <div className="sc-card" style={{ display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '10px', padding: '16px 16px', minHeight: '58px', boxSizing: 'border-box' }}>
+      <span aria-hidden="true" style={{ width: '20px', display: 'inline-flex', justifyContent: 'center', flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span id={labelId} style={{ flex: 1, minWidth: 0, fontWeight: 600, color: theme.textPrimary, fontSize: '0.92rem', lineHeight: 1.35, overflowWrap: 'anywhere' }}>
+        {label}
+      </span>
+      <span style={{ display: 'inline-flex', flexShrink: 0 }}>
+        <Switch checked={checked} onChange={onChange} aria-labelledby={labelId} />
+      </span>
+    </div>
+  );
+}
+
 export function EditProfileModal({
   isOpen,
   onClose,
@@ -642,64 +668,32 @@ export function EditProfileModal({
       )}
 
       {activeTab === 'system' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div
-            className="sc-card"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              borderRadius: '10px',
-              padding: '12px 16px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
-              <span id={soundsLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
-                {t('profile.sounds')}
-              </span>
-            </div>
-            <Switch checked={soundEnabled} onChange={onToggleSound} aria-labelledby={soundsLabelId} />
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <SettingRow
+            icon={soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
+            labelId={soundsLabelId}
+            label={t('profile.sounds')}
+            checked={soundEnabled}
+            onChange={onToggleSound}
+          />
+          <SettingRow
+            icon={notificationContentHidden ? <FaEyeSlash size={16} color={theme.accentText} /> : <FaEye size={16} color={theme.textMuted} />}
+            labelId={notificationContentLabelId}
+            label={t('profile.hideNotificationContent')}
+            checked={notificationContentHidden}
+            onChange={onToggleNotificationContent}
+          />
+          <SettingRow
+            icon={<FaShieldAlt size={16} color={protectCallIp ? theme.accentText : theme.textMuted} />}
+            labelId={callProtectIpLabelId}
+            label={t('profile.callProtectIp')}
+            checked={protectCallIp}
+            onChange={() => setProtectCallIp(!protectCallIp)}
+          />
 
-          <div
-            className="sc-card"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              borderRadius: '10px',
-              padding: '12px 16px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {notificationContentHidden ? <FaEyeSlash size={16} color={theme.accentText} /> : <FaEye size={16} color={theme.textMuted} />}
-              <span id={notificationContentLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
-                {t('profile.hideNotificationContent')}
-              </span>
-            </div>
-            <Switch
-              checked={notificationContentHidden}
-              onChange={onToggleNotificationContent}
-              aria-labelledby={notificationContentLabelId}
-            />
-          </div>
-
-          <div
-            className="sc-card"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', borderRadius: '10px', padding: '12px 16px' }}
-          >
-            <span id={callProtectIpLabelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
-              {t('profile.callProtectIp')}
-            </span>
-            <Switch checked={protectCallIp} onChange={() => setProtectCallIp(!protectCallIp)} aria-labelledby={callProtectIpLabelId} />
-          </div>
-
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
-              <small style={{ color: theme.textSecondary }}>{t('profile.activeSessions')}</small>
+          <div style={{ marginTop: '14px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '6px 10px', marginBottom: '10px' }}>
+              <small style={{ color: theme.textSecondary, overflowWrap: 'anywhere' }}>{t('profile.activeSessions')}</small>
               {otherSessionsCount > 0 && (
                 <button onClick={handleRevokeOtherSessions} className="sc-btn sc-btn--text-danger" style={{ fontSize: '0.78rem' }}>
                   {t('profile.revokeOthers')}
@@ -716,45 +710,31 @@ export function EditProfileModal({
                     className="sc-card"
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
+                      alignItems: 'flex-start',
                       justifyContent: 'space-between',
                       gap: '10px',
                       borderRadius: '10px',
-                      padding: '10px 14px',
+                      padding: '12px 14px',
                     }}
                   >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-                      <span
-                        style={{
-                          fontSize: '0.85rem',
-                          fontWeight: 600,
-                          color: theme.textPrimary,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.textPrimary, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
                         {session.device}
                         {session.isCurrent && <span style={{ color: theme.accentText, fontWeight: 600 }}> · {t('profile.thisDevice')}</span>}
                       </span>
-                      <span
-                        style={{
-                          fontSize: '0.78rem',
-                          color: theme.textSecondary,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          display: 'block',
-                        }}
-                      >
-                        {t(`profile.authMethod.${session.authMethod}`)} · {t('profile.lastUsed', { date: formatDateTime(session.lastUsedAt) })}
+                      <span style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+                        {t(`profile.authMethod.${session.authMethod}`)}
+                      </span>
+                      <span style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+                        {t('profile.lastUsed', { date: formatDateTime(session.lastUsedAt) })}
                       </span>
                     </div>
                     <button
                       onClick={() => handleRevokeSession(session.id)}
                       title={t('profile.revokeSession')}
+                      aria-label={t('profile.revokeSession')}
                       className="sc-icon-btn sc-icon-btn--danger-soft"
-                      style={{ width: '34px', height: '34px', borderRadius: '9px' }}
+                      style={{ width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0 }}
                     >
                       <FaSignOutAlt size={15} />
                     </button>

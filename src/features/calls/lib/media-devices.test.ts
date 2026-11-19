@@ -9,6 +9,25 @@ describe('constraints', () => {
     expect(audioConstraints('mic-1')).toMatchObject({ deviceId: { exact: 'mic-1' } });
   });
 
+  it('follows the chosen audio processing options', () => {
+    const off = { noiseSuppression: false, echoCancellation: false, autoGainControl: false, voiceIsolation: false };
+    expect(audioConstraints(undefined, off)).toMatchObject({ echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+    expect(audioConstraints(undefined, { ...off, noiseSuppression: true })).toMatchObject({ noiseSuppression: true, echoCancellation: false });
+    expect(audioConstraints(undefined, off)).not.toHaveProperty('voiceIsolation');
+  });
+
+  it('only asks for voice isolation when the browser supports it', () => {
+    const processing = { noiseSuppression: true, echoCancellation: true, autoGainControl: true, voiceIsolation: true };
+    expect(audioConstraints(undefined, processing)).not.toHaveProperty('voiceIsolation');
+    const original = navigator.mediaDevices;
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getSupportedConstraints: () => ({ voiceIsolation: true }) }, configurable: true });
+    try {
+      expect(audioConstraints(undefined, processing)).toMatchObject({ voiceIsolation: true });
+    } finally {
+      Object.defineProperty(navigator, 'mediaDevices', { value: original, configurable: true });
+    }
+  });
+
   it('prefers 720p30 on desktop and 480p on mobile', () => {
     expect(videoConstraints(false)).toMatchObject({ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } });
     expect(videoConstraints(true)).toMatchObject({ width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' });

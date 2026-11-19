@@ -68,12 +68,14 @@ export function CallEventBubble({ message, entrancePhase }: CallEventBubbleProps
             <span style={{ fontSize: '0.8rem', opacity: 0.85, lineHeight: 1.3 }}>{described.subtitle}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: canCallBack ? 'space-between' : 'flex-end', gap: '12px', marginTop: '8px' }}>
-          {canCallBack && call && (
-            <button type="button" className="sc-btn sc-btn--text" style={{ fontSize: '0.8rem', padding: 0 }} onClick={() => call.startCallInRoom(message.roomId, 'voice')}>
+        {canCallBack && call && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.accentSoft}` }}>
+            <button type="button" className="sc-btn sc-btn--text" style={{ fontSize: '0.85rem', fontWeight: 600, padding: '4px 16px' }} onClick={() => call.startCallInRoom(message.roomId, 'voice')}>
               {t('calls.callBack')}
             </button>
-          )}
+          </div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: canCallBack ? '2px' : '8px' }}>
           <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{formatTime(message.timestamp)}</span>
         </div>
       </div>

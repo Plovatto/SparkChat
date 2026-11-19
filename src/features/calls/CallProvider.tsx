@@ -10,7 +10,7 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { getProtectIp } from './lib/call-settings';
+import { getAudioProcessing, getProtectIp, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
 import { PeerSession } from './lib/peer-session';
 import { startRingtone, stopRingtone } from './lib/ringtone';
@@ -47,8 +47,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       resolvePeer: (userId) => resolvePinnedPeer(socket, userId),
       isPrivateRoomWith: (roomId, selfId, peerId) => isPrivateRoomWith(roomsRef.current, roomId, selfId, peerId),
       tabs,
-      acquireMedia: (kind) => acquireLocalMedia(kind),
-      acquireCamera: () => acquireCameraTrack(),
+      acquireMedia: (kind) => acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: preferredAudioRef.current, videoInputId: preferredVideoRef.current }),
+      acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
       getProtectIp,
@@ -76,6 +76,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     }
   }, [phase]);
 
+  const preferredAudioRef = useRef<string | undefined>(undefined);
+  const preferredVideoRef = useRef<string | undefined>(undefined);
   const [statusBars, setStatusBars] = useState(0);
   const registerStatusBar = useCallback(() => {
     setStatusBars((count) => count + 1);
@@ -133,10 +135,20 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     toggleCamera: () => void controller?.toggleCamera(),
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),
-    changeAudioInput: (deviceId) =>
-      replaceTrackFromDevice({ audio: audioConstraints(deviceId) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve()),
-    changeVideoInput: (deviceId) =>
-      replaceTrackFromDevice({ video: videoConstraints(isMobileDevice(), deviceId) }, (track) => controller?.replaceVideoInput(track) ?? Promise.resolve()),
+    changeAudioInput: (deviceId) => {
+      preferredAudioRef.current = deviceId || undefined;
+      replaceTrackFromDevice({ audio: audioConstraints(deviceId || undefined, getAudioProcessing()) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());
+    },
+    changeVideoInput: (deviceId) => {
+      preferredVideoRef.current = deviceId || undefined;
+      if (snapshot.cameraOn) {
+        replaceTrackFromDevice({ video: videoConstraints(isMobileDevice(), deviceId || undefined) }, (track) => controller?.replaceVideoInput(track) ?? Promise.resolve());
+      }
+    },
+    changeAudioProcessing: (patch: Partial<AudioProcessing>) => {
+      const next = setAudioProcessing(patch);
+      replaceTrackFromDevice({ audio: audioConstraints(preferredAudioRef.current, next) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());
+    },
     primePlayback,
     hasStatusBar: statusBars > 0,
     registerStatusBar,

@@ -1,6 +1,8 @@
 import type { CallKind } from '@lib/e2ee/call-crypto';
+import { DEFAULT_AUDIO_PROCESSING, type AudioProcessing } from './call-settings';
 
 export interface MediaSelection {
+  audioProcessing?: AudioProcessing | undefined;
   audioInputId?: string | undefined;
   videoInputId?: string | undefined;
 }
@@ -16,11 +18,26 @@ export interface DeviceLists {
   audioOutputs: MediaDeviceInfo[];
 }
 
-export function audioConstraints(deviceId?: string): MediaTrackConstraints {
+export function supportsVoiceIsolation(): boolean {
+  try {
+    return Boolean((navigator.mediaDevices?.getSupportedConstraints?.() as Record<string, unknown> | undefined)?.voiceIsolation);
+  } catch {
+    return false;
+  }
+}
+
+export function audioProcessingConstraints(processing: AudioProcessing): MediaTrackConstraints {
   return {
-    echoCancellation: true,
-    noiseSuppression: true,
-    autoGainControl: true,
+    echoCancellation: processing.echoCancellation,
+    noiseSuppression: processing.noiseSuppression,
+    autoGainControl: processing.autoGainControl,
+    ...(processing.voiceIsolation && supportsVoiceIsolation() ? ({ voiceIsolation: true } as MediaTrackConstraints) : {}),
+  };
+}
+
+export function audioConstraints(deviceId?: string, processing: AudioProcessing = DEFAULT_AUDIO_PROCESSING): MediaTrackConstraints {
+  return {
+    ...audioProcessingConstraints(processing),
     channelCount: 1,
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
   };
@@ -63,16 +80,16 @@ export async function acquireLocalMedia(
 ): Promise<LocalMedia> {
   prepareIosAudioSession();
   if (kind === 'voice') {
-    return { stream: await getUserMedia({ audio: audioConstraints(selection.audioInputId), video: false }), cameraFailed: false };
+    return { stream: await getUserMedia({ audio: audioConstraints(selection.audioInputId, selection.audioProcessing), video: false }), cameraFailed: false };
   }
   try {
     const stream = await getUserMedia({
-      audio: audioConstraints(selection.audioInputId),
+      audio: audioConstraints(selection.audioInputId, selection.audioProcessing),
       video: videoConstraints(mobile, selection.videoInputId),
     });
     return { stream, cameraFailed: false };
   } catch {
-    const audioOnly = await getUserMedia({ audio: audioConstraints(selection.audioInputId), video: false });
+    const audioOnly = await getUserMedia({ audio: audioConstraints(selection.audioInputId, selection.audioProcessing), video: false });
     return { stream: audioOnly, cameraFailed: true };
   }
 }

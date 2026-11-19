@@ -88,17 +88,19 @@ function RoomAutoTranslateCard({ enabled, onChange }: RoomAutoTranslateProps) {
   const captionId = useId();
 
   return (
-    <div className="sc-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderRadius: '10px', padding: '12px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <MdTranslate size={18} color={enabled ? theme.accentText : theme.textMuted} aria-hidden="true" />
-          <span id={labelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.95rem' }}>
+    <div className="sc-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderRadius: '12px', padding: '18px 22px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <MdTranslate size={16} color={enabled ? theme.accentText : theme.textMuted} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span id={labelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.88rem', lineHeight: 1.3 }}>
             {t('chat.translation.autoRoomTitle')}
           </span>
         </div>
-        <Switch checked={enabled} onChange={() => onChange(!enabled)} aria-labelledby={labelId} aria-describedby={captionId} />
+        <span style={{ display: 'inline-flex', flexShrink: 0, transform: 'scale(0.9)', transformOrigin: 'right center' }}>
+          <Switch checked={enabled} onChange={() => onChange(!enabled)} aria-labelledby={labelId} aria-describedby={captionId} />
+        </span>
       </div>
-      <small id={captionId} style={{ color: theme.textSecondary }}>
+      <small id={captionId} style={{ color: theme.textSecondary, fontSize: '0.8rem', lineHeight: 1.5 }}>
         {t('chat.translation.autoRoomCaption')}
       </small>
     </div>
