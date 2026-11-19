@@ -150,6 +150,13 @@ export function uploadLinkPreviewImage(image: Blob, auth: SessionAuth, target: A
   return uploadEncryptedAttachment('image', image, auth, { ...target, slot: 'preview' });
 }
 
+function withGifKind(error: unknown): unknown {
+  if (!(error instanceof ApiError) || error.payload.params?.kind !== undefined) {
+    return error;
+  }
+  return new ApiError({ ...error.payload, params: { ...error.payload.params, kind: 'gif' } }, error.fallbackKey);
+}
+
 export async function uploadChatGif(blob: Blob, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedFile> {
   const essence = baseMimeType(blob.type);
   if (!isGifMediaType(essence)) {
@@ -164,12 +171,14 @@ export async function uploadChatGif(blob: Blob, auth: SessionAuth, target: Attac
     }
     throw error;
   }
-  const { url, key } = await uploadEncryptedAttachment('gif', padded, auth, { ...target, slot: 'content' });
+  const { url, key } = await uploadEncryptedAttachment('gif', padded, auth, { ...target, slot: 'content' }).catch((error: unknown) => {
+    throw withGifKind(error);
+  });
   return {
     url,
     key,
     name: essence === 'image/gif' ? 'gif.gif' : 'gif.webp',
     mimeType: buildGifMimeType(essence),
-    size: blob.size,
+    size: padded.size,
   };
 }

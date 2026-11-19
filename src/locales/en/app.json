@@ -81,7 +81,8 @@
       "quotaExceeded": "The server storage limit was reached. Please try again later.",
       "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones.",
       "invalidType_gif": "Invalid GIF type. Pick another GIF from the gallery.",
-      "invalidGifSize": "This GIF is too large to send."
+      "invalidGifSize": "This GIF is too large to send.",
+      "userQuotaExceeded_gif": "You reached the limit of stored GIFs. GIFs expire after 30 days; try again later."
     },
     "linkPreview": {
       "invalidUrl": "Invalid URL.",

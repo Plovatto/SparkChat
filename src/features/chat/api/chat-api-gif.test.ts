@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openAttachment } from '@lib/e2ee/attachment-crypto';
-import { unpadGif } from '@lib/media/gif-padding';
+import { GIF_PADDING_BUCKETS, unpadGif } from '@lib/media/gif-padding';
 import { isGifMimeType } from '@lib/media/media-type';
 import { uploadChatGif } from './chat-api';
 
@@ -62,7 +62,18 @@ describe('uploadChatGif', () => {
     expect(uploads.map((upload) => (upload.fields[1]?.[1] as File).size)).toEqual([256 * KIB + 40, 256 * KIB + 40, 1024 * KIB + 40]);
   });
 
-  it('returns the marked type, original size and a key that opens the padded media', async () => {
+  it('reports only the padded bucket size so the clear size never reveals the original gif', async () => {
+    const sizes = [16, 3000, 120 * KIB, 256 * KIB - 4, 300 * KIB, 900 * KIB, 2048 * KIB - 4];
+
+    const reported = await Promise.all(sizes.map(async (size) => (await uploadChatGif(webpOfSize(size), auth, TARGET)).size));
+
+    for (const size of reported) {
+      expect(GIF_PADDING_BUCKETS).toContain(size);
+    }
+    expect(reported).toEqual([256 * KIB, 256 * KIB, 256 * KIB, 256 * KIB, 512 * KIB, 1024 * KIB, 2048 * KIB]);
+  });
+
+  it('returns the marked type, bucket size and a key that opens the padded media', async () => {
     const original = webpOfSize(3000);
 
     const uploaded = await uploadChatGif(original, auth, TARGET);
@@ -71,7 +82,7 @@ describe('uploadChatGif', () => {
       url: 'https://cdn.test/uploads/gifs/a.bin?e2e=1',
       name: 'gif.webp',
       mimeType: 'image/webp; sparkchat-gif=1',
-      size: 3000,
+      size: 256 * KIB,
     });
     expect(isGifMimeType(uploaded.mimeType)).toBe(true);
     const opened = await openAttachment(await uploadedFile().arrayBuffer(), uploaded.key, { ...TARGET, slot: 'content' }, 'image/webp');
@@ -95,6 +106,15 @@ describe('uploadChatGif', () => {
       fallbackKey: 'chat.upload.gifFailed',
     });
     expect(uploads).toHaveLength(0);
+  });
+
+  it('marks server errors as gif errors so the gif quota gets its own message', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(Response.json({ code: 'upload.userQuotaExceeded', message: 'quota' }, { status: 507 })));
+
+    await expect(uploadChatGif(webpOfSize(100), auth, TARGET)).rejects.toMatchObject({
+      payload: { code: 'upload.userQuotaExceeded', params: { kind: 'gif' } },
+      fallbackKey: 'chat.upload.gifFailed',
+    });
   });
 
   it('surfaces the server error when the gif upload is refused', async () => {
