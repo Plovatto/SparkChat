@@ -13,6 +13,9 @@ import { LANDING_BOOT_PLACEHOLDER, renderLandingDocument, type LandingHeadCopy }
 import { buildContentSecurityPolicy, contentSecurityPolicyMetaTag } from './src/config/content-security-policy';
 
 const LANDING_SERVER_ENTRY = 'src/features/landing/entry-server.tsx';
+const SERVICE_WORKER_ENTRY = 'src/features/pwa/sw/sw-entry.ts';
+const SERVICE_WORKER_OUT_DIR = 'app';
+const SERVICE_WORKER_FILE = 'sw.js';
 const LANDING_ROOT_PLACEHOLDER = '<div id="root"></div>';
 const LANDING_THEME_PLACEHOLDER = '<style id="sc-landing-theme"></style>';
 const CHARSET_META = '<meta charset="UTF-8" />';
@@ -180,6 +183,49 @@ function prerenderLanding(): Plugin {
   };
 }
 
+function serviceWorkerVersion(fileNames: readonly string[]): string {
+  return createHash('sha256').update([...fileNames].sort().join('|')).digest('hex').slice(0, 16);
+}
+
+function buildServiceWorker(): Plugin {
+  let root = process.cwd();
+  let outDir = path.resolve(root, 'dist');
+  let version = 'dev';
+
+  return {
+    name: 'sparkchat:service-worker',
+    apply: (_config, { command, isSsrBuild }) => command === 'build' && !isSsrBuild,
+    configResolved(config) {
+      root = config.root;
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
+    generateBundle(_options, bundle) {
+      version = serviceWorkerVersion(Object.keys(bundle));
+    },
+    async closeBundle() {
+      await build({
+        configFile: false,
+        root,
+        logLevel: 'warn',
+        publicDir: false,
+        define: { __SW_VERSION__: JSON.stringify(version) },
+        build: {
+          outDir: path.join(outDir, SERVICE_WORKER_OUT_DIR),
+          emptyOutDir: false,
+          copyPublicDir: false,
+          minify: true,
+          lib: {
+            entry: path.resolve(root, SERVICE_WORKER_ENTRY),
+            formats: ['iife'],
+            name: 'SparkChatServiceWorker',
+            fileName: () => SERVICE_WORKER_FILE,
+          },
+        },
+      });
+    },
+  };
+}
+
 export default defineConfig(({ isSsrBuild }) => ({
   build: isSsrBuild
     ? {}
@@ -191,7 +237,7 @@ export default defineConfig(({ isSsrBuild }) => ({
           },
         },
       },
-  plugins: [pruneUnusedBootstrapCss(), react(), landingDocument(), prerenderLanding()],
+  plugins: [pruneUnusedBootstrapCss(), react(), landingDocument(), prerenderLanding(), buildServiceWorker()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
