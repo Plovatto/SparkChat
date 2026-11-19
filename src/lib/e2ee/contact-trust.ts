@@ -148,6 +148,7 @@ export function acceptContactKeyChange(own: OwnIdentityRef, contactId: string): 
       verified: false,
       pinnedAt: Date.now(),
       pending: null,
+      replacedSigningPublicKey: pin.signingPublicKey,
     };
     await writePin(next);
     return publish({ contactId, status: statusOfPin(next), pin: next });

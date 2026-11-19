@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import type { AppSocket, MessageView, RoomSummary, SealedRoomKeyEntry } from '@lib/socket';
 import type { GroupRoster } from './group-invite';
 import type { ContactPin, StoredRoomKeyGeneration } from './key-store';
+import type * as ContactTrustNamespace from './contact-trust';
 import type * as MessageCryptoNamespace from './message-crypto';
 import type * as RoomKeysNamespace from './room-keys';
 
@@ -354,6 +355,7 @@ interface Client {
   socket: FakeSocket;
   roomKeys: RoomKeysModule;
   messages: MessageCryptoModule;
+  trust: typeof ContactTrustNamespace;
   privateKey: Uint8Array;
   publicKey: string;
 }
@@ -370,6 +372,7 @@ async function loadClient(userId: string, options: { store?: string; privateKey?
   const signing = await import('./signing');
   const roomKeys = await import('./room-keys');
   const messages = await import('./message-crypto');
+  const trust = await import('./contact-trust');
 
   const privateKey = options.privateKey ?? sodium.crypto_box_keypair().privateKey;
   const publicKey = sodium.to_base64(sodium.crypto_scalarmult_base(privateKey));
@@ -399,7 +402,7 @@ async function loadClient(userId: string, options: { store?: string; privateKey?
   });
   socket.on('group:user-joined', (payload: { roomId: string; participants: never }) =>
     void roomKeys.handleGroupUserJoined(socket.asAppSocket(), payload));
-  return { userId, socket, roomKeys, messages, privateKey, publicKey };
+  return { userId, socket, roomKeys, messages, trust, privateKey, publicKey };
 }
 
 function createRoom(id: string, type: 'private' | 'group', creatorId: string, members: string[]): void {
@@ -1165,6 +1168,66 @@ describe('second review hardening', () => {
 
     expect([...batchesOf(ana, 4), ...batchesOf(bia, 4)]).toEqual([]);
     expect(room.currentEpoch).toBe(2);
+  });
+});
+
+describe('member key changes in a group roster', () => {
+  async function groupAtEpochTwoWithChangedBia(): Promise<Client> {
+    const { ana } = await establishGroup();
+    server.sockets.delete('bia');
+    server.requireRotation('group');
+    await settle();
+    expect(server.rooms.get('group')?.currentEpoch).toBe(2);
+    await rekey('bia');
+    await ana.roomKeys.lookupContactKey(ana.socket.asAppSocket(), 'bia');
+    return ana;
+  }
+
+  function accept(client: Client, contactId: string): Promise<unknown> {
+    return client.trust.acceptContactKeyChange({ userId: client.userId, publicKey: client.publicKey }, contactId);
+  }
+
+  it('include a member whose changed key this user accepted, so the rotation completes', async () => {
+    const ana = await groupAtEpochTwoWithChangedBia();
+    await accept(ana, 'bia');
+
+    server.requireRotation('group');
+    await settle();
+
+    expect(server.rooms.get('group')?.currentEpoch).toBe(3);
+    const [batch] = batchesOf(ana, 3);
+    const roster = await rosterOf(ana, batch as PublishedBatch);
+    expect(roster?.members.find((member) => member.userId === 'bia')?.signingPublicKey).toBe(server.directory.get('bia')?.signingPublicKey);
+  });
+
+  it('hold the rotation while the change is not accepted, show the warning, and finish it after acceptance', async () => {
+    const ana = await groupAtEpochTwoWithChangedBia();
+
+    server.requireRotation('group');
+    await settle();
+    expect(server.rooms.get('group')?.currentEpoch).toBe(2);
+    expect(server.envelopes.filter((entry) => entry.epoch === 3)).toEqual([]);
+    expect(ana.trust.getContactTrust('bia')?.status).toBe('changed');
+
+    await accept(ana, 'bia');
+    await settle();
+
+    expect(server.rooms.get('group')?.currentEpoch).toBe(3);
+    expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(3);
+  });
+
+  it('never include a member whose roster key differs from a pin this user did not accept', async () => {
+    const ana = await groupAtEpochTwoWithChangedBia();
+    const room = server.rooms.get('group') as ServerRoom;
+    const fresh = await loadClient('ana', { store: 'fresh-ana', privateKey: ana.privateKey });
+    await track(fresh, 'group');
+    await settle();
+    server.requireRotation('group');
+    await settle();
+
+    expect(fresh.trust.getContactTrust('bia')?.pin?.replacedSigningPublicKey).toBeUndefined();
+    expect(room.currentEpoch).toBe(2);
+    expect(warn).toHaveBeenCalledWith('[e2e] refused a group roster whose signing key differs from the pinned one', expect.anything());
   });
 });
 

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { FaExclamationTriangle, FaShieldAlt } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
-import { acceptContactKeyChange, getCurrentIdentity } from '@lib/e2ee';
+import { acceptContactKeyChange, getContactTrust, getCurrentIdentity, subscribeContactTrust } from '@lib/e2ee';
 import type { RoomSummary } from '@lib/socket';
 import { useContactTrust } from '../hooks/useContactTrust';
 import { isAssistantRoom } from '../utils/assistant';
@@ -27,7 +27,19 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [blockingDismissed, setBlockingDismissed] = useState(false);
   const isPrivate = room.type === 'private' && !isAssistantRoom(room);
-  const other = isPrivate ? getOtherParticipant(room, currentUserId) : undefined;
+  const isGroup = room.type === 'group';
+  const findChangedMember = useCallback(
+    () =>
+      isGroup
+        ? (room.participants.find((participant) => participant.id !== currentUserId && getContactTrust(participant.id)?.status === 'changed')?.id ??
+          null)
+        : null,
+    [isGroup, room.participants, currentUserId],
+  );
+  const changedMemberId = useSyncExternalStore(subscribeContactTrust, findChangedMember, () => null);
+  const other = isPrivate
+    ? getOtherParticipant(room, currentUserId)
+    : room.participants.find((participant) => participant.id === changedMemberId);
   const trust = useContactTrust(other?.id);
 
   if (!other || !trust || (trust.status === 'invalid' && !trust.pin)) {
@@ -35,6 +47,9 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
   }
 
   const changed = trust.status === 'changed' || trust.status === 'invalid';
+  if (isGroup && !changed) {
+    return null;
+  }
   const wasVerified = Boolean(trust.pin?.verified);
   const accept = () => {
     const identity = getCurrentIdentity();

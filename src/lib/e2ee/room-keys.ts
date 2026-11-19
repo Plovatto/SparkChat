@@ -2,7 +2,7 @@ import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
 import { createBatchedLookup } from './batched-lookup';
 import { ASSISTANT_USER_ID } from './assistant';
-import { isKeyUsable, observeContactKey, type ContactTrust } from './contact-trust';
+import { getContactTrust, isKeyUsable, observeContactKey, subscribeContactTrust, type ContactTrust } from './contact-trust';
 import { getCurrentIdentity, type CurrentIdentity } from './current-identity';
 import {
   createInviteBundle,
@@ -111,6 +111,8 @@ const openedInvites = new Map<string, KnownInvite>();
 const publishedInvites = new Map<string, PublishedInvite>();
 const roomRosters = new Map<string, RoomRoster | null>();
 const knownGroups = new Set<string>();
+const keyChangeBlocks = new Map<string, { socket: AppSocket; members: Set<string> }>();
+let stopKeyChangeListener: (() => void) | null = null;
 const pendingInviteRefreshes = new Map<string, Promise<void>>();
 const lastInviteRefresh = new Map<string, number>();
 const pendingInviteResets = new Map<string, () => void>();
@@ -521,6 +523,65 @@ async function hasValidInviteProof(
   return sender !== null && verifyInviteProof(secret, roomId, userId, sender.signingPublicKey, proof);
 }
 
+async function rosterEntryMatchesPin(
+  socket: AppSocket,
+  identity: CurrentIdentity,
+  member: GroupRoster['members'][number],
+): Promise<boolean> {
+  const pinned = await resolveEnvelopeSender(socket, identity, member.userId);
+  if (pinned?.signingPublicKey === member.signingPublicKey) {
+    return true;
+  }
+  const trust = getContactTrust(member.userId);
+  const pin = trust?.pin;
+  return Boolean(
+    trust &&
+      pin &&
+      isKeyUsable(trust.status) &&
+      !pin.pending &&
+      pin.signingPublicKey &&
+      pin.signingPublicKey === pinned?.signingPublicKey &&
+      pin.replacedSigningPublicKey === member.signingPublicKey,
+  );
+}
+
+function rememberKeyChangeBlock(socket: AppSocket, roomId: string, view: RoomView): void {
+  const blocked = Array.from(view.members).filter((userId) => getContactTrust(userId)?.status === 'changed');
+  if (blocked.length === 0) {
+    return;
+  }
+  keyChangeBlocks.set(roomId, { socket, members: new Set(blocked) });
+  ensureKeyChangeListener();
+}
+
+function ensureKeyChangeListener(): void {
+  if (stopKeyChangeListener) {
+    return;
+  }
+  stopKeyChangeListener = subscribeContactTrust(() => {
+    for (const [roomId, block] of Array.from(keyChangeBlocks)) {
+      const resolved = Array.from(block.members).some((userId) => {
+        const status = getContactTrust(userId)?.status;
+        return status !== undefined && isKeyUsable(status);
+      });
+      const target = publishTarget(roomId);
+      if (!resolved || target === null) {
+        continue;
+      }
+      keyChangeBlocks.delete(roomId);
+      void safeRetryPublish(block.socket, roomId, target);
+    }
+  });
+}
+
+async function safeRetryPublish(socket: AppSocket, roomId: string, epoch: number): Promise<void> {
+  try {
+    await publishGeneration(socket, roomId, epoch);
+  } catch (error) {
+    console.error('[e2e] retrying a group generation after a key change failed', error);
+  }
+}
+
 async function verifiedGroupRecipients(
   socket: AppSocket,
   identity: CurrentIdentity,
@@ -537,12 +598,18 @@ async function verifiedGroupRecipients(
       if (!view.members.has(member.userId)) {
         continue;
       }
-      const pinned = await resolveEnvelopeSender(socket, identity, member.userId);
-      if (pinned?.signingPublicKey !== member.signingPublicKey) {
-        console.warn('[e2e] refused a group roster whose signing key differs from the pinned one', { roomId, epoch });
-        return null;
+      if (member.userId === identity.userId) {
+        if (member.signingPublicKey !== (await ownSigningPublicKey(identity))) {
+          console.warn('[e2e] refused a group roster whose signing key differs from the pinned one', { roomId, epoch });
+          return null;
+        }
+        continue;
       }
-      covered.add(member.userId);
+      if (await rosterEntryMatchesPin(socket, identity, member)) {
+        covered.add(member.userId);
+      } else {
+        console.warn('[e2e] refused a group roster whose signing key differs from the pinned one', { roomId, epoch });
+      }
     }
     const pending = members.filter((userId) => !covered.has(userId));
     if (pending.some((userId) => !view.inviteProofs.has(userId))) {
@@ -1051,12 +1118,14 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
   try {
     const isGroup = view.type === 'group';
     if (isGroup && !(await verifiedGroupRecipients(socket, identity, view, roomId, epoch))) {
+      rememberKeyChangeBlock(socket, roomId, view);
       pendingPublishes.delete(roomId);
       return;
     }
     const keys = await sealFor(socket, identity, view, roomId, generation, recipients);
     if (!keys) {
       console.warn('[e2e] cannot seal a new room key generation for every member', { roomId, epoch });
+      rememberKeyChangeBlock(socket, roomId, view);
       pendingPublishes.delete(roomId);
       return;
     }
@@ -1376,6 +1445,9 @@ async function clearRoomKeysImpl(): Promise<void> {
   roomInvites.clear();
   roomRosters.clear();
   knownGroups.clear();
+  keyChangeBlocks.clear();
+  stopKeyChangeListener?.();
+  stopKeyChangeListener = null;
   pendingInviteRefreshes.clear();
   lastInviteRefresh.clear();
   for (const fail of Array.from(pendingInviteResets.values())) {

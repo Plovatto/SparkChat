@@ -21,6 +21,7 @@ export interface ContactPin {
   verified: boolean;
   pinnedAt: number;
   pending: { publicKey: string; signingPublicKey: string | null; seenAt: number } | null;
+  replacedSigningPublicKey?: string | null;
 }
 
 export interface StoredRoomKeyGeneration {
