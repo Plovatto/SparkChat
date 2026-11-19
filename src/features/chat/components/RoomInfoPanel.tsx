@@ -360,7 +360,6 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
               <GroupInviteSection
                 room={room}
-                isOwner={room.creatorId === currentUserId}
                 title={
                   <SectionTitle>
                     <FaLink /> {t('roomInfo.inviteLink')}

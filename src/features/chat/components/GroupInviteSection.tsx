@@ -1,35 +1,55 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FaCheck, FaLink, FaRedo } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
-import type { RoomSummary } from '@lib/socket';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { useGroupInviteLink } from '../hooks/useGroupInviteLink';
 
 interface GroupInviteSectionProps {
   room: RoomSummary;
-  isOwner: boolean;
   title: ReactNode;
 }
 
 type ResetFeedback = 'done' | 'failed' | null;
 
-export function GroupInviteSection({ room, isOwner, title }: GroupInviteSectionProps) {
+export function GroupInviteSection({ room, title }: GroupInviteSectionProps) {
   const { t } = useTranslation();
   const clipboard = useClipboardCopy();
   const invite = useGroupInviteLink(room);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [feedback, setFeedback] = useState<ResetFeedback>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (!socket || !invite.isResetting) {
+      return;
+    }
+    const handleError = (payload: SocketErrorPayload) => {
+      if (payload.event === 'room:reset-invite') {
+        setResetError(translateErrorPayload(payload, 'roomInfo.inviteResetFailed'));
+      }
+    };
+    socket.on('error', handleError);
+    return () => {
+      socket.off('error', handleError);
+    };
+  }, [socket, invite.isResetting]);
 
   const copyLink = () => {
-    if (invite.link) {
-      clipboard.copy(invite.link);
-    }
+    void invite.createLink().then((link) => {
+      if (link) {
+        clipboard.copy(link);
+      }
+    });
   };
 
   const confirmReset = () => {
     setIsConfirmOpen(false);
     setFeedback(null);
+    setResetError(null);
     void invite.reset().then((done) => setFeedback(done ? 'done' : 'failed'));
   };
 
@@ -39,13 +59,13 @@ export function GroupInviteSection({ room, isOwner, title }: GroupInviteSectionP
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div className="sc-notice sc-notice--info" style={{ alignItems: 'center' }}>
           <FaLink size={13} style={{ flexShrink: 0, opacity: 0.85 }} />
-          <span>{invite.link ? t('roomInfo.inviteHelp') : invite.isCleared ? t('roomInfo.inviteCleared') : t('roomInfo.inviteUnavailable')}</span>
+          <span>{invite.isAvailable ? t('roomInfo.inviteHelp') : invite.isCleared ? t('roomInfo.inviteCleared') : t('roomInfo.inviteUnavailable')}</span>
         </div>
 
         <button
           type="button"
           onClick={copyLink}
-          disabled={!invite.link}
+          disabled={!invite.isAvailable}
           className="sc-btn sc-btn--secondary sc-btn--lift"
           style={{ width: '100%', padding: '10px 15px', borderRadius: '8px' }}
         >
@@ -53,8 +73,7 @@ export function GroupInviteSection({ room, isOwner, title }: GroupInviteSectionP
           {clipboard.isCopied() ? t('roomInfo.copied') : t('roomInfo.copyInvite')}
         </button>
 
-        {isOwner && (
-          <button
+        <button
             type="button"
             onClick={() => setIsConfirmOpen(true)}
             disabled={invite.isResetting}
@@ -64,11 +83,10 @@ export function GroupInviteSection({ room, isOwner, title }: GroupInviteSectionP
             <FaRedo size={13} />
             {t('roomInfo.resetInvite')}
           </button>
-        )}
 
         {feedback && (
           <div role="status" className={`sc-notice ${feedback === 'done' ? 'sc-notice--info' : 'sc-notice--danger'}`}>
-            <span>{feedback === 'done' ? t('roomInfo.inviteResetDone') : t('roomInfo.inviteResetFailed')}</span>
+            <span>{feedback === 'done' ? t('roomInfo.inviteResetDone') : (resetError ?? t('roomInfo.inviteResetFailed'))}</span>
           </div>
         )}
       </div>

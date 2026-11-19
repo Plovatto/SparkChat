@@ -1,24 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getGroupInviteLink, isGroupInviteCleared, resetGroupInvite, subscribeRoomInvite, subscribeRoomKeyAvailable } from '@lib/e2ee';
+import {
+  getGroupInviteLink,
+  isGroupInviteAvailable,
+  isGroupInviteCleared,
+  resetGroupInvite,
+  subscribeRoomInvite,
+  subscribeRoomKeyAvailable,
+} from '@lib/e2ee';
 import { useSocket, type RoomSummary } from '@lib/socket';
 
 export interface GroupInviteLinkState {
-  link: string | null;
+  isAvailable: boolean;
   isCleared: boolean;
   isResetting: boolean;
+  createLink: () => Promise<string | null>;
   reset: () => Promise<boolean>;
 }
 
 export function useGroupInviteLink(room: RoomSummary): GroupInviteLinkState {
   const { socket } = useSocket();
-  const [link, setLink] = useState<string | null>(null);
+  const [isAvailable, setIsAvailable] = useState(false);
   const [isCleared, setIsCleared] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const roomId = room.id;
   const isGroup = room.type === 'group';
 
   useEffect(() => {
-    setLink(null);
+    setIsAvailable(false);
     setIsCleared(false);
     if (!socket || !isGroup) {
       return;
@@ -28,16 +36,16 @@ export function useGroupInviteLink(room: RoomSummary): GroupInviteLinkState {
     const load = () => {
       version += 1;
       const current = version;
-      getGroupInviteLink(socket, roomId, window.location.origin)
-        .then((value) => {
+      isGroupInviteAvailable(socket, roomId)
+        .then((available) => {
           if (active && current === version) {
-            setLink(value);
-            setIsCleared(value === null && isGroupInviteCleared(roomId));
+            setIsAvailable(available);
+            setIsCleared(!available && isGroupInviteCleared(roomId));
           }
         })
         .catch(() => {
           if (active && current === version) {
-            setLink(null);
+            setIsAvailable(false);
           }
         });
     };
@@ -56,6 +64,17 @@ export function useGroupInviteLink(room: RoomSummary): GroupInviteLinkState {
     };
   }, [socket, roomId, isGroup]);
 
+  const createLink = useCallback(async () => {
+    if (!socket || !isGroup) {
+      return null;
+    }
+    try {
+      return await getGroupInviteLink(socket, roomId, window.location.origin);
+    } catch {
+      return null;
+    }
+  }, [socket, roomId, isGroup]);
+
   const reset = useCallback(async () => {
     if (!socket || !isGroup) {
       return false;
@@ -70,5 +89,5 @@ export function useGroupInviteLink(room: RoomSummary): GroupInviteLinkState {
     }
   }, [socket, roomId, isGroup]);
 
-  return { link, isCleared, isResetting, reset };
+  return { isAvailable, isCleared, isResetting, createLink, reset };
 }

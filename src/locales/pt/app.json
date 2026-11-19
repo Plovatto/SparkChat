@@ -54,10 +54,7 @@
       "cannotRemoveSelf": "Use a opção de sair do grupo para se remover.",
       "notMember": "Usuário não faz parte do grupo.",
       "groupFull": "Este grupo atingiu o limite de membros.",
-      "inviteLinkRequired": "Só é possível entrar em grupos por um link de convite.",
-      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro.",
-      "inviteResetRequiresOwner": "Só quem criou o grupo pode redefinir o link de convite.",
-      "inviteKeyStale": "A chave do grupo mudou enquanto o link de convite era redefinido. Tente novamente."
+      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro."
     },
     "message": {
       "notFound": "Mensagem não encontrada.",
@@ -90,6 +87,7 @@
       "imageUnavailable": "Não foi possível carregar essa imagem."
     },
     "rateLimit": {
+      "inviteReset": "Você poderá redefinir o link de convite de novo em alguns segundos.",
       "api": "Muitas requisições em pouco tempo. Aguarde e tente novamente.",
       "linkPreview": "Muitas requisições de preview. Aguarde um momento e tente novamente.",
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
@@ -127,7 +125,8 @@
       "roomKeyStale": "A chave de criptografia da conversa mudou. Atualizando para a chave atual.",
       "roomKeyIncomplete": "A nova chave da conversa precisa incluir todos os membros.",
       "roomKeyConflict": "Outro membro já definiu a chave desta conversa.",
-      "inviteRequired": "Uma nova chave de grupo precisa incluir um link de convite."
+      "inviteRequired": "Uma nova chave de grupo precisa incluir um link de convite.",
+      "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros."
     }
   },
   "systemEvents": {
@@ -438,7 +437,7 @@
     "inviteCleared": "O link de convite fica indisponível até a chave do grupo mudar.",
     "resetInvite": "Redefinir link de convite",
     "resetInviteTitle": "Redefinir link de convite?",
-    "resetInviteConfirm": "Um novo link será criado e o atual deixará de funcionar para quem ainda não entrou.",
+    "resetInviteConfirm": "Um novo link e uma nova chave do grupo serão criados. O link atual deixará de funcionar para quem ainda não entrou.",
     "inviteResetDone": "Um novo link de convite foi criado.",
     "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente."
   },

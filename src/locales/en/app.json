@@ -54,10 +54,7 @@
       "cannotRemoveSelf": "Use the leave group option to remove yourself.",
       "notMember": "This user isn't a member of the group.",
       "groupFull": "This group has reached its member limit.",
-      "inviteLinkRequired": "Groups can only be joined with an invite link.",
-      "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one.",
-      "inviteResetRequiresOwner": "Only the group owner can reset the invite link.",
-      "inviteKeyStale": "The group key changed while resetting the invite link. Please try again."
+      "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one."
     },
     "message": {
       "notFound": "Message not found.",
@@ -90,6 +87,7 @@
       "imageUnavailable": "Couldn't load this image."
     },
     "rateLimit": {
+      "inviteReset": "You can reset the invite link again in a few seconds.",
       "api": "Too many requests in a short time. Please wait and try again.",
       "linkPreview": "Too many preview requests. Please wait a moment and try again.",
       "upload": "Too many file uploads. Please wait a moment and try again.",
@@ -127,7 +125,8 @@
       "roomKeyStale": "The conversation encryption key changed. Updating to the current key.",
       "roomKeyIncomplete": "The new conversation key must include every member.",
       "roomKeyConflict": "Another member already set the key for this conversation.",
-      "inviteRequired": "A new group key must include an invite link."
+      "inviteRequired": "A new group key must include an invite link.",
+      "rosterRequired": "A new group key must include the verified member list."
     }
   },
   "systemEvents": {
@@ -438,7 +437,7 @@
     "inviteCleared": "The invite link is unavailable until the group key changes.",
     "resetInvite": "Reset invite link",
     "resetInviteTitle": "Reset invite link?",
-    "resetInviteConfirm": "A new link will be created and the current one will stop working for anyone who has not joined yet.",
+    "resetInviteConfirm": "A new link and a new group key will be created. The current link stops working for anyone who has not joined yet.",
     "inviteResetDone": "A new invite link was created.",
     "inviteResetFailed": "Couldn't reset the invite link. Please try again."
   },

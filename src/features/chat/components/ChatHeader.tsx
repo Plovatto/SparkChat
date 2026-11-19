@@ -31,12 +31,11 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const invite = useGroupInviteLink(room);
 
   const shareInviteLink = () => {
-    if (!invite.link) {
-      return;
-    }
-    if (!shareLinkNatively({ text: t('chat.header.inviteText', { name: roomName }), url: invite.link })) {
-      clipboard.copy(invite.link, COPY_KEY_LINK);
-    }
+    void invite.createLink().then((link) => {
+      if (link && !shareLinkNatively({ text: t('chat.header.inviteText', { name: roomName }), url: link })) {
+        clipboard.copy(link, COPY_KEY_LINK);
+      }
+    });
   };
 
   return (
@@ -165,10 +164,10 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
               <button
                 type="button"
                 onClick={shareInviteLink}
-                disabled={!invite.link}
+                disabled={!invite.isAvailable}
                 className="sc-chip"
                 style={{ height: '18px', padding: '0 8px', fontSize: '0.62rem', fontWeight: 600 }}
-                title={invite.link ? t('chat.header.copyInvite') : t('chat.header.inviteUnavailable')}
+                title={invite.isAvailable ? t('chat.header.copyInvite') : t('chat.header.inviteUnavailable')}
               >
                 {clipboard.isCopied(COPY_KEY_LINK) ? <FaCheck size={8} className="sc-anim-badge-pop" /> : <FaLink size={8} />}
                 <span>{t('chat.header.copyInvite')}</span>
