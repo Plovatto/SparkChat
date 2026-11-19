@@ -50,8 +50,8 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   const barColor = attached ? '#ffffff' : theme.onGradient;
   const barBackground = attached ? `color-mix(in srgb, ${theme.success} 80%, #000000)` : theme.gradient;
   const round = {
-    width: '40px',
-    height: '40px',
+    width: attached ? '42px' : '40px',
+    height: attached ? '42px' : '40px',
     flexShrink: 0,
     borderRadius: '50%',
     border: 'none',
@@ -65,12 +65,13 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
     <div
       role="status"
       style={{
-        ...(attached ? { position: 'relative', flexShrink: 0 } : { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1060 }),
+        ...(attached ? { position: 'relative', zIndex: 3, flexShrink: 0 } : { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1060 }),
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        minHeight: '52px',
-        padding: '6px 12px',
+        gap: attached ? '10px' : '8px',
+        minHeight: attached ? '60px' : '52px',
+        padding: attached ? '0 16px' : '6px 12px',
+        lineHeight: 1,
         boxSizing: 'border-box',
         width: '100%',
         background: barBackground,
@@ -83,7 +84,7 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
         onClick={() => call.setMinimized(false)}
         aria-label={t('calls.expand')}
         title={t('calls.expand')}
-        style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: barColor, cursor: 'pointer', padding: '6px 4px', textAlign: 'left', fontWeight: 600 }}
+        style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: barColor, cursor: 'pointer', padding: attached ? '0' : '6px 4px', textAlign: 'left', fontWeight: 600, lineHeight: 1 }}
       >
         <FaExpandAlt size={16} style={{ flexShrink: 0 }} />
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{peer?.name ?? ''}</span>
