@@ -128,7 +128,8 @@
       "inviteRequired": "A new group key must include an invite link.",
       "rosterRequired": "A new group key must include the verified member list.",
       "nameRequired": "A new group key must include the encrypted group name.",
-      "nameKeyStale": "The group name was encrypted with an old key. Try again."
+      "nameKeyStale": "The group name was encrypted with an old key. Try again.",
+      "renameRequiresRoster": "Only members listed in the group's current verified member list can rename it."
     }
   },
   "systemEvents": {

@@ -270,7 +270,7 @@ export interface ServerToClientEvents {
   'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
-  'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[] }) => void;
+  'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[]; truncated?: boolean }) => void;
   'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string; proof?: string | null }) => void;
   'room:name-updated': (payload: { roomId: string; encryptedName: string; keyId: string }) => void;

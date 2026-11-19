@@ -128,7 +128,8 @@
       "inviteRequired": "Uma nova chave de grupo precisa incluir um link de convite.",
       "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros.",
       "nameRequired": "A nova chave do grupo precisa incluir o nome do grupo criptografado.",
-      "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente."
+      "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente.",
+      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo."
     }
   },
   "systemEvents": {

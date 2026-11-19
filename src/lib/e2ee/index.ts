@@ -55,6 +55,7 @@ export {
   prepareInviteJoin,
   recoverFromStaleRoomKey,
   resetGroupInvite,
+  canRenameGroup,
   renameGroup,
   subscribeRoomInvite,
   subscribeRoomKeyAvailable,

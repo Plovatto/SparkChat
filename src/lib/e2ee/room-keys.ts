@@ -53,6 +53,12 @@ interface RoomView {
 interface RoomKeyBundle {
   roomId: string;
   keys: SealedRoomKeyEntry[];
+  truncated: boolean;
+}
+
+interface RoomKeyResponse {
+  entries: SealedRoomKeyEntry[];
+  truncated: boolean;
 }
 
 interface PendingPublish {
@@ -143,14 +149,14 @@ const missingHistoryContext = new Set<string>();
 export type RoomNameListener = (roomId: string) => void;
 export type RotationBlockListener = (roomId: string) => void;
 
-function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<SealedRoomKeyEntry[]> {
+function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<RoomKeyResponse> {
   const run = () =>
-    new Promise<SealedRoomKeyEntry[]>((resolve) => {
+    new Promise<RoomKeyResponse>((resolve) => {
       const requested = new Set(roomIds);
       let settled = false;
       let timeoutId = 0;
 
-      const finish = (value: SealedRoomKeyEntry[]) => {
+      const finish = (value: RoomKeyResponse) => {
         if (settled) {
           return;
         }
@@ -160,12 +166,13 @@ function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<stri
         resolve(value);
       };
 
-      const handleKeys = (payload: { keys: SealedRoomKeyEntry[] }) => {
-        finish(
-          (Array.isArray(payload?.keys) ? payload.keys : []).filter(
+      const handleKeys = (payload: { keys: SealedRoomKeyEntry[]; truncated?: boolean }) => {
+        finish({
+          entries: (Array.isArray(payload?.keys) ? payload.keys : []).filter(
             (entry) => requested.has(entry.roomId) && (!keyIds || keyIds.get(entry.roomId)?.has(entry.keyId) === true),
           ),
-        );
+          truncated: payload?.truncated === true,
+        });
       };
 
       socket.on('e2e:room-keys', handleKeys);
@@ -177,7 +184,7 @@ function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<stri
       } else {
         socket.emit('e2e:get-room-keys', { roomIds });
       }
-      timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
+      timeoutId = window.setTimeout(() => finish({ entries: [], truncated: false }), REQUEST_TIMEOUT_MS);
     });
   const task = roomKeyFetchQueue.then(run, run);
   roomKeyFetchQueue = task.catch(() => undefined);
@@ -186,8 +193,9 @@ function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<stri
 
 async function fetchRoomKeys(socket: AppSocket, roomIds: string[]): Promise<RoomKeyBundle[]> {
   const bundles = new Map<string, RoomKeyBundle>();
-  for (const entry of await requestRoomKeys(socket, roomIds)) {
-    const bundle = bundles.get(entry.roomId) ?? { roomId: entry.roomId, keys: [] };
+  const { entries, truncated } = await requestRoomKeys(socket, roomIds);
+  for (const entry of entries) {
+    const bundle = bundles.get(entry.roomId) ?? { roomId: entry.roomId, keys: [], truncated };
     bundle.keys.push(entry);
     bundles.set(entry.roomId, bundle);
   }
@@ -199,7 +207,7 @@ function splitGenerationId(id: string): [string, string] {
   return [id.slice(0, separator), id.slice(separator + 1)];
 }
 
-function fetchRoomKeyGenerations(socket: AppSocket, ids: string[]): Promise<SealedRoomKeyEntry[]> {
+async function fetchRoomKeyGenerations(socket: AppSocket, ids: string[]): Promise<SealedRoomKeyEntry[]> {
   const keyIds = new Map<string, Set<string>>();
   for (const id of ids) {
     const [roomId, keyId] = splitGenerationId(id);
@@ -207,7 +215,7 @@ function fetchRoomKeyGenerations(socket: AppSocket, ids: string[]): Promise<Seal
     forRoom.add(keyId);
     keyIds.set(roomId, forRoom);
   }
-  return requestRoomKeys(socket, Array.from(keyIds.keys()), keyIds);
+  return (await requestRoomKeys(socket, Array.from(keyIds.keys()), keyIds)).entries;
 }
 
 function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePublicKeyEntry[]> {
@@ -1028,6 +1036,10 @@ async function openKnownRoomName(roomId: string): Promise<void> {
   if (!blob || !roomKey) {
     return;
   }
+  if (latestGeneration(roomId)?.keyId !== blob.keyId) {
+    console.warn('[e2e] ignored a group name that is not sealed under the current generation', { roomId });
+    return;
+  }
   const name = await openRoomName(blob.encryptedName, roomKey, roomId, blob.keyId);
   if (roomNameBlobs.get(roomId) !== blob) {
     return;
@@ -1060,14 +1072,31 @@ async function handleRoomNameUpdatedImpl(socket: AppSocket, payload: { roomId: s
   await resolveRoomName(socket, { id: payload.roomId, type: 'group', encryptedName: { encryptedName: payload.encryptedName, keyId: payload.keyId } as RoomEncryptedName });
 }
 
-async function groupNameForPublish(roomId: string): Promise<string | null> {
+const FALLBACK_GROUP_NAME = 'Group';
+
+async function groupNameForPublish(roomId: string): Promise<string> {
   await openKnownRoomName(roomId);
-  return roomNames.get(roomId) ?? pendingCreationNames.get(roomId) ?? null;
+  return roomNames.get(roomId) ?? pendingCreationNames.get(roomId) ?? normalizeGroupName(translate('common.group')) ?? FALLBACK_GROUP_NAME;
+}
+
+export async function canRenameGroup(socket: AppSocket, roomId: string): Promise<boolean> {
+  const identity = getCurrentIdentity();
+  if (!identity || roomViews.get(roomId)?.type !== 'group') {
+    return false;
+  }
+  await loadPersistedGenerations(roomId);
+  const current = sendableGeneration(roomId);
+  if (!current) {
+    return false;
+  }
+  const roster = await openCurrentRoster(socket, roomId, current);
+  const ownKey = await ownSigningPublicKey(identity);
+  return roster?.members.some((member) => member.userId === identity.userId && member.signingPublicKey === ownKey) === true;
 }
 
 export async function renameGroup(socket: AppSocket, roomId: string, name: string): Promise<boolean> {
   const normalized = normalizeGroupName(name);
-  if (!normalized || roomViews.get(roomId)?.type !== 'group') {
+  if (!normalized || !(await canRenameGroup(socket, roomId))) {
     return false;
   }
   const generation = await ensureRoomKeyForSending(socket, roomId);
@@ -1258,13 +1287,25 @@ async function acceptEnvelopes(socket: AppSocket, entries: SealedRoomKeyEntry[])
   }
 }
 
+async function completeTruncatedRosters(socket: AppSocket, entries: SealedRoomKeyEntry[]): Promise<SealedRoomKeyEntry[]> {
+  return Promise.all(
+    entries.map(async (entry) => {
+      if (typeof entry.roster === 'string' || !knownGroups.has(entry.roomId)) {
+        return entry;
+      }
+      const refetched = await lookupRoomKeyGeneration(socket, missingKey(entry.roomId, entry.keyId));
+      return typeof refetched?.roster === 'string' ? { ...entry, roster: refetched.roster } : entry;
+    }),
+  );
+}
+
 function syncRoomKeys(socket: AppSocket, roomId: string): Promise<void> {
   let sync = pendingSyncs.get(roomId);
   if (!sync) {
     sync = (async () => {
       const bundle = await lookupRoomKeyBundle(socket, roomId);
       if (bundle) {
-        await acceptEnvelopes(socket, bundle.keys);
+        await acceptEnvelopes(socket, bundle.truncated ? await completeTruncatedRosters(socket, bundle.keys) : bundle.keys);
       }
     })().finally(() => {
       pendingSyncs.delete(roomId);
@@ -1451,11 +1492,6 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
       return;
     }
     const groupName = isGroup ? await groupNameForPublish(roomId) : null;
-    if (isGroup && !groupName) {
-      console.warn('[e2e] cannot re-encrypt the group name for a new generation', { roomId, epoch });
-      pendingPublishes.delete(roomId);
-      return;
-    }
     const encryptedName = groupName ? await sealRoomName(groupName, generation.key, roomId, generation.keyId) : null;
     const invite = isGroup ? await createInviteBundle(generation.key, roomId, generation.keyId) : null;
     const encryptedRoster = roster ? await sealRoster(roster, generation.key, roomId, generation.keyId) : null;

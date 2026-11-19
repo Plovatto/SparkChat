@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
-import { renameGroup } from '@lib/e2ee';
+import { canRenameGroup, renameGroup, subscribeRoomKeyAvailable } from '@lib/e2ee';
 import { useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 
 const GROUP_NAME_MAX_LENGTH = 64;
@@ -22,6 +22,31 @@ export function GroupNameEditor({ room, currentUserId }: GroupNameEditorProps) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [canRename, setCanRename] = useState(false);
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+    let active = true;
+    const refresh = () => {
+      void canRenameGroup(socket, room.id).then((allowed) => {
+        if (active) {
+          setCanRename(allowed);
+        }
+      });
+    };
+    refresh();
+    const unsubscribe = subscribeRoomKeyAvailable((roomId) => {
+      if (roomId === room.id) {
+        refresh();
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [socket, room.id, room.participants]);
 
   useEffect(() => {
     if (!socket || !isEditing) {
@@ -81,7 +106,7 @@ export function GroupNameEditor({ room, currentUserId }: GroupNameEditorProps) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '0 0 10px 0' }}>
         <h3 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{getRoomDisplayName(room, currentUserId)}</h3>
-        {room.name && (
+        {canRename && (
           <button
             type="button"
             onClick={startEditing}
