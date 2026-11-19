@@ -41,7 +41,6 @@
       "currentPasswordIncorrect": "Current password is incorrect.",
       "credentialsInvalid": "The security data sent is invalid. Please try again.",
       "credentialsIncomplete": "Some security data is missing. Please try again.",
-      "credentialsAlreadyUpgraded": "Your account security is already up to date.",
       "passwordTooLong": "Your password must be at most {{maxLength}} characters long.",
       "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file."
     },
@@ -210,7 +209,6 @@
     "title": "Your recovery file",
     "intro": "This file is your backup key to get into your account if you forget your password. Keep it somewhere safe — if you lose both the file and your password, no one can recover your account.",
     "noPassword": "The file doesn't contain your password. Anyone who has it can get into your account, so keep it private.",
-    "upgraded": "We've upgraded your account's security. Your previous recovery file no longer works — download this new one and replace the old one.",
     "replaceOld": "If you had a file saved before, replace it with this one — the previous one no longer works.",
     "download": "Download file",
     "downloadAgain": "Download again",
@@ -544,8 +542,7 @@
     },
     "lastUsed": "Last used: {{date}}",
     "revokeSession": "Sign out this session",
-    "nicknamePasswordHint": "Changing your username issues a new recovery file and signs out your other sessions. Confirm with your current password.",
-    "nicknamePasswordHintV2": "Changing your username signs out your other sessions. Confirm with your current password.",
+    "nicknamePasswordHint": "Changing your username signs out your other sessions. Confirm with your current password.",
     "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
     "confirmRegenerate": "Generate new file"
   },

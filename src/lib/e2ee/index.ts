@@ -1,14 +1,11 @@
 export { getCurrentIdentity, subscribeCurrentIdentity } from './current-identity';
 export {
   clearIdentity,
-  ensureIdentityAfterKeyfileLogin,
-  ensureIdentityAfterPasswordLogin,
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
   ensureSigningKeyPublished,
   hydrateCurrentIdentity,
   resolveIdentityForRewrap,
-  rewrapIdentityAfterLegacyRecoveryRegenerate,
   setupIdentityAfterRegister,
 } from './setup-identity';
 export {
@@ -32,14 +29,11 @@ export {
   type RecoveryFileContents,
 } from './credentials';
 export {
-  buildRecoveryFileOnce,
   completeRegistration,
   createPasswordMaterial,
   createRecoveryMaterial,
   prepareRegistrationCredentials,
-  upgradeLegacyCredentials,
   type RegistrationCredentials,
-  type UpgradedCredentials,
 } from './credential-flows';
 export {
   clearRoomKeys,

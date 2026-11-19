@@ -3,7 +3,6 @@ export { useSocket } from './socket-context';
 export { isSocketAuthenticated, type AppSocket } from './socket-client';
 export type {
   AuthMethod,
-  AuthVersion,
   BlockStatusPayload,
   ClientToServerEvents,
   E2ePublicKeyEntry,

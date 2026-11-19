@@ -91,15 +91,6 @@ export async function wrapPrivateKeyV2(privateKey: Uint8Array, key: Uint8Array, 
   return JSON.stringify(payload);
 }
 
-export function isWrappedV2(wrapped: string): boolean {
-  try {
-    const payload = JSON.parse(wrapped) as Partial<WrappedPayloadV2> | null;
-    return payload?.v === 2;
-  } catch {
-    return false;
-  }
-}
-
 export async function unwrapPrivateKeyV2(wrapped: string, key: Uint8Array, userId: string, publicKey: string): Promise<Uint8Array> {
   const sodium = await getSodium();
   const payload = JSON.parse(wrapped) as Partial<WrappedPayloadV2> | null;

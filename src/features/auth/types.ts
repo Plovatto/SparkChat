@@ -28,9 +28,7 @@ export interface LoginCredentials {
 }
 
 export type PendingE2eCredential =
-  | { type: 'password'; password: string }
   | { type: 'password-v2'; wrapKey: Uint8Array }
-  | { type: 'keyfile'; recoveryToken: string }
   | { type: 'recovery-v2'; recoveryWrapKey: Uint8Array };
 
 export interface Avatar {

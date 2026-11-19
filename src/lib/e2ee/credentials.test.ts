@@ -6,12 +6,12 @@ import {
   generateAuthSalt,
   generateRecoverySecret,
   InvalidRecoveryFileError,
-  isWrappedV2,
   parseRecoveryFile,
   unwrapPrivateKeyV2,
   wrapPrivateKeyV2,
 } from './credentials';
-import { generateIdentity, unwrapPrivateKeyWithPassword, unwrapPrivateKeyWithRecoveryToken, wrapPrivateKeyWithRecoveryToken } from './identity';
+import * as identityModule from './identity';
+import { generateIdentity } from './identity';
 import { getSodium } from './sodium';
 
 const FIXED_SALT = 'AAECAwQFBgcICQoLDA0ODw';
@@ -84,7 +84,6 @@ describe('identity wrap v2', () => {
     const wrapped = await wrapPrivateKeyV2(identity.privateKey, wrapKey, 'user-1', identity.publicKey);
     expect(JSON.parse(wrapped)).toMatchObject({ v: 2 });
     expect(JSON.parse(wrapped)).not.toHaveProperty('salt');
-    expect(isWrappedV2(wrapped)).toBe(true);
     const unwrapped = await unwrapPrivateKeyV2(wrapped, wrapKey, 'user-1', identity.publicKey);
     expect(Array.from(unwrapped)).toEqual(Array.from(identity.privateKey));
   });
@@ -106,20 +105,18 @@ describe('identity wrap v2', () => {
     const { recoveryWrapKey } = await deriveRecoveryCredentials(await generateRecoverySecret());
     const wrapped = JSON.parse(await wrapPrivateKeyV2(identity.privateKey, recoveryWrapKey, 'u', identity.publicKey)) as Record<string, unknown>;
     const legacyShaped = JSON.stringify({ ciphertext: wrapped.ciphertext, nonce: wrapped.nonce });
-    expect(isWrappedV2(legacyShaped)).toBe(false);
     await expect(unwrapPrivateKeyV2(legacyShaped, recoveryWrapKey, 'u', identity.publicKey)).rejects.toThrow();
   });
 });
 
-describe('legacy unwrap', () => {
-  it('still opens legacy password and recovery wraps', async () => {
+describe('legacy wraps', () => {
+  it('no longer opens legacy password wraps and exposes no legacy unwrap helpers', async () => {
     const identity = await generateIdentity();
     const passwordWrap = await legacyPasswordWrap(identity.privateKey, 'old-password');
-    const recoveryWrap = await wrapPrivateKeyWithRecoveryToken(identity.privateKey, 'legacy-token');
+    const { wrapKey } = await derivePasswordCredentials('old-password', FIXED_SALT);
 
-    expect(isWrappedV2(passwordWrap)).toBe(false);
-    expect(Array.from(await unwrapPrivateKeyWithPassword(passwordWrap, 'old-password'))).toEqual(Array.from(identity.privateKey));
-    expect(Array.from(await unwrapPrivateKeyWithRecoveryToken(recoveryWrap, 'legacy-token'))).toEqual(Array.from(identity.privateKey));
+    await expect(unwrapPrivateKeyV2(passwordWrap, wrapKey, 'u', identity.publicKey)).rejects.toThrow();
+    expect(Object.keys(identityModule).sort()).toEqual(['IdentityKeyMismatchError', 'generateIdentity', 'privateKeyMatchesPublicKey']);
   });
 });
 

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from '@lib/socket';
-import { generateIdentity, wrapPrivateKeyWithRecoveryToken } from './identity';
-import { ensureIdentityAfterKeyfileLogin, ensureSigningKeyPublished, setupIdentityAfterRegister } from './setup-identity';
+import { deriveRecoveryCredentials, generateRecoverySecret, wrapPrivateKeyV2 } from './credentials';
+import { generateIdentity } from './identity';
+import { ensureIdentityAfterRecoveryLogin, ensureSigningKeyPublished, setupIdentityAfterRegister } from './setup-identity';
 import { verifyKeyBinding } from './signing';
 
 const saved = vi.hoisted(() => [] as { userId: string; publicKey: string }[]);
@@ -54,11 +55,12 @@ describe('identity unwrap verification', () => {
 
   it('stores the unwrapped key when it matches the published public key', async () => {
     const identity = await generateIdentity();
-    const blob = await wrapPrivateKeyWithRecoveryToken(identity.privateKey, 'token');
-    await ensureIdentityAfterKeyfileLogin(
+    const { recoveryWrapKey } = await deriveRecoveryCredentials(await generateRecoverySecret());
+    const blob = await wrapPrivateKeyV2(identity.privateKey, recoveryWrapKey, 'me', identity.publicKey);
+    await ensureIdentityAfterRecoveryLogin(
       socketReturning({ publicKey: identity.publicKey, encryptedPrivateKeyByPassword: null, encryptedPrivateKeyByRecovery: blob }),
       'me',
-      'token',
+      recoveryWrapKey,
     );
     expect(saved).toEqual([{ userId: 'me', publicKey: identity.publicKey }]);
     expect(current.identity).toMatchObject({ userId: 'me', publicKey: identity.publicKey });
@@ -67,11 +69,12 @@ describe('identity unwrap verification', () => {
 
   it('refuses a server blob whose private key does not match the public key', async () => {
     const [published, substituted] = await Promise.all([generateIdentity(), generateIdentity()]);
-    const blob = await wrapPrivateKeyWithRecoveryToken(substituted.privateKey, 'token');
-    await ensureIdentityAfterKeyfileLogin(
+    const { recoveryWrapKey } = await deriveRecoveryCredentials(await generateRecoverySecret());
+    const blob = await wrapPrivateKeyV2(substituted.privateKey, recoveryWrapKey, 'me', published.publicKey);
+    await ensureIdentityAfterRecoveryLogin(
       socketReturning({ publicKey: published.publicKey, encryptedPrivateKeyByPassword: null, encryptedPrivateKeyByRecovery: blob }),
       'me',
-      'token',
+      recoveryWrapKey,
     );
     expect(saved).toEqual([]);
     expect(current.identity).toBeNull();
