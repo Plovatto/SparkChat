@@ -163,6 +163,24 @@ export interface RoomSummary {
   isBlockedBy: boolean;
   userBlocked: boolean;
   isMutuallyBlocked: boolean;
+  currentEpoch?: number;
+  currentKeyId?: string | null;
+  rotationRequiredEpoch?: number | null;
+}
+
+export interface SealedRoomKeyEntry {
+  roomId: string;
+  keyId: string;
+  epoch: number;
+  senderId: string;
+  sealedKey: string;
+}
+
+export interface RoomKeyBatch {
+  roomId: string;
+  keyId: string;
+  epoch: number;
+  keys: { userId: string; sealedKey: string }[];
 }
 
 export interface E2ePublicKeyEntry {
@@ -220,10 +238,11 @@ export interface ServerToClientEvents {
   'group:participants-updated': (payload: { roomId: string; participants: RoomParticipant[] }) => void;
   'user:blocked': (payload: BlockStatusPayload) => void;
   'user:unblocked': (payload: BlockStatusPayload) => void;
-  'e2e:room-keys': (payload: { keys: { roomId: string; sealedKey: string }[] }) => void;
-  'e2e:room-key': (payload: { roomId: string; sealedKey: string }) => void;
+  'e2e:room-keys': (payload: { keys: SealedRoomKeyEntry[] }) => void;
+  'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string }) => void;
-  'e2e:room-key-rejected': (payload: { roomId: string }) => void;
+  'e2e:room-key-rejected': (payload: { roomId: string; epoch: number; message?: string }) => void;
+  'e2e:rotation-required': (payload: { roomId: string; epoch: number; memberIds?: string[] }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
   'message:mark-read-done': (payload: { roomId: string; unreadCount: number; mentionCount: number }) => void;
   'message:read-receipt': (payload: { roomId: string; userId: string }) => void;
@@ -285,7 +304,8 @@ export interface ClientToServerEvents {
   'group:promote-admin': (payload: { roomId: string; userId: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
-  'e2e:publish-room-key': (payload: { roomId: string; keys: { userId: string; sealedKey: string }[] }) => void;
+  'e2e:publish-room-key': (payload: RoomKeyBatch) => void;
+  'e2e:share-room-key': (payload: RoomKeyBatch) => void;
   'e2e:get-room-keys': (payload: { roomIds: string[] }) => void;
   'e2e:request-room-key': (payload: { roomId: string }) => void;
   'message:send': (payload: {

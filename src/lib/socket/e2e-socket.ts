@@ -4,23 +4,22 @@ import {
   decryptRoomSummaries,
   decryptRoomSummary,
   encryptOutgoingMessage,
-  ensureRoomKeyForDecryption,
-  establishGroupRoomKeyOnCreate,
+  ensureRoomKeyForSending,
   ensureSigningKeyPublished,
-  establishPrivateRoomKey,
   getCurrentIdentity,
   handleGroupUserJoined,
-  handleIncomingRoomKeyPush,
   handleKeyRequest,
+  handleRoomKeyPush,
   handleRoomKeyRejected,
+  handleRotationRequired,
   MissingRoomKeyError,
-  requestGroupRoomKeyIfMissing,
   subscribeCurrentIdentity,
-  trackRoomParticipants,
+  trackRoom,
+  updateRoomParticipants,
 } from '@lib/e2ee';
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from './socket-client';
-import type { ClientToServerEvents, MessageView, RoomParticipant, RoomSummary } from './socket-events';
+import type { ClientToServerEvents, MessageView, RoomParticipant, RoomSummary, SealedRoomKeyEntry } from './socket-events';
 
 type AnyHandler = (...args: never[]) => void;
 type GenericOn = (event: string, handler: AnyHandler) => AppSocket;
@@ -36,7 +35,7 @@ function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, 
   }
 }
 
-const DECRYPT_EVENTS =new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
+const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
 
 interface DeferredRoomEvent {
   room: RoomSummary;
@@ -52,24 +51,11 @@ function deferRoomEvent(deferred: DeferredRoomEvents, room: RoomSummary, event: 
 }
 
 function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: string, deferred: DeferredRoomEvents): void {
-  trackRoomParticipants(room);
-
-  const currentUserId = getCurrentIdentity()?.userId;
-  if (!currentUserId) {
+  if (!getCurrentIdentity()) {
     deferRoomEvent(deferred, room, event);
     return;
   }
-  if (!room.participants.some((participant) => participant.id === currentUserId)) {
-    return;
-  }
-
-  if (room.type === 'private') {
-    const isActiveCreationEvent = event === 'room:joined';
-    void establishPrivateRoomKey(socket, room, currentUserId, isActiveCreationEvent);
-  } else if (room.type === 'group') {
-    void establishGroupRoomKeyOnCreate(socket, room, currentUserId);
-    void requestGroupRoomKeyIfMissing(socket, room, currentUserId);
-  }
+  void trackRoom(socket, room, { activeCreation: event === 'room:joined' });
 }
 
 async function transformPayload(socket: AppSocket, event: string, payload: unknown): Promise<unknown> {
@@ -164,7 +150,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   genericSocket.emit = (event: string, ...args: unknown[]) => {
     if (event === 'message:send') {
       const payload = args[0] as OutgoingMessage;
-      void ensureRoomKeyForDecryption(socket, payload.roomId)
+      void ensureRoomKeyForSending(socket, payload.roomId)
         .then(() => encryptOutgoingMessage(payload))
         .then((encrypted) => {
           originalEmit(event, encrypted);
@@ -219,19 +205,31 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     }
   });
 
-  originalOn('e2e:room-key', (payload: { roomId: string; sealedKey: string }) => {
-    void handleIncomingRoomKeyPush(payload);
+  originalOn('e2e:room-key', (payload: SealedRoomKeyEntry) => {
+    void handleRoomKeyPush(socket, payload);
+  });
+
+  originalOn('e2e:rotation-required', (payload: { roomId: string; epoch: number; memberIds?: string[] }) => {
+    void handleRotationRequired(socket, payload);
   });
 
   originalOn('group:user-joined', (payload: { roomId: string; participants: RoomParticipant[] }) => {
     void handleGroupUserJoined(socket, payload);
   });
 
+  originalOn('group:user-left', (payload: { roomId: string; participants: RoomParticipant[] }) => {
+    updateRoomParticipants(payload.roomId, payload.participants);
+  });
+
+  originalOn('group:participants-updated', (payload: { roomId: string; participants: RoomParticipant[] }) => {
+    updateRoomParticipants(payload.roomId, payload.participants);
+  });
+
   originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string }) => {
     void handleKeyRequest(socket, payload);
   });
 
-  originalOn('e2e:room-key-rejected', (payload: { roomId: string }) => {
+  originalOn('e2e:room-key-rejected', (payload: { roomId: string; epoch: number }) => {
     void handleRoomKeyRejected(socket, payload);
   });
 

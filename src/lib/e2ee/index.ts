@@ -43,18 +43,18 @@ export {
 } from './credential-flows';
 export {
   clearRoomKeys,
-  ensureRoomKeyForDecryption,
-  establishGroupRoomKeyOnCreate,
-  establishPrivateRoomKey,
+  ensureRoomKeyForSending,
   handleGroupUserJoined,
-  handleIncomingRoomKeyPush,
   handleKeyRequest,
+  handleRoomKeyPush,
   handleRoomKeyRejected,
+  handleRotationRequired,
   MissingRoomKeyError,
-  requestGroupRoomKeyIfMissing,
   subscribeRoomKeyAvailable,
-  trackRoomParticipants,
+  trackRoom,
+  updateRoomParticipants,
   type RoomKeyAvailableListener,
+  type RoomKeyGeneration,
 } from './room-keys';
 export {
   decryptMediaContentIfNeeded,

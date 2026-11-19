@@ -11,15 +11,15 @@ import type {
   MessageView,
   RoomSummary,
 } from '@lib/socket';
-import { decryptAttachment } from './attachment-crypto';
+import { decryptAttachment, readAttachmentKeyId } from './attachment-crypto';
 import { resolveDecryptedMediaUrl } from './media-cache';
-import { E2E_V2_PREFIX, isAuthenticatedField, openAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
+import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
-import { ensureRoomKeyForDecryption, lookupContactKey, refetchRoomKeyAfterDecryptionFailure, requireCachedRoomKey } from './room-keys';
+import { ensureAnyRoomKey, ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
 
-const E2E_PREFIX = 'e2e:v1:';
+const ENCRYPTED_FIELD_PREFIX = 'e2e:';
 
 interface FieldSource {
   messageId: string;
@@ -41,15 +41,6 @@ const FIELD_LABELS = {
 const ENCRYPTED_MEDIA_PARAM = 'e2e';
 
 const LINK_PREVIEW_IMAGE_META: MessageFileMeta = { name: 'link-preview', mimeType: THUMBNAIL_MIME_TYPE, size: 0 };
-
-async function decryptText(payload: string, roomKey: Uint8Array): Promise<string> {
-  const sodium = await getSodium();
-  const combined = sodium.from_base64(payload.slice(E2E_PREFIX.length));
-  const nonce = combined.subarray(0, sodium.crypto_secretbox_NONCEBYTES);
-  const ciphertext = combined.subarray(sodium.crypto_secretbox_NONCEBYTES);
-  const plaintextBytes = sodium.crypto_secretbox_open_easy(ciphertext, nonce, roomKey);
-  return sodium.to_string(plaintextBytes);
-}
 
 const ownSigningPublicKeys = new WeakMap<Uint8Array, Uint8Array>();
 
@@ -75,21 +66,6 @@ async function resolveSenderSigningKey(socket: AppSocket, senderId: string): Pro
   return signingPublicKey ? sodium.from_base64(signingPublicKey) : null;
 }
 
-async function openField(
-  socket: AppSocket,
-  content: string,
-  roomId: string,
-  roomKey: Uint8Array,
-  source: FieldSource,
-  label: string,
-): Promise<string> {
-  const signingKey = await resolveSenderSigningKey(socket, source.senderId);
-  if (!signingKey) {
-    throw new Error('Sender signing key unavailable');
-  }
-  return openAuthenticatedField(content, roomKey, signingKey, { roomId, senderId: source.senderId, messageId: source.messageId, label });
-}
-
 async function decryptTextContentIfNeeded(
   socket: AppSocket,
   content: string,
@@ -97,31 +73,31 @@ async function decryptTextContentIfNeeded(
   source: FieldSource,
   label: string,
 ): Promise<string> {
-  const authenticated = isAuthenticatedField(content);
-  if (!authenticated && !content.startsWith(E2E_PREFIX)) {
+  if (!content.startsWith(ENCRYPTED_FIELD_PREFIX)) {
     return content;
   }
+  const parsed = parseAuthenticatedField(content);
+  if (!parsed) {
+    return translate('chat.message.unsupportedFormat');
+  }
 
-  const roomKey = await ensureRoomKeyForDecryption(socket, roomId);
+  const roomKey = await ensureRoomKeyGeneration(socket, roomId, parsed.keyId);
   if (!roomKey) {
     return translate('chat.message.encryptedUnavailable');
   }
 
-  const open = (key: Uint8Array) =>
-    authenticated ? openField(socket, content, roomId, key, source, label) : decryptText(content, key);
-
-  const decrypted = await open(roomKey).catch(() => null);
-  if (decrypted !== null) {
-    return decrypted;
-  }
-
-  const refetched = await refetchRoomKeyAfterDecryptionFailure(socket, roomId);
-  if (!refetched) {
-    return translate('chat.message.encryptedUnavailable');
-  }
-
   try {
-    return await open(refetched);
+    const signingKey = await resolveSenderSigningKey(socket, source.senderId);
+    if (!signingKey) {
+      return translate('chat.message.encryptedUnavailable');
+    }
+    return await openAuthenticatedField(content, roomKey, signingKey, {
+      roomId,
+      senderId: source.senderId,
+      messageId: source.messageId,
+      keyId: parsed.keyId,
+      label,
+    });
   } catch {
     return translate('chat.message.encryptedUnavailable');
   }
@@ -146,8 +122,7 @@ export async function decryptMediaContentIfNeeded(
     return content;
   }
 
-  const roomKey = await ensureRoomKeyForDecryption(socket, roomId);
-  if (!roomKey) {
+  if (!(await ensureAnyRoomKey(socket, roomId))) {
     return content;
   }
 
@@ -159,7 +134,12 @@ export async function decryptMediaContentIfNeeded(
         return null;
       }
       const ciphertext = await response.arrayBuffer();
-      const blob = await decryptAttachment(roomId, ciphertext, mimeType);
+      const keyId = await readAttachmentKeyId(ciphertext);
+      const roomKey = keyId ? await ensureRoomKeyGeneration(socket, roomId, keyId) : null;
+      if (!roomKey) {
+        return null;
+      }
+      const blob = await decryptAttachment(ciphertext, roomKey, mimeType);
       return blob ? URL.createObjectURL(blob) : null;
     } catch {
       return null;
@@ -275,7 +255,7 @@ async function decryptReplySnapshot(
 const UNENCRYPTED_EXEMPT_TYPES: ReadonlySet<MessageType> = new Set(['system', 'error']);
 
 function isPlaintextField(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.length > 0 && !value.startsWith(E2E_PREFIX) && !value.startsWith(E2E_V2_PREFIX);
+  return typeof value === 'string' && value.length > 0 && !value.startsWith(ENCRYPTED_FIELD_PREFIX);
 }
 
 function isPlaintextMediaUrl(value: string | null | undefined): boolean {
@@ -339,7 +319,7 @@ export interface OutgoingMessageFields {
 }
 
 export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(message: T): Promise<T & { messageId: string }> {
-  const roomKey = requireCachedRoomKey(message.roomId);
+  const generation = requireCurrentRoomKey(message.roomId);
   const identity = getCurrentIdentity();
   if (!identity) {
     throw new Error('Cannot encrypt a message without an identity');
@@ -347,10 +327,11 @@ export async function encryptOutgoingMessage<T extends OutgoingMessageFields>(me
   const signingKeys = await deriveSigningKeyPair(identity.privateKey);
   const messageId = crypto.randomUUID();
   const seal = (value: string, label: string) =>
-    sealAuthenticatedField(value, roomKey, signingKeys.privateKey, {
+    sealAuthenticatedField(value, generation.key, signingKeys.privateKey, {
       roomId: message.roomId,
       senderId: identity.userId,
       messageId,
+      keyId: generation.keyId,
       label,
     });
   const sealNullable = (value: string | null, label: string) => (value ? seal(value, label) : Promise.resolve(null));

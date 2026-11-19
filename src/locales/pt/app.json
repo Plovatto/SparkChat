@@ -299,6 +299,7 @@
       "defaultImageName": "imagem.jpg",
       "readMore": "Ler mais",
       "encryptedUnavailable": "🔒 Mensagem criptografada — sem chave local ainda.",
+      "unsupportedFormat": "🔒 Mensagem criptografada em um formato antigo que não é mais suportado.",
       "notEncrypted": "Não criptografada",
       "notEncryptedHint": "Esta mensagem chegou sem criptografia de ponta a ponta. Mídias dela não são carregadas automaticamente.",
       "mediaNotLoaded": "Não foi possível carregar esta mídia com segurança."

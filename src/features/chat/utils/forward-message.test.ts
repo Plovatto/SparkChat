@@ -9,10 +9,8 @@ vi.mock('@lib/media/image-compression', () => ({
   buildImageVariants: (file: File) => Promise.resolve({ original: file, thumbnail: new Blob(['thumb'], { type: 'image/webp' }) }),
 }));
 vi.mock('@lib/e2ee', () => {
-  class MissingRoomKeyError extends Error {}
   return {
-    MissingRoomKeyError,
-    ensureRoomKeyForDecryption: () => Promise.resolve(new Uint8Array(32)),
+    ensureRoomKeyForSending: () => Promise.resolve({ keyId: 'k'.repeat(22), epoch: 1, key: new Uint8Array(32) }),
     isEncryptedMediaUrl: (url: string) => url.includes('e2e=1'),
     decryptMediaContentIfNeeded: (_socket: unknown, content: string) => Promise.resolve(content.replace('https://cdn.test/', 'blob:').replace('?e2e=1', '')),
     encryptAttachment: async (_roomId: string, blob: Blob) => new Blob([new Uint8Array(24), await blob.arrayBuffer()], { type: 'application/octet-stream' }),

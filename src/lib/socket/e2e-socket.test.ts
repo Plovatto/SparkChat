@@ -7,8 +7,18 @@ const identityState = vi.hoisted(() => ({
   listeners: new Set<(identity: unknown) => void>(),
 }));
 
-const establishPrivateRoomKey = vi.hoisted(() => vi.fn());
+const trackRoom = vi.hoisted(() => vi.fn());
 const ensureSigningKeyPublished = vi.hoisted(() => vi.fn());
+const roomKeyHandlers = vi.hoisted(() => ({
+  handleRoomKeyPush: vi.fn(),
+  handleRoomKeyRejected: vi.fn(),
+  handleRotationRequired: vi.fn(),
+  handleGroupUserJoined: vi.fn(),
+  handleKeyRequest: vi.fn(),
+  updateRoomParticipants: vi.fn(),
+  ensureRoomKeyForSending: vi.fn(),
+  encryptOutgoingMessage: vi.fn(),
+}));
 
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 
@@ -17,22 +27,15 @@ vi.mock('@lib/e2ee', () => ({
   decryptMessageViews: (messages: unknown) => Promise.resolve(messages),
   decryptRoomSummaries: (rooms: unknown) => Promise.resolve(rooms),
   decryptRoomSummary: (room: unknown) => Promise.resolve(room),
-  encryptOutgoingMessage: (payload: unknown) => Promise.resolve(payload),
-  ensureRoomKeyForDecryption: () => Promise.resolve(null),
-  establishGroupRoomKeyOnCreate: vi.fn(),
+  ...roomKeyHandlers,
   ensureSigningKeyPublished,
-  establishPrivateRoomKey,
+  trackRoom,
   getCurrentIdentity: () => identityState.current,
   subscribeCurrentIdentity: (listener: (identity: unknown) => void) => {
     identityState.listeners.add(listener);
     return () => identityState.listeners.delete(listener);
   },
-  handleGroupUserJoined: vi.fn(),
-  handleIncomingRoomKeyPush: vi.fn(),
-  handleKeyRequest: vi.fn(),
   MissingRoomKeyError: class extends Error {},
-  requestGroupRoomKeyIfMissing: vi.fn(),
-  trackRoomParticipants: vi.fn(),
 }));
 
 const { wrapSocketWithE2e } = await import('./e2e-socket');
@@ -84,7 +87,7 @@ describe('wrapSocketWithE2e room key setup', () => {
   beforeEach(() => {
     identityState.current = null;
     identityState.listeners.clear();
-    establishPrivateRoomKey.mockClear();
+    trackRoom.mockClear();
     ensureSigningKeyPublished.mockClear();
   });
 
@@ -116,7 +119,7 @@ describe('wrapSocketWithE2e room key setup', () => {
 
     receive('room:joined', { room: privateRoom, messages: [] });
 
-    expect(establishPrivateRoomKey).toHaveBeenCalledWith(socket, privateRoom, 'me', true);
+    expect(trackRoom).toHaveBeenCalledWith(socket, privateRoom, { activeCreation: true });
   });
 
   it('waits for the identity before establishing the key of a room created earlier', () => {
@@ -124,12 +127,12 @@ describe('wrapSocketWithE2e room key setup', () => {
     wrapSocketWithE2e(socket);
 
     receive('room:joined', { room: privateRoom, messages: [] });
-    expect(establishPrivateRoomKey).not.toHaveBeenCalled();
+    expect(trackRoom).not.toHaveBeenCalled();
 
     setIdentity('me');
 
-    expect(establishPrivateRoomKey).toHaveBeenCalledTimes(1);
-    expect(establishPrivateRoomKey).toHaveBeenCalledWith(socket, privateRoom, 'me', true);
+    expect(trackRoom).toHaveBeenCalledTimes(1);
+    expect(trackRoom).toHaveBeenCalledWith(socket, privateRoom, { activeCreation: true });
   });
 
   it('keeps the active creation when a passive listing arrives before the identity', () => {
@@ -140,8 +143,8 @@ describe('wrapSocketWithE2e room key setup', () => {
     receive('rooms:list', { rooms: [privateRoom] });
     setIdentity('me');
 
-    expect(establishPrivateRoomKey).toHaveBeenCalledTimes(1);
-    expect(establishPrivateRoomKey).toHaveBeenCalledWith(socket, privateRoom, 'me', true);
+    expect(trackRoom).toHaveBeenCalledTimes(1);
+    expect(trackRoom).toHaveBeenCalledWith(socket, privateRoom, { activeCreation: true });
   });
 
   it('drops deferred rooms when the identity is cleared', () => {
@@ -152,7 +155,7 @@ describe('wrapSocketWithE2e room key setup', () => {
     setIdentity(null);
     setIdentity('me');
 
-    expect(establishPrivateRoomKey).not.toHaveBeenCalled();
+    expect(trackRoom).not.toHaveBeenCalled();
   });
 
   it('stops listening for identity changes once the socket is closed', () => {
@@ -163,7 +166,87 @@ describe('wrapSocketWithE2e room key setup', () => {
     socket.close();
     setIdentity('me');
 
-    expect(establishPrivateRoomKey).not.toHaveBeenCalled();
+    expect(trackRoom).not.toHaveBeenCalled();
     expect(identityState.listeners.size).toBe(0);
+  });
+});
+
+describe('wrapSocketWithE2e room key events', () => {
+  beforeEach(() => {
+    identityState.current = null;
+    identityState.listeners.clear();
+    for (const handler of Object.values(roomKeyHandlers)) {
+      handler.mockReset();
+    }
+    trackRoom.mockClear();
+  });
+
+  it('tracks a listed room as a passive event', () => {
+    setIdentity('me');
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+
+    receive('rooms:list', { rooms: [privateRoom] });
+
+    expect(trackRoom).toHaveBeenCalledWith(socket, privateRoom, { activeCreation: false });
+  });
+
+  it('routes room key, rejection, rotation and key request events to the room key module', () => {
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+    const entry = { roomId: 'room-1', keyId: 'k'.repeat(22), epoch: 2, senderId: 'ana', sealedKey: '{}' };
+
+    receive('e2e:room-key', entry);
+    receive('e2e:room-key-rejected', { roomId: 'room-1', epoch: 2 });
+    receive('e2e:rotation-required', { roomId: 'room-1', epoch: 3 });
+    receive('e2e:key-request', { roomId: 'room-1', requesterId: 'bia' });
+
+    expect(roomKeyHandlers.handleRoomKeyPush).toHaveBeenCalledWith(socket, entry);
+    expect(roomKeyHandlers.handleRoomKeyRejected).toHaveBeenCalledWith(socket, { roomId: 'room-1', epoch: 2 });
+    expect(roomKeyHandlers.handleRotationRequired).toHaveBeenCalledWith(socket, { roomId: 'room-1', epoch: 3 });
+    expect(roomKeyHandlers.handleKeyRequest).toHaveBeenCalledWith(socket, { roomId: 'room-1', requesterId: 'bia' });
+  });
+
+  it('keeps the member view in sync when members join, leave or are removed', () => {
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+    const participants = [{ id: 'me' }, { id: 'ana' }];
+
+    receive('group:user-joined', { roomId: 'room-1', participants });
+    receive('group:user-left', { roomId: 'room-1', userId: 'bia', userName: 'bia', participants });
+    receive('group:participants-updated', { roomId: 'room-1', participants });
+
+    expect(roomKeyHandlers.handleGroupUserJoined).toHaveBeenCalledWith(socket, { roomId: 'room-1', participants });
+    expect(roomKeyHandlers.updateRoomParticipants).toHaveBeenCalledTimes(2);
+    expect(roomKeyHandlers.updateRoomParticipants).toHaveBeenCalledWith('room-1', participants);
+  });
+
+  it('makes sure a sendable room key exists before encrypting an outgoing message', async () => {
+    const { socket } = createFakeSocket();
+    const originalEmit = vi.spyOn(socket, 'emit');
+    roomKeyHandlers.ensureRoomKeyForSending.mockResolvedValue({ keyId: 'k'.repeat(22), epoch: 1, key: new Uint8Array(32) });
+    roomKeyHandlers.encryptOutgoingMessage.mockImplementation((payload: object) => Promise.resolve({ ...payload, content: 'sealed' }));
+    wrapSocketWithE2e(socket);
+
+    socket.emit('message:send', { roomId: 'room-1', content: 'oi', type: 'text', clientTempId: 't1' });
+
+    await vi.waitFor(() => expect(originalEmit).toHaveBeenCalledWith('message:send', expect.objectContaining({ content: 'sealed' })));
+    expect(roomKeyHandlers.ensureRoomKeyForSending).toHaveBeenCalledWith(socket, 'room-1');
+  });
+
+  it('never sends a message when no sendable room key can be obtained', async () => {
+    const { socket } = createFakeSocket();
+    const originalEmit = vi.spyOn(socket, 'emit');
+    const errors: unknown[] = [];
+    socket.on('error', (payload: unknown) => errors.push(payload));
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    roomKeyHandlers.ensureRoomKeyForSending.mockRejectedValue(new Error('no key'));
+    wrapSocketWithE2e(socket);
+
+    socket.emit('message:send', { roomId: 'room-1', content: 'oi', type: 'text', clientTempId: 't1' });
+
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(originalEmit).not.toHaveBeenCalledWith('message:send', expect.anything());
+    expect(roomKeyHandlers.encryptOutgoingMessage).not.toHaveBeenCalled();
   });
 });

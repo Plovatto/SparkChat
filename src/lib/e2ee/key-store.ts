@@ -1,5 +1,5 @@
 const DB_NAME = 'sparkchat-e2ee';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const IDENTITY_STORE_NAME = 'identity';
 const ROOM_KEYS_STORE_NAME = 'room_keys';
 const CONTACT_PINS_STORE_NAME = 'contact_pins';
@@ -23,21 +23,29 @@ export interface ContactPin {
   pending: { publicKey: string; signingPublicKey: string | null; seenAt: number } | null;
 }
 
-interface StoredRoomKey {
+export interface StoredRoomKeyGeneration {
   roomId: string;
+  keyId: string;
+  epoch: number;
   key: Uint8Array;
 }
+
+const ROOM_KEYS_BY_ROOM_INDEX = 'by_room';
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       if (!request.result.objectStoreNames.contains(IDENTITY_STORE_NAME)) {
         request.result.createObjectStore(IDENTITY_STORE_NAME);
       }
+      if (event.oldVersion < 4 && request.result.objectStoreNames.contains(ROOM_KEYS_STORE_NAME)) {
+        request.result.deleteObjectStore(ROOM_KEYS_STORE_NAME);
+      }
       if (!request.result.objectStoreNames.contains(ROOM_KEYS_STORE_NAME)) {
-        request.result.createObjectStore(ROOM_KEYS_STORE_NAME, { keyPath: 'roomId' });
+        const store = request.result.createObjectStore(ROOM_KEYS_STORE_NAME, { keyPath: ['roomId', 'keyId'] });
+        store.createIndex(ROOM_KEYS_BY_ROOM_INDEX, 'roomId');
       }
       if (!request.result.objectStoreNames.contains(CONTACT_PINS_STORE_NAME)) {
         request.result.createObjectStore(CONTACT_PINS_STORE_NAME, { keyPath: 'id' });
@@ -99,12 +107,12 @@ export async function clearPrivateKey(): Promise<void> {
   }
 }
 
-export async function saveRoomKey(roomId: string, key: Uint8Array): Promise<void> {
+export async function saveRoomKeyGeneration(generation: StoredRoomKeyGeneration): Promise<void> {
   try {
     const db = await openDb();
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(ROOM_KEYS_STORE_NAME, 'readwrite');
-      tx.objectStore(ROOM_KEYS_STORE_NAME).put({ roomId, key } satisfies StoredRoomKey);
+      tx.objectStore(ROOM_KEYS_STORE_NAME).put(generation);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error('Falha ao salvar a chave da sala.'));
     });
@@ -114,35 +122,20 @@ export async function saveRoomKey(roomId: string, key: Uint8Array): Promise<void
   }
 }
 
-export async function loadRoomKey(roomId: string): Promise<Uint8Array | null> {
+export async function loadRoomKeyGenerations(roomId: string): Promise<StoredRoomKeyGeneration[]> {
   try {
     const db = await openDb();
-    const stored = await new Promise<StoredRoomKey | undefined>((resolve, reject) => {
+    const stored = await new Promise<StoredRoomKeyGeneration[]>((resolve, reject) => {
       const tx = db.transaction(ROOM_KEYS_STORE_NAME, 'readonly');
-      const request = tx.objectStore(ROOM_KEYS_STORE_NAME).get(roomId);
-      request.onsuccess = () => resolve(request.result as StoredRoomKey | undefined);
+      const request = tx.objectStore(ROOM_KEYS_STORE_NAME).index(ROOM_KEYS_BY_ROOM_INDEX).getAll(roomId);
+      request.onsuccess = () => resolve(request.result as StoredRoomKeyGeneration[]);
       request.onerror = () => reject(request.error ?? new Error('Falha ao ler a chave da sala.'));
     });
     db.close();
 
-    return stored?.key ?? null;
+    return stored;
   } catch {
-    return null;
-  }
-}
-
-export async function deleteRoomKey(roomId: string): Promise<void> {
-  try {
-    const db = await openDb();
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(ROOM_KEYS_STORE_NAME, 'readwrite');
-      tx.objectStore(ROOM_KEYS_STORE_NAME).delete(roomId);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error ?? new Error('Falha ao remover a chave da sala.'));
-    });
-    db.close();
-  } catch {
-    return;
+    return [];
   }
 }
 
