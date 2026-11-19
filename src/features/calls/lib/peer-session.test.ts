@@ -73,6 +73,7 @@ class FakeChannel {
 class FakeConnection {
   signalingState = 'stable';
   iceConnectionState = 'new';
+  connectionState = 'new';
   localDescription: { type: string; sdp: string } | null = null;
   remoteDescription: { type: string; sdp: string } | null = null;
   transceivers: FakeTransceiver[] = [];
@@ -87,6 +88,7 @@ class FakeConnection {
   onnegotiationneeded: (() => void) | null = null;
   oniceconnectionstatechange: (() => void) | null = null;
   ontrack: ((event: unknown) => void) | null = null;
+  onconnectionstatechange: (() => void) | null = null;
 
   constructor(config: Record<string, unknown>) {
     this.configuration = { ...config };
@@ -127,8 +129,19 @@ class FakeConnection {
     return this.transceivers;
   }
 
+  transport = {
+    state: 'new',
+    onstatechange: null as (() => void) | null,
+    getRemoteCertificates: (): ArrayBuffer[] => this.remoteCertificates,
+  };
+
   getReceivers() {
-    return [{ transport: { getRemoteCertificates: () => this.remoteCertificates } }];
+    return [{ transport: this.transport }];
+  }
+
+  setDtls(state: string): void {
+    this.transport.state = state;
+    this.transport.onstatechange?.();
   }
 
   setLocalDescription(): Promise<void> {
@@ -516,39 +529,84 @@ describe('ice restart', () => {
 });
 
 describe('dtls fingerprint check', () => {
-  async function connectedWith(hashed: string) {
+  async function negotiated(hashed = REMOTE_FP) {
     const h = build('caller', {}, hashed);
     h.session.start();
     await settle();
     await h.session.receiveSignal('answer', remoteDescription('answer'));
-    h.connection.setIce('connected');
-    await settle();
     return h;
   }
 
-  it('accepts a matching remote certificate', async () => {
-    const h = await connectedWith(REMOTE_FP);
+  it('defers the check when ICE connects before the remote description is applied', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+    expect(h.fatals).toEqual([]);
+
+    await h.session.receiveSignal('answer', remoteDescription('answer'));
+    await settle();
+    expect(h.fatals).toEqual([]);
+  });
+
+  it('waits for the dtls transport to connect, then accepts a matching certificate', async () => {
+    const h = await negotiated();
+    h.connection.setIce('connected');
+    await settle();
+    expect(h.fatals).toEqual([]);
+
+    h.connection.setDtls('connected');
+    await settle();
 
     expect(h.fatals).toEqual([]);
     expect(h.statuses).toEqual(['connected']);
   });
 
-  it('ends the call when the remote certificate does not match the signaled fingerprint', async () => {
-    const h = await connectedWith('DD:DD:DD');
+  it('verifies once the answer arrives after dtls already connected', async () => {
+    const h = build('caller', {}, 'DD:DD:DD');
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+    expect(h.fatals).toEqual([]);
+
+    await h.session.receiveSignal('answer', remoteDescription('answer'));
+    await settle();
 
     expect(h.fatals).toEqual(['fingerprint-mismatch']);
   });
 
-  it('falls back to the remote description when certificates are unavailable', async () => {
-    const h = build('caller');
-    h.connection.remoteCertificates = [];
-    h.session.start();
-    await settle();
-    await h.session.receiveSignal('answer', remoteDescription('answer'));
-    h.connection.setIce('completed');
+  it('ends the call when the certificate does not match the signaled fingerprint', async () => {
+    const h = await negotiated('DD:DD:DD');
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
     await settle();
 
-    expect(h.fatals).toEqual([]);
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
+  it('treats a connected dtls transport without certificates as a failure', async () => {
+    const h = await negotiated();
+    h.connection.remoteCertificates = [];
+    h.connection.setIce('connected');
+    h.connection.setDtls('connected');
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+  });
+
+  it('also verifies when the connection state becomes connected', async () => {
+    const h = await negotiated('DD:DD:DD');
+    h.connection.transport.state = 'connected';
+    h.connection.connectionState = 'connected';
+    h.connection.onconnectionstatechange?.();
+    await settle();
+
+    expect(h.fatals).toEqual(['fingerprint-mismatch']);
   });
 });
 

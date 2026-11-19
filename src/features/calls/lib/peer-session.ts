@@ -147,6 +147,7 @@ export class PeerSession {
   private closed = false;
   private connected = false;
   private dtlsChecked = false;
+  private watchedTransport: RTCDtlsTransport | null = null;
   private remoteFingerprints: string[] = [];
   private lastRestartAt = -Infinity;
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -178,6 +179,11 @@ export class PeerSession {
       void this.negotiate();
     };
     connection.oniceconnectionstatechange = () => this.handleIceState();
+    connection.onconnectionstatechange = () => {
+      if (connection.connectionState === 'connected') {
+        this.verifyDtls();
+      }
+    };
     connection.ontrack = (event) => this.handleTrack(event);
   }
 
@@ -258,10 +264,7 @@ export class PeerSession {
       await connection.setLocalDescription();
       this.sendDescription('answer');
     }
-    if (this.connected) {
-      this.dtlsChecked = false;
-      void this.verifyDtls();
-    }
+    this.verifyDtls();
   }
 
   private attachLocalTracks(): void {
@@ -391,7 +394,7 @@ export class PeerSession {
       }
       this.options.onConnection('connected');
       if (first || !this.dtlsChecked) {
-        void this.verifyDtls();
+        this.verifyDtls();
       }
       void this.applyCaps();
       return;
@@ -451,28 +454,40 @@ export class PeerSession {
     }
   }
 
-  private async verifyDtls(): Promise<void> {
-    if (this.dtlsChecked || this.closed) {
+  private dtlsTransport(): RTCDtlsTransport | undefined {
+    return this.connection.sctp?.transport ?? this.connection.getReceivers()[0]?.transport ?? this.connection.getSenders?.()[0]?.transport ?? undefined;
+  }
+
+  private verifyDtls(): void {
+    if (this.dtlsChecked || this.closed || !this.connection.remoteDescription || this.remoteFingerprints.length === 0) {
+      return;
+    }
+    const transport = this.dtlsTransport();
+    if (!transport) {
+      return;
+    }
+    if (this.watchedTransport !== transport) {
+      this.watchedTransport = transport;
+      transport.onstatechange = () => this.verifyDtls();
+    }
+    if (transport.state !== 'connected') {
       return;
     }
     this.dtlsChecked = true;
+    void this.checkCertificate(transport);
+  }
+
+  private async checkCertificate(transport: RTCDtlsTransport): Promise<void> {
     const expected = this.remoteFingerprints.filter((fingerprint) => fingerprint.startsWith('sha-256 '));
-    if (expected.length === 0) {
-      this.fatal('fingerprint-mismatch');
-      return;
-    }
     try {
-      const transport = this.connection.sctp?.transport ?? this.connection.getReceivers()[0]?.transport;
-      const certificates = transport?.getRemoteCertificates?.() ?? [];
-      if (certificates.length > 0) {
-        const actual = await this.deps.hashCertificate(certificates[0] as ArrayBuffer);
-        if (!expected.includes(`sha-256 ${actual.toUpperCase()}`)) {
-          this.fatal('fingerprint-mismatch');
-        }
+      const certificates = transport.getRemoteCertificates();
+      const first = certificates[0];
+      if (expected.length === 0 || !first) {
+        this.fatal('fingerprint-mismatch');
         return;
       }
-      const inRemote = extractSdpFingerprints(this.connection.remoteDescription?.sdp ?? '');
-      if (!expected.every((fingerprint) => inRemote.includes(fingerprint))) {
+      const actual = await this.deps.hashCertificate(first);
+      if (!expected.includes(`sha-256 ${actual.toUpperCase()}`)) {
         this.fatal('fingerprint-mismatch');
       }
     } catch {
@@ -649,6 +664,10 @@ export class PeerSession {
     this.connection.onicecandidate = null;
     this.connection.onnegotiationneeded = null;
     this.connection.oniceconnectionstatechange = null;
+    this.connection.onconnectionstatechange = null;
+    if (this.watchedTransport) {
+      this.watchedTransport.onstatechange = null;
+    }
     this.connection.ontrack = null;
     try {
       this.control?.close();
