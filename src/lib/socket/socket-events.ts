@@ -183,6 +183,7 @@ export interface RoomInviteProof {
 export interface RoomInviteSummary {
   encryptedInvite: string;
   keyId: string;
+  active: boolean;
 }
 
 export interface RoomInviteUpdate {

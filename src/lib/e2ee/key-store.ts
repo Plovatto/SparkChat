@@ -28,6 +28,7 @@ export interface StoredRoomKeyGeneration {
   keyId: string;
   epoch: number;
   key: Uint8Array;
+  roomType?: 'private' | 'group';
 }
 
 const ROOM_KEYS_BY_ROOM_INDEX = 'by_room';
