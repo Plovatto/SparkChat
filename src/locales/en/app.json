@@ -718,6 +718,22 @@
         }
       }
     },
-    "alreadyInCall": "You are already in a call"
+    "alreadyInCall": "You are already in a call",
+    "closeDevices": "Close settings",
+    "noMicrophone": "No microphone found",
+    "noCamera": "No camera found",
+    "noSpeaker": "No audio output found",
+    "cameraHint": "It will be used when you turn the camera on.",
+    "audio": {
+      "title": "Audio quality",
+      "noise": "Noise reduction",
+      "noiseHint": "Reduces background noise such as typing and fans.",
+      "echo": "Echo cancellation",
+      "echoHint": "Stops the other person's voice from coming back through your microphone. You can turn it off with headphones.",
+      "gain": "Automatic volume",
+      "gainHint": "Adjusts your microphone volume automatically.",
+      "isolation": "Voice isolation",
+      "isolationHint": "Keeps only your voice and removes other voices and sounds."
+    }
   }
 }

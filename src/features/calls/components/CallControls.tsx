@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCog, FaMicrophone, FaMicrophoneSlash, FaPhoneSlash, FaVideo, FaVideoSlash } from 'react-icons/fa';
+import { FaCog, FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash } from 'react-icons/fa';
+import { MdCallEnd } from 'react-icons/md';
 import { useTheme } from '@features/theme';
 import { useCall } from '../call-context';
-import { DevicePicker } from './DevicePicker';
+import { DevicePicker, type DeviceSelection } from './DevicePicker';
 
 interface CallControlsProps {
   supportsOutput: boolean;
@@ -15,6 +16,7 @@ export function CallControls({ supportsOutput, onAudioOutput }: CallControlsProp
   const { theme } = useTheme();
   const call = useCall();
   const [showDevices, setShowDevices] = useState(false);
+  const [selected, setSelected] = useState<DeviceSelection>({ audioInput: '', videoInput: '', audioOutput: '' });
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
   const round = {
@@ -35,11 +37,22 @@ export function CallControls({ supportsOutput, onAudioOutput }: CallControlsProp
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
       {showDevices && (
         <DevicePicker
-          showCamera={snapshot.state.kind === 'video'}
+          cameraOn={snapshot.cameraOn}
           supportsOutput={supportsOutput}
-          onAudioInput={call.changeAudioInput}
-          onVideoInput={call.changeVideoInput}
-          onAudioOutput={onAudioOutput}
+          selected={selected}
+          onAudioInput={(deviceId) => {
+            setSelected((current) => ({ ...current, audioInput: deviceId }));
+            call.changeAudioInput(deviceId);
+          }}
+          onVideoInput={(deviceId) => {
+            setSelected((current) => ({ ...current, videoInput: deviceId }));
+            call.changeVideoInput(deviceId);
+          }}
+          onAudioOutput={(deviceId) => {
+            setSelected((current) => ({ ...current, audioOutput: deviceId }));
+            onAudioOutput(deviceId);
+          }}
+          onClose={() => setShowDevices(false)}
         />
       )}
       <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -55,7 +68,7 @@ export function CallControls({ supportsOutput, onAudioOutput }: CallControlsProp
           <FaCog size={20} />
         </button>
         <button type="button" style={{ ...round, background: theme.danger, color: theme.textOnAccent }} onClick={call.hangup} title={t('calls.hangup')} aria-label={t('calls.hangup')}>
-          <FaPhoneSlash size={20} />
+          <MdCallEnd size={26} />
         </button>
       </div>
     </div>

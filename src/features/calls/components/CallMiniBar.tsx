@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaExpandAlt, FaMicrophone, FaMicrophoneSlash, FaPhoneSlash } from 'react-icons/fa';
+import { FaExpandAlt, FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
+import { MdCallEnd } from 'react-icons/md';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
 import { useCall } from '../call-context';
@@ -42,9 +43,23 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
     return null;
   }
   const peer = call.peerDisplay(state.peerId);
-  const label = state.phase === 'active' && state.connectedAt !== null ? formatCallDuration((now - state.connectedAt) / 1000) : t(state.phase === 'reconnecting' ? 'calls.status.reconnecting' : state.phase === 'connecting' ? 'calls.status.connecting' : 'calls.status.calling');
+  const label =
+    state.phase === 'active' && state.connectedAt !== null
+      ? formatCallDuration((now - state.connectedAt) / 1000)
+      : t(state.phase === 'reconnecting' ? 'calls.status.reconnecting' : state.phase === 'connecting' ? 'calls.status.connecting' : 'calls.status.calling');
   const barColor = attached ? '#ffffff' : theme.onGradient;
-  const icon = { background: 'transparent', border: 'none', color: barColor, cursor: 'pointer', padding: '6px' } as const;
+  const barBackground = attached ? `color-mix(in srgb, ${theme.success} 80%, #000000)` : theme.gradient;
+  const round = {
+    width: '40px',
+    height: '40px',
+    flexShrink: 0,
+    borderRadius: '50%',
+    border: 'none',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  } as const;
 
   return (
     <div
@@ -53,27 +68,40 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
         ...(attached ? { position: 'relative', flexShrink: 0 } : { position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1060 }),
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
         gap: '8px',
+        minHeight: '52px',
         padding: '6px 12px',
-        background: attached ? theme.success : theme.gradient,
-        color: attached ? '#ffffff' : theme.onGradient,
+        boxSizing: 'border-box',
+        width: '100%',
+        background: barBackground,
+        color: barColor,
         borderBottom: attached ? `1px solid ${theme.border}` : undefined,
       }}
     >
-      <button type="button" style={{ ...icon, display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 600 }} onClick={() => call.setMinimized(false)} aria-label={t('calls.expand')}>
-        <FaExpandAlt size={14} />
-        <span>{peer?.name ?? ''}</span>
-        <span style={{ opacity: 0.85 }}>{label}</span>
+      <button
+        type="button"
+        onClick={() => call.setMinimized(false)}
+        aria-label={t('calls.expand')}
+        title={t('calls.expand')}
+        style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', border: 'none', color: barColor, cursor: 'pointer', padding: '6px 4px', textAlign: 'left', fontWeight: 600 }}
+      >
+        <FaExpandAlt size={16} style={{ flexShrink: 0 }} />
+        <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{peer?.name ?? ''}</span>
+        <span style={{ flexShrink: 0, whiteSpace: 'nowrap', opacity: 0.9, fontVariantNumeric: 'tabular-nums', fontSize: '0.9rem' }}>{label}</span>
       </button>
-      <div style={{ display: 'flex', gap: '4px' }}>
-        <button type="button" style={icon} onClick={call.toggleMute} aria-label={snapshot.muted ? t('calls.unmute') : t('calls.mute')} aria-pressed={snapshot.muted}>
-          {snapshot.muted ? <FaMicrophoneSlash size={16} /> : <FaMicrophone size={16} />}
-        </button>
-        <button type="button" style={{ ...icon, color: attached ? '#ffffff' : theme.dangerText, background: attached ? theme.danger : 'transparent', borderRadius: attached ? '50%' : undefined }} onClick={call.hangup} aria-label={t('calls.hangup')}>
-          <FaPhoneSlash size={16} />
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={call.toggleMute}
+        aria-label={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
+        title={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
+        aria-pressed={snapshot.muted}
+        style={{ ...round, background: 'rgba(255, 255, 255, 0.18)', color: barColor }}
+      >
+        {snapshot.muted ? <FaMicrophoneSlash size={17} /> : <FaMicrophone size={17} />}
+      </button>
+      <button type="button" onClick={call.hangup} aria-label={t('calls.hangup')} title={t('calls.hangup')} style={{ ...round, background: theme.danger, color: '#ffffff' }}>
+        <MdCallEnd size={24} />
+      </button>
     </div>
   );
 }

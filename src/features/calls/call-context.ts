@@ -2,6 +2,7 @@ import { createContext, use } from 'react';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import type { RoomSummary } from '@lib/socket';
 import type { CallSnapshot } from './lib/call-controller';
+import type { AudioProcessing } from './lib/call-settings';
 
 export interface PeerDisplay {
   id: string;
@@ -26,6 +27,7 @@ export interface CallApi {
   dismissEnded: () => void;
   changeAudioInput: (deviceId: string) => void;
   changeVideoInput: (deviceId: string) => void;
+  changeAudioProcessing: (patch: Partial<AudioProcessing>) => void;
   primePlayback: () => void;
   hasStatusBar: boolean;
   registerStatusBar: () => () => void;

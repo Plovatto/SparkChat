@@ -126,8 +126,8 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: showRemoteVideo ? 'block' : 'none' }}
       />
       <div style={{ position: 'relative', display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')}>
-          <FaCompressAlt size={16} />
+        <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')} style={{ width: '52px', height: '52px' }}>
+          <FaCompressAlt size={24} />
         </button>
         <CallQualityBars bars={snapshot.quality} />
       </div>

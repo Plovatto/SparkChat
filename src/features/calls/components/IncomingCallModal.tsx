@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { FaPhone, FaPhoneSlash, FaVideo, FaVolumeMute } from 'react-icons/fa';
+import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
+import { MdCallEnd } from 'react-icons/md';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
 import { translate } from '@lib/i18n/app-i18n';
@@ -52,7 +53,7 @@ export function IncomingCallModal() {
       </div>
       <div style={{ display: 'flex', gap: '20px' }}>
         <button type="button" style={{ ...round, background: theme.danger, color: theme.textOnAccent }} onClick={call.decline} title={t('calls.decline')} aria-label={t('calls.decline')}>
-          <FaPhoneSlash size={20} />
+          <MdCallEnd size={26} />
         </button>
         <button type="button" style={{ ...round, background: theme.surfaceSunken, color: theme.textPrimary }} onClick={call.silence} title={t('calls.silence')} aria-label={t('calls.silence')}>
           <FaVolumeMute size={20} />
