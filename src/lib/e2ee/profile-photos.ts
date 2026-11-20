@@ -70,7 +70,8 @@ interface Photo {
 }
 
 const MAX_POINTER_LENGTH = 4096;
-const MAX_ENVELOPE_LENGTH = 2048;
+const MAX_ENVELOPE_LENGTH = 512;
+const MAX_ENVELOPES_PER_REWRAP = 150;
 const MAX_KEY_ID_LENGTH = 64;
 const CONFIRM_TIMEOUT_MS = 10000;
 const RETRY_FAILED_AFTER_MS = 30000;
@@ -878,7 +879,14 @@ async function handleOwnRotationImpl(roomId: string, generation: RoomKeyGenerati
   if (Object.keys(envelopes).length === 0 || rooms.get(roomId) !== room || activeSocket !== socket) {
     return;
   }
-  socket.emit('room:rewrap-profile-keys', { roomId, keyId: generation.keyId, envelopes });
+  const entries = Object.entries(envelopes);
+  for (let start = 0; start < entries.length; start += MAX_ENVELOPES_PER_REWRAP) {
+    socket.emit('room:rewrap-profile-keys', {
+      roomId,
+      keyId: generation.keyId,
+      envelopes: Object.fromEntries(entries.slice(start, start + MAX_ENVELOPES_PER_REWRAP)),
+    });
+  }
   for (const [userId, envelope] of Object.entries(envelopes)) {
     room.envelopes.set(userId, { envelope, keyId: generation.keyId });
   }
