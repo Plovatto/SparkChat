@@ -14,6 +14,17 @@
     "file": "File",
     "loading": "Loading..."
   },
+  "splash": {
+    "loading": "Loading",
+    "encrypted": "End-to-end encrypted",
+    "bubbles": {
+      "coffee": "Coffee later?",
+      "when": "Sure! What time?",
+      "time": "4pm, the usual place ☕",
+      "onMyWay": "On my way!",
+      "arrived": "We're here! Got us a table"
+    }
+  },
   "language": {
     "label": "Language"
   },

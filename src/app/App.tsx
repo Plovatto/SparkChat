@@ -36,6 +36,7 @@ import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardin
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
+import { useSplashPresence } from '@hooks/useSplashPresence';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
@@ -228,6 +229,8 @@ function AuthGate({
   useThemeSync();
   useChatSettingsSync();
 
+  const splash = useSplashPresence(isRestoring || (user !== null && !isSocketReady));
+
   const currentSessionToken = user?.sessionToken;
   const handleUserLogout = useCallback(() => {
     if (currentUserId && currentSessionToken) {
@@ -238,17 +241,11 @@ function AuthGate({
     onLogout();
   }, [socket, onLogout, currentUserId, currentSessionToken]);
 
-  if (isRestoring) {
-    return <LoadingScreen theme={theme} />;
-  }
-
   return (
     <AppBackground theme={user ? theme : loginTheme.theme}>
-      {!user ? (
+      {isRestoring ? null : !user ? (
         <LoginScreen loginTheme={loginTheme} onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
-      ) : !isSocketReady ? (
-        <LoadingScreen theme={theme} />
-      ) : (
+      ) : !isSocketReady ? null : (
         <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={handleUserLogout} />
       )}
       <RecoveryFileDownloadDialog
@@ -263,6 +260,7 @@ function AuthGate({
       <UpdateToast />
       <KeyTransparencyBanner />
       <PendingPhotoFailedToast />
+      {splash.mounted && <LoadingScreen theme={theme} leaving={splash.leaving} />}
     </AppBackground>
   );
 }

@@ -1,0 +1,947 @@
+.sc-splash {
+  --spl-ease-out: var(--sc-ease-spring-soft);
+  --spl-ease-pop: var(--sc-ease-spring);
+  --spl-ease-wave: cubic-bezier(0.37, 0, 0.63, 1);
+  --spl-ease-cross: cubic-bezier(0.77, 0, 0.175, 1);
+  --spl-bubbles-start: 760ms;
+  --spl-bubbles-step: 300ms;
+
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--spl-bg);
+  color: var(--spl-ink);
+  isolation: isolate;
+  animation: scSplashIn 420ms var(--spl-ease-out) both;
+}
+
+.sc-splash[data-state='leaving'] {
+  pointer-events: none;
+  animation: scSplashOut 400ms var(--spl-ease-cross) 220ms both;
+}
+
+.sc-splash__glows,
+.sc-splash__sparkles,
+.sc-splash__stage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.sc-splash__glows {
+  z-index: 0;
+}
+
+.sc-splash__glow {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: var(--spl-blend);
+  will-change: transform;
+  animation:
+    scSplashGlowIn 1600ms var(--spl-ease-out) both,
+    scSplashDrift var(--spl-drift, 20s) var(--spl-ease-wave) infinite alternate;
+}
+
+.sc-splash__glow--a {
+  top: -24%;
+  left: -18%;
+  width: 72vmax;
+  height: 72vmax;
+  background: radial-gradient(circle, var(--spl-glow-c) 0%, var(--spl-glow-a) 24%, transparent 62%);
+  --spl-drift: 19s;
+  --spl-dx: 9vw;
+  --spl-dy: 7vh;
+}
+
+.sc-splash__glow--b {
+  right: -20%;
+  bottom: -28%;
+  width: 78vmax;
+  height: 78vmax;
+  background: radial-gradient(circle, var(--spl-glow-c) 0%, var(--spl-glow-b) 26%, transparent 62%);
+  --spl-drift: 23s;
+  --spl-dx: -8vw;
+  --spl-dy: -9vh;
+}
+
+.sc-splash__glow--c {
+  top: -16%;
+  right: 4%;
+  width: 46vmax;
+  height: 46vmax;
+  background: radial-gradient(circle, var(--spl-glow-b) 0%, transparent 64%);
+  opacity: 0.8;
+  --spl-drift: 17s;
+  --spl-dx: -10vw;
+  --spl-dy: 12vh;
+}
+
+.sc-splash__glow--d {
+  bottom: -18%;
+  left: 18%;
+  width: 52vmax;
+  height: 52vmax;
+  background: radial-gradient(circle, var(--spl-glow-c) 0%, transparent 60%);
+  --spl-drift: 27s;
+  --spl-dx: 12vw;
+  --spl-dy: -6vh;
+}
+
+.sc-splash__sparkles {
+  z-index: 1;
+}
+
+.sc-splash__sparkle {
+  position: absolute;
+  display: block;
+  color: var(--spl-ink);
+  opacity: 0;
+  filter: drop-shadow(0 0 6px var(--spl-ink-faint));
+  animation: scSplashTwinkle 3.8s var(--spl-ease-wave) infinite;
+  animation-delay: calc(900ms + var(--spl-delay, 0s));
+}
+
+.sc-splash__sparkle svg {
+  display: block;
+}
+
+.sc-splash__stage {
+  z-index: 2;
+}
+
+.sc-splash__cluster {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  max-width: min(260px, 42vw);
+}
+
+.sc-splash__cluster[data-side='end'] {
+  align-items: flex-end;
+}
+
+.sc-splash__cluster--a {
+  top: 15%;
+  left: max(5%, calc(50% - 580px));
+}
+
+.sc-splash__cluster--b {
+  top: 25%;
+  right: max(5%, calc(50% - 560px));
+}
+
+.sc-splash__cluster--c {
+  bottom: 17%;
+  right: max(6%, calc(50% - 540px));
+}
+
+.sc-splash__cluster--d {
+  bottom: 24%;
+  left: max(7%, calc(50% - 520px));
+}
+
+.sc-splash__float {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: inherit;
+  will-change: transform;
+  animation: scSplashFloat var(--spl-float, 6.4s) var(--spl-ease-wave) infinite;
+  animation-delay: var(--spl-float-delay, 0s);
+}
+
+.sc-splash__cluster--b .sc-splash__float {
+  --spl-float: 7.2s;
+  --spl-float-delay: -2.4s;
+}
+
+.sc-splash__cluster--c .sc-splash__float {
+  --spl-float: 6.8s;
+  --spl-float-delay: -4.1s;
+}
+
+.sc-splash__cluster--d .sc-splash__float {
+  --spl-float: 7.6s;
+  --spl-float-delay: -1.3s;
+}
+
+.sc-splash__row {
+  --spl-from-x: -18px;
+
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  transform-origin: 0% 100%;
+  animation: scSplashBubbleIn 640ms var(--spl-ease-out) both;
+  animation-delay: calc(var(--spl-bubbles-start) + var(--spl-order, 0) * var(--spl-bubbles-step));
+}
+
+.sc-splash__row[data-kind='own'] {
+  --spl-from-x: 18px;
+
+  align-self: flex-end;
+  transform-origin: 100% 100%;
+}
+
+.sc-splash__cluster[data-side='start'] .sc-splash__row[data-kind='own'] {
+  margin-left: 42px;
+}
+
+.sc-splash__cluster[data-side='end'] .sc-splash__row:not([data-kind='own']) {
+  align-self: flex-start;
+}
+
+.sc-splash__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 14px;
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  animation: scSplashPop 560ms var(--spl-ease-pop) both;
+  animation-delay: calc(var(--spl-bubbles-start) - 60ms + var(--spl-order, 0) * var(--spl-bubbles-step));
+}
+
+.sc-splash__bubble {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid var(--spl-glass-border);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--spl-glass);
+  color: var(--spl-ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.sc-splash__row[data-kind='own'] .sc-splash__bubble {
+  border-radius: 18px 18px 6px 18px;
+  background: var(--spl-own);
+}
+
+.sc-splash__typing {
+  display: inline-flex;
+  gap: 5px;
+  padding: 2px 0;
+}
+
+.sc-splash__typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--spl-ink);
+  opacity: 0.45;
+  animation: scSplashTyping 1.3s var(--spl-ease-wave) infinite;
+}
+
+.sc-splash__typing i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.sc-splash__typing i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+.sc-splash__core {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.sc-splash__emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+}
+
+.sc-splash__rings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sc-splash__ring,
+.sc-splash__ripple {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--d);
+  height: var(--d);
+  margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2);
+  border: 1px solid var(--spl-ring);
+  border-radius: 50%;
+}
+
+.sc-splash__ring {
+  animation:
+    scSplashRingIn 1000ms var(--spl-ease-out) both,
+    scSplashBreathe 5.6s var(--spl-ease-wave) infinite;
+}
+
+.sc-splash__ring--1 {
+  --d: 236px;
+  animation-delay: 140ms, 1400ms;
+}
+
+.sc-splash__ring--2 {
+  --d: 336px;
+  animation-delay: 220ms, 1900ms;
+}
+
+.sc-splash__ring--3 {
+  --d: 456px;
+  border-style: dashed;
+  border-color: var(--spl-ink-faint);
+  animation:
+    scSplashRingIn 1000ms var(--spl-ease-out) 300ms both,
+    scSplashOrbit 60s linear infinite;
+}
+
+.sc-splash__ripple {
+  --d: 140px;
+  border-color: var(--spl-ink-soft);
+  opacity: 0;
+  animation: scSplashRipple 3.6s var(--spl-ease-out) 1100ms infinite;
+}
+
+.sc-splash__ripple--late {
+  animation-delay: 2900ms;
+}
+
+.sc-splash__halo {
+  position: absolute;
+  inset: -70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--spl-glow-c) 0%, var(--spl-glow-a) 32%, transparent 68%);
+  mix-blend-mode: var(--spl-blend);
+  animation:
+    scSplashHaloIn 1100ms var(--spl-ease-out) 60ms both,
+    scSplashHalo 3.4s var(--spl-ease-wave) 1200ms infinite;
+}
+
+.sc-splash__progress {
+  position: absolute;
+  inset: 0;
+  width: 140px;
+  height: 140px;
+  overflow: visible;
+  color: var(--spl-ink);
+  animation: scSplashFadeScale 700ms var(--spl-ease-out) 420ms both;
+}
+
+.sc-splash__track {
+  fill: none;
+  stroke: var(--spl-ink-faint);
+  stroke-width: 2;
+}
+
+.sc-splash__spinner {
+  transform-box: view-box;
+  transform-origin: 70px 70px;
+  animation: scSplashSpin 1.5s linear infinite;
+}
+
+.sc-splash__arc {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 120 402;
+}
+
+.sc-splash__comet {
+  fill: var(--spl-ink);
+  filter: drop-shadow(0 0 5px var(--spl-ink));
+}
+
+.sc-splash__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border: 1px solid var(--spl-glass-border);
+  border-radius: 50%;
+  background: var(--spl-glass-strong);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 0 28px var(--spl-ink-faint);
+  animation: scSplashDiscIn 760ms var(--spl-ease-out) 80ms both;
+}
+
+.sc-splash__bolt {
+  display: block;
+  animation:
+    scSplashBoltIn 820ms var(--spl-ease-pop) 260ms both,
+    scSplashSpark 3.2s var(--spl-ease-wave) 1600ms infinite;
+}
+
+.sc-splash__logo {
+  display: block;
+  width: 54px;
+  height: 50px;
+  background: var(--spl-ink);
+  -webkit-mask: var(--spl-logo) center / contain no-repeat;
+  mask: var(--spl-logo) center / contain no-repeat;
+}
+
+.sc-splash__title {
+  display: flex;
+  margin: 44px 0 6px;
+  color: var(--spl-ink);
+  font-size: clamp(2.1rem, 1.7rem + 1.4vw, 2.85rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+}
+
+.sc-splash__title span {
+  display: inline-block;
+  animation:
+    scSplashLetterIn 760ms var(--spl-ease-out) both,
+    scSplashWave 5.2s var(--spl-ease-wave) infinite;
+  animation-delay: calc(320ms + var(--spl-i, 0) * 42ms), calc(2200ms + var(--spl-i, 0) * 70ms);
+}
+
+.sc-splash__status {
+  display: flex;
+  align-items: baseline;
+  margin: 0;
+  color: var(--spl-ink-soft);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  animation: scSplashRise 640ms var(--spl-ease-out) 620ms both;
+}
+
+.sc-splash__dots {
+  display: inline-flex;
+  width: 1.2em;
+}
+
+.sc-splash__dots i {
+  font-style: normal;
+  animation: scSplashDot 1.4s var(--spl-ease-wave) infinite;
+}
+
+.sc-splash__dots i:nth-child(2) {
+  animation-delay: 200ms;
+}
+
+.sc-splash__dots i:nth-child(3) {
+  animation-delay: 400ms;
+}
+
+.sc-splash__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+  padding: 7px 14px;
+  border: 1px solid var(--spl-glass-border);
+  border-radius: 999px;
+  background: var(--spl-glass);
+  color: var(--spl-ink-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: scSplashFadeScale 640ms var(--spl-ease-out) 760ms both;
+}
+
+.sc-splash__pill svg {
+  font-size: 11px;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster {
+  animation: scSplashClusterOut 440ms var(--spl-ease-out) both;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster[data-side='start'] {
+  --spl-out-x: -32px;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster[data-side='end'] {
+  --spl-out-x: 32px;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster--b {
+  animation-delay: 40ms;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster--c {
+  animation-delay: 70ms;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__cluster--d {
+  animation-delay: 100ms;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__sparkles {
+  animation: scSplashFadeOut 300ms var(--spl-ease-out) both;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__glows {
+  animation: scSplashGlowsOut 620ms var(--spl-ease-out) both;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__core {
+  animation: scSplashCoreOut 520ms var(--spl-ease-cross) 40ms both;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__halo {
+  animation: scSplashHaloBurst 560ms var(--spl-ease-out) both;
+}
+
+.sc-splash[data-state='leaving'] .sc-splash__rings {
+  animation: scSplashRingsOut 600ms var(--spl-ease-out) both;
+}
+
+@keyframes scSplashIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scSplashOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scSplashFadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scSplashGlowIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes scSplashDrift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(var(--spl-dx, 0), var(--spl-dy, 0), 0) scale(1.14);
+  }
+}
+
+@keyframes scSplashTwinkle {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(0.55) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1) rotate(45deg);
+  }
+}
+
+@keyframes scSplashFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate3d(0, -9px, 0) rotate(-0.6deg);
+  }
+}
+
+@keyframes scSplashBubbleIn {
+  from {
+    opacity: 0;
+    transform: translate3d(var(--spl-from-x), 14px, 0) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashTyping {
+  0%,
+  60%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes scSplashRingIn {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes scSplashOrbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scSplashRipple {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+@keyframes scSplashHaloIn {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashHalo {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes scSplashFadeScale {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes scSplashDiscIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashBoltIn {
+  from {
+    opacity: 0;
+    transform: scale(0.55) rotate(-20deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashSpark {
+  0%,
+  78%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(1);
+  }
+  84% {
+    filter: drop-shadow(0 0 12px var(--spl-ink));
+    transform: scale(1.08) rotate(-4deg);
+  }
+  90% {
+    filter: drop-shadow(0 0 4px var(--spl-ink-soft));
+    transform: scale(0.98);
+  }
+}
+
+@keyframes scSplashLetterIn {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@keyframes scSplashWave {
+  0%,
+  10%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  5% {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+
+@keyframes scSplashRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scSplashDot {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@keyframes scSplashClusterOut {
+  to {
+    opacity: 0;
+    transform: translate3d(var(--spl-out-x, 0), 6px, 0) scale(0.94);
+  }
+}
+
+@keyframes scSplashGlowsOut {
+  to {
+    transform: scale(1.18);
+  }
+}
+
+@keyframes scSplashCoreOut {
+  to {
+    opacity: 0;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes scSplashHaloBurst {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes scSplashRingsOut {
+  to {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
+@media (max-width: 1023.98px) {
+  .sc-splash__cluster--a {
+    top: 6%;
+    left: 5%;
+  }
+
+  .sc-splash__cluster--b {
+    top: 11%;
+    right: 5%;
+  }
+
+  .sc-splash__cluster--c {
+    bottom: 6%;
+    right: 5%;
+  }
+
+  .sc-splash__cluster--d {
+    bottom: 11%;
+    left: 5%;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .sc-splash__cluster--b,
+  .sc-splash__cluster--d {
+    display: none;
+  }
+
+  .sc-splash__cluster--a {
+    top: max(5%, env(safe-area-inset-top));
+    left: 16px;
+  }
+
+  .sc-splash__cluster--c {
+    bottom: max(5%, env(safe-area-inset-bottom));
+    right: 16px;
+  }
+
+  .sc-splash__cluster {
+    max-width: calc(100vw - 32px);
+  }
+
+  .sc-splash__bubble {
+    font-size: 13px;
+  }
+
+  .sc-splash__ring--1 {
+    --d: 200px;
+  }
+
+  .sc-splash__ring--2 {
+    --d: 276px;
+  }
+
+  .sc-splash__ring--3 {
+    --d: 356px;
+  }
+
+  .sc-splash__title {
+    margin-top: 36px;
+  }
+}
+
+@media (max-height: 560px) {
+  .sc-splash__stage {
+    display: none;
+  }
+
+  .sc-splash__title {
+    margin-top: 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-splash__glow,
+  .sc-splash__ring,
+  .sc-splash__ring--3,
+  .sc-splash__halo,
+  .sc-splash__progress,
+  .sc-splash__disc,
+  .sc-splash__bolt,
+  .sc-splash__title span,
+  .sc-splash__status,
+  .sc-splash__pill,
+  .sc-splash__row,
+  .sc-splash__avatar {
+    animation: scSplashIn 600ms ease both;
+  }
+
+  .sc-splash__row,
+  .sc-splash__avatar {
+    animation-delay: calc(400ms + var(--spl-order, 0) * 120ms);
+  }
+
+  .sc-splash__float,
+  .sc-splash__ripple {
+    animation: none;
+  }
+
+  .sc-splash__ripple {
+    display: none;
+  }
+
+  .sc-splash__sparkle {
+    animation: scSplashDot 4s linear infinite;
+    animation-delay: var(--spl-delay, 0s);
+  }
+
+  .sc-splash__typing i {
+    animation: scSplashDot 1.6s linear infinite;
+  }
+
+  .sc-splash__spinner {
+    animation-duration: 3s;
+  }
+
+  .sc-splash[data-state='leaving'] .sc-splash__cluster,
+  .sc-splash[data-state='leaving'] .sc-splash__core,
+  .sc-splash[data-state='leaving'] .sc-splash__rings,
+  .sc-splash[data-state='leaving'] .sc-splash__glows,
+  .sc-splash[data-state='leaving'] .sc-splash__halo {
+    animation: scSplashFadeOut 300ms ease both;
+  }
+}

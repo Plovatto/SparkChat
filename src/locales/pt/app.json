@@ -14,6 +14,17 @@
     "file": "Arquivo",
     "loading": "Carregando..."
   },
+  "splash": {
+    "loading": "Carregando",
+    "encrypted": "Cifrado de ponta a ponta",
+    "bubbles": {
+      "coffee": "Bora marcar o café?",
+      "when": "Bora! Que horas?",
+      "time": "Às 16h, no de sempre ☕",
+      "onMyWay": "Tô chegando!",
+      "arrived": "Chegamos! Já pegamos a mesa"
+    }
+  },
   "language": {
     "label": "Idioma"
   },
