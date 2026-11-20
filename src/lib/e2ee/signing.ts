@@ -27,6 +27,13 @@ export async function deriveSigningKeyPair(privateKey: Uint8Array): Promise<{ pu
   return { publicKey: pair.publicKey, privateKey: pair.privateKey };
 }
 
+export async function ownSigningKey(privateKey: Uint8Array): Promise<string> {
+  const sodium = await getSodium();
+  const pair = await deriveSigningKeyPair(privateKey);
+  pair.privateKey.fill(0);
+  return sodium.to_base64(pair.publicKey);
+}
+
 export async function buildSigningProof(userId: string, publicKey: string, privateKey: Uint8Array): Promise<SigningProof> {
   const sodium = await getSodium();
   const pair = await deriveSigningKeyPair(privateKey);

@@ -1840,16 +1840,12 @@ async function handleRotationRequiredImpl(
   }
 }
 
-async function handleGroupUserJoinedImpl(socket: AppSocket, payload: { roomId: string; participants: RoomParticipant[] }): Promise<void> {
+function handleGroupUserJoinedImpl(_socket: AppSocket, payload: { roomId: string; participants: RoomParticipant[] }): Promise<void> {
   const view = roomViews.get(payload.roomId);
-  if (!view) {
-    return;
-  }
-  if (view.type === 'private') {
+  if (view) {
     applyParticipants(view, payload.participants);
-    return;
   }
-  applyParticipants(view, payload.participants);
+  return Promise.resolve();
 }
 
 export function updateRoomParticipants(roomId: string, participants: RoomParticipant[]): void {

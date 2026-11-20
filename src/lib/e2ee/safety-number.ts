@@ -1,16 +1,20 @@
 import { getSodium } from './sodium';
 
-const CONTEXT = 'sparkchat:safety-number:v1';
+const CONTEXT_V1 = 'sparkchat:safety-number:v1';
+const CONTEXT_V2 = 'sparkchat:safety-number:v2';
 const GROUPS = 12;
 const DIGITS_PER_GROUP = 5;
-const QR_PREFIX = 'sparkchat-verify:1:';
+const QR_PREFIX_V1 = 'sparkchat-verify:1:';
+const QR_PREFIX_V2 = 'sparkchat-verify:2:';
 
 export interface IdentityRef {
   userId: string;
   publicKey: string;
+  signingPublicKey?: string | null | undefined;
 }
 
 export interface SafetyNumber {
+  version: 1 | 2;
   digits: string;
   groups: string[];
   qrPayload: string;
@@ -23,8 +27,21 @@ function ordered(a: IdentityRef, b: IdentityRef): [IdentityRef, IdentityRef] {
 export async function computeSafetyNumber(own: IdentityRef, contact: IdentityRef): Promise<SafetyNumber> {
   const sodium = await getSodium();
   const [first, second] = ordered(own, contact);
+  const covered = Boolean(first.signingPublicKey && second.signingPublicKey);
   const input = sodium.from_string(
-    JSON.stringify([CONTEXT, first.userId, first.publicKey, second.userId, second.publicKey]),
+    JSON.stringify(
+      covered
+        ? [
+            CONTEXT_V2,
+            first.userId,
+            first.publicKey,
+            first.signingPublicKey,
+            second.userId,
+            second.publicKey,
+            second.signingPublicKey,
+          ]
+        : [CONTEXT_V1, first.userId, first.publicKey, second.userId, second.publicKey],
+    ),
   );
   const hash = sodium.crypto_generichash(GROUPS * 4, input, null);
   const view = new DataView(hash.buffer, hash.byteOffset, hash.byteLength);
@@ -36,5 +53,5 @@ export async function computeSafetyNumber(own: IdentityRef, contact: IdentityRef
   }
 
   const digits = groups.join('');
-  return { digits, groups, qrPayload: `${QR_PREFIX}${digits}` };
+  return { version: covered ? 2 : 1, digits, groups, qrPayload: `${covered ? QR_PREFIX_V2 : QR_PREFIX_V1}${digits}` };
 }

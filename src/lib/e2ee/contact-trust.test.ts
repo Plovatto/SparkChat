@@ -224,4 +224,34 @@ describe('contact trust', () => {
     expect((await acceptContactKeyChange(own, 'bob'))?.status).toBe('verified');
     expect((await setContactVerified(own, 'bob', false))?.status).toBe('unverified');
   });
+
+  it('flags a self-signed signing key that arrives on a verified legacy pin and keeps the old pin', async () => {
+    const identity = await generateIdentity();
+    await observeContactKey(own, { userId: 'bob', publicKey: identity.publicKey });
+    await setContactVerified(own, 'bob', true);
+    const attacker = await generateIdentity();
+    const forged = await buildSigningProof('bob', identity.publicKey, attacker.privateKey);
+
+    const trust = await observeContactKey(own, { userId: 'bob', publicKey: identity.publicKey, ...forged });
+
+    expect(trust.status).toBe('changed');
+    expect(isKeyUsable(trust.status)).toBe(false);
+    const pin = store.get('me:bob') as ContactPin;
+    expect(pin.signingPublicKey).toBeNull();
+    expect(pin.pending?.signingPublicKey).toBe(forged.signingPublicKey);
+  });
+
+  it('never silently replaces a pinned signing key with another one for the same box key', async () => {
+    const identity = await generateIdentity();
+    const real = await buildSigningProof('bob', identity.publicKey, identity.privateKey);
+    await observeContactKey(own, { userId: 'bob', publicKey: identity.publicKey, ...real });
+    await setContactVerified(own, 'bob', true);
+    const attacker = await generateIdentity();
+    const forged = await buildSigningProof('bob', identity.publicKey, attacker.privateKey);
+
+    const trust = await observeContactKey(own, { userId: 'bob', publicKey: identity.publicKey, ...forged });
+
+    expect(trust.status).toBe('changed');
+    expect((store.get('me:bob') as ContactPin).signingPublicKey).toBe(real.signingPublicKey);
+  });
 });

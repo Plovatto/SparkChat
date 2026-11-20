@@ -36,4 +36,24 @@ describe('computeSafetyNumber', () => {
 
     expect(one.digits).not.toBe(two.digits);
   });
+
+  it('uses version 1 when a signing key is missing and keeps existing numbers', async () => {
+    const result = await computeSafetyNumber({ ...alice, signingPublicKey: 'a-sign' }, bob);
+
+    expect(result.version).toBe(1);
+    expect(result.digits).toBe('665535403539316587285870533195614534870175141770266264007173');
+  });
+
+  it('covers both signing keys in version 2 and changes when either changes', async () => {
+    const a = { ...alice, signingPublicKey: 'a-sign' };
+    const b = { ...bob, signingPublicKey: 'b-sign' };
+    const base = await computeSafetyNumber(a, b);
+
+    expect(base.version).toBe(2);
+    expect(base.qrPayload).toBe(`sparkchat-verify:2:${base.digits}`);
+    expect(base.digits).not.toBe('665535403539316587285870533195614534870175141770266264007173');
+    expect((await computeSafetyNumber(b, a)).digits).toBe(base.digits);
+    expect((await computeSafetyNumber(a, { ...b, signingPublicKey: 'forged' })).digits).not.toBe(base.digits);
+    expect((await computeSafetyNumber({ ...a, signingPublicKey: 'forged' }, b)).digits).not.toBe(base.digits);
+  });
 });

@@ -5,6 +5,7 @@ import { useTheme } from '@features/theme';
 import {
   computeSafetyNumber,
   getCurrentIdentity,
+  ownSigningKey,
   setContactVerified,
   type ContactTrust,
   type SafetyNumber,
@@ -24,6 +25,8 @@ export function SafetyNumberDialog({ isOpen, onClose, contactId, contactName, tr
   const [safetyNumber, setSafetyNumber] = useState<SafetyNumber | null>(null);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const pinnedKey = trust.pin?.pending?.publicKey ?? trust.pin?.publicKey;
+  const pinnedSigningKey = trust.pin?.pending ? trust.pin.pending.signingPublicKey : (trust.pin?.signingPublicKey ?? null);
+  const ownPrivateKey = getCurrentIdentity()?.privateKey;
   const identity = getCurrentIdentity();
   const ownUserId = identity?.userId;
   const ownPublicKey = identity?.publicKey;
@@ -36,9 +39,10 @@ export function SafetyNumberDialog({ isOpen, onClose, contactId, contactName, tr
     }
     let cancelled = false;
     void (async () => {
+      const ownSigningPublicKey = ownPrivateKey ? await ownSigningKey(ownPrivateKey) : null;
       const result = await computeSafetyNumber(
-        { userId: ownUserId, publicKey: ownPublicKey },
-        { userId: contactId, publicKey: pinnedKey },
+        { userId: ownUserId, publicKey: ownPublicKey, signingPublicKey: ownSigningPublicKey },
+        { userId: contactId, publicKey: pinnedKey, signingPublicKey: pinnedSigningKey },
       );
       const { default: QRCode } = await import('qrcode');
       const url = await QRCode.toDataURL(result.qrPayload, { margin: 1, width: 192 });
@@ -50,7 +54,7 @@ export function SafetyNumberDialog({ isOpen, onClose, contactId, contactName, tr
     return () => {
       cancelled = true;
     };
-  }, [isOpen, ownUserId, ownPublicKey, pinnedKey, contactId]);
+  }, [isOpen, ownUserId, ownPublicKey, ownPrivateKey, pinnedKey, pinnedSigningKey, contactId]);
 
   const toggleVerified = () => {
     if (!ownUserId || !ownPublicKey) {
