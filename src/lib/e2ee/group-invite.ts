@@ -31,6 +31,12 @@ export interface RosterMember {
 export interface GroupRoster {
   epoch: number;
   members: RosterMember[];
+  v?: number;
+  admins?: string[];
+  issuedBy?: string;
+  issuedAt?: number;
+  prevKeyId?: string | null;
+  sig?: string;
 }
 
 export interface InviteBundle {
@@ -251,7 +257,19 @@ export async function openRoster(
     ) {
       return null;
     }
-    return { epoch, members: parsed.members.map((member) => ({ userId: member.userId, signingPublicKey: member.signingPublicKey })) };
+    const roster: GroupRoster = {
+      epoch,
+      members: parsed.members.map((member) => ({ userId: member.userId, signingPublicKey: member.signingPublicKey })),
+    };
+    if (parsed.sig !== undefined) {
+      roster.v = parsed.v;
+      roster.admins = parsed.admins;
+      roster.issuedBy = parsed.issuedBy;
+      roster.issuedAt = parsed.issuedAt;
+      roster.prevKeyId = parsed.prevKeyId;
+      roster.sig = parsed.sig;
+    }
+    return roster;
   } catch {
     return null;
   }
