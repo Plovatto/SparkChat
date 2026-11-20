@@ -88,6 +88,10 @@ class FakePeer implements PeerSessionLike {
   restartIce(): void {
     this.restarts += 1;
   }
+  recoveries: string[] = [];
+  recoverIfUnhealthy(reason: string): void {
+    this.recoveries.push(reason);
+  }
   sendControl(message: unknown): boolean {
     this.controls.push(message);
     return true;
@@ -742,7 +746,7 @@ describe('server events', () => {
     expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
   });
 
-  it('restarts ICE when the server confirms the same call after a reconnect', async () => {
+  it('never restarts a healthy connection when the server confirms the same call after a socket reconnect', async () => {
     const w = await world();
     await connectCall(w);
     const callId = w.a.controller.getSnapshot().state.callId;
@@ -750,7 +754,41 @@ describe('server events', () => {
     w.a.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
 
-    expect(w.a.peers[0]!.restarts).toBe(1);
+    expect(w.a.peers[0]!.restarts).toBe(0);
+    expect(w.a.peers[0]!.recoveries).toEqual(['resync']);
+  });
+
+  it('counts restarts and their reasons and only allows probing back to direct on a good stable call', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    expect(peer.options.canProbeDirect()).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().quality).toBe(3);
+    expect(peer.options.canProbeDirect()).toBe(true);
+
+    peer.options.onRestart('disconnected', false);
+    peer.options.onRestart('retry', true);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ restartCount: 2, lastRestartReason: 'retry' });
+
+    w.a.controller.hangup();
+    await settle();
+    w.a.controller.dismissEnded();
+    expect(w.a.controller.getSnapshot()).toMatchObject({ restartCount: 0, lastRestartReason: null });
+  });
+
+  it('asks the peer to recover when the browser comes back online', async () => {
+    const online: Array<() => void> = [];
+    vi.stubGlobal('window', { addEventListener: (type: string, listener: () => void) => type === 'online' && online.push(listener), removeEventListener: () => undefined });
+    try {
+      const w = await world();
+      await connectCall(w);
+      online.forEach((listener) => listener());
+      expect(w.a.peers[0]!.recoveries).toEqual(['online']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('hangs up an orphaned server call after a reload, but not when another tab owns it', async () => {

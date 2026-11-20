@@ -3,6 +3,14 @@ import type { CallRole, SignalType } from '@lib/e2ee/call-crypto';
 import {
   AUDIO_MAX_BITRATE,
   CONNECT_RESTART_DELAY_MS,
+  FAILED_RELAY_AFTER_MS,
+  INITIAL_RELAY_FALLBACK_MS,
+  KEEPALIVE_INTERVAL_MS,
+  RELAY_PROBE_INTERVAL_MS,
+  directServers,
+  hasRelay,
+  restartUsesRelay,
+  retryDelay,
   CONTROL_CHANNEL_ID,
   CONTROL_CHANNEL_LABEL,
   CREDENTIAL_REFRESH_MS,
@@ -548,14 +556,18 @@ describe('ice restart', () => {
     expect(h.connection.restartCalls).toBe(1);
   });
 
-  it('restarts once when the connection is still not up after 20 seconds', async () => {
+  it('starts direct only and falls back to the relay when nothing connects within 8 seconds', async () => {
     const h = build('caller');
     h.session.start();
     await settle();
+    expect(JSON.stringify(h.connection.configuration.iceServers)).not.toContain('turn:');
 
-    await vi.advanceTimersByTimeAsync(CONNECT_RESTART_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(INITIAL_RELAY_FALLBACK_MS - 1);
+    expect(h.connection.restartCalls).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
 
     expect(h.connection.restartCalls).toBe(1);
+    expect(JSON.stringify(h.connection.configuration.iceServers)).toContain('turn:');
   });
 
   it('does not restart on the connect timer once connected', async () => {
@@ -1521,5 +1533,124 @@ describe('local description munging', () => {
     expect(applied[0]?.sdp).toContain('stereo=1');
     expect((h.signals[0]?.payload.description as { sdp: string }).sdp).toBe(applied[0]?.sdp);
     expect(h.signals[0]?.payload.fingerprints).toEqual(['sha-256 AA:AA:AA']);
+  });
+});
+
+describe('connection recovery', () => {
+  async function verifiedCall(options: Partial<PeerSessionOptions> = {}) {
+    const restarts: Array<{ reason: string; relay: boolean }> = [];
+    const h = build('caller', { onRestart: (reason, relay) => restarts.push({ reason, relay }), ...options });
+    h.session.start();
+    await settle();
+    await verify(h);
+    return { h, restarts };
+  }
+
+  const relayInConfig = (h: Harness) => JSON.stringify(h.connection.configuration.iceServers).includes('turn:');
+
+  it('separates direct servers from relay servers', () => {
+    expect(directServers([{ urls: ['stun:a', 'turn:b', 'turns:c'] }, { urls: 'turn:d' }])).toEqual([{ urls: ['stun:a'] }]);
+    expect(hasRelay([{ urls: 'stun:a' }])).toBe(false);
+    expect(hasRelay([{ urls: ['stun:a', 'turns:b'] }])).toBe(true);
+  });
+
+  it('uses the relay only after two direct attempts or 10 seconds of failure', () => {
+    expect(restartUsesRelay(0, 0, 1_000)).toBe(false);
+    expect(restartUsesRelay(1, 0, 9_999)).toBe(false);
+    expect(restartUsesRelay(2, 0, 1_000)).toBe(true);
+    expect(restartUsesRelay(0, 0, FAILED_RELAY_AFTER_MS)).toBe(true);
+    expect([1, 2, 3, 4, 5, 9].map(retryDelay)).toEqual([3_000, 5_000, 8_000, 13_000, 15_000, 15_000]);
+  });
+
+  it('waits on disconnected, restarts direct twice with backoff, then adds the relay', async () => {
+    const { h, restarts } = await verifiedCall();
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS);
+    expect(restarts).toEqual([{ reason: 'disconnected', relay: false }]);
+    expect(relayInConfig(h)).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(retryDelay(1));
+    expect(restarts.at(-1)).toEqual({ reason: 'retry', relay: false });
+    await vi.advanceTimersByTimeAsync(retryDelay(2));
+    expect(restarts.at(-1)).toEqual({ reason: 'retry', relay: true });
+    expect(relayInConfig(h)).toBe(true);
+    expect(h.statuses).toContain('interrupted');
+  });
+
+  it('stops retrying and resets the attempts once connected again', async () => {
+    const { h, restarts } = await verifiedCall();
+    h.connection.setIce('failed');
+    expect(restarts).toEqual([{ reason: 'failed', relay: false }]);
+    h.connection.setIce('connected');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(restarts).toHaveLength(1);
+
+    h.connection.setIce('failed');
+    expect(restarts.at(-1)).toEqual({ reason: 'failed', relay: false });
+  });
+
+  it('only recovers on online or resync when ICE is actually unhealthy', async () => {
+    const { h, restarts } = await verifiedCall();
+    h.session.recoverIfUnhealthy('resync');
+    h.session.recoverIfUnhealthy('online');
+    expect(restarts).toEqual([]);
+    expect(h.connection.restartCalls).toBe(0);
+
+    h.connection.iceConnectionState = 'disconnected';
+    h.session.recoverIfUnhealthy('online');
+    expect(restarts).toEqual([{ reason: 'online', relay: false }]);
+  });
+
+  it('keeps a direct route alive with a control ping every 5 seconds after verification', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(KEEPALIVE_INTERVAL_MS * 2);
+    expect(h.connection.channels[0]?.sent).toEqual([]);
+
+    await verify(h);
+    const before = h.connection.channels[0]!.sent.length;
+    await vi.advanceTimersByTimeAsync(KEEPALIVE_INTERVAL_MS * 2);
+    expect(h.connection.channels[0]!.sent.slice(before)).toEqual(['{"t":"ping"}', '{"t":"ping"}']);
+  });
+
+  it('swallows pings from the peer', async () => {
+    const { h } = await verifiedCall();
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"ping"}' });
+    expect(h.controls).toEqual([]);
+    expect(parseControlMessage('{"t":"ping"}')).toEqual({ t: 'ping' });
+  });
+
+  it('probes back to a direct route every minute while relayed, only when the call allows it', async () => {
+    let allowed = false;
+    const { h, restarts } = await verifiedCall({ canProbeDirect: () => allowed });
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS + retryDelay(1) + retryDelay(2));
+    expect(relayInConfig(h)).toBe(true);
+    relayed(h.connection);
+    h.connection.setIce('connected');
+    await settle();
+    const count = restarts.length;
+
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS);
+    expect(restarts).toHaveLength(count);
+    allowed = true;
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS);
+    expect(restarts.at(-1)).toEqual({ reason: 'probe', relay: true });
+
+    h.connection.stats.clear();
+    h.connection.setIce('connected');
+    await settle();
+    const afterDirect = restarts.length;
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS * 2);
+    expect(restarts).toHaveLength(afterDirect);
+  });
+
+  it('clears every recovery timer on close', async () => {
+    const { h, restarts } = await verifiedCall();
+    h.connection.setIce('failed');
+    h.session.close();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(restarts).toHaveLength(1);
   });
 });

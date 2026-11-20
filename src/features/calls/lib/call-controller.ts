@@ -29,7 +29,7 @@ import {
 } from '../state/call-machine';
 import { nextInstability, nextRelay, readQuality, RELAY_UNKNOWN, selectedPairRelayed, STABLE, type RelayState, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
-import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, ScreenInfo } from './peer-session';
+import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, RestartReason, ScreenInfo } from './peer-session';
 import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
@@ -88,6 +88,8 @@ export interface CallSnapshot {
   unstable: boolean;
   quality: QualityBars | null;
   relayed: boolean | null;
+  restartCount: number;
+  lastRestartReason: RestartReason | null;
   degrade: DegradeStep | null;
   notice: CallNotice | null;
   otherTab: TabCallInfo | null;
@@ -100,6 +102,7 @@ export interface PeerSessionLike {
   start: () => void;
   receiveSignal: (type: SignalType, payload: Record<string, unknown>) => Promise<void>;
   restartIce: () => void;
+  recoverIfUnhealthy: (reason: 'online' | 'resync') => void;
   sendControl: (message: ControlMessage) => boolean;
   setMuted: (muted: boolean) => void;
   setVideoTrack: (track: MediaStreamTrack | null) => Promise<void>;
@@ -129,6 +132,8 @@ export interface PeerSessionFactoryOptions {
   onRemoteScreen: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade: (step: DegradeStep | null) => void;
+  onRestart: (reason: RestartReason, relay: boolean) => void;
+  canProbeDirect: () => boolean;
 }
 
 export type ResolvedPeer = { peer: PinnedPeer } | { error: 'key-changed' | 'unverifiable' };
@@ -258,6 +263,8 @@ export function initialSnapshot(): CallSnapshot {
     unstable: false,
     quality: null,
     relayed: null,
+    restartCount: 0,
+    lastRestartReason: null,
     degrade: null,
     notice: null,
     otherTab: null,
@@ -337,7 +344,7 @@ export class CallController {
       this.requestSync();
     }
     if (typeof window !== 'undefined') {
-      const online = () => this.session?.peerSession?.restartIce();
+      const online = () => this.session?.peerSession?.recoverIfUnhealthy('online');
       window.addEventListener('online', online);
       this.detach.push(() => window.removeEventListener('online', online));
     }
@@ -1014,7 +1021,7 @@ export class CallController {
       return;
     }
     if (state.callId === payload.callId) {
-      this.session?.peerSession?.restartIce();
+      this.session?.peerSession?.recoverIfUnhealthy('resync');
       return;
     }
     if (isCallLive(state) || this.preparing || isRingingForMe(payload)) {
@@ -1187,6 +1194,12 @@ export class CallController {
       },
       onControl: (message) => this.handleControl(session, message),
       onDegrade: (step) => this.handleDegrade(session, step),
+      onRestart: (reason) => {
+        if (this.session === session) {
+          this.update({ restartCount: this.snapshot.restartCount + 1, lastRestartReason: reason });
+        }
+      },
+      canProbeDirect: () => this.session === session && this.machine.getState().phase === 'active' && this.snapshot.quality === 3 && !this.snapshot.unstable,
     });
     session.peerSession = peerSession;
     peerSession.start();
@@ -1212,7 +1225,7 @@ export class CallController {
       this.update({ remoteScreenMovie: message.on && message.movie === true, remoteScreenAudio: message.on && message.audio === true, remoteScreenOn: message.on, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
     } else if (message.t === 'caps') {
       this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
-    } else {
+    } else if (message.t === 'camera') {
       this.update({ remoteCameraOn: message.on });
     }
   }
@@ -1306,6 +1319,8 @@ export class CallController {
         unstable: false,
         quality: null,
         relayed: null,
+        restartCount: 0,
+        lastRestartReason: null,
         degrade: null,
         localStream: null,
         remoteStream: null,
