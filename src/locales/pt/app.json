@@ -666,6 +666,11 @@
     "cameraOn": "Ligar câmera",
     "cameraOff": "Desligar câmera",
     "devices": "Dispositivos",
+    "mediaSession": {
+      "title": "SparkChat",
+      "voice": "Chamada de voz",
+      "video": "Chamada de vídeo"
+    },
     "minimize": "Minimizar",
     "expand": "Voltar para a chamada",
     "microphone": "Microfone",
@@ -802,6 +807,8 @@
         "monitor": "A tela inteira",
         "unknown": "A tela"
       },
+      "pausedViewer": "A janela compartilhada está minimizada ou oculta",
+      "pausedSharer": "Quem assiste não está vendo: sua janela está minimizada. Restaure-a ou compartilhe uma aba/tela inteira",
       "volume": "Volume do áudio compartilhado",
       "yourScreen": "Sua tela",
       "live": "AO VIVO",

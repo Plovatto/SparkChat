@@ -1,3 +1,5 @@
+import { keepAudioContextRunning } from './audio-keepalive';
+
 export const LEVEL_INTERVAL_MS = 100;
 export const SPEAKING_THRESHOLD = 0.04;
 export const SILENCE_THRESHOLD = 0.025;
@@ -104,9 +106,7 @@ export function monitorSpeaking(stream: MediaStream, onChange: (speaking: boolea
     return () => undefined;
   }
   const { source, analyser } = nodes;
-  if (context.state === 'suspended') {
-    void context.resume?.().catch(() => undefined);
-  }
+  const release = keepAudioContextRunning(context);
   const buffer = new Uint8Array(analyser.fftSize);
   let state = QUIET;
   const meter = analyser;
@@ -125,6 +125,7 @@ export function monitorSpeaking(stream: MediaStream, onChange: (speaking: boolea
     }
     stopped = true;
     resolved.clearInterval(timer);
+    release();
     try {
       source.disconnect();
       meter.disconnect();

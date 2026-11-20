@@ -1,3 +1,6 @@
+import { keepAudioContextRunning } from './audio-keepalive';
+import { onPageResume } from './page-resume';
+
 export const CALL_VOLUME_MIN = 0;
 export const CALL_VOLUME_MAX = 2;
 
@@ -36,6 +39,9 @@ export const PLAYBACK_LIMITER = { threshold: -1, knee: 0, ratio: 20, attack: 0.0
 
 export interface PlaybackContextLike {
   state?: string;
+  resume?: () => Promise<void>;
+  addEventListener?: (type: 'statechange', listener: () => void) => void;
+  removeEventListener?: (type: 'statechange', listener: () => void) => void;
   currentTime?: number;
   createMediaStreamSource: (stream: MediaStream) => { connect: (node: GainLike) => unknown; disconnect: () => void };
   createGain: () => GainLike;
@@ -47,6 +53,7 @@ export interface PlaybackContextLike {
 export interface KeepAliveLike {
   srcObject: MediaProvider | null;
   muted: boolean;
+  paused?: boolean;
   play: () => Promise<void>;
   pause: () => void;
 }
@@ -118,6 +125,12 @@ export function createPlaybackBoost(stream: MediaStream, gainValue: number, deps
       keepAlive.srcObject = stream;
       void keepAlive.play().catch(() => undefined);
     }
+    const releaseContext = keepAudioContextRunning(context);
+    const stopResume = onPageResume(() => {
+      if (keepAlive && keepAlive.paused !== false) {
+        void keepAlive.play().catch(() => undefined);
+      }
+    });
     let stopped = false;
     return {
       stream: destination.stream,
@@ -137,6 +150,8 @@ export function createPlaybackBoost(stream: MediaStream, gainValue: number, deps
           return;
         }
         stopped = true;
+        releaseContext();
+        stopResume();
         try {
           source.disconnect();
           gain.disconnect();

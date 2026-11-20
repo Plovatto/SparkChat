@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { trackedContextCount } from './audio-keepalive';
 import { PLAYBACK_LIMITER, clampCallVolume, createPlaybackBoost, playbackPlan, type PlaybackContextLike } from './voice-playback';
 
 function fakeContext(state = 'running') {
@@ -57,6 +58,24 @@ describe('call volume mapping', () => {
 });
 
 describe('createPlaybackBoost', () => {
+  it('keeps the boost context running in the background and stops tracking it on stop', () => {
+    const fake = fakeContext();
+    const resume = vi.fn(() => Promise.resolve());
+    const listeners: Array<() => void> = [];
+    fake.context.resume = resume;
+    fake.context.addEventListener = (_type, listener) => void listeners.push(listener);
+    const before = trackedContextCount();
+    const boost = createPlaybackBoost(remote, 1.6, { createContext: () => fake.context, createKeepAlive: () => keepAlive() });
+
+    expect(trackedContextCount()).toBe(before + 1);
+    fake.context.state = 'suspended';
+    listeners.forEach((listener) => listener());
+    expect(resume).toHaveBeenCalledTimes(1);
+
+    boost?.stop();
+    expect(trackedContextCount()).toBe(before);
+  });
+
   it('routes the remote voice through a gain into a playable stream', () => {
     const fake = fakeContext();
     const element = keepAlive();

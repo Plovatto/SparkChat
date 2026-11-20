@@ -1369,6 +1369,18 @@ describe('screen share info', () => {
     expect(parseControlMessage('{"t":"screen","on":false,"surface":"window","label":"x"}')).toEqual({ t: 'screen', on: false });
   });
 
+  it('carries the paused flag only as a boolean on an active screen message', () => {
+    expect(parseControlMessage('{"t":"screen","on":true,"paused":true}')).toEqual({ t: 'screen', on: true, paused: true });
+    expect(parseControlMessage('{"t":"screen","on":true,"paused":false}')).toEqual({ t: 'screen', on: true, paused: false });
+    expect(parseControlMessage('{"t":"screen","on":true,"paused":"yes"}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":true,"paused":1}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":false,"paused":true}')).toEqual({ t: 'screen', on: false });
+    expect(screenControl(true, { surface: 'window', label: null, paused: true })).toEqual({ t: 'screen', on: true, surface: 'window', paused: true });
+    expect(screenControl(true, { surface: 'window', label: null, paused: false })).toEqual({ t: 'screen', on: true, surface: 'window', paused: false });
+    expect(screenControl(true, { surface: 'window', label: null })).toEqual({ t: 'screen', on: true, surface: 'window' });
+    expect(screenControl(false, { surface: 'window', label: null, paused: true })).toEqual({ t: 'screen', on: false });
+  });
+
   it('strips control and bidi characters and caps the label at 80 characters', () => {
     expect(sanitizeScreenLabel('  a\u0000b\u202ec\n ')).toBe('abc');
     expect(sanitizeScreenLabel('x'.repeat(200))).toHaveLength(80);

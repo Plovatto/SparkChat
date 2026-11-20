@@ -47,6 +47,7 @@ export interface ScreenInfo {
   label: string | null;
   audio?: boolean;
   movie?: boolean;
+  paused?: boolean;
 }
 
 export interface ScreenControl {
@@ -56,6 +57,7 @@ export interface ScreenControl {
   label?: string;
   audio?: boolean;
   movie?: boolean;
+  paused?: boolean;
 }
 
 export const MAX_SCREEN_LABEL_LENGTH = 80;
@@ -86,6 +88,9 @@ export function screenControl(on: boolean, info: ScreenInfo | null = null): Scre
   }
   if (info.movie !== undefined) {
     message.movie = info.movie;
+  }
+  if (info.paused !== undefined) {
+    message.paused = info.paused;
   }
   let label = sanitizeScreenLabel(info.label);
   while (label && JSON.stringify({ ...message, label }).length > MAX_CONTROL_LENGTH) {
@@ -353,6 +358,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
       }
       if (message.on && typeof message.movie === 'boolean') {
         screen.movie = message.movie;
+      }
+      if (message.on && typeof message.paused === 'boolean') {
+        screen.paused = message.paused;
       }
       const label = message.on ? sanitizeScreenLabel(message.label) : null;
       if (label) {

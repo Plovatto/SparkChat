@@ -1,3 +1,5 @@
+import { keepAudioContextRunning } from './audio-keepalive';
+
 export interface ShareAudio {
   track: MediaStreamTrack;
   controllable: boolean;
@@ -68,9 +70,7 @@ export function createShareAudio(track: MediaStreamTrack, volume: number, deps: 
     gain.gain.value = clampVolume(volume);
     source.connect(gain);
     gain.connect(destination);
-    if (context.state === 'suspended') {
-      void context.resume?.().catch(() => undefined);
-    }
+    const release = keepAudioContextRunning(context);
     let stopped = false;
     return {
       track: output,
@@ -85,6 +85,7 @@ export function createShareAudio(track: MediaStreamTrack, volume: number, deps: 
           return;
         }
         stopped = true;
+        release();
         try {
           source.disconnect();
           gain.disconnect();

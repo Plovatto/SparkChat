@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompress, FaExpand, FaMicrophoneSlash } from 'react-icons/fa';
-import { MdOpenInNew, MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
+import { MdOpenInNew, MdPictureInPictureAlt, MdScreenShare, MdVisibilityOff } from 'react-icons/md';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
 import { OverlayVisibility, resolveFocus, stripItems, type StageItem } from '../lib/stage-focus';
 import { useStreamOn } from './call-hooks';
+import { useFrozenFrame } from './use-frozen-frame';
 
 interface StreamVideoProps {
   stream: MediaStream | null;
@@ -12,13 +13,20 @@ interface StreamVideoProps {
   fit?: 'contain' | 'cover';
   videoRef?: RefObject<HTMLVideoElement | null>;
   label?: string;
+  holdFrame?: { paused: boolean };
 }
 
-function StreamVideo({ stream, mirror = false, fit = 'cover', videoRef, label }: StreamVideoProps) {
+function StreamVideo({ stream, mirror = false, fit = 'cover', videoRef, label, holdFrame }: StreamVideoProps) {
   const ownRef = useRef<HTMLVideoElement>(null);
   const ref = videoRef ?? ownRef;
   useStreamOn(ref, stream);
-  return <video ref={ref} autoPlay playsInline muted aria-label={label} className="sc-stage-video" style={{ objectFit: fit, transform: mirror ? 'scaleX(-1)' : undefined }} />;
+  const frame = useFrozenFrame(ref, stream, holdFrame !== undefined, holdFrame?.paused ?? false);
+  return (
+    <>
+      <video ref={ref} autoPlay playsInline muted aria-label={label} className="sc-stage-video" style={{ objectFit: fit, transform: mirror ? 'scaleX(-1)' : undefined }} />
+      {holdFrame && <canvas ref={frame.canvasRef} aria-hidden="true" className="sc-stage-video sc-stage-frozen" data-frozen={frame.frozen} style={{ objectFit: fit }} />}
+    </>
+  );
 }
 
 interface Person {
@@ -43,6 +51,7 @@ export interface ShareStageProps {
   fullscreen: { available: boolean; active: boolean; toggle: () => void };
   pip: { available: boolean; open: boolean; toggle: () => void };
   previewHidden: boolean;
+  paused: boolean;
   streamWindow: { open: boolean; onOpen: () => void } | null;
   onStop: (() => void) | null;
 }
@@ -55,7 +64,7 @@ function Avatar({ person, size }: { person: Person; size: number }) {
   );
 }
 
-export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, previewHidden, streamWindow, onStop }: ShareStageProps) {
+export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, previewHidden, paused, streamWindow, onStop }: ShareStageProps) {
   const { t } = useTranslation();
   const [focus, setFocus] = useState<StageItem>('stream');
   const [overlay, setOverlay] = useState(false);
@@ -85,7 +94,17 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         </div>
       );
     }
-    return <StreamVideo stream={stream} fit="contain" label={title} />;
+    return (
+      <>
+        <StreamVideo stream={stream} fit="contain" label={title} holdFrame={local ? undefined : { paused }} />
+        {paused && !local && (
+          <div className="sc-stage-paused" role="status">
+            <MdVisibilityOff size={30} aria-hidden="true" />
+            <span>{t('calls.share.pausedViewer')}</span>
+          </div>
+        )}
+      </>
+    );
   };
 
   const mainView = (): ReactNode => {
