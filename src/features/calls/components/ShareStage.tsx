@@ -194,11 +194,13 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         </div>
         <div className="sc-stage-badges">
           <span className="sc-stage-live">{t('calls.share.live')}</span>
-          <span className="sc-call-stage__label">
-            <span className="sc-call-stage__label-title">{title}</span>
-            <span className="sc-call-stage__label-detail">{detail}</span>
+          <span className="sc-stage-chip" title={`${title} · ${detail}`}>
+            <span>
+              <strong>{title}</strong> · {detail}
+            </span>
           </span>
         </div>
+        {strip.length > 0 && <div className="sc-stage-tiles">{strip.map((item) => tile(item))}</div>}
         <div className="sc-stage-overlay" onPointerEnter={() => visibility.holdOpen(true)} onPointerLeave={() => visibility.holdOpen(false)}>
           <div className="sc-stage-overlay__group">
             {volume && (
@@ -239,7 +241,6 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
           </div>
         </div>
       </div>
-      {strip.length > 0 && <div className="sc-stage-strip">{strip.map((item) => tile(item))}</div>}
     </div>
   );
 }

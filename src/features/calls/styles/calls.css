@@ -1431,6 +1431,50 @@
   border-radius: 14px;
 }
 
+.sc-stage-tiles {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  max-width: calc(100% - 20px);
+  transition: transform 220ms var(--sc-ease-spring-soft);
+}
+
+.sc-call-stage[data-overlay='true'] .sc-stage-tiles {
+  transform: translateY(-52px);
+}
+
+.sc-call-stage:fullscreen .sc-stage-tiles {
+  display: none;
+}
+
+.sc-stage-tiles .sc-call-tile {
+  position: relative;
+  width: 132px;
+  aspect-ratio: 4 / 3;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 0;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  flex-shrink: 0;
+}
+
+.sc-stage-tiles .sc-call-tile .sc-call-chip {
+  left: 4px;
+  bottom: 4px;
+  font-size: 0.64rem;
+  padding: 1px 6px;
+}
+
+.sc-stage-tiles .sc-call-tile--screen {
+  background: #0b0b10;
+}
+
 .sc-stage-main {
   position: absolute;
   inset: 0;
@@ -1470,15 +1514,46 @@
 
 .sc-stage-badges {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 10px;
+  left: 10px;
+  right: 10px;
   z-index: 2;
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   pointer-events: none;
+}
+
+.sc-stage-chip {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: rgba(12, 12, 20, 0.55);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.74rem;
+  line-height: 1;
+  box-sizing: border-box;
+  animation: scCallFadeIn 220ms ease-out 80ms both;
+}
+
+.sc-stage-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sc-stage-chip strong {
+  color: #ffffff;
+  font-weight: 700;
 }
 
 .sc-stage-badges .sc-call-stage__label {
@@ -1493,7 +1568,6 @@
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  margin-top: 6px;
   border-radius: 6px;
   background: var(--sc-danger);
   color: #ffffff;
@@ -1534,8 +1608,12 @@
 .sc-stage-overlay:focus-within {
   opacity: 1;
   transform: none;
-  pointer-events: auto;
   transition: opacity 180ms var(--sc-ease-enter), transform 180ms var(--sc-ease-enter);
+}
+
+.sc-call-stage[data-overlay='true'] .sc-stage-overlay__group,
+.sc-stage-overlay:focus-within .sc-stage-overlay__group {
+  pointer-events: auto;
 }
 
 .sc-stage-overlay__group {
@@ -1591,7 +1669,7 @@
 .sc-stage-icon:focus-visible,
 .sc-stage-btn:focus-visible,
 .sc-stage-volume input:focus-visible,
-.sc-stage-strip .sc-call-tile:focus-visible {
+.sc-stage-tiles .sc-call-tile:focus-visible {
   outline: 2px solid #ffffff;
   outline-offset: 2px;
 }
@@ -1612,41 +1690,19 @@
   accent-color: var(--sc-accent);
 }
 
-.sc-stage-strip {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  overflow-x: auto;
-  padding: 4px 2px;
-  scrollbar-width: thin;
-}
-
-.sc-stage-strip .sc-call-tile {
-  position: relative;
-  border: none;
-  padding: 0;
-  color: #ffffff;
-  cursor: pointer;
-  font: inherit;
-}
-
-.sc-stage-strip .sc-call-tile--screen {
-  background: #0b0b10;
-}
-
 @media (hover: hover) and (pointer: fine) {
-  .sc-stage-strip .sc-call-tile {
+  .sc-stage-tiles .sc-call-tile {
     transition: transform 160ms var(--sc-ease-spring-soft), box-shadow 260ms var(--sc-ease-spring-soft);
   }
 
-  .sc-stage-strip .sc-call-tile:hover {
+  .sc-stage-tiles .sc-call-tile:hover {
     transform: translateY(-2px);
   }
 }
 
 @media (max-width: 599.98px) {
-  .sc-stage-strip {
-    justify-content: flex-start;
+  .sc-stage-tiles .sc-call-tile {
+    width: 88px;
   }
 
   .sc-stage-btn span {
@@ -1660,15 +1716,20 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-stage-main {
+  .sc-stage-main,
+  .sc-stage-chip {
     animation: none;
+  }
+
+  .sc-stage-tiles {
+    transition: none;
   }
 
   .sc-stage-overlay,
   .sc-call-stage[data-overlay='true'] .sc-stage-overlay,
   .sc-stage-icon,
   .sc-stage-btn,
-  .sc-stage-strip .sc-call-tile {
+  .sc-stage-tiles .sc-call-tile {
     transition: none;
   }
 }
