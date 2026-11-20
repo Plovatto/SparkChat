@@ -16,7 +16,7 @@ import { openAttachment, type AttachmentBinding } from './attachment-crypto';
 import { markExpiredMediaUrl, resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
-import { assessSystemEvent, assessSystemEvents, checkGroupSender } from './group-event-trust';
+import { assessSystemEvent, assessSystemEvents, checkGroupSender, getAttestedNames } from './group-event-trust';
 import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
@@ -358,8 +358,11 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
   const unencrypted = hasUnencryptedFields(message);
   const source = { messageId: message.id, senderId: message.sender.id, timestamp: message.timestamp, live: options.live === true };
   const eventTrust = await assessSystemEvent(socket, message);
+  const names = eventTrust === 'verified' ? getAttestedNames(message.id) : undefined;
+  const systemEvent =
+    names && message.systemEvent ? { ...message.systemEvent, params: { ...message.systemEvent.params, ...names } } : message.systemEvent;
   if (eventTrust === 'forged') {
-    return { ...message, systemEvent: null, content: translate('systemEvents.forgedEvent'), eventTrust, unencrypted };
+    return { ...message, eventTrust, unencrypted };
   }
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal =
@@ -370,7 +373,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     decryptCaptionIfNeeded(socket, message.caption, message.roomId, source),
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId, source, fileMeta?.previewKey),
   ]);
-  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted, ...(eventTrust ? { eventTrust } : {}) };
+  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted, ...(systemEvent ? { systemEvent } : {}), ...(eventTrust ? { eventTrust } : {}) };
 }
 
 export async function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {

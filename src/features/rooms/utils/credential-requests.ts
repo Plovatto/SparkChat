@@ -1,5 +1,5 @@
 import { deriveCurrentPasswordProof } from '@features/auth/lib/auth-params';
-import { createPasswordMaterial, createRecoveryMaterial, resolveIdentityForRewrap } from '@lib/e2ee';
+import { createPasswordMaterial, createRecoveryMaterial, declaredPasswordLength, resolveIdentityForRewrap } from '@lib/e2ee';
 import type { AppSocket, ClientToServerEvents } from '@lib/socket';
 
 export type ChangePasswordPayload = Parameters<ClientToServerEvents['user:change-password']>[0];
@@ -49,7 +49,7 @@ export async function buildChangePasswordRequest(
     payload: {
       currentPassword: currentProof,
       newPassword: passwordMaterial.authKey,
-      passwordLength: newPassword.length,
+      passwordLength: declaredPasswordLength(newPassword),
       newAuthSalt: passwordMaterial.authSalt,
       encryptedPrivateKeyByPassword: passwordMaterial.encryptedPrivateKeyByPassword,
     },

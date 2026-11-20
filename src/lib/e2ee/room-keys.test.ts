@@ -168,6 +168,7 @@ class FakeServer {
   }
 
   readonly nicknames = new Map<string, string>();
+  readonly admins = new Set<string>();
 
   summary(roomId: string): RoomSummary {
     const room = this.rooms.get(roomId) as ServerRoom;
@@ -175,7 +176,7 @@ class FakeServer {
       id: room.id,
       type: room.type,
       creatorId: room.creatorId,
-      participants: room.members.map((id) => ({ id, nickname: this.nicknames.get(id) ?? id })),
+      participants: room.members.map((id) => ({ id, nickname: this.nicknames.get(id) ?? id, isAdmin: this.admins.has(id) })),
       currentEpoch: room.currentEpoch,
       currentKeyId: room.currentKeyId,
       rotationRequiredEpoch: room.rotationRequired,
@@ -1606,7 +1607,7 @@ describe('review hardening', () => {
     for (const [id, socket] of detached) {
       server.sockets.set(id, socket);
     }
-    const participants = room.members.map((id) => ({ id, nickname: id }));
+    const participants = room.members.map((id) => ({ id, nickname: id, isAdmin: server.admins.has(id) }));
     for (const member of room.members.filter((id) => id !== firstId)) {
       server.push(member, 'group:user-joined', { roomId: 'group', participants });
       for (const { recipientId, ...entry } of server.envelopes.filter((stored) => stored.recipientId === member && stored.epoch === room.currentEpoch)) {
@@ -1753,7 +1754,7 @@ describe('review hardening', () => {
       expect(bia.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
     });
 
-    it('rejects a rotation by a member that is not an admin when it drops people the room still lists, and reports the generation', async () => {
+    it('defers a rotation by a member that is not an admin, without reporting it, while an admin can still act', async () => {
       const [ana, bia] = await signedGroup();
       const first = batchesOf(ana, 1)[0] as PublishedBatch;
       const forged = await forgeGeneration(bia, ana, 2, async ({ keyId, roomKey }) =>
@@ -1763,8 +1764,8 @@ describe('review hardening', () => {
       await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), forged);
 
       expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
-      expect(failedRosterReasons()).toEqual(['dropped-members']);
-      expect(ana.socket.emittedOf('e2e:report-bad-key')).toEqual([{ roomId: 'group', keyId: forged.keyId }]);
+      expect(failedRosterReasons()).toEqual(['not-admin']);
+      expect(ana.socket.emittedOf('e2e:report-bad-key')).toEqual([]);
     });
 
     it('rejects a roster forged in the name of an admin', async () => {
@@ -1824,17 +1825,58 @@ describe('review hardening', () => {
       expect(failedRosterReasons()).toEqual([]);
     });
 
-    it('keeps accepting a rotation whose unsigned roster comes from an older client that never signed', async () => {
+    it('does not let a non-admin reset the authority chain with an unsigned generation followed by a self-signed one', async () => {
       const [ana, bia] = await signedGroup();
+      const first = batchesOf(ana, 1)[0] as PublishedBatch;
       const invite = await import('./group-invite');
-      const legacy = await forgeGeneration(bia, ana, 2, ({ keyId, roomKey }) =>
+      const unsigned = await forgeGeneration(bia, ana, 2, ({ keyId, roomKey }) =>
         invite.sealRoster({ epoch: 2, members: ['ana', 'bia', 'caio'].map((userId) => ({ userId, signingPublicKey: signingKeyOf(userId) })) }, roomKey, 'group', keyId),
       );
 
-      await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), legacy);
+      await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), unsigned);
 
-      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
-      expect(failedRosterReasons()).toEqual([]);
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+      expect(failedRosterReasons()).toEqual(['not-admin']);
+      expect(ana.socket.emittedOf('e2e:report-bad-key')).toEqual([]);
+      const selfSigned = await forgeGeneration(bia, ana, 3, async ({ keyId, roomKey }) =>
+        sealedRoster(bia, { keyId, roomKey, epoch: 3, prevKeyId: unsigned.keyId, members: ['ana', 'bia', 'caio'], admins: ['bia'] }),
+      );
+      await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), selfSigned);
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+      expect(first.keyId).toBeTruthy();
+    });
+
+    it('does not let a stalled restricted rotation empty the admin list', async () => {
+      const [ana, bia] = await signedGroup();
+      const first = batchesOf(ana, 1)[0] as PublishedBatch;
+      const emptied = await forgeGeneration(bia, ana, 2, ({ keyId, roomKey }) =>
+        sealedRoster(bia, { keyId, roomKey, epoch: 2, prevKeyId: first.keyId, members: ['ana', 'bia', 'caio'], admins: [] }),
+      );
+
+      await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), emptied);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(Date.now() + 300_000);
+        await ana.roomKeys.retryDeferredEnvelopes(ana.socket.asAppSocket(), 'group');
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+      expect(failedRosterReasons()).toEqual(['not-admin', 'dropped-admins']);
+    });
+
+    it('treats a missing local rotation clock as not stalled', async () => {
+      const [ana, bia] = await signedGroup();
+      const first = batchesOf(ana, 1)[0] as PublishedBatch;
+      const fallback = await forgeGeneration(bia, ana, 2, ({ keyId, roomKey }) =>
+        sealedRoster(bia, { keyId, roomKey, epoch: 2, prevKeyId: first.keyId, members: ['ana', 'bia', 'caio'], admins: ['ana'] }),
+      );
+
+      await ana.roomKeys.handleRoomKeyPush(ana.socket.asAppSocket(), fallback);
+
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+      expect(ana.socket.emittedOf('e2e:report-bad-key')).toEqual([]);
     });
 
     it('rejects a replayed older roster attached to a new generation', async () => {
@@ -1877,6 +1919,8 @@ describe('review hardening', () => {
 
     it('lets a member the server declares an admin lead the rotation without waiting for a stall', async () => {
       const [ana, bia] = await signedGroup();
+      server.admins.add('ana');
+      server.admins.add('bia');
       const participants = [
         { id: 'ana', nickname: 'ana', isAdmin: true },
         { id: 'bia', nickname: 'bia', isAdmin: true },
@@ -1891,6 +1935,7 @@ describe('review hardening', () => {
       const published = batchesOf(bia, 2);
       expect(published).toHaveLength(1);
       expect(await rosterOf(bia, published[0] as PublishedBatch)).toMatchObject({ issuedBy: 'bia', admins: ['ana'] });
+      expect(failedRosterReasons()).toEqual([]);
       expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
     });
 
@@ -1910,6 +1955,15 @@ describe('review hardening', () => {
         (retry?.[0] as () => void)();
         await settle();
         await settle();
+        await settle();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        vi.setSystemTime(Date.now() + 300_000);
+        await ana.roomKeys.retryDeferredEnvelopes(ana.socket.asAppSocket(), 'group');
         await settle();
       } finally {
         vi.useRealTimers();
@@ -2018,7 +2072,7 @@ describe('review hardening', () => {
         expect(unsignedEarlier.eventTrust).toBe('legacy');
 
         const replay = await view({ ...genuine, id: crypto.randomUUID(), timestamp: AGO(5000) });
-        expect(replay).toMatchObject({ eventTrust: 'forged', systemEvent: null, content: 'systemEvents.forgedEvent' });
+        expect(replay).toMatchObject({ eventTrust: 'forged' });
 
         const attested = JSON.parse((genuine.systemEvent?.params.att as string) ?? '{}') as Record<string, unknown>;
         const retargeted = systemMessage('group.memberRemoved', { actor: 'ana', target: 'bia', att: JSON.stringify({ ...attested, targetId: 'bia' }) }, AGO(4000));
@@ -2048,6 +2102,123 @@ describe('review hardening', () => {
         expect((await view(await systemEvent(ana, 'group.adminPromoted', 'bia', AGO(60_000)))).eventTrust).toBe('verified');
 
         expect((await view(unsigned)).eventTrust).toBe('unverified');
+      });
+
+      async function signedAs(signer: Client, fields: { epoch: number; type: 'group.memberJoined' | 'group.memberLeft' | 'group.memberRemoved' | 'group.adminPromoted'; targetId: string | null }): Promise<string> {
+        const events = await import('./group-events');
+        const signing = await import('./signing');
+        const pair = await signing.deriveSigningKeyPair(signer.privateKey);
+        return events.signGroupEvent({ roomId: 'group', actorId: signer.userId, counter: Date.now() + Math.floor(Math.random() * 1000), ...fields }, pair.privateKey);
+      }
+
+      it('does not trust a self-promotion attested for an epoch the room has no signed roster for', async () => {
+        const [, bia, caio] = await signedGroup();
+        const view = (message: MessageView) => bia.messages.decryptMessageView(bia.socket.asAppSocket(), message);
+
+        for (const epoch of [0, 1]) {
+          const att = await signedAs(caio, { epoch, type: 'group.adminPromoted', targetId: 'caio' });
+          const rendered = await view(systemMessage('group.adminPromoted', { actor: 'caio', target: 'caio', att }, AGO(1000)));
+          expect(rendered.eventTrust).toBe(epoch === 1 ? 'forged' : 'unverified');
+        }
+        const future = await signedAs(caio, { epoch: 999_999, type: 'group.adminPromoted', targetId: 'caio' });
+        expect((await view(systemMessage('group.adminPromoted', { actor: 'caio', target: 'caio', att: future }, AGO(900)))).eventTrust).toBe('forged');
+        expect(Array.from(bia.admins.getVerifiedPromotions('bia', 'group'))).toEqual([]);
+      });
+
+      it('revokes a promotion when the admin leaves or is removed and does not bring it back from older events', async () => {
+        const [ana, bia, caio] = await signedGroup();
+        const view = (message: MessageView) => bia.messages.decryptMessageView(bia.socket.asAppSocket(), message);
+        const promotion = await systemEvent(ana, 'group.adminPromoted', 'caio', AGO(50_000));
+        expect((await view(promotion)).eventTrust).toBe('verified');
+        expect(Array.from(bia.admins.getVerifiedPromotions('bia', 'group'))).toEqual(['caio']);
+
+        expect((await view(await systemEvent(caio, 'group.memberLeft', null, AGO(40_000)))).eventTrust).toBe('verified');
+        expect(Array.from(bia.admins.getVerifiedPromotions('bia', 'group'))).toEqual([]);
+
+        const olderPromotion = await systemEvent(ana, 'group.adminPromoted', 'caio', AGO(45_000));
+        expect((await view(olderPromotion)).eventTrust).toBe('verified');
+        expect(Array.from(bia.admins.getVerifiedPromotions('bia', 'group'))).toEqual([]);
+
+        const rePromotion = await systemEvent(ana, 'group.adminPromoted', 'caio', AGO(1000));
+        expect((await view(rePromotion)).eventTrust).toBe('verified');
+        expect(Array.from(bia.admins.getVerifiedPromotions('bia', 'group'))).toEqual(['caio']);
+      });
+
+      it('keeps a rotation by a newly promoted admin pending, without reporting it, until the promotion event is seen', async () => {
+        const [ana, bia, caio] = await signedGroup();
+        const first = batchesOf(ana, 1)[0] as PublishedBatch;
+        const rotation = await (async () => {
+          const envelope = await import('./room-key-envelope');
+          const signing = await import('./signing');
+          const pair = await signing.deriveSigningKeyPair(bia.privateKey);
+          const roomKey = crypto.getRandomValues(new Uint8Array(32));
+          const keyId = await envelope.deriveRoomKeyId(roomKey);
+          const sealedKey = await envelope.sealRoomKeyEnvelope({
+            roomKey,
+            roomId: 'group',
+            keyId,
+            epoch: 2,
+            senderId: 'bia',
+            senderPrivateKey: bia.privateKey,
+            senderSigningPrivateKey: pair.privateKey,
+            recipientId: 'caio',
+            recipientPublicKey: caio.publicKey,
+          });
+          const roster = await sealedRoster(bia, { keyId, roomKey, epoch: 2, prevKeyId: first.keyId, members: ['ana', 'bia', 'caio'], admins: ['ana', 'bia'] });
+          return { roomId: 'group', keyId, epoch: 2, senderId: 'bia', sealedKey, roster };
+        })();
+
+        await caio.roomKeys.handleRoomKeyPush(caio.socket.asAppSocket(), rotation);
+        expect(caio.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(1);
+        expect(failedRosterReasons()).toEqual(['not-admin']);
+        expect(caio.socket.emittedOf('e2e:report-bad-key')).toEqual([]);
+
+        const promotion = await systemEvent(ana, 'group.adminPromoted', 'bia', AGO(60_000));
+        expect((await caio.messages.decryptMessageView(caio.socket.asAppSocket(), promotion)).eventTrust).toBe('verified');
+        await settle();
+
+        expect(caio.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
+      });
+
+      it('keeps the text of an event it cannot verify and marks it instead of hiding it', async () => {
+        const [, bia, caio] = await signedGroup();
+        const att = await signedAs(caio, { epoch: 5, type: 'group.memberJoined', targetId: null });
+        const rendered = await bia.messages.decryptMessageView(bia.socket.asAppSocket(), systemMessage('group.memberJoined', { actor: 'caio', att }, AGO(1000)));
+
+        expect(rendered).toMatchObject({ eventTrust: 'forged', content: 'server text', systemEvent: { type: 'group.memberJoined' } });
+      });
+
+      it('rejects a leave attested for a future generation', async () => {
+        const [, bia, caio] = await signedGroup();
+        const att = await signedAs(caio, { epoch: 40, type: 'group.memberLeft', targetId: null });
+
+        const rendered = await bia.messages.decryptMessageView(bia.socket.asAppSocket(), systemMessage('group.memberLeft', { actor: 'caio', att }, AGO(1000)));
+
+        expect(rendered.eventTrust).toBe('forged');
+      });
+
+      it('renders names from the attested ids and keeps rejecting replays after a reload', async () => {
+        const store = new Map<string, string>();
+        vi.stubGlobal('localStorage', {
+          getItem: (key: string) => store.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            store.set(key, value);
+          },
+        });
+        const [ana, bia] = await signedGroup();
+        const removal = await systemEvent(ana, 'group.memberRemoved', 'caio', AGO(30_000));
+        const params = { ...(removal.systemEvent?.params ?? {}), actor: 'Mallory', target: 'Eve' };
+        const rendered = await bia.messages.decryptMessageView(bia.socket.asAppSocket(), { ...removal, systemEvent: { type: 'group.memberRemoved', params } });
+
+        expect(rendered.eventTrust).toBe('verified');
+        expect(rendered.systemEvent?.params).toMatchObject({ actor: 'ana', target: 'caio' });
+
+        const reloaded = await loadClient('bia', { store: 'bia-reload', privateKey: bia.privateKey });
+        await track(reloaded, 'group');
+        await settle();
+        const replay = await reloaded.messages.decryptMessageView(reloaded.socket.asAppSocket(), { ...removal, id: crypto.randomUUID(), timestamp: AGO(1000) });
+
+        expect(replay.eventTrust).toBe('forged');
       });
 
       it('remembers verified promotions so a promoted admin can rotate', async () => {

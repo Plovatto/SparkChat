@@ -1,6 +1,6 @@
 import type { AppSocket } from '@lib/socket';
 import { getCurrentIdentity } from './current-identity';
-import { rememberVerifiedPromotion } from './group-admins';
+import { rememberVerifiedPromotion, revokeVerifiedPromotion } from './group-admins';
 import {
   attestationParam,
   eventIdentity,
@@ -12,7 +12,14 @@ import {
   type AttestedEventType,
 } from './group-events';
 import { evaluateSender, type SenderVerdict } from './group-roster';
-import { currentGroupEpoch, getGroupSenderContext, getVerifiedGroupAdmins, resolveSigningPublicKey } from './room-keys';
+import {
+  currentGroupEpoch,
+  getGroupSenderContext,
+  getMemberNickname,
+  getVerifiedGroupAdmins,
+  resolveSigningPublicKey,
+  retryDeferredEnvelopes,
+} from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 
 export type EventTrust = 'verified' | 'legacy' | 'unverified' | 'forged';
@@ -26,8 +33,12 @@ export interface SystemMessageLike {
 }
 
 const MAX_TRACKED_EVENTS = 5000;
+const MAX_PERSISTED_EVENTS = 1000;
+const SEEN_STORAGE_PREFIX = 'sparkchat:group-event-seen:';
 
 const seenEvents = new Map<string, string>();
+const loadedSeen = new Set<string>();
+const attestedNames = new Map<string, { actor?: string; target?: string }>();
 const removals = new Map<string, number>();
 const signedSince = new Map<string, number>();
 const assessments = new Map<string, EventTrust>();
@@ -39,6 +50,35 @@ function removalKey(roomId: string, userId: string): string {
 function messageTime(message: { timestamp: string }): number {
   const parsed = Date.parse(message.timestamp);
   return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function loadSeen(selfId: string): void {
+  if (loadedSeen.has(selfId)) {
+    return;
+  }
+  loadedSeen.add(selfId);
+  try {
+    const raw = globalThis.localStorage?.getItem(SEEN_STORAGE_PREFIX + selfId);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (typeof parsed === 'object' && parsed !== null) {
+      for (const [identity, messageId] of Object.entries(parsed)) {
+        if (typeof messageId === 'string' && !seenEvents.has(identity)) {
+          seenEvents.set(identity, messageId);
+        }
+      }
+    }
+  } catch {
+    return;
+  }
+}
+
+function persistSeen(selfId: string): void {
+  try {
+    const recent = Array.from(seenEvents).slice(-MAX_PERSISTED_EVENTS);
+    globalThis.localStorage?.setItem(SEEN_STORAGE_PREFIX + selfId, JSON.stringify(Object.fromEntries(recent)));
+  } catch {
+    return;
+  }
 }
 
 function rememberSeen(identity: string, messageId: string): void {
@@ -57,6 +97,8 @@ export function getRemovedAt(roomId: string, userId: string): number | undefined
 
 export function resetGroupEventTrust(): void {
   seenEvents.clear();
+  loadedSeen.clear();
+  attestedNames.clear();
   removals.clear();
   signedSince.clear();
   assessments.clear();
@@ -71,6 +113,11 @@ function noteSignedEvent(roomId: string, at: number): void {
 
 function applyVerifiedEffects(roomId: string, type: AttestedEventType, actorId: string, targetId: string | null, at: number): void {
   const identity = getCurrentIdentity();
+  if (identity && type === 'group.memberRemoved' && targetId) {
+    revokeVerifiedPromotion(identity.userId, roomId, targetId, at);
+  } else if (identity && type === 'group.memberLeft') {
+    revokeVerifiedPromotion(identity.userId, roomId, actorId, at);
+  }
   if (type === 'group.memberRemoved' && targetId) {
     removals.set(removalKey(roomId, targetId), Math.min(removals.get(removalKey(roomId, targetId)) ?? at, at));
   } else if (type === 'group.memberLeft') {
@@ -81,7 +128,7 @@ function applyVerifiedEffects(roomId: string, type: AttestedEventType, actorId: 
       removals.delete(removalKey(roomId, actorId));
     }
   } else if (type === 'group.adminPromoted' && targetId && identity) {
-    rememberVerifiedPromotion(identity.userId, roomId, targetId);
+    rememberVerifiedPromotion(identity.userId, roomId, targetId, at);
   }
 }
 
@@ -97,21 +144,44 @@ async function assessAttested(socket: AppSocket, message: SystemMessageLike, typ
   if (!(await verifyGroupEvent(attestation, signingKey))) {
     return 'forged';
   }
+  const self = getCurrentIdentity();
+  if (self) {
+    loadSeen(self.userId);
+  }
   const identity = eventIdentity(attestation);
   const owner = seenEvents.get(identity);
   if (owner !== undefined && owner !== message.id) {
     return 'forged';
   }
+  if (type === 'group.memberJoined' && attestation.epoch !== 0) {
+    return 'forged';
+  }
+  if (type !== 'group.memberJoined' && attestation.epoch > currentGroupEpoch(message.roomId)) {
+    return 'forged';
+  }
   if (type === 'group.memberRemoved' || type === 'group.adminPromoted') {
     const admins = getVerifiedGroupAdmins(message.roomId, attestation.epoch);
-    if (admins && !admins.has(attestation.actorId)) {
+    if (!admins) {
+      return 'unverified';
+    }
+    if (!admins.has(attestation.actorId)) {
       return 'forged';
     }
   }
   rememberSeen(identity, message.id);
+  if (self) {
+    persistSeen(self.userId);
+  }
+  attestedNames.set(message.id, {
+    ...(getMemberNickname(message.roomId, attestation.actorId) ? { actor: getMemberNickname(message.roomId, attestation.actorId) } : {}),
+    ...(attestation.targetId && getMemberNickname(message.roomId, attestation.targetId) ? { target: getMemberNickname(message.roomId, attestation.targetId) } : {}),
+  });
   const at = messageTime(message);
   noteSignedEvent(message.roomId, at);
   applyVerifiedEffects(message.roomId, type, attestation.actorId, attestation.targetId, at);
+  if (type === 'group.adminPromoted') {
+    void retryDeferredEnvelopes(socket, message.roomId);
+  }
   return 'verified';
 }
 
@@ -137,6 +207,10 @@ async function assessOne(socket: AppSocket, message: SystemMessageLike): Promise
     assessments.set(message.id, trust);
   }
   return trust;
+}
+
+export function getAttestedNames(messageId: string): { actor?: string; target?: string } | undefined {
+  return attestedNames.get(messageId);
 }
 
 export function assessSystemEvent(socket: AppSocket, message: SystemMessageLike): Promise<EventTrust | null> {

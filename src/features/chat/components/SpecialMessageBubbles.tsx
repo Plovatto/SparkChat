@@ -143,7 +143,7 @@ export function SystemMessageBubble({ message, currentNickname, entrancePhase }:
         </p>
         <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '4px' }}>
           {formatTime(message.timestamp)}
-          {message.eventTrust === 'unverified' ? ` · ${t('systemEvents.unverifiedSuffix')}` : ''}
+          {message.eventTrust === 'unverified' || message.eventTrust === 'forged' ? ` · ${t('systemEvents.unverifiedSuffix')}` : ''}
         </span>
       </div>
     </div>

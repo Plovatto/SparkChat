@@ -69,6 +69,11 @@ function signAs(
 const keys = () => new Map([alice, bob, carol, mallory].map((p) => [p.userId, p.signingPublicKey]));
 
 function context(overrides: Partial<RosterVerificationContext> = {}): RosterVerificationContext {
+  const previous = overrides.previous ?? null;
+  const derivedAnchor =
+    previous?.signed && previous.roster
+      ? { epoch: previous.roster.epoch, roster: previous.roster, admins: new Set(previous.roster.admins ?? []) }
+      : null;
   return {
     roomId: ROOM,
     keyId: KEY_1,
@@ -76,6 +81,8 @@ function context(overrides: Partial<RosterVerificationContext> = {}): RosterVeri
     envelopeSenderId: alice.userId,
     creatorId: null,
     previous: null,
+    anchor: derivedAnchor,
+    goneAdmins: new Set<string>(),
     signedFromEpoch: null,
     signedIssuers: new Set<string>(),
     enforceSigned: false,
@@ -291,8 +298,8 @@ describe('verifyGroupRoster', () => {
     expect(await verifyGroupRoster(removal, declared)).toEqual({ ok: true, signed: true });
     const escalating = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [alice, bob], admins: ['alice', 'bob'] });
     expect(await verifyGroupRoster(escalating, declared)).toEqual({ ok: false, reason: 'escalation' });
-    const dropping = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob], admins: [] });
-    expect(await verifyGroupRoster(dropping, declared)).toEqual({ ok: false, reason: 'dropped-members' });
+    const dropping = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [alice, bob], admins: ['alice'] });
+    expect(await verifyGroupRoster(dropping, { ...declared, currentMemberIds: new Set(['alice', 'bob', 'carol']) })).toEqual({ ok: false, reason: 'dropped-members' });
   });
 
   it('stops a stalled non-admin retry from adding people the room does not list', async () => {
@@ -304,13 +311,75 @@ describe('verifyGroupRoster', () => {
     ).toEqual({ ok: false, reason: 'added-members' });
   });
 
+  it('keeps the authority anchored on the last signed roster across an unsigned generation', async () => {
+    const anchored = await signedPrevious();
+    const gap: PreviousGeneration = { keyId: KEY_2, roster: { epoch: 2, members: [member(alice), member(bob)] }, signed: false };
+    const takeover = await signAs(bob, { keyId: KEY_3, epoch: 3, prevKeyId: KEY_2, members: [alice, bob], admins: ['bob'] });
+    const chained = context({
+      keyId: KEY_3,
+      epoch: 3,
+      envelopeSenderId: 'bob',
+      previous: gap,
+      anchor: { epoch: 1, roster: anchored.roster as GroupRoster, admins: new Set(['alice']) },
+      signedFromEpoch: 1,
+      currentMemberIds: new Set(['alice', 'bob']),
+    });
+
+    expect(await verifyGroupRoster(takeover, chained)).toEqual({ ok: false, reason: 'not-admin' });
+    expect(await verifyGroupRoster(takeover, { ...chained, stallElapsed: true })).toEqual({ ok: false, reason: 'escalation' });
+  });
+
+  it('accepts an unsigned roster after a signed chain only from a signed admin', async () => {
+    const anchored = await signedPrevious();
+    const unsigned: GroupRoster = { epoch: 2, members: [member(alice), member(bob)] };
+    const base = context({ keyId: KEY_2, epoch: 2, previous: anchored, signedFromEpoch: 1, currentMemberIds: new Set(['alice', 'bob']) });
+
+    expect(await verifyGroupRoster(unsigned, { ...base, envelopeSenderId: 'alice' })).toEqual({ ok: true, signed: false });
+    expect(await verifyGroupRoster(unsigned, { ...base, envelopeSenderId: 'bob' })).toEqual({ ok: false, reason: 'not-admin' });
+  });
+
+  it('stops a restricted rotation from emptying the admin list to trigger the adminless takeover', async () => {
+    const previous = await signedPrevious();
+    const emptied = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [alice, bob], admins: [] });
+    const stalled = context({
+      keyId: KEY_2,
+      epoch: 2,
+      envelopeSenderId: 'bob',
+      previous,
+      signedFromEpoch: 1,
+      currentMemberIds: new Set(['alice', 'bob']),
+      stallElapsed: true,
+    });
+
+    expect(await verifyGroupRoster(emptied, stalled)).toEqual({ ok: false, reason: 'dropped-admins' });
+    const kept = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [alice, bob], admins: ['alice'] });
+    expect(await verifyGroupRoster(kept, stalled)).toEqual({ ok: true, signed: true });
+  });
+
+  it('only treats admins as gone when the room verified their departure or the rotation really stalled', async () => {
+    const previous = await signedPrevious();
+    const takeover = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob, carol], admins: ['bob'] });
+    const away = context({
+      keyId: KEY_2,
+      epoch: 2,
+      envelopeSenderId: 'bob',
+      previous,
+      signedFromEpoch: 1,
+      currentMemberIds: new Set(['bob', 'carol']),
+    });
+
+    expect(await verifyGroupRoster(takeover, away)).toEqual({ ok: false, reason: 'not-admin' });
+    expect(await verifyGroupRoster(takeover, { ...away, goneAdmins: new Set(['alice']) })).toEqual({ ok: true, signed: true });
+    expect(await verifyGroupRoster(takeover, { ...away, stallElapsed: true })).toEqual({ ok: true, signed: true });
+  });
+
   it('lets a member take over when every previous admin is gone', async () => {
     const previous = await signedPrevious();
     const takeover = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob, carol], admins: ['bob'] });
 
     const verdict = await verifyGroupRoster(
       takeover,
-      context({ keyId: KEY_2, epoch: 2, envelopeSenderId: 'bob', previous, signedFromEpoch: 1, currentMemberIds: new Set(['bob', 'carol']) }),
+      context({ keyId: KEY_2, epoch: 2, envelopeSenderId: 'bob', previous, signedFromEpoch: 1, currentMemberIds: new Set(['bob', 'carol']), goneAdmins: new Set(['alice']) }),
     );
 
     expect(verdict).toEqual({ ok: true, signed: true });

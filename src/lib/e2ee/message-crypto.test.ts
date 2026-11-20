@@ -27,6 +27,8 @@ vi.mock('./room-keys', () => {
       return current;
     },
     getGroupSenderContext: () => Promise.resolve(null),
+    getMemberNickname: () => undefined,
+    retryDeferredEnvelopes: () => Promise.resolve(),
     getVerifiedGroupAdmins: () => null,
     currentGroupEpoch: () => 0,
     resolveSigningPublicKey: () => Promise.resolve(null),

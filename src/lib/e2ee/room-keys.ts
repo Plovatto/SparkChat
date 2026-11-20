@@ -31,14 +31,16 @@ import {
 } from './room-key-envelope';
 import { safeAsync } from './safe-async';
 import { deriveSigningKeyPair } from './signing';
-import { forgetVerifiedPromotions, getVerifiedPromotions } from './group-admins';
+import { forgetVerifiedPromotions, getDepartures, getVerifiedPromotions } from './group-admins';
 import {
+  AUTHORITY_REJECTIONS,
   ENFORCE_SIGNED_ROSTERS,
   isSignedRoster,
   ROTATION_STALL_MS,
   signRoster,
   verifyGroupRoster,
   type PreviousGeneration,
+  type RosterAnchor,
   type SenderGeneration,
 } from './group-roster';
 import { getSodium } from './sodium';
@@ -55,6 +57,7 @@ interface RoomView {
   creatorId: string | null;
   members: Set<string>;
   admins: Set<string>;
+  nicknames: Map<string, string>;
   pinnedMembers: Set<string> | null;
   currentEpoch: number;
   rotationRequiredEpoch: number | null;
@@ -180,6 +183,10 @@ const verifiedRosters = new Map<string, Map<string, VerifiedRoster>>();
 const rotationClocks = new Map<string, RotationClock>();
 const rotationTimers = new Map<string, number>();
 const reportedBadKeys = new Set<string>();
+const deferredEnvelopes = new Map<string, SealedRoomKeyEntry[]>();
+const deferralAttempts = new Map<string, number>();
+const deferralTimers = new Map<string, number>();
+const MAX_DEFERRALS = 4;
 const ROTATION_WATCHDOG_MS = 20_000;
 const ROTATION_RANK_SPACING_MS = 4000;
 const MIN_ROTATION_RETRY_MS = 1000;
@@ -815,10 +822,10 @@ function noteRotationStarted(roomId: string, epoch: number): void {
   }
 }
 
-function rotationStalled(roomId: string, epoch: number, lenient: boolean): boolean {
+function rotationStalled(roomId: string, epoch: number): boolean {
   const clock = rotationClocks.get(roomId);
   if (!clock || clock.epoch !== epoch) {
-    return lenient;
+    return false;
   }
   return Date.now() - clock.startedAt >= ROTATION_STALL_MS;
 }
@@ -846,16 +853,15 @@ function scheduleRotationRetry(socket: AppSocket, roomId: string, epoch: number,
 }
 
 function groupAdminSet(roomId: string, view: RoomView, selfId: string): Set<string> {
-  const latest = latestGeneration(roomId);
-  const entry = latest ? verifiedRosters.get(roomId)?.get(latest.keyId) : undefined;
-  const claimed = entry?.signed && entry.roster.admins ? new Set([...entry.roster.admins, ...getVerifiedPromotions(selfId, roomId)]) : view.admins;
+  const anchor = anchorFor(roomId, (latestGeneration(roomId)?.epoch ?? 0) + 1, selfId);
+  const claimed = anchor ? new Set([...anchor.admins, ...getVerifiedPromotions(selfId, roomId)]) : view.admins;
   return new Set(Array.from(claimed).filter((userId) => view.members.has(userId)));
 }
 
 function mayLeadRotation(roomId: string, view: RoomView, selfId: string, epoch: number): boolean {
   noteRotationStarted(roomId, epoch);
   const admins = groupAdminSet(roomId, view, selfId);
-  return admins.has(selfId) || view.admins.has(selfId) || admins.size === 0 || rotationStalled(roomId, epoch, false);
+  return admins.has(selfId) || view.admins.has(selfId) || admins.size === 0 || rotationStalled(roomId, epoch);
 }
 
 function rotationRetryDelay(roomId: string, view: RoomView, selfId: string, epoch: number): number {
@@ -888,6 +894,23 @@ function signedIssuersOf(roomId: string): Set<string> {
     }
   }
   return issuers;
+}
+
+function anchorFor(roomId: string, epoch: number, selfId: string): RosterAnchor | null {
+  let best: { epoch: number; entry: VerifiedRoster } | null = null;
+  for (const [keyId, entry] of verifiedRosters.get(roomId) ?? []) {
+    const generationEpoch = generationsByRoom.get(roomId)?.get(keyId)?.epoch;
+    if (entry.signed && generationEpoch !== undefined && generationEpoch < epoch && (!best || generationEpoch > best.epoch)) {
+      best = { epoch: generationEpoch, entry };
+    }
+  }
+  if (!best?.entry.roster.admins) {
+    return null;
+  }
+  const departures = getDepartures(selfId, roomId);
+  const issuedAt = best.entry.roster.issuedAt ?? 0;
+  const admins = best.entry.roster.admins.filter((userId) => (departures.get(userId) ?? 0) <= issuedAt);
+  return { epoch: best.epoch, roster: best.entry.roster, admins: new Set(admins) };
 }
 
 async function previousGenerationContext(roomId: string, epoch: number): Promise<PreviousGeneration | null> {
@@ -923,13 +946,15 @@ async function verifyIncomingRoster(
     envelopeSenderId: opened.senderId,
     creatorId: view.creatorId,
     previous: await previousGenerationContext(roomId, opened.epoch),
+    anchor: anchorFor(roomId, opened.epoch, identity.userId),
+    goneAdmins: new Set(getDepartures(identity.userId, roomId).keys()),
     signedFromEpoch: signedFromEpoch(roomId),
     signedIssuers: signedIssuersOf(roomId),
     enforceSigned: ENFORCE_SIGNED_ROSTERS,
     currentMemberIds: view.members,
     promotedAdmins: getVerifiedPromotions(identity.userId, roomId),
     serverAdmins: view.admins,
-    stallElapsed: rotationStalled(roomId, opened.epoch, true),
+    stallElapsed: rotationStalled(roomId, opened.epoch),
     resolveSigningKey: (userId) => resolveSigningPublicKey(socket, userId),
     now: Date.now(),
   });
@@ -942,6 +967,42 @@ async function verifyIncomingRoster(
   return { ok: true, verified: { roster, signed: verdict.signed, blob: entry.roster, acceptedAt: Date.now() } };
 }
 
+function deferEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): void {
+  const marker = missingKey(entry.roomId, entry.keyId);
+  const attempts = (deferralAttempts.get(marker) ?? 0) + 1;
+  deferralAttempts.set(marker, attempts);
+  if (attempts > MAX_DEFERRALS) {
+    reportUnusableKey(socket, entry.roomId, entry.keyId, entry.epoch);
+    return;
+  }
+  noteRotationStarted(entry.roomId, entry.epoch);
+  const pending = (deferredEnvelopes.get(entry.roomId) ?? []).filter((queued) => queued.keyId !== entry.keyId);
+  pending.push(entry);
+  deferredEnvelopes.set(entry.roomId, pending);
+  if (!deferralTimers.has(entry.roomId)) {
+    deferralTimers.set(
+      entry.roomId,
+      window.setTimeout(() => {
+        deferralTimers.delete(entry.roomId);
+        void retryDeferredEnvelopes(socket, entry.roomId);
+      }, ROTATION_STALL_MS + 1000),
+    );
+  }
+}
+
+export async function retryDeferredEnvelopes(socket: AppSocket, roomId: string): Promise<void> {
+  const timer = deferralTimers.get(roomId);
+  if (timer !== undefined) {
+    window.clearTimeout(timer);
+    deferralTimers.delete(roomId);
+  }
+  const pending = deferredEnvelopes.get(roomId) ?? [];
+  deferredEnvelopes.delete(roomId);
+  if (pending.length > 0) {
+    await acceptEnvelopes(socket, pending);
+  }
+}
+
 function reportUnusableKey(socket: AppSocket, roomId: string, keyId: string, epoch: number): void {
   const view = roomViews.get(roomId);
   const marker = missingKey(roomId, keyId);
@@ -952,15 +1013,14 @@ function reportUnusableKey(socket: AppSocket, roomId: string, keyId: string, epo
   socket.emit('e2e:report-bad-key', { roomId, keyId });
 }
 
-function nextRosterAdmins(roomId: string, view: RoomView, selfId: string, memberIds: string[]): string[] {
+function nextRosterAdmins(roomId: string, view: RoomView, selfId: string, memberIds: string[], epoch: number): string[] {
   const members = new Set(memberIds);
-  const latest = latestGeneration(roomId);
-  const previous = latest ? verifiedRosters.get(roomId)?.get(latest.keyId) : undefined;
+  const anchor = anchorFor(roomId, epoch, selfId);
   const promoted = getVerifiedPromotions(selfId, roomId);
   let admins: Set<string>;
-  if (previous?.signed && previous.roster.admins) {
-    const selfIsAdmin = previous.roster.admins.includes(selfId) || promoted.has(selfId);
-    admins = new Set(previous.roster.admins.filter((userId) => members.has(userId)));
+  if (anchor) {
+    const selfIsAdmin = anchor.admins.has(selfId) || promoted.has(selfId);
+    admins = new Set(Array.from(anchor.admins).filter((userId) => members.has(userId)));
     if (selfIsAdmin) {
       for (const userId of promoted) {
         if (members.has(userId)) {
@@ -998,7 +1058,7 @@ async function buildSignedRoster(
         epoch: generation.epoch,
         prevKeyId: generationAtEpoch(roomId, generation.epoch - 1)?.keyId ?? null,
         members: base.members,
-        admins: nextRosterAdmins(roomId, view, identity.userId, memberIds),
+        admins: nextRosterAdmins(roomId, view, identity.userId, memberIds, generation.epoch),
         issuedBy: identity.userId,
         issuedAt: Date.now(),
       },
@@ -1051,7 +1111,14 @@ export function getVerifiedGroupAdmins(roomId: string, epoch: number): Set<strin
   if (!entry?.signed || !entry.roster.admins || !identity) {
     return null;
   }
-  return new Set([...entry.roster.admins, ...getVerifiedPromotions(identity.userId, roomId)]);
+  const departures = getDepartures(identity.userId, roomId);
+  const issuedAt = entry.roster.issuedAt ?? 0;
+  const listed = entry.roster.admins.filter((userId) => (departures.get(userId) ?? 0) <= issuedAt);
+  return new Set([...listed, ...getVerifiedPromotions(identity.userId, roomId)]);
+}
+
+export function getMemberNickname(roomId: string, userId: string): string | undefined {
+  return roomViews.get(roomId)?.nicknames.get(userId);
 }
 
 export function currentGroupEpoch(roomId: string): number {
@@ -1615,7 +1682,11 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
           senderId: entry.senderId,
           reason: verdict.reason,
         });
-        reportUnusableKey(socket, entry.roomId, entry.keyId, opened.epoch);
+        if (AUTHORITY_REJECTIONS.has(verdict.reason as never)) {
+          deferEnvelope(socket, entry);
+        } else {
+          reportUnusableKey(socket, entry.roomId, entry.keyId, opened.epoch);
+        }
         return false;
       }
       verified = verdict.verified;
@@ -1957,6 +2028,7 @@ function viewFor(roomId: string): RoomView {
       creatorId: null,
       members: new Set(),
       admins: new Set(),
+      nicknames: new Map(),
       pinnedMembers: null,
       currentEpoch: 0,
       rotationRequiredEpoch: null,
@@ -1968,13 +2040,18 @@ function viewFor(roomId: string): RoomView {
   return view;
 }
 
-function applyParticipants(view: RoomView, participants: (Pick<RoomParticipant, 'id'> & Partial<Pick<RoomParticipant, 'isAdmin'>>)[]): string[] {
+function applyParticipants(view: RoomView, participants: (Pick<RoomParticipant, 'id'> & Partial<Pick<RoomParticipant, 'isAdmin' | 'nickname'>>)[]): string[] {
   if (view.type === 'private') {
     return applyPrivateParticipants(view, participants);
   }
   const added = participants.filter((participant) => !view.members.has(participant.id)).map((participant) => participant.id);
   view.members = new Set(participants.map((participant) => participant.id));
   view.admins = new Set(participants.filter((participant) => participant.isAdmin === true).map((participant) => participant.id));
+  for (const participant of participants) {
+    if (typeof participant.nickname === 'string' && participant.nickname.length > 0) {
+      view.nicknames.set(participant.id, participant.nickname);
+    }
+  }
   return added;
 }
 
@@ -2239,6 +2316,12 @@ async function clearRoomKeysImpl(): Promise<void> {
     clearRotationTimer(roomId);
   }
   reportedBadKeys.clear();
+  deferredEnvelopes.clear();
+  deferralAttempts.clear();
+  for (const timer of deferralTimers.values()) {
+    window.clearTimeout(timer);
+  }
+  deferralTimers.clear();
   forgetVerifiedPromotions();
   missingHistoryContext.clear();
   ownRotations.clear();

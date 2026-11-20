@@ -30,6 +30,7 @@ export type RosterRejection =
   | 'not-admin'
   | 'escalation'
   | 'dropped-members'
+  | 'dropped-admins'
   | 'added-members';
 
 export type RosterVerdict = { ok: true; signed: boolean } | { ok: false; reason: RosterRejection };
@@ -40,6 +41,14 @@ export interface PreviousGeneration {
   signed: boolean;
 }
 
+export interface RosterAnchor {
+  epoch: number;
+  roster: GroupRoster;
+  admins: ReadonlySet<string>;
+}
+
+export const AUTHORITY_REJECTIONS: ReadonlySet<RosterRejection> = new Set(['not-admin', 'escalation', 'dropped-admins', 'dropped-members', 'added-members']);
+
 export interface RosterVerificationContext {
   roomId: string;
   keyId: string;
@@ -47,6 +56,8 @@ export interface RosterVerificationContext {
   envelopeSenderId: string;
   creatorId: string | null;
   previous: PreviousGeneration | null;
+  anchor: RosterAnchor | null;
+  goneAdmins: ReadonlySet<string>;
   signedFromEpoch: number | null;
   signedIssuers: ReadonlySet<string>;
   enforceSigned: boolean;
@@ -144,34 +155,44 @@ function isSubset(values: readonly string[], allowed: ReadonlySet<string>): bool
   return values.every((value) => allowed.has(value));
 }
 
-function authorityRejection(roster: Required<GroupRoster>, context: RosterVerificationContext): RosterRejection | null {
-  const previous = context.previous;
-  if (!previous?.roster) {
+function authorityRejection(roster: Required<GroupRoster> | null, issuer: string | null, context: RosterVerificationContext): RosterRejection | null {
+  const anchor = context.anchor;
+  if (!anchor) {
+    const previous = context.previous;
+    if (!roster || !issuer || !previous?.roster) {
+      return null;
+    }
+    const known = previous.roster.members.some((member) => member.userId === issuer) || context.currentMemberIds.has(issuer);
+    return known ? null : 'not-admin';
+  }
+  const admins = new Set([...anchor.admins, ...context.promotedAdmins]);
+  if (issuer !== null && admins.has(issuer)) {
     return null;
   }
-  const previousMembers = new Set(previous.roster.members.map((member) => member.userId));
-  if (!previousMembers.has(roster.issuedBy) && !context.currentMemberIds.has(roster.issuedBy)) {
+  const present = [...admins].filter((id) => context.currentMemberIds.has(id));
+  const adminless = admins.size === 0 || (present.length === 0 && (context.stallElapsed || [...admins].every((id) => context.goneAdmins.has(id))));
+  if (!roster || issuer === null) {
+    return adminless ? null : 'not-admin';
+  }
+  const anchorMembers = new Set(anchor.roster.members.map((member) => member.userId));
+  if (!anchorMembers.has(issuer) && !context.currentMemberIds.has(issuer)) {
     return 'not-admin';
   }
-  if (!previous.signed || !previous.roster.admins) {
-    return null;
-  }
-  const previousAdmins = new Set([...previous.roster.admins, ...context.promotedAdmins]);
-  if (previousAdmins.has(roster.issuedBy)) {
-    return null;
-  }
-  const adminless = ![...previousAdmins].some((id) => context.currentMemberIds.has(id));
-  if (!adminless && !context.stallElapsed && !context.serverAdmins.has(roster.issuedBy)) {
+  if (!adminless && !context.stallElapsed && !context.serverAdmins.has(issuer)) {
     return 'not-admin';
   }
-  const allowedAdmins = new Set(previousAdmins);
+  const allowedAdmins = new Set(admins);
   if (adminless) {
-    allowedAdmins.add(roster.issuedBy);
+    allowedAdmins.add(issuer);
   }
   if (!isSubset(roster.admins, allowedAdmins)) {
     return 'escalation';
   }
-  const allowedMembers = new Set([...previousMembers, ...context.currentMemberIds]);
+  const listed = new Set(roster.admins);
+  if (present.some((id) => !listed.has(id))) {
+    return 'dropped-admins';
+  }
+  const allowedMembers = new Set([...anchorMembers, ...context.currentMemberIds]);
   if (!roster.members.every((member) => allowedMembers.has(member.userId))) {
     return 'added-members';
   }
@@ -193,7 +214,11 @@ export async function verifyGroupRoster(roster: GroupRoster | null, context: Ros
     return signedRequired ? { ok: false, reason: 'missing' } : { ok: true, signed: false };
   }
   if (roster.sig === undefined) {
-    return signedRequired ? { ok: false, reason: 'downgrade' } : { ok: true, signed: false };
+    if (signedRequired) {
+      return { ok: false, reason: 'downgrade' };
+    }
+    const unsigned = authorityRejection(null, context.envelopeSenderId, context);
+    return unsigned ? { ok: false, reason: unsigned } : { ok: true, signed: false };
   }
   if (!hasWellFormedSignedFields(roster)) {
     return { ok: false, reason: 'malformed' };
@@ -215,7 +240,7 @@ export async function verifyGroupRoster(roster: GroupRoster | null, context: Ros
   if (context.epoch === 1 && context.creatorId !== null && roster.issuedBy !== context.creatorId) {
     return { ok: false, reason: 'not-admin' };
   }
-  const rejection = authorityRejection(roster, context);
+  const rejection = authorityRejection(roster, roster.issuedBy, context);
   return rejection ? { ok: false, reason: rejection } : { ok: true, signed: true };
 }
 
