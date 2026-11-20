@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 
-export const NOTIFICATION_CONTENT_STORAGE_KEY = 'chatNotificationsShowContent';
+export const NOTIFICATION_HIDE_CONTENT_STORAGE_KEY = 'chatNotificationsHideContent';
+export const LEGACY_NOTIFICATION_SHOW_CONTENT_STORAGE_KEY = 'chatNotificationsShowContent';
 
 export interface NotificationContentPreference {
   isContentHidden: boolean;
@@ -9,7 +10,10 @@ export interface NotificationContentPreference {
 
 export function readIsNotificationContentHidden(): boolean {
   try {
-    return localStorage.getItem(NOTIFICATION_CONTENT_STORAGE_KEY) !== 'true';
+    if (localStorage.getItem(LEGACY_NOTIFICATION_SHOW_CONTENT_STORAGE_KEY) !== null) {
+      localStorage.removeItem(LEGACY_NOTIFICATION_SHOW_CONTENT_STORAGE_KEY);
+    }
+    return localStorage.getItem(NOTIFICATION_HIDE_CONTENT_STORAGE_KEY) === 'true';
   } catch {
     return true;
   }
@@ -23,9 +27,9 @@ export function useNotificationContentPreference(): NotificationContentPreferenc
       const next = !previous;
       try {
         if (next) {
-          localStorage.removeItem(NOTIFICATION_CONTENT_STORAGE_KEY);
+          localStorage.setItem(NOTIFICATION_HIDE_CONTENT_STORAGE_KEY, 'true');
         } else {
-          localStorage.setItem(NOTIFICATION_CONTENT_STORAGE_KEY, 'true');
+          localStorage.removeItem(NOTIFICATION_HIDE_CONTENT_STORAGE_KEY);
         }
       } catch (error) {
         console.error(error);

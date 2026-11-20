@@ -835,7 +835,7 @@
       "installText": "Abra direto da tela inicial ou da área de trabalho e receba chamadas e mensagens mesmo com o app fechado.",
       "iosInstallAction": "Ver como instalar",
       "notificationsTitle": "Ativar notificações",
-      "notificationsText": "Saiba na hora quando chegar uma mensagem ou alguém te ligar, mesmo com o app fechado. Nada do conteúdo aparece no aviso.",
+      "notificationsText": "Saiba na hora quando chegar uma mensagem ou alguém te ligar, mesmo com o app fechado. Para esconder o texto das mensagens, ative Ocultar conteúdo nas notificações.",
       "enable": "Ativar",
       "dismiss": "Dispensar"
     },
@@ -854,7 +854,7 @@
     },
     "push": {
       "label": "Notificações",
-      "description": "Chamadas e mensagens mesmo com o app fechado, sem mostrar o conteúdo.",
+      "description": "Chamadas e mensagens mesmo com o app fechado.",
       "blocked": "As notificações estão bloqueadas neste navegador. Para liberar, toque no cadeado ou no ícone de ajustes ao lado do endereço, permita Notificações e recarregue a página. No app instalado, libere em Ajustes do sistema > Notificações > SparkChat.",
       "unsupported": "Este navegador não aceita notificações com o app fechado.",
       "iosNeedsInstall": "No iPhone e no iPad, instale o app na Tela de Início para receber notificações.",

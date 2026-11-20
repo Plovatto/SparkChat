@@ -835,7 +835,7 @@
       "installText": "Open it straight from your home screen or desktop and get calls and messages even when the app is closed.",
       "iosInstallAction": "See how to install",
       "notificationsTitle": "Turn on notifications",
-      "notificationsText": "Know right away when a message arrives or someone calls you, even with the app closed. No content is shown in the alert.",
+      "notificationsText": "Know right away when a message arrives or someone calls you, even with the app closed. To hide message text, turn on Hide message content in notifications.",
       "enable": "Turn on",
       "dismiss": "Dismiss"
     },
@@ -854,7 +854,7 @@
     },
     "push": {
       "label": "Notifications",
-      "description": "Calls and messages even when the app is closed, without showing content.",
+      "description": "Calls and messages even when the app is closed.",
       "blocked": "Notifications are blocked in this browser. To allow them, tap the lock or settings icon next to the address, allow Notifications and reload the page. In the installed app, allow them in System Settings > Notifications > SparkChat.",
       "unsupported": "This browser does not support notifications while the app is closed.",
       "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
