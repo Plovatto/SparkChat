@@ -5,12 +5,16 @@ import {
   SignalChannel,
   createAcceptEnvelope,
   createInviteEnvelope,
+  createTransferAcceptEnvelope,
+  createTransferEnvelope,
   deriveSessionKeys,
   generateEphemeralKeyPair,
   newCallId,
   newDeviceId,
   openAcceptEnvelope,
   openInviteEnvelope,
+  openTransferAcceptEnvelope,
+  openTransferEnvelope,
   zeroEphemeralKeyPair,
   type PinnedPeer,
 } from './call-crypto';
@@ -436,5 +440,74 @@ describe('session keys and signal channel', () => {
 
     expect(callerKeys.send.every((byte) => byte === 0)).toBe(true);
     await expect(callerChannel.seal('candidate', {})).rejects.toThrow('closed');
+  });
+});
+
+describe('call transfer envelopes', () => {
+  async function transfer(now?: number) {
+    const alice = await party('alice');
+    const bob = await party('bob');
+    const callId = await newCallId();
+    const deviceId = await newDeviceId();
+    const ek = await generateEphemeralKeyPair();
+    const envelope = await createTransferEnvelope({
+      identity: alice.identity,
+      peerPublicKey: bob.pinned.publicKey,
+      peerId: 'bob',
+      callId,
+      role: 'caller',
+      deviceId,
+      ek: ek.publicKey,
+      ...(now === undefined ? {} : { now }),
+    });
+    return { alice, bob, callId, deviceId, ek, envelope };
+  }
+
+  const open = (t: Awaited<ReturnType<typeof transfer>>, extra: { role?: 'caller' | 'callee'; callId?: string; senderId?: string; sender?: PinnedPeer; envelope?: string; now?: number } = {}) =>
+    openTransferEnvelope({
+      identity: t.bob.identity,
+      sender: extra.sender ?? t.alice.pinned,
+      expectedCallId: extra.callId ?? t.callId,
+      expectedSenderId: extra.senderId ?? 'alice',
+      expectedSenderRole: extra.role ?? 'caller',
+      envelope: extra.envelope ?? t.envelope,
+      ...(extra.now === undefined ? {} : { now: extra.now }),
+    });
+
+  it('opens a signed transfer from the pinned peer key with the new device and ephemeral key', async () => {
+    const t = await transfer();
+    const content = await open(t);
+    expect(content).toMatchObject({ callId: t.callId, senderId: 'alice', recipientId: 'bob', senderRole: 'caller', deviceId: t.deviceId });
+  });
+
+  it('rejects a transfer from another key, for another call, role or sender, tampered or stale', async () => {
+    const t = await transfer();
+    const mallory = await party('mallory');
+    expect(await open(t, { sender: mallory.pinned })).toBeNull();
+    expect(await open(t, { callId: await newCallId() })).toBeNull();
+    expect(await open(t, { role: 'callee' })).toBeNull();
+    expect(await open(t, { senderId: 'mallory' })).toBeNull();
+    expect(await open(t, { envelope: mutate(t.envelope, (wire) => { wire.box = flipChar(wire.box ?? ''); }) })).toBeNull();
+    expect(await open(t, { now: Date.now() + CALL_TIMESTAMP_SKEW_MS + 5_000 })).toBeNull();
+    const signedByAliceForAlice = await createTransferEnvelope({ identity: t.alice.identity, peerPublicKey: t.alice.pinned.publicKey, peerId: 'alice', callId: t.callId, role: 'caller', deviceId: t.deviceId, ek: t.ek.publicKey });
+    expect(await openTransferEnvelope({ identity: t.alice.identity, sender: t.alice.pinned, expectedCallId: t.callId, expectedSenderId: 'alice', expectedSenderRole: 'caller', envelope: signedByAliceForAlice })).toBeNull();
+  });
+
+  it('binds the answer to the transferring device and derives matching fresh session keys', async () => {
+    const t = await transfer();
+    const content = (await open(t))!;
+    const bobEk = await generateEphemeralKeyPair();
+    const reply = await createTransferAcceptEnvelope({ identity: t.bob.identity, peerPublicKey: t.alice.pinned.publicKey, peerId: 'alice', callId: t.callId, deviceId: content.deviceId, ek: bobEk.publicKey });
+    const opened = await openTransferAcceptEnvelope({ identity: t.alice.identity, sender: t.bob.pinned, expectedCallId: t.callId, expectedSenderId: 'bob', expectedDeviceId: t.deviceId, envelope: reply });
+    expect(opened?.deviceId).toBe(t.deviceId);
+    expect(await openTransferAcceptEnvelope({ identity: t.alice.identity, sender: t.bob.pinned, expectedCallId: t.callId, expectedSenderId: 'bob', expectedDeviceId: await newDeviceId(), envelope: reply })).toBeNull();
+    expect(await openTransferEnvelope({ identity: t.bob.identity, sender: t.alice.pinned, expectedCallId: t.callId, expectedSenderId: 'alice', expectedSenderRole: 'caller', envelope: reply })).toBeNull();
+
+    const aliceKeys = await deriveSessionKeys({ role: 'caller', callId: t.callId, callerPublicKey: t.alice.pinned.publicKey, calleePublicKey: t.bob.pinned.publicKey, ownEphemeral: t.ek, peerEphemeralPublicKey: opened!.ek });
+    const bobKeys = await deriveSessionKeys({ role: 'callee', callId: t.callId, callerPublicKey: t.alice.pinned.publicKey, calleePublicKey: t.bob.pinned.publicKey, ownEphemeral: bobEk, peerEphemeralPublicKey: content.ek });
+    const aliceChannel = new SignalChannel({ callId: t.callId, selfId: 'alice', peerId: 'bob', keys: aliceKeys });
+    const bobChannel = new SignalChannel({ callId: t.callId, selfId: 'bob', peerId: 'alice', keys: bobKeys });
+    const wire = await aliceChannel.seal('offer', { description: 'x' });
+    expect((await bobChannel.open(wire, 'alice'))?.payload.description).toBe('x');
   });
 });

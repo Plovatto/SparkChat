@@ -41,7 +41,7 @@ export function CallNotices() {
         ? translateErrorPayload({ code: notice.code }, 'calls.notice.server-error')
         : translate(`calls.notice.${notice.kind}`);
     return (
-      <div role="alert" style={{ ...bar, background: theme.dangerSoft, color: theme.dangerText }}>
+      <div role={notice.kind === 'transferred' ? 'status' : 'alert'} style={{ ...bar, ...(notice.kind === 'transferred' ? { background: theme.surfaceElevated, color: theme.textPrimary } : { background: theme.dangerSoft, color: theme.dangerText }) }}>
         {text}
         <button type="button" onClick={dismissNotice} className="sc-btn sc-btn--text" style={{ marginLeft: '8px' }} aria-label={t('calls.close')}>
           {t('calls.close')}
@@ -57,9 +57,14 @@ export function CallNotices() {
           <strong>{t('calls.otherDevice')}</strong>
           <div style={{ color: theme.textSecondary }}>{t('calls.otherDeviceHint')}</div>
         </div>
-        <button type="button" className="sc-btn sc-btn--text-danger" onClick={call.endOtherDeviceCall} style={{ flexShrink: 0 }}>
-          {t('calls.otherDeviceEnd')}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+          <button type="button" className="sc-btn sc-btn--primary" onClick={call.transferHere} disabled={call.snapshot.transferring} style={{ whiteSpace: 'nowrap' }}>
+            {t('calls.transferHere')}
+          </button>
+          <button type="button" className="sc-btn sc-btn--text-danger" onClick={call.endOtherDeviceCall}>
+            {t('calls.otherDeviceEnd')}
+          </button>
+        </div>
       </div>
     );
   }

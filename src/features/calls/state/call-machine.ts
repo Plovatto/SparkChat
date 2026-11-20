@@ -43,6 +43,9 @@ export type CallEvent =
   | { type: 'media'; callId: string; status: 'connected' | 'interrupted'; at?: number }
   | { type: 'failure'; callId: string; detail: string; reason?: CallEndReason }
   | { type: 'timeout'; callId: string; timer: CallTimer }
+  | { type: 'transfer-in'; callId: string; roomId: string; peerId: string; kind: CallKind; role: CallRole; connectedAt: number | null }
+  | { type: 'transferred-away'; callId: string }
+  | { type: 'peer-transfer'; callId: string }
   | { type: 'dismiss' };
 
 export type CallTimer = 'ring' | 'connect' | 'reconnect' | 'linger';
@@ -107,6 +110,25 @@ function finish(state: CallState, reason: CallEndReason, effects: CallEffect[], 
 export function transition(state: CallState, event: CallEvent): Transition {
   if (event.type === 'dismiss') {
     return state.phase === 'ended' ? { state: IDLE_CALL_STATE, effects: [] } : unchanged(state);
+  }
+
+  if (event.type === 'transfer-in') {
+    if (state.phase !== 'idle' && state.phase !== 'ended') {
+      return unchanged(state);
+    }
+    return {
+      state: {
+        ...IDLE_CALL_STATE,
+        phase: 'reconnecting',
+        callId: event.callId,
+        roomId: event.roomId,
+        peerId: event.peerId,
+        kind: event.kind,
+        role: event.role,
+        connectedAt: event.connectedAt,
+      },
+      effects: [],
+    };
   }
 
   if (event.type === 'start' || event.type === 'incoming') {
@@ -187,7 +209,7 @@ export function transition(state: CallState, event: CallEvent): Transition {
           return { state: { ...state, phase: 'active', connectedAt: event.at ?? Date.now() }, effects: [] };
         }
         if (state.phase === 'reconnecting') {
-          return { state: { ...state, phase: 'active' }, effects: [] };
+          return { state: { ...state, phase: 'active', connectedAt: state.connectedAt ?? event.at ?? Date.now() }, effects: [] };
         }
         return unchanged(state);
       }
@@ -201,6 +223,12 @@ export function transition(state: CallState, event: CallEvent): Transition {
 
     case 'timeout':
       return handleTimeout(state, event.timer, callId);
+
+    case 'transferred-away':
+      return hasCallMedia(state) ? { state: IDLE_CALL_STATE, effects: [] } : unchanged(state);
+
+    case 'peer-transfer':
+      return state.phase === 'active' || state.phase === 'connecting' ? { state: { ...state, phase: 'reconnecting' }, effects: [] } : unchanged(state);
 
     default:
       return unchanged(state);
