@@ -327,7 +327,7 @@ export function Sidebar({
             />
           </Avatar>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
               <h5
                 style={{
                   margin: 0,

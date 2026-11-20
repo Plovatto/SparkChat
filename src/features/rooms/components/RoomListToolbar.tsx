@@ -1,6 +1,7 @@
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaRegCheckSquare, FaSearch, FaTimes } from 'react-icons/fa';
+import { FaTimes } from 'react-icons/fa';
+import { LuSearch, LuSquareCheck } from 'react-icons/lu';
 import { ROOM_FILTERS, type RoomFilter } from '../utils/room-filters';
 import '../styles/room-list-toolbar.css';
 
@@ -44,7 +45,7 @@ export function RoomListToolbar({
   return (
     <div className="sc-room-toolbar" data-selecting={selectionBar ? 'true' : 'false'}>
       <label className="sc-room-search">
-        <FaSearch className="sc-room-search__icon" aria-hidden="true" />
+        <LuSearch className="sc-room-search__icon" aria-hidden="true" strokeWidth={2.2} />
         <input
           type="search"
           className="sc-room-search__input"
@@ -86,7 +87,7 @@ export function RoomListToolbar({
           </div>
           {canSelect && (
             <button type="button" className="sc-room-select" onClick={onEnterSelection} title={t('sidebar.enterSelection')} aria-label={t('sidebar.enterSelection')}>
-              <FaRegCheckSquare aria-hidden="true" />
+              <LuSquareCheck aria-hidden="true" strokeWidth={2.1} />
             </button>
           )}
         </div>
