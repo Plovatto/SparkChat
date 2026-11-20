@@ -1,9 +1,10 @@
 import { AVATARS } from '@features/auth/constants/avatars';
+import { getUserPhotoUrl } from '@features/profile-photos';
 import { BoundedMap } from '@lib/cache/bounded-map';
 import { systemMessageText } from '@lib/format';
 import { translate } from '@lib/i18n/app-i18n';
 import type { MessageView, RoomSummary } from '@lib/socket';
-import { buildNotificationIcon } from './build-notification-icon';
+import { buildNotificationIcon, buildPhotoNotificationIcon } from './build-notification-icon';
 
 export interface NotificationContent {
   title: string;
@@ -43,7 +44,7 @@ function getMessagePreview(message: MessageView): string {
   return truncate(message.content);
 }
 
-function getSenderIcon(sender: MessageView['sender']): Promise<string> {
+function getPresetIcon(sender: MessageView['sender']): Promise<string> {
   const avatar = sender.avatar !== null ? AVATARS[sender.avatar] : undefined;
   const color = avatar?.color ?? FALLBACK_AVATAR_COLOR;
   const cacheKey = avatar ? `avatar:${sender.avatar}` : `initial:${sender.nickname.trim().charAt(0).toUpperCase()}:${color}`;
@@ -54,6 +55,21 @@ function getSenderIcon(sender: MessageView['sender']): Promise<string> {
   }
 
   const icon = buildNotificationIcon(sender.nickname, color, avatar?.icon);
+  iconCache.set(cacheKey, icon);
+  return icon;
+}
+
+function getSenderIcon(sender: MessageView['sender']): Promise<string> {
+  const photoUrl = sender.unknown ? null : getUserPhotoUrl(sender.id);
+  if (!photoUrl) {
+    return getPresetIcon(sender);
+  }
+  const cacheKey = `photo:${photoUrl}`;
+  const cached = iconCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const icon = buildPhotoNotificationIcon(photoUrl).then((dataUrl) => dataUrl ?? getPresetIcon(sender));
   iconCache.set(cacheKey, icon);
   return icon;
 }

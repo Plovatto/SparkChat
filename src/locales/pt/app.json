@@ -42,7 +42,9 @@
       "credentialsInvalid": "Os dados de segurança enviados são inválidos. Tente novamente.",
       "credentialsIncomplete": "Faltam dados de segurança. Tente novamente.",
       "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
-      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
+      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação.",
+      "avatarUploadInvalid": "Este envio de foto não é mais válido. Envie a foto novamente.",
+      "profileKeyVersionStale": "Sua foto de perfil foi alterada em outro dispositivo. Tente novamente."
     },
     "room": {
       "notFound": "Sala não encontrada.",
@@ -53,7 +55,8 @@
       "cannotRemoveSelf": "Use a opção de sair do grupo para se remover.",
       "notMember": "Usuário não faz parte do grupo.",
       "groupFull": "Este grupo atingiu o limite de membros.",
-      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro."
+      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro.",
+      "avatarUploadInvalid": "Este envio de foto do grupo não é mais válido. Envie a foto novamente."
     },
     "message": {
       "notFound": "Mensagem não encontrada.",
@@ -79,7 +82,9 @@
       "invalidType": "Tipo de arquivo inválido.",
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
       "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
-      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos."
+      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos.",
+      "invalidType_avatar": "Formato de foto inválido. Use uma imagem JPEG, PNG ou WEBP.",
+      "tooLarge_avatar": "A foto excede o tamanho máximo permitido de {{maxSize}}."
     },
     "linkPreview": {
       "invalidUrl": "URL inválida.",
@@ -129,7 +134,10 @@
       "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros.",
       "nameRequired": "A nova chave do grupo precisa incluir o nome do grupo criptografado.",
       "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente.",
-      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo."
+      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo.",
+      "avatarKeyStale": "A chave de criptografia do grupo acabou de mudar. Tente novamente.",
+      "avatarRequiresRoster": "Só membros verificados podem trocar a foto deste grupo.",
+      "profileKeyStale": "A chave de criptografia do grupo acabou de mudar. Sua foto será compartilhada de novo automaticamente."
     },
     "call": {
       "disabled": "As chamadas estão desativadas.",
@@ -141,6 +149,11 @@
       "invalidState": "Esta ação não é possível agora na chamada.",
       "signalTooLarge": "Mensagem da chamada grande demais.",
       "relayUnavailable": "A retransmissão está indisponível."
+    },
+    "profilePhoto": {
+      "failed": "Não foi possível atualizar a foto. Tente novamente.",
+      "unavailable": "Não foi possível acessar sua chave de criptografia neste dispositivo. Entre novamente e tente de novo.",
+      "notAllowed": "Você não tem permissão para trocar a foto deste grupo."
     }
   },
   "systemEvents": {

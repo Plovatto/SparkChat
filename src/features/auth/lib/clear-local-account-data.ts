@@ -1,4 +1,5 @@
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
+import { clearNotificationIcons } from '@features/profile-photos/lib/notification-icon-cache';
 import { clearStoredSession } from '../api/session-storage';
 
 export const ACCOUNT_INDEXED_DB_NAMES: readonly string[] = ['sparkchat-e2ee', 'sparkchat-recovery-files'];
@@ -28,6 +29,6 @@ export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_
 
 export async function clearLocalAccountData(): Promise<void> {
   clearStoredSession();
-  await Promise.allSettled([clearIdentity(), clearRoomKeys()]);
+  await Promise.allSettled([clearIdentity(), clearRoomKeys(), clearNotificationIcons()]);
   await Promise.all(ACCOUNT_INDEXED_DB_NAMES.map((name) => deleteIndexedDatabase(name)));
 }

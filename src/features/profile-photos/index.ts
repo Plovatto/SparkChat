@@ -1,33 +1,12 @@
-export function useUserPhoto(userId: string | null | undefined): string | null {
-  void userId;
-  return null;
-}
-
-export function useRoomPhoto(roomId: string | null | undefined): string | null {
-  void roomId;
-  return null;
-}
-
-export async function uploadMyPhoto(image: Blob): Promise<void> {
-  void image;
-  throw new Error('profile photos are not available yet');
-}
-
-export async function removeMyPhoto(): Promise<void> {
-  throw new Error('profile photos are not available yet');
-}
-
-export async function uploadRoomPhoto(roomId: string, image: Blob): Promise<void> {
-  void roomId;
-  void image;
-  throw new Error('profile photos are not available yet');
-}
-
-export async function removeRoomPhoto(roomId: string): Promise<void> {
-  void roomId;
-  throw new Error('profile photos are not available yet');
-}
-
-export function queuePendingMyPhoto(image: Blob): void {
-  void image;
-}
+export { useRoomPhoto, useUserPhoto } from './hooks/usePhotos';
+export { queuePendingMyPhoto, removeMyPhoto, removeRoomPhoto, uploadMyPhoto, uploadRoomPhoto } from './lib/photo-actions';
+export {
+  clearNotificationIcons,
+  NOTIFICATION_ICON_CACHE_NAME,
+  NOTIFICATION_ICON_SIZE,
+  notificationIconUrl,
+} from './lib/notification-icon-cache';
+export { startNotificationIconSync } from './lib/notification-icon-sync';
+export { renderCircularPhotoDataUrl } from './lib/photo-icon';
+export { AVATAR_UPLOAD_ENDPOINT, MAX_AVATAR_UPLOAD_BYTES } from './api/avatar-api';
+export { canChangeRoomPhoto, getRoomPhotoUrl, getUserPhotoUrl } from '@lib/e2ee';

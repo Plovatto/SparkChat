@@ -4,7 +4,14 @@ import { buildNotificationContent } from './build-notification-content';
 
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 vi.mock('@lib/format', () => ({ systemMessageText: () => 'system' }));
-vi.mock('./build-notification-icon', () => ({ buildNotificationIcon: () => Promise.resolve('icon-url') }));
+const photos = vi.hoisted(() => new Map<string, string>());
+const photoIcon = vi.hoisted(() => ({ result: null as string | null }));
+
+vi.mock('./build-notification-icon', () => ({
+  buildNotificationIcon: () => Promise.resolve('icon-url'),
+  buildPhotoNotificationIcon: () => Promise.resolve(photoIcon.result),
+}));
+vi.mock('@features/profile-photos', () => ({ getUserPhotoUrl: (userId: string) => photos.get(userId) ?? null }));
 
 function message(overrides: Partial<MessageView> = {}): MessageView {
   return {
@@ -65,5 +72,31 @@ describe('buildNotificationContent', () => {
       hideContent: false,
     });
     expect(image).toEqual({ title: 'Team', body: 'Bob: notifications.sentImage', icon: 'icon-url', image: 'blob:https://app/decrypted' });
+  });
+});
+
+describe('buildNotificationContent sender photo', () => {
+  it('uses the decrypted profile photo of the sender when it is available', async () => {
+    photos.set('u2', 'blob:https://app/photo-1');
+    photoIcon.result = 'photo-icon';
+    const content = await buildNotificationContent(message(), room());
+    expect(content.icon).toBe('photo-icon');
+    photos.clear();
+  });
+
+  it('falls back to the preset avatar when the photo cannot be drawn', async () => {
+    photos.set('u2', 'blob:https://app/photo-2');
+    photoIcon.result = null;
+    const content = await buildNotificationContent(message(), room());
+    expect(content.icon).toBe('icon-url');
+    photos.clear();
+  });
+
+  it('never uses a photo for an unknown sender', async () => {
+    photos.set('u2', 'blob:https://app/photo-3');
+    photoIcon.result = 'photo-icon';
+    const content = await buildNotificationContent(message({ sender: { id: 'u2', nickname: 'Bob', avatar: null, unknown: true } }), room());
+    expect(content.icon).toBe('icon-url');
+    photos.clear();
   });
 });
