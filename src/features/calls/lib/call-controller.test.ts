@@ -15,6 +15,7 @@ import {
   type PeerSessionLike,
   type ResolvedPeer,
 } from './call-controller';
+import { onPageResume, type ResumeSource } from './page-resume';
 import { createTabOwnership } from './tab-ownership';
 
 const derivedKeys = vi.hoisted(() => [] as Array<{ send: Uint8Array; receive: Uint8Array }>);
@@ -35,6 +36,7 @@ type Handler = (...args: unknown[]) => void;
 
 class FakeSocket implements CallSocket {
   connected = false;
+  connects = 0;
   readonly handlers = new Map<string, Set<Handler>>();
   readonly emitted: Array<{ event: string; payload: Record<string, unknown> }> = [];
   onEmit: ((event: string, payload: Record<string, unknown>) => void) | null = null;
@@ -48,6 +50,11 @@ class FakeSocket implements CallSocket {
 
   off(event: string, handler: (...args: never[]) => void): this {
     this.handlers.get(event)?.delete(handler as Handler);
+    return this;
+  }
+
+  connect(): this {
+    this.connects += 1;
     return this;
   }
 
@@ -528,6 +535,7 @@ describe('full call between two controllers', () => {
 
   it('sends a heartbeat every 10 seconds while a call is live and stops after it ends', async () => {
     const w = await world();
+    w.a.socket.connected = true;
     await connectCall(w);
 
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 2);
@@ -1518,6 +1526,114 @@ describe('socket takeover after reconnect', () => {
     expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
     expect(w.a.controller.getSnapshot().notice).toBeNull();
     expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+});
+
+describe('running in the background', () => {
+  class FakeTarget extends EventTarget {
+    visibilityState: 'visible' | 'hidden' = 'visible';
+  }
+
+  let doc: FakeTarget;
+  let win: FakeTarget;
+
+  function backgroundDeps(): Partial<CallControllerDeps> {
+    return {
+      onPageResume: (handler) =>
+        onPageResume(() => handler(), {
+          document: doc as unknown as ResumeSource['document'],
+          window: win as unknown as ResumeSource['window'],
+        }),
+    };
+  }
+
+  beforeEach(() => {
+    doc = new FakeTarget();
+    win = new FakeTarget();
+  });
+
+  it('keeps the call connected when the page is hidden and timers run late', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    const syncs = w.a.socket.sent('call:sync').length;
+
+    doc.visibilityState = 'hidden';
+    doc.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+    expect(w.a.peers[0]!.closed).toBe(false);
+    expect(w.a.peers[0]!.restarts).toBe(0);
+    expect(w.a.socket.sent('call:sync')).toHaveLength(syncs);
+  });
+
+  it('resyncs without restarting a healthy connection when the page comes back to the foreground', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    const syncs = w.a.socket.sent('call:sync').length;
+    const beats = w.a.socket.sent('call:heartbeat').length;
+    const peer = w.a.peers[0]!;
+
+    doc.visibilityState = 'hidden';
+    doc.dispatchEvent(new Event('visibilitychange'));
+    doc.visibilityState = 'visible';
+    doc.dispatchEvent(new Event('visibilitychange'));
+
+    expect(w.a.socket.sent('call:sync')).toHaveLength(syncs + 1);
+    expect(w.a.socket.sent('call:heartbeat')).toHaveLength(beats + 1);
+    expect(peer.restarts).toBe(0);
+    expect(peer.closed).toBe(false);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+
+  it('recovers from a page freeze through pageshow and resume without hanging up', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    const peer = w.a.peers[0]!;
+
+    await vi.advanceTimersByTimeAsync(2 * 60_000);
+    win.dispatchEvent(new Event('pageshow'));
+    doc.dispatchEvent(new Event('resume'));
+
+    expect(peer.recoveries).toEqual(['resync', 'resync']);
+    expect(peer.restarts).toBe(0);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+
+  it('asks the socket to reconnect on resume and does not queue heartbeats while it is down', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    const beats = w.a.socket.sent('call:heartbeat').length;
+
+    w.a.socket.connected = false;
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 6);
+    expect(w.a.socket.sent('call:heartbeat')).toHaveLength(beats);
+
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(w.a.socket.connects).toBe(1);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+
+  it('does nothing on resume when there is no call', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    const syncs = w.a.socket.sent('call:sync').length;
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(w.a.socket.sent('call:sync')).toHaveLength(syncs);
+    expect(w.a.socket.connects).toBe(0);
   });
 });
 

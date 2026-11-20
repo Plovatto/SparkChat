@@ -33,6 +33,7 @@ import {
 } from '../state/call-machine';
 import { nextInstability, nextRelay, readQuality, RELAY_UNKNOWN, selectedPairRelayed, STABLE, type RelayState, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
+import { onPageResume } from './page-resume';
 import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, RestartReason, ScreenInfo } from './peer-session';
 import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
@@ -148,6 +149,7 @@ export type ResolvedPeer = { peer: PinnedPeer } | { error: 'key-changed' | 'unve
 
 export interface CallSocket {
   connected?: boolean;
+  connect?: () => unknown;
   on: (event: string, handler: (...args: never[]) => void) => unknown;
   off: (event: string, handler: (...args: never[]) => void) => unknown;
   emit: (event: string, ...args: unknown[]) => unknown;
@@ -155,6 +157,7 @@ export interface CallSocket {
 
 export interface CallControllerDeps {
   socket: CallSocket;
+  onPageResume?: (handler: () => void) => () => void;
   getIdentity: () => CurrentIdentity | null;
   resolvePeer: (userId: string) => Promise<ResolvedPeer>;
   isPrivateRoomWith: (roomId: string, selfId: string, peerId: string) => boolean;
@@ -374,6 +377,7 @@ export class CallController {
     if (socket.connected) {
       this.requestSync();
     }
+    this.detach.push((this.deps.onPageResume ?? onPageResume)(() => this.resumeFromBackground()));
     if (typeof window !== 'undefined') {
       const online = () => this.session?.peerSession?.recoverIfUnhealthy('online');
       window.addEventListener('online', online);
@@ -1539,7 +1543,28 @@ export class CallController {
 
   private startHeartbeat(callId: string): void {
     this.stopHeartbeat();
-    this.heartbeat = setInterval(() => this.deps.socket.emit('call:heartbeat', { callId }), HEARTBEAT_INTERVAL_MS);
+    this.heartbeat = setInterval(() => this.sendHeartbeat(callId), HEARTBEAT_INTERVAL_MS);
+  }
+
+  private sendHeartbeat(callId: string): void {
+    if (this.deps.socket.connected !== false) {
+      this.deps.socket.emit('call:heartbeat', { callId });
+    }
+  }
+
+  private resumeFromBackground(): void {
+    const state = this.machine.getState();
+    if (!state.callId || !isCallLive(state)) {
+      return;
+    }
+    const socket = this.deps.socket;
+    if (socket.connected === false) {
+      socket.connect?.();
+    } else {
+      this.sendHeartbeat(state.callId);
+      this.requestSync();
+    }
+    this.session?.peerSession?.recoverIfUnhealthy('resync');
   }
 
   private stopHeartbeat(): void {

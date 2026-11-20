@@ -5,6 +5,7 @@ import { getCurrentIdentity } from '@lib/e2ee';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { CallContext, type CallApi, type PeerDisplay } from './call-context';
+import { CallAudio } from './components/CallAudio';
 import { CallMiniBar } from './components/CallMiniBar';
 import { CallNotices } from './components/CallNotices';
 import { CallScreen } from './components/CallScreen';
@@ -16,6 +17,7 @@ import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareCo
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
+import { useCallMediaSession } from './components/use-media-session';
 import { StreamWindow } from './components/StreamWindow';
 import { createShareAudio } from './lib/share-audio';
 import { startRingtone, stopRingtone } from './lib/ringtone';
@@ -43,6 +45,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   const [streamWindow, setStreamWindow] = useState<Window | null>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
   const voiceRef = useRef<HTMLAudioElement>(null);
+  const shareAudioRef = useRef<HTMLAudioElement>(null);
   const roomsRef = useRef(rooms);
   roomsRef.current = rooms;
 
@@ -160,6 +163,15 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     }
   }, [sharedStream, streamWindow]);
 
+  const mediaSessionActive = phase === 'outgoing-ringing' || phase === 'connecting' || phase === 'active' || phase === 'reconnecting';
+  useCallMediaSession(mediaSessionActive, {
+    title: sharedPeerName || translate('calls.mediaSession.title'),
+    artist: translate(snapshot.state.kind === 'video' ? 'calls.mediaSession.video' : 'calls.mediaSession.voice'),
+    muted: snapshot.muted,
+    onHangup: () => controller?.hangup(),
+    onToggleMicrophone: () => controller?.toggleMute(),
+  });
+
   const fullscreenStage = useCallback(() => {
     const stage = document.querySelector<HTMLElement>('.sc-call-stage');
     void stage?.requestFullscreen?.().catch(() => undefined);
@@ -259,7 +271,8 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   return (
     <CallContext value={api}>
       {children}
-      <CallScreen videoRef={remoteRef} voiceRef={voiceRef} />
+      <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} />
+      <CallScreen videoRef={remoteRef} voiceRef={voiceRef} shareAudioRef={shareAudioRef} />
       <CallMiniBar />
       <IncomingCallModal />
       <CallNotices />

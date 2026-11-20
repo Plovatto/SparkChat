@@ -666,6 +666,11 @@
     "cameraOn": "Ligar câmera",
     "cameraOff": "Desligar câmera",
     "devices": "Dispositivos",
+    "mediaSession": {
+      "title": "SparkChat",
+      "voice": "Chamada de voz",
+      "video": "Chamada de vídeo"
+    },
     "minimize": "Minimizar",
     "expand": "Voltar para a chamada",
     "microphone": "Microfone",
