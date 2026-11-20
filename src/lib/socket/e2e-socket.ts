@@ -93,11 +93,18 @@ function maybeEstablishRoomKey(socket: AppSocket, room: RoomSummary, event: stri
   void trackRoom(socket, room, { activeCreation: event === 'room:joined', ...(groupName ? { groupName } : {}) });
 }
 
-async function transformPayload(socket: AppSocket, event: string, payload: unknown): Promise<unknown> {
+const previewOnlyHandlers = new WeakSet<object>();
+
+export function markPreviewOnlyHandler<T extends object>(handler: T): T {
+  previewOnlyHandlers.add(handler);
+  return handler;
+}
+
+async function transformPayload(socket: AppSocket, event: string, payload: unknown, previewOnly = false): Promise<unknown> {
   switch (event) {
     case 'message:new':
     case 'message:updated':
-      return decryptMessageView(socket, payload as MessageView);
+      return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly });
 
     case 'messages:list': {
       const typed = payload as { roomId: string; messages: MessageView[]; hasMore: boolean };
@@ -217,9 +224,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       return originalOn(event, handler);
     }
 
+    const previewOnly = previewOnlyHandlers.has(handler);
     const wrapped = ((payload: unknown) => {
       dispatchQueue = dispatchQueue
-        .then(() => transformPayload(socket, event, payload))
+        .then(() => transformPayload(socket, event, payload, previewOnly))
         .catch((error: unknown) => {
           console.error(`[e2e] failed to process incoming "${event}" payload, delivering it undecrypted`, error);
           return payload;

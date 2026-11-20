@@ -3,6 +3,7 @@ import { getUserPhotoUrl } from '@features/profile-photos';
 import { BoundedMap } from '@lib/cache/bounded-map';
 import { systemMessageText } from '@lib/format';
 import { translate } from '@lib/i18n/app-i18n';
+import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageView, RoomSummary } from '@lib/socket';
 import { buildNotificationIcon, buildPhotoNotificationIcon } from './build-notification-icon';
 
@@ -26,7 +27,7 @@ function truncate(text: string): string {
 
 function getMessagePreview(message: MessageView): string {
   if (message.type === 'image') {
-    return translate('notifications.sentImage');
+    return translate(isGifMimeType(message.fileMeta?.mimeType) ? 'notifications.sentGif' : 'notifications.sentImage');
   }
 
   if (message.type === 'audio') {
@@ -91,7 +92,8 @@ export async function buildNotificationContent(
   }
 
   const preview = getMessagePreview(message);
-  const image = message.type === 'image' && !message.deletedForEveryone ? message.content : undefined;
+  const image =
+    message.type === 'image' && !message.deletedForEveryone && !isGifMimeType(message.fileMeta?.mimeType) ? message.content : undefined;
 
   if (room.type === 'group') {
     return {

@@ -1,4 +1,4 @@
-const STORAGE_PATH_PATTERN = /^\/uploads\/(images|audio|files)\/[^/]+$/;
+const STORAGE_PATH_PATTERN = /^\/uploads\/(images|audio|files|gifs)\/[^/]+$/;
 const AVATAR_PATH_PATTERN = /^\/uploads\/avatars\/[^/]+$/;
 
 export function configuredMediaOrigin(): string | null {

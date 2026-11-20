@@ -78,6 +78,7 @@ export {
   isEncryptedMediaUrl,
   type EncryptedMediaSource,
 } from './message-crypto';
+export { isExpiredMediaUrl } from './media-cache';
 export {
   sealAttachment,
   sealAvatarFile,

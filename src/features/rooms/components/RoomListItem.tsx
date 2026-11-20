@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MdGif } from 'react-icons/md';
 import {
   FaAt,
   FaBan,
@@ -29,6 +30,7 @@ import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatAudioTime, formatTime, getDisplayName, resolveActiveUserNames, systemMessageSegments } from '@lib/format';
 import { translate, useAppLanguage } from '@lib/i18n/app-i18n';
+import { isGifMimeType } from '@lib/media/media-type';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomSummary } from '@lib/socket';
 import { getOtherParticipant, getRoomDisplayName } from '../utils/room-display';
@@ -232,8 +234,17 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
       return (
         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, lineHeight: 1.5 }}>
           {senderLabel}
-          <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
-          <span style={{ flexShrink: 0, lineHeight: 1.5 }}>{t('chat.message.image')}</span>
+          {isGifMimeType(message.fileMeta?.mimeType) ? (
+            <>
+              <MdGif size={18} aria-hidden="true" style={{ flexShrink: 0, display: 'block' }} />
+              <span style={{ flexShrink: 0, lineHeight: 1.5 }}>{t('chat.message.gif')}</span>
+            </>
+          ) : (
+            <>
+              <FaImage size={12} style={{ flexShrink: 0, display: 'block', transform: 'translateY(1px)' }} />
+              <span style={{ flexShrink: 0, lineHeight: 1.5 }}>{t('chat.message.image')}</span>
+            </>
+          )}
         </span>
       );
     }
