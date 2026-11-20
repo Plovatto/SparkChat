@@ -30,6 +30,14 @@ describe('renderLandingDocument', () => {
     expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://sparkchat.plovatto.dev/en/" />');
   });
 
+  it('links the manifest in the page language', () => {
+    const template = TEMPLATE.replace('<head>', '<head><link rel="manifest" href="/manifest.webmanifest" />');
+    expect(renderLandingDocument(template, 'pt', pt)).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
+    const english = renderLandingDocument(template, 'en', en);
+    expect(english).toContain('<link rel="manifest" href="/manifest.en.webmanifest" />');
+    expect(english).not.toContain('href="/manifest.webmanifest"');
+  });
+
   it('escapes quotes and markup in translated values', () => {
     const copy = { meta: { ...pt.meta, description: 'Say "hi" <b>now</b>' } };
     const html = renderLandingDocument(TEMPLATE, 'pt', copy);

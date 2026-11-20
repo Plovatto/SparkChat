@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '@features/profile-photos/lib/notification-icon-cache';
 import { buildLaunchUrl, isClientToWorkerMessage, isWorkerToClientMessage } from './protocol';
 import {
+  resolveWorkerLanguage,
   CALL_VIBRATION,
   callTag,
   createWorkerState,
@@ -12,6 +13,8 @@ import {
   messageTag,
   NOTIFICATION_ICON,
   parsePushMessage,
+  LANGUAGE_TIMEOUT_MS,
+  PREVIEW_TIMEOUT_MS,
   readCachedRoomIcon,
   type WorkerEnvironment,
   type WorkerNotification,
@@ -89,6 +92,20 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
   return { env, shown, opened, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
 }
 
+describe('resolveWorkerLanguage', () => {
+  it('prefers the language the app stored', () => {
+    expect(resolveWorkerLanguage('en', 'pt-BR')).toBe('en');
+    expect(resolveWorkerLanguage('pt', 'en-US')).toBe('pt');
+  });
+
+  it('falls back to English only for an English browser and to Portuguese otherwise', () => {
+    expect(resolveWorkerLanguage(null, 'en-GB')).toBe('en');
+    expect(resolveWorkerLanguage(null, 'pt-PT')).toBe('pt');
+    expect(resolveWorkerLanguage('xx', 'es-ES')).toBe('pt');
+    expect(resolveWorkerLanguage(null, undefined)).toBe('pt');
+  });
+});
+
 describe('parsePushMessage', () => {
   it('accepts the three content-free payloads', () => {
     expect(parsePushMessage({ t: 'call', callId: 'c1', roomId: 'r1', kind: 'video' })).toEqual({ t: 'call', callId: 'c1', roomId: 'r1', kind: 'video' });
@@ -107,6 +124,66 @@ describe('parsePushMessage', () => {
 
   it('drops extra fields so nothing else reaches a notification', () => {
     expect(parsePushMessage({ t: 'msg', roomId: 'r1', body: 'secret' })).toEqual({ t: 'msg', roomId: 'r1' });
+  });
+});
+
+describe('message previews in pushes', () => {
+  const content = `e2e:v2:${'A'.repeat(22)}:${'B'.repeat(80)}`;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps only well formed ids, a known kind and an encrypted field', () => {
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'text', c: content, extra: 'x' } })).toEqual({
+      t: 'msg',
+      roomId: 'r1',
+      preview: { id: 'm1', senderId: 'u1', kind: 'text', content },
+    });
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'image' } })).toEqual({ t: 'msg', roomId: 'r1', preview: { id: 'm1', senderId: 'u1', kind: 'image' } });
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'text', c: 'texto em claro' } })).toEqual({ t: 'msg', roomId: 'r1', preview: { id: 'm1', senderId: 'u1', kind: 'text' } });
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm 1', s: 'u1', k: 'text' } })).toEqual({ t: 'msg', roomId: 'r1' });
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'video' } })).toEqual({ t: 'msg', roomId: 'r1' });
+    expect(parsePushMessage({ t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'text', c: `e2e:v2:${'x'.repeat(5000)}` } })).toEqual({ t: 'msg', roomId: 'r1', preview: { id: 'm1', senderId: 'u1', kind: 'text' } });
+  });
+
+  it('shows the decrypted sender and text when the preview resolves', async () => {
+    const { env, visible } = fakeEnv();
+    const previewMessage = vi.fn(() => Promise.resolve({ title: 'Ana', body: 'oi' }));
+    await handlePush({ ...env, previewMessage }, createWorkerState(), { t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'text', c: content } });
+    expect(previewMessage).toHaveBeenCalledWith('r1', { id: 'm1', senderId: 'u1', kind: 'text', content }, expect.objectContaining({ photo: '📷 Foto' }));
+    expect(visible()[0]).toMatchObject({ title: 'Ana', options: { body: 'oi', tag: messageTag('r1') } });
+  });
+
+  it('falls back to the generic text when the preview fails, returns nothing or is missing', async () => {
+    for (const previewMessage of [() => Promise.reject(new Error('no key')), () => Promise.resolve(null)]) {
+      const { env, visible } = fakeEnv();
+      await handlePush({ ...env, previewMessage }, createWorkerState(), { t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'text', c: content } });
+      expect(visible()[0]).toMatchObject({ title: 'Nova mensagem', options: { body: 'Abra o SparkChat para ler' } });
+    }
+    const { env, visible } = fakeEnv();
+    const previewMessage = vi.fn(() => Promise.resolve({ title: 'x', body: 'y' }));
+    await handlePush({ ...env, previewMessage }, createWorkerState(), { t: 'msg', roomId: 'r1' });
+    expect(previewMessage).not.toHaveBeenCalled();
+    expect(visible()[0]!.title).toBe('Nova mensagem');
+  });
+
+  it('falls back to Portuguese when reading the language hangs instead of delaying the notification', async () => {
+    vi.useFakeTimers();
+    const { env, visible } = fakeEnv({ language: 'en' });
+    const done = handlePush({ ...env, language: () => new Promise(() => undefined) }, createWorkerState(), { t: 'msg', roomId: 'r1' });
+    await vi.advanceTimersByTimeAsync(LANGUAGE_TIMEOUT_MS);
+    await done;
+    expect(visible()[0]!.title).toBe('Nova mensagem');
+  });
+
+  it('never waits on a stuck preview longer than the timeout before notifying', async () => {
+    vi.useFakeTimers();
+    const { env, visible } = fakeEnv();
+    const done = handlePush({ ...env, previewMessage: () => new Promise(() => undefined) }, createWorkerState(), { t: 'msg', roomId: 'r1', m: { id: 'm1', s: 'u1', k: 'image' } });
+    await vi.advanceTimersByTimeAsync(PREVIEW_TIMEOUT_MS);
+    await done;
+    expect(visible()[0]!.title).toBe('Nova mensagem');
   });
 });
 

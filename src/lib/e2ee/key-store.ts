@@ -9,7 +9,7 @@ const WRAP_IV_BYTES = 12;
 const IDENTITY_WRAP_CONTEXT = 'sparkchat:wrap-identity:v1';
 const ROOM_KEY_WRAP_CONTEXT = 'sparkchat:wrap-room-key:v1';
 
-interface WrappedSecret {
+export interface WrappedSecret {
   iv: Uint8Array;
   data: Uint8Array;
 }
@@ -200,7 +200,7 @@ async function unwrapSecret(wrapped: WrappedSecret, associatedData: Uint8Array<A
   }
 }
 
-function isWrappedSecret(value: unknown): value is WrappedSecret {
+export function isWrappedSecret(value: unknown): value is WrappedSecret {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -310,6 +310,21 @@ export async function loadPrivateKey(userId: string): Promise<{ publicKey: strin
   } catch {
     return null;
   }
+}
+
+export function forgetCachedWrappingKey(): void {
+  wrappingKeyPromise = null;
+}
+
+export async function sealLocalSecret(context: string, parts: string[], secret: Uint8Array): Promise<WrappedSecret> {
+  return wrapSecret(secret, wrapAssociatedData(context, parts));
+}
+
+export async function openLocalSecret(wrapped: unknown, context: string, parts: string[]): Promise<Uint8Array | null> {
+  if (!isWrappedSecret(wrapped)) {
+    return null;
+  }
+  return unwrapSecret(wrapped, wrapAssociatedData(context, parts));
 }
 
 export async function clearPrivateKey(): Promise<void> {

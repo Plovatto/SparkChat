@@ -6,6 +6,8 @@ const SHARE_IMAGE = `${SITE_URL}/og-image.jpg`;
 export const LANDING_HEAD_PLACEHOLDER = '<meta name="sc-landing-head" />';
 export const LANDING_BOOT_PLACEHOLDER = '<script id="sc-landing-boot"></script>';
 const HTML_TAG = /<html lang="[^"]*">/;
+const MANIFEST_LINK = /<link rel="manifest" href="[^"]*" \/>/;
+const MANIFEST_HREF: Record<Language, string> = { pt: '/manifest.webmanifest', en: '/manifest.en.webmanifest' };
 
 export interface LandingHeadCopy {
   meta: {
@@ -107,5 +109,6 @@ export function renderLandingDocument(template: string, language: Language, copy
 
   return template
     .replace(HTML_TAG, `<html lang="${HTML_LANG[language]}">`)
+    .replace(MANIFEST_LINK, `<link rel="manifest" href="${MANIFEST_HREF[language]}" />`)
     .replace(LANDING_HEAD_PLACEHOLDER, () => renderLandingHead(language, copy));
 }

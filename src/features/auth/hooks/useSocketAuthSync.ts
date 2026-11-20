@@ -30,6 +30,14 @@ export interface SocketAuthSyncOptions {
 }
 
 const AUTH_RETRY_DELAY_MS = 2000;
+
+type VisibilitySocket = { emit: (event: 'user:visibility', payload: { visible: boolean }) => unknown };
+
+export function reportBackgroundAfterAuth(socket: VisibilitySocket, visibilityState: DocumentVisibilityState): void {
+  if (visibilityState === 'hidden') {
+    socket.emit('user:visibility', { visible: false });
+  }
+}
 const LIVENESS_PROBE_TIMEOUT_MS = 3000;
 
 export function useSocketAuthSync({
@@ -137,7 +145,11 @@ export function useSocketAuthSync({
       });
     };
 
+    const handleAuthenticated = () => reportBackgroundAfterAuth(socket, document.visibilityState);
+
     handleVisibilityChange();
+    socket.on('user:resumed', handleAuthenticated);
+    socket.on('user:registered', handleAuthenticated);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pageshow', handleVisibilityChange);
     window.addEventListener('online', handleVisibilityChange);
@@ -145,6 +157,8 @@ export function useSocketAuthSync({
       if (probeTimer !== null) {
         window.clearTimeout(probeTimer);
       }
+      socket.off('user:resumed', handleAuthenticated);
+      socket.off('user:registered', handleAuthenticated);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pageshow', handleVisibilityChange);
       window.removeEventListener('online', handleVisibilityChange);

@@ -5,6 +5,7 @@ import {
   getInstallSnapshot,
   isInstallAvailable,
   isInstallCardDismissed,
+  isDesktopPlatform,
   isIosPlatform,
   isStandaloneDisplay,
   needsIosInstall,
@@ -52,6 +53,16 @@ afterEach(() => {
 });
 
 describe('platform detection', () => {
+  it('treats Windows, macOS and Linux browsers as desktop but not phones or tablets', () => {
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36' })).toBe(true);
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/130', platform: 'MacIntel', maxTouchPoints: 0 })).toBe(true);
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/130' })).toBe(true);
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/130 Mobile Safari/537.36' })).toBe(false);
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) Safari/604.1' })).toBe(false);
+    expect(isDesktopPlatform({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15', platform: 'MacIntel', maxTouchPoints: 5 })).toBe(false);
+  });
+
+
   it('detects iPhone, iPad and iPadOS desktop mode', () => {
     expect(isIosPlatform({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) Safari/604.1' })).toBe(true);
     expect(isIosPlatform({ userAgent: 'Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X)' })).toBe(true);

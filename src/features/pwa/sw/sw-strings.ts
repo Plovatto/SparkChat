@@ -10,6 +10,9 @@ export interface WorkerStrings {
   newMessageBody: string;
   generic: string;
   genericBody: string;
+  photo: string;
+  audio: string;
+  file: string;
 }
 
 export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
@@ -25,6 +28,9 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     newMessageBody: 'Abra o SparkChat para ler',
     generic: 'SparkChat',
     genericBody: 'Você tem uma novidade no SparkChat',
+    photo: '📷 Foto',
+    audio: '🎤 Áudio',
+    file: '📎 Arquivo',
   },
   en: {
     incomingCall: 'Incoming call',
@@ -38,5 +44,8 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     newMessageBody: 'Open SparkChat to read it',
     generic: 'SparkChat',
     genericBody: 'Something new on SparkChat',
+    photo: '📷 Photo',
+    audio: '🎤 Audio',
+    file: '📎 File',
   },
 };

@@ -1,3 +1,8 @@
+import { openAuthenticatedField } from '../../../lib/e2ee/authenticated-field';
+import { forgetCachedWrappingKey, loadContactPin, loadRoomKeyGenerations } from '../../../lib/e2ee/key-store';
+import { getSodium } from '../../../lib/e2ee/sodium';
+import { readNotificationLanguage, readNotificationMirror, rememberMessageId } from '../lib/notification-mirror';
+import { resolveMessagePreview, type PreviewDeps } from './message-preview';
 import { OFFLINE_PAGE_PATH } from './protocol';
 import {
   createWorkerState,
@@ -10,6 +15,7 @@ import {
   type WorkerNotification,
   type WorkerNotificationOptions,
   type WorkerWindowClient,
+  resolveWorkerLanguage,
 } from './sw-handlers';
 
 declare const __SW_VERSION__: string;
@@ -76,14 +82,45 @@ function maxActions(): number {
   return typeof value === 'number' ? value : 0;
 }
 
+async function loadRoomKey(roomId: string, keyId: string): Promise<Uint8Array | null> {
+  const generations = await loadRoomKeyGenerations(roomId);
+  let found: Uint8Array | null = null;
+  for (const generation of generations) {
+    if (generation.keyId === keyId && !found) {
+      found = generation.key;
+    } else {
+      generation.key.fill(0);
+    }
+  }
+  return found;
+}
+
+async function loadSigningKey(ownerId: string, senderId: string): Promise<Uint8Array | null> {
+  const pin = await loadContactPin(ownerId, senderId);
+  if (!pin?.signingPublicKey) {
+    return null;
+  }
+  const sodium = await getSodium();
+  return sodium.from_base64(pin.signingPublicKey);
+}
+
+const previewDeps: PreviewDeps = {
+  readMirror: readNotificationMirror,
+  loadRoomKey,
+  loadSigningKey,
+  openField: openAuthenticatedField,
+  rememberMessage: rememberMessageId,
+};
+
 async function readLanguage(): Promise<'pt' | 'en'> {
+  const mirrored = await readNotificationLanguage();
+  if (mirrored) {
+    return mirrored;
+  }
   const cache = await worker.caches.open(PREFERENCES_CACHE);
   const stored = await cache.match(languageUrl);
-  const value = stored ? await stored.text() : '';
-  if (value === 'pt' || value === 'en') {
-    return value;
-  }
-  return (worker.navigator.language ?? '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
+  const value = stored ? await stored.text() : null;
+  return resolveWorkerLanguage(value, worker.navigator.language);
 }
 
 async function saveLanguage(language: 'pt' | 'en'): Promise<void> {
@@ -102,6 +139,10 @@ const env: WorkerEnvironment = {
   language: readLanguage,
   saveLanguage,
   now: () => Date.now(),
+  previewMessage: (roomId, preview, strings) => {
+    forgetCachedWrappingKey();
+    return resolveMessagePreview(roomId, preview, strings, previewDeps);
+  },
 };
 
 function readPushData(event: PushEvent): unknown {

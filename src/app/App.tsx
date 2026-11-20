@@ -30,7 +30,7 @@ import {
 } from '@features/notifications';
 import { CallProvider } from '@features/calls';
 import { queuePendingMyPhoto } from '@features/profile-photos';
-import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, usePwaChatShell } from '@features/pwa';
+import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, useNotificationMirror, usePwaChatShell } from '@features/pwa';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -319,6 +319,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { language: appLanguage } = useAppLanguage();
   const openNewChat = useCallback(() => setIsNewChatOpen(true), []);
   usePwaChatShell({ socket, connected, selectedRoomId, language: appLanguage, onOpenRoom: setSelectedRoomId, onNewChat: openNewChat });
+  useNotificationMirror({ userId: user.id, rooms, hideContent: notificationContentPreference.isContentHidden, language: appLanguage });
 
   useEffect(() => {
     try {
