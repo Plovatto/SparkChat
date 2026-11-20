@@ -28,6 +28,11 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
+import { removeMyPhoto, uploadMyPhoto, useUserPhoto } from '@features/profile-photos';
+import { PhotoPickerTile } from '@features/profile-photos/components/PhotoPickerTile';
+import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
+import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
+import { usePhotoPicker } from '@features/profile-photos/hooks/usePhotoPicker';
 import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -138,6 +143,12 @@ export function EditProfileModal({
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
   const [nickname, setNickname] = useState(user.nickname);
   const [avatar, setAvatar] = useState(user.avatar);
+  const currentPhoto = useUserPhoto(user.id);
+  const photo = usePhotoDraft(currentPhoto);
+  const resetPhoto = photo.reset;
+  const photoPicker = usePhotoPicker(photo.pick);
+  const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -176,6 +187,8 @@ export function EditProfileModal({
       setActiveTab('profile');
       setNickname(user.nickname);
       setAvatar(user.avatar);
+      resetPhoto();
+      setViewerPhoto(null);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
@@ -188,7 +201,7 @@ export function EditProfileModal({
       setIsCurrentPasswordRequired(false);
       socket?.emit('user:list-sessions');
     }
-  }, [isOpen, user.nickname, user.avatar, socket]);
+  }, [isOpen, user.nickname, user.avatar, socket, resetPhoto]);
 
   useEffect(() => {
     if (!socket) {
@@ -297,9 +310,10 @@ export function EditProfileModal({
     };
   }, [socket, onUserUpdate, onClose, onLogout, user.id, user.nickname]);
 
-  const hasChanges = nickname !== user.nickname || avatar !== user.avatar;
+  const hasProfileFieldChanges = nickname !== user.nickname || avatar !== user.avatar;
+  const hasChanges = hasProfileFieldChanges || photo.saveAction !== 'none';
   const isNicknameChanging = isNicknameChange(user.nickname, nickname);
-  const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving;
+  const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving || isSavingPhoto;
 
   const credentialErrorMessage = (error: unknown): string =>
     error instanceof IdentityUnavailableError ? t('profile.identityUnavailable') : translateError(error, 'errors.generic');
@@ -321,6 +335,25 @@ export function EditProfileModal({
       } finally {
         setIsDeriving(false);
       }
+    }
+    if (photo.saveAction !== 'none') {
+      setIsSavingPhoto(true);
+      try {
+        if (photo.saveAction === 'upload' && photo.pendingBlob) {
+          await uploadMyPhoto(photo.pendingBlob);
+        } else if (photo.saveAction === 'remove') {
+          await removeMyPhoto();
+        }
+      } catch {
+        setProfileError(t(photo.saveAction === 'upload' ? 'profilePhotos.errors.uploadFailed' : 'profilePhotos.errors.removeFailed'));
+        return;
+      } finally {
+        setIsSavingPhoto(false);
+      }
+    }
+    if (!hasProfileFieldChanges) {
+      onClose();
+      return;
     }
     pendingActionRef.current = 'profile';
     socket.emit('user:update-profile', buildProfileUpdatePayload(user.nickname, nickname, avatar, proof));
@@ -417,7 +450,7 @@ export function EditProfileModal({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={recoveryFilePrompt === null ? onClose : () => {}}
+      onClose={viewerPhoto !== null ? () => setViewerPhoto(null) : recoveryFilePrompt === null ? onClose : () => {}}
       showCloseButton={recoveryFilePrompt === null}
       title={t('profile.title')}
       maxWidth="600px"
@@ -499,12 +532,28 @@ export function EditProfileModal({
                 borderRadius: '18px',
               }}
             >
+              <PhotoPickerTile
+                size={avatarSize}
+                iconSize={iconSize}
+                photoUrl={photo.photoUrl}
+                isSelected={photo.isSelected}
+                isBusy={photoPicker.isPreparing || isSavingPhoto}
+                onChoose={photoPicker.open}
+                onSelect={photo.selectPhoto}
+                onRemove={photo.remove}
+                onView={setViewerPhoto}
+                className={photo.isSelected ? undefined : 'sc-anim-tile-in sc-stagger'}
+                style={{ height: `${avatarSize}px`, '--sc-stagger-index': 0, '--sc-stagger-step': '22ms' } as CSSProperties}
+              />
               {AVATARS.map((avatarOption, index) => {
-                const isSelected = avatar === index;
+                const isSelected = !photo.isSelected && avatar === index;
                 return (
                   <button
                     key={avatarOption.name}
-                    onClick={() => setAvatar(index)}
+                    onClick={() => {
+                      setAvatar(index);
+                      photo.selectPreset();
+                    }}
                     data-selected={isSelected}
                     title={translate(`avatars.${avatarOption.name}`)}
                     aria-label={translate(`avatars.${avatarOption.name}`)}
@@ -515,7 +564,7 @@ export function EditProfileModal({
                         height: `${avatarSize}px`,
                         '--avatar-gradient': avatarOption.bgGradient,
                         '--avatar-color': avatarOption.color,
-                        '--sc-stagger-index': Math.min(index, 11),
+                        '--sc-stagger-index': Math.min(index + 1, 11),
                         '--sc-stagger-step': '22ms',
                       } as CSSProperties
                     }
@@ -525,6 +574,11 @@ export function EditProfileModal({
                 );
               })}
             </div>
+            {photoPicker.error && (
+              <small key={photoPicker.error} role="alert" className="sc-anim-shake" style={{ display: 'block', marginTop: '10px', color: theme.dangerText, fontWeight: 600 }}>
+                {photoPicker.error}
+              </small>
+            )}
           </div>
 
           {hasChanges && isNicknameChanging && (
@@ -550,6 +604,7 @@ export function EditProfileModal({
                 onClick={() => {
                   setNickname(user.nickname);
                   setAvatar(user.avatar);
+                  photo.reset();
                   setProfilePassword('');
                 }}
                 className="sc-btn sc-btn--secondary"
@@ -563,8 +618,8 @@ export function EditProfileModal({
                 className="sc-btn sc-btn--gradient sc-btn--lift"
                 style={{ flex: 1, padding: '12px 20px' }}
               >
-                {isDeriving && <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />}
-                {t('profile.saveChanges')}
+                {(isDeriving || isSavingPhoto) && <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />}
+                {isSavingPhoto ? t('profilePhotos.uploading') : t('profile.saveChanges')}
               </button>
             </div>
           )}
@@ -745,6 +800,9 @@ export function EditProfileModal({
           </div>
         </div>
       )}
+
+      {photoPicker.element}
+      <ProfilePhotoViewer photoUrl={viewerPhoto} onClose={() => setViewerPhoto(null)} />
 
       <RecoveryFileDownloadDialog
         isOpen={recoveryFilePrompt !== null}

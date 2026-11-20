@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
@@ -15,7 +15,6 @@ export function IncomingCallModal() {
     return null;
   }
   const peer = call.peerDisplay(state.peerId);
-  const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const round = { width: '56px', height: '56px', borderRadius: '50%', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as const;
   const answer = () => {
     call.primePlayback();
@@ -44,9 +43,7 @@ export function IncomingCallModal() {
         gap: '12px',
       }}
     >
-      <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: avatar?.bgGradient ?? theme.gradientControl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {avatar ? <avatar.icon size={32} color={AVATAR_ICON_COLOR} /> : null}
-      </div>
+      <Avatar userId={peer ? state.peerId : null} avatarIndex={peer?.avatar} size={64} iconSize={32} />
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{peer?.name ?? ''}</div>
         <small style={{ color: theme.textSecondary }}>{translate(`calls.incoming.${state.kind}`)}</small>

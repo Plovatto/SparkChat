@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
-import { canRenameGroup, renameGroup, subscribeRoomKeyAvailable } from '@lib/e2ee';
+import { renameGroup } from '@lib/e2ee';
 import { useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
+import { useCanRenameGroup } from '../hooks/useCanRenameGroup';
 
 const GROUP_NAME_MAX_LENGTH = 64;
 
@@ -22,31 +23,7 @@ export function GroupNameEditor({ room, currentUserId }: GroupNameEditorProps) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [canRename, setCanRename] = useState(false);
-
-  useEffect(() => {
-    if (!socket) {
-      return;
-    }
-    let active = true;
-    const refresh = () => {
-      void canRenameGroup(socket, room.id).then((allowed) => {
-        if (active) {
-          setCanRename(allowed);
-        }
-      });
-    };
-    refresh();
-    const unsubscribe = subscribeRoomKeyAvailable((roomId) => {
-      if (roomId === room.id) {
-        refresh();
-      }
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [socket, room.id, room.participants]);
+  const canRename = useCanRenameGroup(room);
 
   useEffect(() => {
     if (!socket || !isEditing) {
