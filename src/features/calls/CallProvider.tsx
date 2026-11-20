@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
+import { translate } from '@lib/i18n/app-i18n';
 import { getCurrentIdentity } from '@lib/e2ee';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useSocket, type RoomSummary } from '@lib/socket';
@@ -10,12 +11,17 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { getAudioProcessing, getProtectIp, setAudioProcessing, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, audioConstraints, isMobileDevice, stopStream, videoConstraints } from './lib/media-devices';
+import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints } from './lib/media-devices';
+import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
+import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
+import { StreamWindow } from './components/StreamWindow';
+import { createShareAudio } from './lib/share-audio';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
+import './styles/calls.css';
 
 interface CallProviderProps {
   rooms: RoomSummary[];
@@ -32,9 +38,16 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   const { socket } = useSocket();
   const [controller, setController] = useState<CallController | null>(null);
   const [minimized, setMinimized] = useState(false);
+  const [streamVolume, setStreamVolume] = useState(1);
+  const [sharePreviewHidden, setSharePreviewHidden] = useState(false);
+  const [streamWindow, setStreamWindow] = useState<Window | null>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
   const roomsRef = useRef(rooms);
   roomsRef.current = rooms;
+
+  useEffect(() => {
+    clearLegacyCallSettings();
+  }, []);
 
   useEffect(() => {
     if (!socket) {
@@ -49,9 +62,15 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       tabs,
       acquireMedia: (kind) => acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: preferredAudioRef.current, videoInputId: preferredVideoRef.current }),
       acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
+      acquireScreen: () => acquireScreenShare(),
+      createShareAudio: (track, volume) => createShareAudio(track, volume),
+      getShareVolume,
+      saveShareVolume: setShareVolume,
+      getMovieMode,
+      saveMovieMode: setMovieMode,
+      applyShareConstraints,
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
-      getProtectIp,
       isMobile: isMobileDevice,
       startRingtone,
       stopRingtone,
@@ -85,7 +104,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   }, []);
 
   const primePlayback = useCallback(() => {
-    void remoteRef.current?.play().catch(() => undefined);
+    autoplay.play(remoteRef.current);
   }, []);
 
   const startCallInRoom = useCallback(
@@ -116,7 +135,61 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     [],
   );
 
+  const screenShareSupported = supportsScreenShare();
+  const sharedStream = snapshot.remoteScreenOn && snapshot.remoteScreenStream ? snapshot.remoteScreenStream : snapshot.screenSharing ? snapshot.localScreenStream : null;
+  const sharedPeerName = roomsRef.current.flatMap((room) => room.participants).find((participant) => participant.id === snapshot.state.peerId)?.nickname ?? '';
+  const sharedTitle = snapshot.remoteScreenOn ? translate('calls.share.peerTitle', { name: sharedPeerName }) : translate('calls.share.yourScreen');
+
+  useEffect(() => {
+    if (!snapshot.screenSharing) {
+      setSharePreviewHidden(false);
+    }
+  }, [snapshot.screenSharing]);
+
+  useEffect(() => {
+    if (!sharedStream && streamWindow) {
+      streamWindow.close();
+      setStreamWindow(null);
+    }
+  }, [sharedStream, streamWindow]);
+
+  const fullscreenStage = useCallback(() => {
+    const stage = document.querySelector<HTMLElement>('.sc-call-stage');
+    void stage?.requestFullscreen?.().catch(() => undefined);
+  }, []);
+
+  const openStreamWindow = useCallback(() => {
+    const mode = streamWindowMode();
+    if (mode === 'document') {
+      const host = (window as Window & { documentPictureInPicture?: DocumentPipHost }).documentPictureInPicture;
+      void host
+        ?.requestWindow({ ...STREAM_WINDOW_SIZE })
+        .then((opened) => {
+          copyStyles(document, opened.document);
+          opened.addEventListener('pagehide', () => setStreamWindow(null), { once: true });
+          setStreamWindow(opened);
+        })
+        .catch(() => fullscreenStage());
+      return;
+    }
+    if (mode === 'fullscreen') {
+      fullscreenStage();
+    }
+  }, [fullscreenStage]);
+
   const api: CallApi = {
+    movieMode: snapshot.movieMode,
+    shareVolume: snapshot.shareVolume,
+    streamVolume,
+    setStreamVolume: (volume) => setStreamVolume(Math.max(0, Math.min(1, Number.isFinite(volume) ? volume : 1))),
+    sharePreviewHidden,
+    setSharePreviewHidden,
+    shareHasAudio: snapshot.screenSharing && snapshot.shareAudio,
+    remoteShareHasAudio: snapshot.remoteScreenOn && snapshot.remoteScreenAudio,
+    remoteShareMovie: snapshot.remoteScreenOn && snapshot.remoteScreenMovie,
+    streamWindowAvailable: streamWindowMode() !== null,
+    streamWindowOpen: streamWindow !== null,
+    openStreamWindow,
     snapshot,
     minimized,
     setMinimized,
@@ -133,6 +206,10 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     hangup: () => controller?.hangup(),
     toggleMute: () => controller?.toggleMute(),
     toggleCamera: () => void controller?.toggleCamera(),
+    toggleScreenShare: () => void controller?.toggleScreenShare(),
+    setShareVolume: (volume) => controller?.setShareVolume(volume),
+    setMovieMode: (movie) => void controller?.setMovieMode(movie),
+    canShareScreen: screenShareSupported,
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),
     changeAudioInput: (deviceId) => {
@@ -173,6 +250,18 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       <CallMiniBar />
       <IncomingCallModal />
       <CallNotices />
+      {streamWindow && sharedStream && (
+        <StreamWindow
+          target={streamWindow}
+          stream={sharedStream}
+          title={sharedTitle}
+          onFullscreen={() => {
+            streamWindow.close();
+            setStreamWindow(null);
+            fullscreenStage();
+          }}
+        />
+      )}
     </CallContext>
   );
 }

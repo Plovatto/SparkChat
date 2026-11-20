@@ -124,3 +124,57 @@ export async function listDevices(): Promise<DeviceLists> {
     return { audioInputs: [], videoInputs: [], audioOutputs: [] };
   }
 }
+
+export interface DisplayMediaHost {
+  getDisplayMedia?: (options?: DisplayMediaStreamOptions) => Promise<MediaStream>;
+}
+
+function displayHost(): DisplayMediaHost | undefined {
+  return typeof navigator === 'undefined' ? undefined : (navigator.mediaDevices);
+}
+
+export function supportsScreenShare(host: DisplayMediaHost | undefined = displayHost()): boolean {
+  return typeof host?.getDisplayMedia === 'function';
+}
+
+export function screenShareOptions(): DisplayMediaStreamOptions {
+  return {
+    video: { frameRate: { ideal: 15, max: 30 } },
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } as MediaTrackConstraints,
+    selfBrowserSurface: 'exclude',
+    surfaceSwitching: 'include',
+    systemAudio: 'include',
+    monitorTypeSurfaces: 'include',
+  } as DisplayMediaStreamOptions;
+}
+
+export async function acquireScreenShare(host: DisplayMediaHost | undefined = displayHost()): Promise<MediaStream | null> {
+  if (!host?.getDisplayMedia) {
+    return null;
+  }
+  try {
+    const stream = await host.getDisplayMedia(screenShareOptions());
+    if (stream.getVideoTracks().length === 0) {
+      stopStream(stream);
+      return null;
+    }
+    return stream;
+  } catch {
+    return null;
+  }
+}
+
+export function shareVideoConstraints(movie: boolean): MediaTrackConstraints {
+  return movie ? { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } : { frameRate: { ideal: 15, max: 30 } };
+}
+
+export const SHARE_AUDIO_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+export async function applyShareConstraints(stream: MediaStream, movie: boolean): Promise<void> {
+  for (const track of stream.getVideoTracks()) {
+    await track.applyConstraints(shareVideoConstraints(movie)).catch(() => undefined);
+  }
+  for (const track of stream.getAudioTracks()) {
+    await track.applyConstraints(SHARE_AUDIO_CONSTRAINTS).catch(() => undefined);
+  }
+}

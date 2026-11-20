@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { getItem, setItem } from '@lib/storage';
 
-const PROTECT_IP_KEY = 'chatCallProtectIp';
+const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
+const SHARE_VOLUME_KEY = 'chatCallShareVolume';
+const MOVIE_MODE_KEY = 'chatCallMovieMode';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -24,34 +26,12 @@ type Listener = () => void;
 
 const listeners = new Set<Listener>();
 
-export function getProtectIp(): boolean {
-  return getItem<boolean>(PROTECT_IP_KEY) === true;
-}
-
-export function setProtectIp(value: boolean): void {
-  setItem(PROTECT_IP_KEY, value);
-  for (const listener of Array.from(listeners)) {
-    listener();
+export function clearLegacyCallSettings(): void {
+  try {
+    localStorage.removeItem(LEGACY_PROTECT_IP_KEY);
+  } catch {
+    return;
   }
-}
-
-export function subscribeProtectIp(listener: Listener): () => void {
-  listeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === PROTECT_IP_KEY) {
-      listener();
-    }
-  };
-  window.addEventListener('storage', onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener('storage', onStorage);
-  };
-}
-
-export function useProtectIp(): [boolean, (value: boolean) => void] {
-  const value = useSyncExternalStore(subscribeProtectIp, getProtectIp, () => false);
-  return [value, setProtectIp];
 }
 
 let cachedAudioRaw: string | null | undefined;
@@ -107,4 +87,24 @@ export function subscribeAudioProcessing(listener: Listener): () => void {
 export function useAudioProcessing(): [AudioProcessing, (patch: Partial<AudioProcessing>) => void] {
   const value = useSyncExternalStore(subscribeAudioProcessing, getAudioProcessing, () => DEFAULT_AUDIO_PROCESSING);
   return [value, setAudioProcessing];
+}
+
+export function getShareVolume(): number {
+  const stored = getItem<unknown>(SHARE_VOLUME_KEY);
+  return typeof stored === 'number' && Number.isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 1;
+}
+
+export function setShareVolume(value: number): number {
+  const next = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  setItem(SHARE_VOLUME_KEY, next);
+  return next;
+}
+
+export function getMovieMode(): boolean {
+  return getItem<boolean>(MOVIE_MODE_KEY) === true;
+}
+
+export function setMovieMode(value: boolean): boolean {
+  setItem(MOVIE_MODE_KEY, value);
+  return value;
 }
