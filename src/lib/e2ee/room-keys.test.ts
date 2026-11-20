@@ -1808,6 +1808,22 @@ describe('review hardening', () => {
       expect(failedRosterReasons()).toEqual(['downgrade']);
     });
 
+    it('lets a joiner accept the current generation shared by a member that did not issue its roster', async () => {
+      const [, bia] = await signedGroup();
+      server.sockets.delete('ana');
+      server.sockets.delete('caio');
+
+      const davi = await loadClient('davi');
+      await joinGroup(davi, 'group', bia);
+
+      const room = server.rooms.get('group') as ServerRoom;
+      const share = server.envelopes.find((entry) => entry.recipientId === 'davi' && entry.keyId === room.currentKeyId);
+      expect(share?.senderId).toBe('bia');
+      expect(share?.roster).toBeDefined();
+      expect(davi.roomKeys.getCurrentRoomKey('group')?.keyId).toBe(room.currentKeyId);
+      expect(failedRosterReasons()).toEqual([]);
+    });
+
     it('keeps accepting a rotation whose unsigned roster comes from an older client that never signed', async () => {
       const [ana, bia] = await signedGroup();
       const invite = await import('./group-invite');
@@ -1857,6 +1873,25 @@ describe('review hardening', () => {
 
       expect(batchesOf(ana, 2)).toHaveLength(1);
       expect(timeouts.mock.calls.some(([, delay]) => delay === 20_000)).toBe(true);
+    });
+
+    it('lets a member the server declares an admin lead the rotation without waiting for a stall', async () => {
+      const [ana, bia] = await signedGroup();
+      const participants = [
+        { id: 'ana', nickname: 'ana', isAdmin: true },
+        { id: 'bia', nickname: 'bia', isAdmin: true },
+        { id: 'caio', nickname: 'caio', isAdmin: false },
+      ];
+      for (const client of [ana, bia]) {
+        client.roomKeys.updateRoomParticipants('group', participants as never);
+      }
+
+      await rotateWith('bia');
+
+      const published = batchesOf(bia, 2);
+      expect(published).toHaveLength(1);
+      expect(await rosterOf(bia, published[0] as PublishedBatch)).toMatchObject({ issuedBy: 'bia', admins: ['ana'] });
+      expect(ana.roomKeys.getCurrentRoomKey('group')?.epoch).toBe(2);
     });
 
     it('keeps a non-admin from rotating until the rotation stalls, then lets it retry and others accept it', async () => {
@@ -1958,6 +1993,7 @@ describe('review hardening', () => {
         const earlier = await sendText(caio, 'group', 'before removal', AGO(60_000));
         const later = await sendText(caio, 'group', 'after removal', new Date().toISOString());
         const removal = await systemEvent(ana, 'group.memberRemoved', 'caio', AGO(30_000));
+        bia.roomKeys.updateRoomParticipants('group', ['ana', 'bia'].map((id) => ({ id, nickname: id })) as never);
 
         const rendered = await bia.messages.decryptMessageView(bia.socket.asAppSocket(), removal);
 
@@ -2001,6 +2037,17 @@ describe('review hardening', () => {
 
         const notAdmin = await systemEvent(caio, 'group.memberRemoved', 'bia', AGO(800));
         expect((await view(notAdmin)).eventTrust).toBe('forged');
+      });
+
+      it('re-judges an unsigned event once signed events from the same room become known', async () => {
+        const [ana, bia] = await signedGroup();
+        const view = (message: MessageView) => bia.messages.decryptMessageView(bia.socket.asAppSocket(), message);
+        const unsigned = systemMessage('group.memberLeft', { actor: 'caio' }, AGO(10_000));
+
+        expect((await view(unsigned)).eventTrust).toBe('legacy');
+        expect((await view(await systemEvent(ana, 'group.adminPromoted', 'bia', AGO(60_000)))).eventTrust).toBe('verified');
+
+        expect((await view(unsigned)).eventTrust).toBe('unverified');
       });
 
       it('remembers verified promotions so a promoted admin can rotate', async () => {

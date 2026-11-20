@@ -855,7 +855,7 @@ function groupAdminSet(roomId: string, view: RoomView, selfId: string): Set<stri
 function mayLeadRotation(roomId: string, view: RoomView, selfId: string, epoch: number): boolean {
   noteRotationStarted(roomId, epoch);
   const admins = groupAdminSet(roomId, view, selfId);
-  return admins.has(selfId) || admins.size === 0 || rotationStalled(roomId, epoch, false);
+  return admins.has(selfId) || view.admins.has(selfId) || admins.size === 0 || rotationStalled(roomId, epoch, false);
 }
 
 function rotationRetryDelay(roomId: string, view: RoomView, selfId: string, epoch: number): number {
@@ -921,6 +921,7 @@ async function verifyIncomingRoster(
     keyId: opened.keyId,
     epoch: opened.epoch,
     envelopeSenderId: opened.senderId,
+    creatorId: view.creatorId,
     previous: await previousGenerationContext(roomId, opened.epoch),
     signedFromEpoch: signedFromEpoch(roomId),
     signedIssuers: signedIssuersOf(roomId),

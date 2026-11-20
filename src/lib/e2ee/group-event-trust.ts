@@ -125,17 +125,17 @@ async function assessOne(socket: AppSocket, message: SystemMessageLike): Promise
     return cached;
   }
   const raw = attestationParam(event.params);
-  let trust: EventTrust;
   if (raw === undefined || raw === null) {
     const since = signedSince.get(message.roomId);
-    trust = since !== undefined && messageTime(message) >= since ? 'unverified' : 'legacy';
-  } else {
-    trust = await assessAttested(socket, message, event.type, raw);
+    return since !== undefined && messageTime(message) >= since ? 'unverified' : 'legacy';
   }
-  if (assessments.size >= MAX_TRACKED_EVENTS) {
-    assessments.clear();
+  const trust = await assessAttested(socket, message, event.type, raw);
+  if (trust === 'verified' || trust === 'forged') {
+    if (assessments.size >= MAX_TRACKED_EVENTS) {
+      assessments.clear();
+    }
+    assessments.set(message.id, trust);
   }
-  assessments.set(message.id, trust);
   return trust;
 }
 

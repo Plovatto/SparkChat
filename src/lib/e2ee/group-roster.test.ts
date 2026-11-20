@@ -74,6 +74,7 @@ function context(overrides: Partial<RosterVerificationContext> = {}): RosterVeri
     keyId: KEY_1,
     epoch: 1,
     envelopeSenderId: alice.userId,
+    creatorId: null,
     previous: null,
     signedFromEpoch: null,
     signedIssuers: new Set<string>(),
@@ -184,10 +185,17 @@ describe('verifyGroupRoster', () => {
     expect(await verifyGroupRoster(legacy, context({ signedFromEpoch: 2 }))).toEqual({ ok: true, signed: false });
   });
 
-  it('rejects a forged roster signed by someone who is not the envelope sender', async () => {
+  it('rejects a first roster that was not issued by the room creator', async () => {
     const forged = await signAs(mallory, { members: [alice, bob, mallory], admins: ['mallory'] });
 
-    expect(await verifyGroupRoster(forged, context())).toEqual({ ok: false, reason: 'wrong-issuer' });
+    expect(await verifyGroupRoster(forged, context({ creatorId: 'alice' }))).toEqual({ ok: false, reason: 'not-admin' });
+    expect(await verifyGroupRoster(await signAs(alice), context({ creatorId: 'alice' }))).toEqual({ ok: true, signed: true });
+  });
+
+  it('accepts a roster delivered by another member that shares the key, since the issuer signature is what counts', async () => {
+    const roster = await signAs(alice);
+
+    expect(await verifyGroupRoster(roster, context({ envelopeSenderId: 'bob', creatorId: 'alice' }))).toEqual({ ok: true, signed: true });
   });
 
   it('rejects a roster whose signature was produced by a key other than the issuer pinned key', async () => {
@@ -411,7 +419,10 @@ describe('evaluateSender', () => {
   it('treats a verified signed removal as the cutoff before any rotation lands', async () => {
     const onlyFirst = [(await generations())[0] as SenderGeneration];
 
-    expect(evaluateSender({ ...base, generations: onlyFirst, senderId: 'carol', timestamp: T0 + 20_000, removedAt: T0 + 15_000 })).toBe('after-removal');
-    expect(evaluateSender({ ...base, generations: onlyFirst, senderId: 'carol', timestamp: T0 + 10_000, removedAt: T0 + 15_000 })).toBe('ok');
+    const gone = { ...base, isCurrentMember: false };
+
+    expect(evaluateSender({ ...gone, generations: onlyFirst, senderId: 'carol', timestamp: T0 + 20_000, removedAt: T0 + 15_000 })).toBe('after-removal');
+    expect(evaluateSender({ ...gone, generations: onlyFirst, senderId: 'carol', timestamp: T0 + 10_000, removedAt: T0 + 15_000 })).toBe('ok');
+    expect(evaluateSender({ ...base, generations: onlyFirst, senderId: 'carol', timestamp: T0 + 20_000, removedAt: T0 + 15_000 })).toBe('ok');
   });
 });

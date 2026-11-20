@@ -23,7 +23,6 @@ export type RosterRejection =
   | 'missing'
   | 'downgrade'
   | 'malformed'
-  | 'wrong-issuer'
   | 'epoch-mismatch'
   | 'chain-mismatch'
   | 'unpinned-issuer'
@@ -46,6 +45,7 @@ export interface RosterVerificationContext {
   keyId: string;
   epoch: number;
   envelopeSenderId: string;
+  creatorId: string | null;
   previous: PreviousGeneration | null;
   signedFromEpoch: number | null;
   signedIssuers: ReadonlySet<string>;
@@ -198,9 +198,6 @@ export async function verifyGroupRoster(roster: GroupRoster | null, context: Ros
   if (!hasWellFormedSignedFields(roster)) {
     return { ok: false, reason: 'malformed' };
   }
-  if (roster.issuedBy !== context.envelopeSenderId) {
-    return { ok: false, reason: 'wrong-issuer' };
-  }
   if (roster.epoch !== context.epoch) {
     return { ok: false, reason: 'epoch-mismatch' };
   }
@@ -214,6 +211,9 @@ export async function verifyGroupRoster(roster: GroupRoster | null, context: Ros
   }
   if (!(await verifyRosterSignature(roster, context.roomId, context.keyId, signingKey))) {
     return { ok: false, reason: 'bad-signature' };
+  }
+  if (context.epoch === 1 && context.creatorId !== null && roster.issuedBy !== context.creatorId) {
+    return { ok: false, reason: 'not-admin' };
   }
   const rejection = authorityRejection(roster, context);
   return rejection ? { ok: false, reason: rejection } : { ok: true, signed: true };
@@ -254,7 +254,7 @@ export function evaluateSender(check: SenderCheck): SenderVerdict {
   }
   const eventTime = check.live ? check.now : check.timestamp;
   const listedNow = latest.roster.members.some((member) => member.userId === check.senderId);
-  if (check.removedAt !== undefined && eventTime >= check.removedAt) {
+  if (check.removedAt !== undefined && !check.isCurrentMember && eventTime >= check.removedAt) {
     return 'after-removal';
   }
   if (listedNow) {
