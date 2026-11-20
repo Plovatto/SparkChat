@@ -30,7 +30,10 @@ interface Manifest {
   shortcuts: { name: string; url: string; icons: ManifestImage[] }[];
 }
 
-const manifest = JSON.parse(readFileSync(path.join(PUBLIC_DIR, 'manifest.webmanifest'), 'utf8')) as Manifest;
+const readManifest = (file: string) => JSON.parse(readFileSync(path.join(PUBLIC_DIR, file), 'utf8')) as Manifest & Record<string, unknown>;
+const manifest = readManifest('manifest.webmanifest');
+const english = readManifest('manifest.en.webmanifest');
+const LOCALIZED = new Set(['description', 'lang', 'screenshots', 'shortcuts']);
 
 function pngSize(src: string): string {
   const buffer = readFileSync(path.join(PUBLIC_DIR, src));
@@ -81,6 +84,23 @@ describe('web app manifest', () => {
     expect(manifest.shortcuts[0]!.name).toBe('Novo chat');
     expect(manifest.shortcuts[0]!.url).toBe('/app/?action=new-chat');
     expect(manifest.shortcuts[0]!.url.startsWith(manifest.scope)).toBe(true);
+  });
+
+  it('ships an English variant that is the same installed app with translated text', () => {
+    expect(english).toMatchObject({ id: manifest.id, start_url: manifest.start_url, scope: manifest.scope, name: 'SparkChat', lang: 'en' });
+    for (const key of new Set([...Object.keys(manifest), ...Object.keys(english)])) {
+      if (!LOCALIZED.has(key)) {
+        expect(english[key], key).toEqual(manifest[key]);
+      }
+    }
+    expect(manifest.lang).toBe('pt-BR');
+    expect(english.description).not.toBe(manifest.description);
+    expect(english.shortcuts.map((shortcut) => [shortcut.name, shortcut.url])).toEqual([['New chat', '/app/?action=new-chat']]);
+    expect(english.screenshots.map((shot) => shot.src)).toEqual(manifest.screenshots.map((shot) => shot.src));
+    for (const [index, shot] of english.screenshots.entries()) {
+      expect(shot.label).toBeTruthy();
+      expect(shot.label).not.toBe(manifest.screenshots[index]!.label);
+    }
   });
 
   it('ships the notification badge and the offline page without inline scripts', () => {
