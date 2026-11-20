@@ -5,7 +5,7 @@ import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { clearNotificationIcons } from '@features/profile-photos/lib/notification-icon-cache';
 import { clearStoredSession } from '../api/session-storage';
 
-export const ACCOUNT_INDEXED_DB_NAMES: readonly string[] = ['sparkchat-e2ee', 'sparkchat-recovery-files'];
+export const ACCOUNT_INDEXED_DB_NAMES: readonly string[] = ['sparkchat-e2ee', 'sparkchat-recovery-files', 'sparkchat-notify'];
 export const DELETE_DATABASE_TIMEOUT_MS = 3000;
 
 export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_TIMEOUT_MS): Promise<void> {

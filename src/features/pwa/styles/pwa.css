@@ -43,6 +43,37 @@
   animation: scPopIn var(--sc-dur-normal) var(--sc-ease-spring) backwards;
 }
 
+.pwa-push-help {
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pwa-push-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.pwa-push-help summary:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.pwa-push-help ol {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pwa-push-help[open] ol {
+  animation: scRiseIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
 .pwa-push-notice {
   animation: scRiseIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
 }
@@ -72,7 +103,8 @@
 @media (prefers-reduced-motion: reduce) {
   .pwa-toast-shell,
   .pwa-push-icon,
-  .pwa-push-notice {
+  .pwa-push-notice,
+  .pwa-push-help[open] ol {
     animation: scFadeIn var(--sc-dur-instant) linear backwards;
   }
 

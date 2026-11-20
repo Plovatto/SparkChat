@@ -5,6 +5,7 @@ import {
   dismissUpdate,
   isUpdateAvailable,
   onWorkerMessage,
+  postToWorker,
   registerServiceWorker,
   resetServiceWorkerStateForTests,
   SW_UPDATE_CHECK_INTERVAL_MS,
@@ -89,6 +90,23 @@ describe('registerServiceWorker', () => {
     const container = new FakeContainer(null);
     container.register.mockImplementationOnce(() => Promise.reject(new Error('blocked')));
     await expect(registerServiceWorker({ container: container as unknown as ServiceWorkerContainer, setInterval: () => 0 })).resolves.toBeNull();
+  });
+});
+
+describe('postToWorker', () => {
+  it('posts to the controlling worker when the page is controlled', () => {
+    const controller = { postMessage: vi.fn() };
+    postToWorker({ type: 'sparkchat:locale', language: 'en' }, { controller, ready: new Promise(() => undefined) } as unknown as ServiceWorkerContainer);
+    expect(controller.postMessage).toHaveBeenCalledWith({ type: 'sparkchat:locale', language: 'en' });
+  });
+
+  it('reaches the active worker on the first visit before it controls the page', async () => {
+    const active = { postMessage: vi.fn() };
+    const ready = Promise.resolve({ active });
+    postToWorker({ type: 'sparkchat:locale', language: 'pt' }, { controller: null, ready } as unknown as ServiceWorkerContainer);
+    await ready;
+    await Promise.resolve();
+    expect(active.postMessage).toHaveBeenCalledWith({ type: 'sparkchat:locale', language: 'pt' });
   });
 });
 

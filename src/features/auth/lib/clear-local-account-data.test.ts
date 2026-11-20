@@ -79,10 +79,10 @@ describe('clearLocalAccountData', () => {
     const deleteDatabase = stubIndexedDb('success');
     await clearLocalAccountData();
     expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual([...ACCOUNT_INDEXED_DB_NAMES]);
-    expect(ACCOUNT_INDEXED_DB_NAMES).toEqual(['sparkchat-e2ee', 'sparkchat-recovery-files']);
+    expect(ACCOUNT_INDEXED_DB_NAMES).toEqual(['sparkchat-e2ee', 'sparkchat-recovery-files', 'sparkchat-notify']);
     expect(calls.slice(0, 2).sort()).toEqual(['clearGifMediaCache', 'clearGifStatusCache']);
     expect(calls.slice(2, 4).sort()).toEqual(['clearIdentity', 'clearRoomKeys']);
-    expect(calls.slice(4).sort()).toEqual(['delete:sparkchat-e2ee', 'delete:sparkchat-recovery-files']);
+    expect(calls.slice(4).sort()).toEqual(['delete:sparkchat-e2ee', 'delete:sparkchat-notify', 'delete:sparkchat-recovery-files']);
   });
 
   it('removes account and room keys but keeps device preferences', async () => {
