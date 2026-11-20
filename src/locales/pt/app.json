@@ -715,7 +715,7 @@
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
       "screen-failed": "Não foi possível compartilhar a tela.",
       "transferred": "Chamada transferida para outro aparelho",
-      "transfer-failed": "Não foi possível trazer a chamada para este aparelho."
+      "transfer-failed": "Não foi possível trocar de aparelho"
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",

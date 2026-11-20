@@ -1759,6 +1759,63 @@ describe('call transfer between devices', () => {
     expect(w.b.socket.sent('call:transfer-accept')).toHaveLength(0);
   });
 
+  it('ignores an accept that fails validation instead of failing the call', async () => {
+    const { w, a2, callId } = await transferWorld();
+    await a2.controller.transferHere();
+    await settle();
+    const other = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }));
+    other.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    other.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null });
+    await settle();
+    await other.controller.transferHere();
+    await settle();
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope: other.socket.sent('call:transfer')[0]!.envelope });
+    await settle();
+    const wrongDevice = w.b.socket.sent('call:transfer-accept')[0]!.envelope;
+
+    a2.socket.receive('call:transfer-accepted', { callId, envelope: wrongDevice });
+    a2.socket.receive('call:transfer-accepted', { callId, envelope: 'garbage' });
+    await settle();
+    expect(a2.peers).toHaveLength(0);
+    expect(a2.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(a2.socket.sent('call:hangup')).toHaveLength(0);
+    expect(a2.socket.sent('call:heartbeat')).toHaveLength(0);
+  });
+
+  it('serializes racing transfers on the peer so each one is answered in order', async () => {
+    const { w, a2, callId } = await transferWorld();
+    const a3 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }));
+    a3.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a3.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null });
+    await settle();
+    await a2.controller.transferHere();
+    await a3.controller.transferHere();
+    await settle();
+
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope: a2.socket.sent('call:transfer')[0]!.envelope });
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope: a3.socket.sent('call:transfer')[0]!.envelope });
+    await settle();
+
+    expect(w.b.socket.sent('call:transfer-accept')).toHaveLength(2);
+    expect(w.b.peers).toHaveLength(3);
+    expect(w.b.peers.slice(0, 2).every((peer) => peer.closed)).toBe(true);
+    expect(w.b.peers[2]!.closed).toBe(false);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('reconnecting');
+  });
+
+  it('gives up quietly when the server drops an unanswered transfer and shows a notice', async () => {
+    const { a2, callId } = await transferWorld();
+    await a2.controller.transferHere();
+    await settle();
+    const syncs = a2.socket.sent('call:sync').length;
+    a2.socket.receive('call:transfer-failed', { callId });
+    await settle();
+    expect(a2.controller.getSnapshot()).toMatchObject({ state: { phase: 'idle' }, notice: { kind: 'transfer-failed' }, localStream: null });
+    expect(a2.stopped).toBeGreaterThan(0);
+    expect(a2.socket.sent('call:hangup')).toHaveLength(0);
+    expect(a2.socket.sent('call:sync').length).toBe(syncs + 1);
+  });
+
   it('tears the old device down quietly without hanging up and tells the user', async () => {
     const { w, callId } = await transferWorld();
     const stoppedBefore = w.a.stopped;
@@ -1769,5 +1826,26 @@ describe('call transfer between devices', () => {
     expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
     expect(w.a.controller.getSnapshot()).toMatchObject({ state: { phase: 'idle' }, notice: { kind: 'transferred' }, localStream: null, remoteStream: null });
     expect(w.b.controller.getSnapshot().state.phase).toBe('active');
+  });
+});
+
+describe('transfer refused by the server', () => {
+  it('returns the losing device to the passive state when its transfer is refused', async () => {
+    const w = await world();
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    const callId = w.a.controller.getSnapshot().state.callId!;
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }));
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null });
+    await settle();
+    await a2.controller.transferHere();
+    await settle();
+
+    a2.socket.receive('error', { message: 'x', code: 'call.invalidState', event: 'call:transfer', params: { callId } });
+    await settle();
+
+    expect(a2.controller.getSnapshot()).toMatchObject({ state: { phase: 'idle' }, notice: { kind: 'transfer-failed' } });
+    expect(a2.socket.sent('call:hangup')).toHaveLength(0);
   });
 });
