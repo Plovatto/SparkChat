@@ -277,4 +277,50 @@ describe('failed sign-up photo', () => {
       vi.useRealTimers();
     }
   });
+
+  it('never moves the photo to another account that signs in while it retries', async () => {
+    vi.useFakeTimers();
+    try {
+      useFetch(500);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(100);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      useFetch(201);
+      setIdentity(null);
+      state.session = { id: 'u2', sessionToken: 'token-2' };
+      setIdentity('u2');
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(state.published).toHaveLength(0);
+      expect(actions.hasFailedPendingPhoto()).toBe(false);
+      actions.retryFailedPendingPhoto();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(state.published).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up right away on errors that a retry cannot fix', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ code: 'upload.tooLarge', params: { kind: 'avatar' } }), { status: 400 })));
+      vi.stubGlobal('fetch', fetchMock);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(actions.hasFailedPendingPhoto()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

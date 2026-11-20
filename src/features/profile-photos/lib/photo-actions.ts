@@ -96,12 +96,18 @@ function flushPendingPhoto(): void {
     return;
   }
   const image = pendingPhoto;
+  const owner = getCurrentIdentity()?.userId;
   pendingPhoto = null;
   stopWatchingPending();
-  pendingFlush = uploadWithRetries(image)
+  if (!owner) {
+    return;
+  }
+  pendingFlush = uploadWithRetries(image, owner)
     .catch((error: unknown) => {
       console.error('[profile-photos] uploading the sign-up photo failed', error);
-      setFailedPendingPhoto(image);
+      if (isCurrentOwner(owner)) {
+        setFailedPendingPhoto({ image, owner });
+      }
     })
     .finally(() => {
       pendingFlush = null;
@@ -110,18 +116,32 @@ function flushPendingPhoto(): void {
 
 export const PENDING_PHOTO_RETRY_DELAYS_MS = [2000, 5000];
 
+const NON_RETRYABLE_CODES = new Set(['upload.invalidType', 'upload.tooLarge', 'upload.userQuotaExceeded', 'upload.quotaExceeded', PROFILE_PHOTO_UNAVAILABLE_CODE]);
+
+function isCurrentOwner(owner: string): boolean {
+  return getCurrentIdentity()?.userId === owner;
+}
+
+function isRetryable(error: unknown): boolean {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return typeof code !== 'string' || !NON_RETRYABLE_CODES.has(code);
+}
+
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function uploadWithRetries(image: Blob): Promise<void> {
+async function uploadWithRetries(image: Blob, owner: string): Promise<void> {
   for (let attempt = 0; ; attempt += 1) {
+    if (!isCurrentOwner(owner)) {
+      throw createProfilePhotoError(PROFILE_PHOTO_UNAVAILABLE_CODE);
+    }
     try {
       await uploadMyPhoto(image);
       return;
     } catch (error) {
       const delay = PENDING_PHOTO_RETRY_DELAYS_MS[attempt];
-      if (delay === undefined || !getCurrentIdentity()) {
+      if (delay === undefined || !isRetryable(error) || !isCurrentOwner(owner)) {
         throw error;
       }
       await wait(delay);
@@ -129,17 +149,22 @@ async function uploadWithRetries(image: Blob): Promise<void> {
   }
 }
 
-let failedPendingPhoto: Blob | null = null;
+interface FailedPendingPhoto {
+  image: Blob;
+  owner: string;
+}
+
+let failedPendingPhoto: FailedPendingPhoto | null = null;
 const failedPendingListeners = new Set<() => void>();
 
 let stopWatchingFailed: (() => void) | null = null;
 
-function setFailedPendingPhoto(image: Blob | null): void {
-  failedPendingPhoto = image;
+function setFailedPendingPhoto(failed: FailedPendingPhoto | null): void {
+  failedPendingPhoto = failed;
   stopWatchingFailed?.();
-  stopWatchingFailed = image
+  stopWatchingFailed = failed
     ? subscribeCurrentIdentity((identity) => {
-        if (!identity) {
+        if (identity?.userId !== failed.owner) {
           setFailedPendingPhoto(null);
         }
       })
@@ -150,7 +175,7 @@ function setFailedPendingPhoto(image: Blob | null): void {
 }
 
 export function hasFailedPendingPhoto(): boolean {
-  return failedPendingPhoto !== null;
+  return failedPendingPhoto !== null && isCurrentOwner(failedPendingPhoto.owner);
 }
 
 export function subscribeFailedPendingPhoto(listener: () => void): () => void {
@@ -165,12 +190,12 @@ export function dismissFailedPendingPhoto(): void {
 }
 
 export function retryFailedPendingPhoto(): void {
-  const image = failedPendingPhoto;
-  if (!image) {
+  const failed = failedPendingPhoto;
+  setFailedPendingPhoto(null);
+  if (!failed || !isCurrentOwner(failed.owner)) {
     return;
   }
-  setFailedPendingPhoto(null);
-  queuePendingMyPhoto(image);
+  queuePendingMyPhoto(failed.image);
 }
 
 function watchPending(): void {
