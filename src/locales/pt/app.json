@@ -820,6 +820,7 @@
       "video": "Chamada de vídeo"
     },
     "mutedBadge": "Microfone desligado",
+    "micPickingUp": "Seu microfone está captando sua voz",
     "speaking": "Falando",
     "route": {
       "direct": "Conexão direta",

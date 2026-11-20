@@ -820,6 +820,7 @@
       "video": "Video call"
     },
     "mutedBadge": "Microphone off",
+    "micPickingUp": "Your microphone is picking up your voice",
     "speaking": "Speaking",
     "route": {
       "direct": "Direct connection",

@@ -24,6 +24,7 @@ export interface CallApi {
   streamWindowOpen: boolean;
   openStreamWindow: () => void;
   snapshot: CallSnapshot;
+  localSpeaking: boolean;
   minimized: boolean;
   setMinimized: (value: boolean) => void;
   canCall: (room: RoomSummary) => boolean;

@@ -4,6 +4,7 @@ import { FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
+import { speakingClass } from '../lib/self-speaking';
 import { useCall } from '../call-context';
 
 interface CallMiniBarProps {
@@ -98,9 +99,10 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
       <button
         type="button"
         data-bar-action=""
+        className={speakingClass('sc-call-bar__mute', call.localSpeaking)}
         onClick={call.toggleMute}
         aria-label={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
-        title={snapshot.muted ? t('calls.unmute') : t('calls.mute')}
+        title={call.localSpeaking ? `${snapshot.muted ? t('calls.unmute') : t('calls.mute')} · ${t('calls.micPickingUp')}` : snapshot.muted ? t('calls.unmute') : t('calls.mute')}
         aria-pressed={snapshot.muted}
         style={{ ...round, background: 'rgba(255, 255, 255, 0.18)', color: barColor }}
       >
