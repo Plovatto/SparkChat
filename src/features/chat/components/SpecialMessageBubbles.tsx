@@ -102,6 +102,7 @@ interface SystemMessageBubbleProps {
 }
 
 export function SystemMessageBubble({ message, currentNickname, entrancePhase }: SystemMessageBubbleProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const segments = systemMessageSegments(message, currentNickname);
 
@@ -142,6 +143,7 @@ export function SystemMessageBubble({ message, currentNickname, entrancePhase }:
         </p>
         <span style={{ fontSize: '0.7rem', opacity: 0.75, display: 'block', marginTop: '4px' }}>
           {formatTime(message.timestamp)}
+          {message.eventTrust === 'unverified' || (message.eventTrust === 'forged' && message.systemEvent) ? ` · ${t('systemEvents.unverifiedSuffix')}` : ''}
         </span>
       </div>
     </div>

@@ -44,7 +44,8 @@
       "passwordTooLong": "Your password must be at most {{maxLength}} characters long.",
       "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file.",
       "avatarUploadInvalid": "This photo upload is no longer valid. Please send the photo again.",
-      "profileKeyVersionStale": "Your profile photo was changed on another device. Please try again."
+      "profileKeyVersionStale": "Your profile photo was changed on another device. Please try again.",
+      "passwordLengthRequired": "Update the app to set a password."
     },
     "room": {
       "notFound": "Conversation not found.",
@@ -142,7 +143,8 @@
       "renameRequiresRoster": "Only members listed in the group's current verified member list can rename it.",
       "avatarKeyStale": "The group encryption key just changed. Please try again.",
       "avatarRequiresRoster": "Only verified members can change this group's photo.",
-      "profileKeyStale": "The group encryption key just changed. Your photo will be shared again automatically."
+      "profileKeyStale": "The group encryption key just changed. Your photo will be shared again automatically.",
+      "rotationNotAuthorized": "Only group admins can renew the group key right now. Trying again shortly."
     },
     "call": {
       "disabled": "Calls are disabled.",
@@ -186,7 +188,9 @@
       "dailyLimitReached": "You've reached your daily AI message limit. Please try again tomorrow.",
       "encryptionUnavailable": "Couldn't set up the encrypted conversation. Please try sending your message again shortly.",
       "replyFailed": "I couldn't reply right now. Please try again shortly."
-    }
+    },
+    "unverifiedSuffix": "not verified",
+    "forgedEvent": "A group event could not be verified and was hidden."
   },
   "auth": {
     "tagline": "Where conversations get charged up",
@@ -362,7 +366,8 @@
       "gif": "GIF",
       "sentGif": "Sent GIF",
       "gifExpired": "GIF expired",
-      "gifExpiredHint": "GIFs stay available for 30 days."
+      "gifExpiredHint": "GIFs stay available for 30 days.",
+      "fromRemovedMember": "🔒 Message from a former member, not shown."
     },
     "fileTypes": {
       "pdf": "PDF",

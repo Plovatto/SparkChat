@@ -56,6 +56,15 @@ describe('buildChangePasswordRequest', () => {
     expect(JSON.stringify(request.payload)).not.toMatch(/old-password|new-password/);
   }, 30000);
 
+  it('declares at most the minimum length so the exact password length never reaches the server', async () => {
+    rememberAuthParams('user-1', { version: 2, salt: SALT });
+
+    const request = await buildChangePasswordRequest(account, 'old-password', 'a-much-longer-password');
+
+    expect(request.payload.passwordLength).toBe(12);
+    expect(JSON.stringify(request.payload)).not.toContain('a-much-longer-password');
+  }, 30000);
+
   it('omits the current password for keyfile sessions', async () => {
     rememberAuthParams('user-1', { version: 2, salt: SALT });
     const request = await buildChangePasswordRequest(account, '', 'new-password');

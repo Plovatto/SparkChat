@@ -105,7 +105,7 @@ async function transformPayload(socket: AppSocket, event: string, payload: unkno
   switch (event) {
     case 'message:new':
     case 'message:updated':
-      return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly });
+      return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly, live: event === 'message:new' });
 
     case 'messages:list': {
       const typed = payload as { roomId: string; messages: MessageView[]; hasMore: boolean };

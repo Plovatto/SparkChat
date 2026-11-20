@@ -190,6 +190,16 @@ describe('recovery file one-shot guards', () => {
     expect(second).toBeNull();
   });
 
+  it('declares a length capped at the minimum in the registration credentials without exposing the password', async () => {
+    const credentials = await prepareRegistrationCredentials('correct horse battery');
+
+    expect(credentials.passwordLength).toBe(12);
+    expect((await prepareRegistrationCredentials('short')).passwordLength).toBe(5);
+    expect(JSON.stringify(credentials)).not.toContain('correct horse battery');
+    credentials.wrapKey.fill(0);
+    credentials.recoveryWrapKey.fill(0);
+  });
+
   it('completes a registration once even when the registered event is handled twice', async () => {
     const credentials = await prepareRegistrationCredentials('pw-123456');
     const fake = createSocket(null);

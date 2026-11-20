@@ -21,6 +21,17 @@ describe('translateErrorPayload', () => {
     );
   });
 
+  it('explains the password policy and the group rotation errors in both languages', async () => {
+    await appI18n.changeLanguage('en');
+    expect(translateErrorPayload({ code: 'user.passwordLengthRequired' }, 'errors.generic')).toBe('Update the app to set a password.');
+    expect(translateErrorPayload({ code: 'e2e.rotationNotAuthorized' }, 'errors.generic')).toBe(
+      'Only group admins can renew the group key right now. Trying again shortly.',
+    );
+    await appI18n.changeLanguage('pt');
+    expect(translateErrorPayload({ code: 'user.passwordTooShort', params: { minLength: 12 } }, 'errors.generic')).toBe('A senha deve ter pelo menos 12 caracteres.');
+    expect(translateErrorPayload({ code: 'user.passwordLengthRequired' }, 'errors.generic')).toBe('Atualize o aplicativo para definir uma senha.');
+  });
+
   it('picks the wording for the upload kind', () => {
     expect(translateErrorPayload({ code: 'upload.tooLarge', params: { kind: 'image', maxSize: '5MB' } }, 'errors.generic')).toBe(
       'A imagem excede o tamanho máximo permitido de 5MB.',

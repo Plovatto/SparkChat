@@ -44,7 +44,8 @@
       "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
       "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação.",
       "avatarUploadInvalid": "Este envio de foto não é mais válido. Envie a foto novamente.",
-      "profileKeyVersionStale": "Sua foto de perfil foi alterada em outro dispositivo. Tente novamente."
+      "profileKeyVersionStale": "Sua foto de perfil foi alterada em outro dispositivo. Tente novamente.",
+      "passwordLengthRequired": "Atualize o aplicativo para definir uma senha."
     },
     "room": {
       "notFound": "Sala não encontrada.",
@@ -142,7 +143,8 @@
       "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo.",
       "avatarKeyStale": "A chave de criptografia do grupo acabou de mudar. Tente novamente.",
       "avatarRequiresRoster": "Só membros verificados podem trocar a foto deste grupo.",
-      "profileKeyStale": "A chave de criptografia do grupo acabou de mudar. Sua foto será compartilhada de novo automaticamente."
+      "profileKeyStale": "A chave de criptografia do grupo acabou de mudar. Sua foto será compartilhada de novo automaticamente.",
+      "rotationNotAuthorized": "Só administradores do grupo podem renovar a chave do grupo agora. Tentando de novo em instantes."
     },
     "call": {
       "disabled": "As chamadas estão desativadas.",
@@ -186,7 +188,9 @@
       "dailyLimitReached": "Você atingiu o limite diário de mensagens com a IA. Tente novamente amanhã.",
       "encryptionUnavailable": "Não foi possível preparar a conversa criptografada. Tente enviar a mensagem novamente em instantes.",
       "replyFailed": "Não consegui responder agora. Tente novamente em instantes."
-    }
+    },
+    "unverifiedSuffix": "não verificado",
+    "forgedEvent": "Um evento do grupo não pôde ser verificado e foi ocultado."
   },
   "auth": {
     "tagline": "Onde as conversas ganham energia",
@@ -362,7 +366,8 @@
       "gif": "GIF",
       "sentGif": "GIF enviado",
       "gifExpired": "GIF expirado",
-      "gifExpiredHint": "GIFs ficam disponíveis por 30 dias."
+      "gifExpiredHint": "GIFs ficam disponíveis por 30 dias.",
+      "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida."
     },
     "fileTypes": {
       "pdf": "PDF",

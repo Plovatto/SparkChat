@@ -29,6 +29,13 @@ export interface RegistrationCredentials {
   recoverySecret: Uint8Array;
   recoveryVerifier: string;
   recoveryWrapKey: Uint8Array;
+  passwordLength: number;
+}
+
+const PASSWORD_LENGTH_DECLARATION_CAP = 12;
+
+export function declaredPasswordLength(password: string): number {
+  return Math.min(password.length, PASSWORD_LENGTH_DECLARATION_CAP);
 }
 
 const consumedSecrets = new WeakSet<Uint8Array>();
@@ -72,7 +79,7 @@ export async function prepareRegistrationCredentials(password: string): Promise<
   const [authSalt, recoverySecret] = await Promise.all([generateAuthSalt(), generateRecoverySecret()]);
   const { authKey, wrapKey } = await derivePasswordCredentials(password, authSalt);
   const { recoveryKey, recoveryWrapKey } = await deriveRecoveryCredentials(recoverySecret);
-  return { authSalt, authKey, wrapKey, recoverySecret, recoveryVerifier: recoveryKey, recoveryWrapKey };
+  return { authSalt, authKey, wrapKey, recoverySecret, recoveryVerifier: recoveryKey, recoveryWrapKey, passwordLength: declaredPasswordLength(password) };
 }
 
 export async function createPasswordMaterial(identity: ResolvedIdentity, userId: string, password: string): Promise<PasswordMaterial> {
