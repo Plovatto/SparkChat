@@ -14,6 +14,8 @@ export type {
   MessageStatus,
   MessageType,
   MessageView,
+  ProfileKeyEnvelopeSummary,
+  RoomEncryptedAvatar,
   PushConfigPayload,
   PushSubscriptionWire,
   RoomKeyBatch,

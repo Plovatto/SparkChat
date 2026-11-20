@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
 import { AVATARS } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { translateError } from '@lib/api/api-error';
@@ -115,7 +116,6 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
             const isSelected = selectedRoomIds.has(room.id);
             const wasSent = sentRoomIds.has(room.id);
             const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
-            const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
 
             return (
               <div
@@ -142,26 +142,13 @@ export function ForwardMessageModal({ isOpen, onClose, rooms, currentUserId, mes
                   borderWidth: '1.5px',
                 }}
               >
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    background: theme.accentSoft,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  {room.type === 'group' ? (
-                    <FaUsers size={16} color={theme.accentText} />
-                  ) : avatar ? (
-                    <avatar.icon size={18} color={theme.accentText} />
-                  ) : (
-                    <FaComments size={16} color={theme.accentText} />
-                  )}
-                </div>
+                {room.type === 'group' ? (
+                  <Avatar roomId={room.id} icon={FaUsers} tone="soft" size={38} iconSize={16} />
+                ) : otherUser && AVATARS[otherUser.avatar] ? (
+                  <Avatar userId={otherUser.id} avatarIndex={otherUser.avatar} tone="soft" size={38} iconSize={18} />
+                ) : (
+                  <Avatar userId={otherUser?.id} icon={FaComments} tone="soft" size={38} iconSize={16} />
+                )}
 
                 <div style={{ flex: 1, minWidth: 0, fontWeight: 600, color: theme.textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {getRoomDisplayName(room, currentUserId)}

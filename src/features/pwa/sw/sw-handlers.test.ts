@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '@features/profile-photos/lib/notification-icon-cache';
 import { buildLaunchUrl, isClientToWorkerMessage, isWorkerToClientMessage } from './protocol';
 import {
   CALL_VIBRATION,
@@ -9,7 +10,9 @@ import {
   handleNotificationClick,
   handlePush,
   messageTag,
+  NOTIFICATION_ICON,
   parsePushMessage,
+  readCachedRoomIcon,
   type WorkerEnvironment,
   type WorkerNotification,
   type WorkerNotificationOptions,
@@ -332,5 +335,67 @@ describe('protocol', () => {
     expect(isWorkerToClientMessage({ type: 'other' })).toBe(false);
     expect(isClientToWorkerMessage({ type: 'sparkchat:active-room', roomId: null })).toBe(true);
     expect(isClientToWorkerMessage('x')).toBe(false);
+  });
+});
+
+function fakeCaches(entries: Record<string, Response>): CacheStorage {
+  const cache = {
+    match: (request: string) => Promise.resolve(entries[request]?.clone()),
+  };
+  return {
+    has: (name: string) => Promise.resolve(name === NOTIFICATION_ICON_CACHE_NAME && Object.keys(entries).length > 0),
+    open: (name: string) => (name === NOTIFICATION_ICON_CACHE_NAME ? Promise.resolve(cache) : Promise.reject(new Error('unknown cache'))),
+  } as unknown as CacheStorage;
+}
+
+function pngResponse(bytes: number[], type = 'image/png'): Response {
+  return new Response(new Uint8Array(bytes), { headers: { 'Content-Type': type } });
+}
+
+describe('room photo notification icons', () => {
+  it('reads the decrypted room icon from Cache Storage as a data URL', async () => {
+    const storage = fakeCaches({ [notificationIconUrl('r1')]: pngResponse([137, 80, 78, 71]) });
+    expect(await readCachedRoomIcon(storage, 'r1')).toBe(`data:image/png;base64,${btoa(String.fromCharCode(137, 80, 78, 71))}`);
+  });
+
+  it('returns null without a cached icon, without the caches API, for other content types or unsafe room ids', async () => {
+    expect(await readCachedRoomIcon(fakeCaches({}), 'r1')).toBeNull();
+    expect(await readCachedRoomIcon(fakeCaches({ [notificationIconUrl('r2')]: pngResponse([1]) }), 'r1')).toBeNull();
+    expect(await readCachedRoomIcon(undefined, 'r1')).toBeNull();
+    expect(await readCachedRoomIcon(null, 'r1')).toBeNull();
+    expect(await readCachedRoomIcon(fakeCaches({ [notificationIconUrl('r1')]: pngResponse([1], 'text/html') }), 'r1')).toBeNull();
+    expect(await readCachedRoomIcon(fakeCaches({ [notificationIconUrl('../x')]: pngResponse([1]) }), '../x')).toBeNull();
+    const broken = { has: () => Promise.reject(new Error('denied')) } as unknown as CacheStorage;
+    expect(await readCachedRoomIcon(broken, 'r1')).toBeNull();
+  });
+
+  it('uses the cached room icon for message, call and missed call notifications', async () => {
+    const icon = 'data:image/png;base64,AAAA';
+    const { env, visible } = fakeEnv();
+    const lookups: string[] = [];
+    env.roomIcon = (roomId) => {
+      lookups.push(roomId);
+      return Promise.resolve(roomId === 'r1' ? icon : null);
+    };
+    const state = createWorkerState();
+    await handlePush(env, state, { t: 'msg', roomId: 'r1' });
+    await handlePush(env, state, { t: 'msg', roomId: 'r2' });
+    await handlePush(env, state, { t: 'call', callId: 'c1', roomId: 'r1', kind: 'voice' });
+
+    expect(visible().map((entry) => entry.options.icon)).toEqual([icon, NOTIFICATION_ICON, icon]);
+    await handlePush(env, state, { t: 'call-end', callId: 'c1', reason: 'missed' });
+    expect(visible().find((entry) => entry.options.tag === callTag('c1'))!.options.icon).toBe(icon);
+    expect(lookups).toEqual(['r1', 'r2', 'r1', 'r1']);
+  });
+
+  it('falls back to the app icon when the lookup fails or is not available', async () => {
+    const failing = fakeEnv();
+    failing.env.roomIcon = () => Promise.reject(new Error('boom'));
+    await handlePush(failing.env, createWorkerState(), { t: 'msg', roomId: 'r1' });
+    expect(failing.visible()[0]!.options.icon).toBe(NOTIFICATION_ICON);
+
+    const plain = fakeEnv();
+    await handlePush(plain.env, createWorkerState(), { t: 'msg', roomId: 'r1' });
+    expect(plain.visible()[0]!.options.icon).toBe(NOTIFICATION_ICON);
   });
 });

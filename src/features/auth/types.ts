@@ -20,6 +20,7 @@ export interface PendingRegistration {
   nickname: string;
   avatar: number;
   credentials: RegistrationCredentials;
+  photo?: Blob;
 }
 
 export interface LoginCredentials {

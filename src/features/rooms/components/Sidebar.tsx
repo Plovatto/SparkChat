@@ -20,7 +20,8 @@ import {
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
 import type { User } from '@features/auth';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { AVATARS } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
@@ -251,7 +252,7 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [sortedRooms, selectedRoomId, onSelectRoom]);
 
-  const avatar = AVATARS[user.avatar];
+  const hasPresetAvatar = AVATARS[user.avatar] !== undefined;
 
   const handleStartEditStatus = () => {
     setStatusDraft(user.statusText ?? '');
@@ -292,24 +293,17 @@ export function Sidebar({
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
-          <div
+          <Avatar
+            userId={user.id}
+            avatarIndex={user.avatar}
+            background={hasPresetAvatar ? undefined : theme.gradient}
+            size={55}
+            iconSize={28}
             onClick={() => setIsProfileOpen(true)}
             className="sc-header-avatar"
-            style={{
-              position: 'relative',
-              width: '55px',
-              height: '55px',
-              background: avatar?.bgGradient ?? theme.gradient,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: theme.shadowSm,
-              flexShrink: 0,
-            }}
+            style={{ boxShadow: theme.shadowSm }}
             title={t('sidebar.editProfile')}
           >
-            {avatar ? <avatar.icon size={28} color={AVATAR_ICON_COLOR} /> : null}
             <FaCircle
               size={13}
               color={theme.online}
@@ -324,7 +318,7 @@ export function Sidebar({
                 boxShadow: theme.shadowSm,
               }}
             />
-          </div>
+          </Avatar>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <h5

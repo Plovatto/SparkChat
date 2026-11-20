@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react';
 import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useOptionalCall } from '@features/calls';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { shareLinkNatively } from '@lib/share-link';
@@ -26,7 +26,6 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const clipboard = useClipboardCopy();
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
-  const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
   const roomName = getRoomDisplayName(room, currentUserId);
   const statusText = isAssistantRoom(room) ? t('chat.assistantStatus') : otherUser?.statusText;
   const invite = useGroupInviteLink(room);
@@ -62,26 +61,14 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
         </button>
 
         {room.type === 'private' ? (
-          <div
+          <Avatar
+            userId={otherUser?.id}
+            avatarIndex={otherUser?.avatar}
+            size={45}
+            iconSize={24}
             className="sc-anim-pop-in sc-stagger"
-            style={
-              {
-                position: 'relative',
-                width: '45px',
-                height: '45px',
-                background: avatar?.bgGradient ?? theme.gradientControl,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: theme.shadowSm,
-                flexShrink: 0,
-                '--sc-stagger-index': 1,
-                '--sc-stagger-step': '45ms',
-              } as CSSProperties
-            }
+            style={{ boxShadow: theme.shadowSm, '--sc-stagger-index': 1, '--sc-stagger-step': '45ms' } as CSSProperties}
           >
-            {avatar ? <avatar.icon size={24} color={AVATAR_ICON_COLOR} /> : null}
             {isOnline && (
               <span
                 style={{
@@ -97,27 +84,17 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 }}
               />
             )}
-          </div>
+          </Avatar>
         ) : (
-          <div
+          <Avatar
+            roomId={room.id}
+            icon={FaComments}
+            size={45}
+            iconSize={22}
+            iconColor={theme.onGradient}
             className="sc-anim-pop-in sc-stagger"
-            style={
-              {
-                width: '45px',
-                height: '45px',
-                borderRadius: '50%',
-                background: theme.gradientControl,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                '--sc-stagger-index': 1,
-                '--sc-stagger-step': '45ms',
-              } as CSSProperties
-            }
-          >
-            <FaComments size={22} color={theme.onGradient} />
-          </div>
+            style={{ '--sc-stagger-index': 1, '--sc-stagger-step': '45ms' } as CSSProperties}
+          />
         )}
 
         <div className="sc-anim-swap-in-left sc-stagger" style={{ flex: 1, minWidth: 0, '--sc-stagger-index': 2, '--sc-stagger-step': '45ms' } as CSSProperties}>

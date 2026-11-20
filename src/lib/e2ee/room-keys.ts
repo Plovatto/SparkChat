@@ -145,8 +145,11 @@ const roomNameListeners = new Set<RoomNameListener>();
 const rotationBlockListeners = new Set<RotationBlockListener>();
 let roomKeyFetchQueue: Promise<unknown> = Promise.resolve();
 const missingHistoryContext = new Set<string>();
+const ownRotations = new Map<string, string>();
+const ownRotationListeners = new Set<OwnRotationListener>();
 
 export type RoomNameListener = (roomId: string) => void;
+export type OwnRotationListener = (roomId: string, generation: RoomKeyGeneration) => void;
 export type RotationBlockListener = (roomId: string) => void;
 
 function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<RoomKeyResponse> {
@@ -300,6 +303,32 @@ async function resolveEnvelopeSender(socket: AppSocket, identity: CurrentIdentit
     return null;
   }
   return { publicKey: pin.publicKey, signingPublicKey: pin.signingPublicKey };
+}
+
+export async function resolveSigningPublicKey(socket: AppSocket, userId: string): Promise<string | null> {
+  const identity = getCurrentIdentity();
+  if (!identity) {
+    return null;
+  }
+  const sender = await resolveEnvelopeSender(socket, identity, userId);
+  return sender?.signingPublicKey ?? null;
+}
+
+export function subscribeOwnRotation(listener: OwnRotationListener): () => void {
+  ownRotationListeners.add(listener);
+  return () => {
+    ownRotationListeners.delete(listener);
+  };
+}
+
+function notifyOwnRotation(roomId: string, generation: RoomKeyGeneration): void {
+  for (const listener of Array.from(ownRotationListeners)) {
+    try {
+      listener(roomId, generation);
+    } catch (error) {
+      console.error('[e2e] own rotation listener failed', error);
+    }
+  }
 }
 
 export type RoomKeyAvailableListener = (roomId: string) => void;
@@ -1158,6 +1187,10 @@ function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist:
     persistGeneration(roomId, generation);
   }
   notifyRoomKeyAvailable(roomId);
+  if (ownRotations.get(roomId) === generation.keyId) {
+    ownRotations.delete(roomId);
+    notifyOwnRotation(roomId, generation);
+  }
   return true;
 }
 
@@ -1522,6 +1555,9 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
     } else {
       socket.emit('e2e:publish-room-key', { roomId, keyId: generation.keyId, epoch, keys });
     }
+    if (epoch > 1) {
+      ownRotations.set(roomId, generation.keyId);
+    }
   } finally {
     generation.key.fill(0);
   }
@@ -1832,6 +1868,7 @@ async function clearRoomKeysImpl(): Promise<void> {
   roomRosters.clear();
   generationRosters.clear();
   missingHistoryContext.clear();
+  ownRotations.clear();
   roomNameBlobs.clear();
   roomNames.clear();
   pendingCreationNames.clear();

@@ -1,4 +1,5 @@
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { AVATARS } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import type { MessageReceiptInfo } from '@lib/message-status';
 
@@ -27,29 +28,18 @@ export function MessageReceiptRow({ receipt, isOwn }: MessageReceiptRowProps) {
     >
       <span style={{ fontWeight: 500 }}>{label}</span>
       <div style={{ display: 'flex', gap: '2px' }}>
-        {receipt.users.map((participant) => {
-          const avatar = AVATARS[participant.avatar] ?? AVATARS[0];
-          const Icon = avatar?.icon;
-          return (
-            <div
-              key={participant.id}
-              title={participant.nickname}
-              style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                background: avatar?.color ?? theme.accent,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `1px solid ${theme.borderStrong}`,
-                flexShrink: 0,
-              }}
-            >
-              {Icon && <Icon size={10} color={AVATAR_ICON_COLOR} />}
-            </div>
-          );
-        })}
+        {receipt.users.map((participant) => (
+          <Avatar
+            key={participant.id}
+            userId={participant.id}
+            avatarIndex={AVATARS[participant.avatar] ? participant.avatar : 0}
+            tone="solid"
+            size={16}
+            iconSize={10}
+            title={participant.nickname}
+            style={{ border: `1px solid ${theme.borderStrong}` }}
+          />
+        ))}
       </div>
     </div>
   );

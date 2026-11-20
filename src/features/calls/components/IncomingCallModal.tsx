@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translate } from '@lib/i18n/app-i18n';
@@ -68,7 +68,6 @@ export function IncomingCallModal() {
   }
   const visualStage = ringing ? stage : 'exiting';
   const peer = call.peerDisplay(shown.peerId);
-  const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const titleId = 'sc-incoming-title';
   const kindId = 'sc-incoming-kind';
   const kindLabel = translate(`calls.incomingKind.${shown.kind}`);
@@ -86,9 +85,7 @@ export function IncomingCallModal() {
     const card = (
       <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className={`sc-incoming-card${docked ? ' sc-incoming-card--docked' : ''}`} data-state={visualStage} onKeyDown={onKeyDown}>
         <div className="sc-incoming-card__row">
-          <div className="sc-incoming-card__avatar" style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
-            {avatar ? <avatar.icon size={24} color={AVATAR_ICON_COLOR} /> : null}
-          </div>
+          <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={48} iconSize={24} className="sc-incoming-card__avatar" style={{ width: undefined, height: undefined }} />
           <div className="sc-incoming-card__text">
             <h2 id={titleId} className="sc-incoming-card__name" title={peer?.name ?? ''}>
               {peer?.name ?? ''}
@@ -122,9 +119,7 @@ export function IncomingCallModal() {
   return (
     <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className="sc-incoming" data-state={visualStage} onKeyDown={onKeyDown}>
       <div className="sc-incoming__head">
-        <div className="sc-incoming__avatar" style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
-          {avatar ? <avatar.icon size={44} color={AVATAR_ICON_COLOR} style={{ width: '50%', height: '50%' }} /> : null}
-        </div>
+        <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={124} iconSize={44} className="sc-incoming__avatar" style={{ width: undefined, height: undefined }} />
         <div className="sc-incoming__text">
           <h2 id={titleId} className="sc-incoming__name">
             {peer?.name ?? ''}

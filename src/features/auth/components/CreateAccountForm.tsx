@@ -3,6 +3,9 @@ import { Card, Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
+import { PhotoPickerTile } from '@features/profile-photos/components/PhotoPickerTile';
+import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
+import { usePhotoPicker } from '@features/profile-photos/hooks/usePhotoPicker';
 import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { prepareRegistrationCredentials } from '@lib/e2ee';
@@ -43,6 +46,8 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isPreparing, setIsPreparing] = useState(false);
+  const photo = usePhotoDraft(null);
+  const photoPicker = usePhotoPicker(photo.pick);
   useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
 
@@ -85,7 +90,8 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
     setIsPreparing(true);
     try {
       const credentials = await prepareRegistrationCredentials(password);
-      onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar, credentials });
+      const chosenPhoto = photo.isSelected ? (photo.pendingBlob ?? undefined) : undefined;
+      onSubmit({ nickname: nickname.trim(), avatar: selectedAvatar, credentials, photo: chosenPhoto });
     } catch {
       setError(t('errors.generic'));
     } finally {
@@ -209,15 +215,30 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                     borderRadius: '18px',
                   }}
                 >
+                  <PhotoPickerTile
+                    size={avatarSize}
+                    iconSize={iconSize}
+                    photoUrl={photo.photoUrl}
+                    isSelected={photo.isSelected}
+                    isBusy={photoPicker.isPreparing}
+                    onChoose={photoPicker.open}
+                    onSelect={photo.selectPhoto}
+                    onRemove={photo.remove}
+                    className={photo.isSelected ? undefined : 'sc-anim-tile-in sc-stagger'}
+                    style={{ width: '100%', maxWidth: `${avatarSize}px`, '--sc-stagger-index': 0, '--sc-stagger-step': '22ms' } as CSSProperties}
+                  />
                   {AVATARS.map((avatar, index) => {
                     const IconComponent = avatar.icon;
-                    const isSelected = selectedAvatar === index;
+                    const isSelected = !photo.isSelected && selectedAvatar === index;
 
                     return (
                       <button
                         type="button"
                         key={avatar.name}
-                        onClick={() => setSelectedAvatar(index)}
+                        onClick={() => {
+                          setSelectedAvatar(index);
+                          photo.selectPreset();
+                        }}
                         data-selected={isSelected}
                         title={translate(`avatars.${avatar.name}`)}
                         aria-label={translate(`avatars.${avatar.name}`)}
@@ -230,7 +251,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                             justifySelf: 'center',
                             '--avatar-gradient': avatar.bgGradient,
                             '--avatar-color': avatar.color,
-                            '--sc-stagger-index': Math.min(index, 11),
+                            '--sc-stagger-index': Math.min(index + 1, 11),
                             '--sc-stagger-step': '22ms',
                           } as CSSProperties
                         }
@@ -240,6 +261,12 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                     );
                   })}
                 </div>
+                {photoPicker.error && (
+                  <small key={photoPicker.error} role="alert" className="sc-anim-shake" style={{ display: 'block', marginTop: '8px', color: theme.dangerText, fontWeight: 600 }}>
+                    {photoPicker.error}
+                  </small>
+                )}
+                {photoPicker.element}
               </Form.Group>
 
               <Form.Group style={{ marginBottom: nicknameStatus === 'idle' ? '0px' : '10px' }}>

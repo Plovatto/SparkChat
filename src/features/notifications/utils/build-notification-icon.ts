@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import type { IconType } from 'react-icons';
+import { renderCircularPhotoDataUrl } from '@features/profile-photos';
 
 const ICON_SIZE = 128;
 
@@ -63,4 +64,8 @@ export async function buildNotificationIcon(
   }
 
   return canvas.toDataURL('image/png');
+}
+
+export async function buildPhotoNotificationIcon(photoUrl: string): Promise<string | null> {
+  return renderCircularPhotoDataUrl(photoUrl, ICON_SIZE);
 }
