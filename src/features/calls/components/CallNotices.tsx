@@ -50,6 +50,14 @@ export function CallNotices() {
     );
   }
 
+  if (call.minimized && call.snapshot.screenSharing && call.snapshot.screenPaused) {
+    return (
+      <div role="status" style={{ ...bar, background: theme.warningSoft, color: theme.warningText }}>
+        {t('calls.share.pausedSharer')}
+      </div>
+    );
+  }
+
   if (call.snapshot.otherDevice && state.phase === 'idle') {
     return (
       <div role="status" style={{ ...bar, background: theme.surfaceElevated, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '12px' }}>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompressAlt, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } from 'react-icons/fa';
-import { MdScreenShare } from 'react-icons/md';
+import { MdScreenShare, MdVisibilityOff } from 'react-icons/md';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
@@ -204,6 +204,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef }: CallScreenProp
     return null;
   })();
 
+  const sharerPaused = snapshot.screenSharing && snapshot.screenPaused;
   const hidden = minimized || state.phase === 'idle' || state.phase === 'incoming-ringing';
   const screenStage = usePresence(!hidden, 260, 180);
   const bannerStage = usePresence(snapshot.screenSharing, 240, 180);
@@ -305,6 +306,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef }: CallScreenProp
           fullscreen={{ available: fullscreen.supported, active: fullscreen.active, toggle: fullscreen.toggle }}
           pip={{ available: pipAvailable, open: pip.open, toggle: pip.toggle }}
           previewHidden={localStage && call.sharePreviewHidden}
+          paused={!localStage && snapshot.remoteScreenPaused}
           streamWindow={call.streamWindowAvailable ? { open: call.streamWindowOpen, onOpen: call.openStreamWindow } : null}
           onStop={localStage ? () => void call.toggleScreenShare() : null}
         />
@@ -334,12 +336,18 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef }: CallScreenProp
       )}
 
       <div className="sc-call-bottom">
-        {(warning || (snapshot.unstable && running)) && (
+        {(warning || (snapshot.unstable && running) || sharerPaused) && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
             {snapshot.unstable && running && (
               <div role="status" className="sc-call-warning">
                 <FaWifi size={13} aria-hidden="true" />
                 {t('calls.unstable')}
+              </div>
+            )}
+            {sharerPaused && (
+              <div role="status" className="sc-call-warning">
+                <MdVisibilityOff size={15} aria-hidden="true" style={{ flexShrink: 0 }} />
+                {t('calls.share.pausedSharer')}
               </div>
             )}
             {warning && (

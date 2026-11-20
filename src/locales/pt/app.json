@@ -799,6 +799,8 @@
         "monitor": "A tela inteira",
         "unknown": "A tela"
       },
+      "pausedViewer": "A janela compartilhada está minimizada ou oculta",
+      "pausedSharer": "Quem assiste não está vendo: sua janela está minimizada. Restaure-a ou compartilhe uma aba/tela inteira",
       "volume": "Volume do áudio compartilhado",
       "yourScreen": "Sua tela",
       "live": "AO VIVO",

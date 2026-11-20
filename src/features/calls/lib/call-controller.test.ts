@@ -1084,15 +1084,22 @@ describe('server events', () => {
 });
 
 function screenStream(withAudio = true) {
-  const listeners: Array<() => void> = [];
+  const listeners: Array<[string, () => void]> = [];
   const video = {
     kind: 'video',
     stopped: false,
     stop() {
       this.stopped = true;
     },
-    addEventListener: (_event: string, listener: () => void) => listeners.push(listener),
+    addEventListener: (event: string, listener: () => void) => listeners.push([event, listener]),
+    removeEventListener: (event: string, listener: () => void) => {
+      const index = listeners.findIndex(([type, handler]) => type === event && handler === listener);
+      if (index >= 0) {
+        listeners.splice(index, 1);
+      }
+    },
   };
+  const fire = (type: string) => listeners.filter(([event]) => event === type).forEach(([, listener]) => listener());
   const audio = { kind: 'audio', stopped: false, stop() { this.stopped = true; } };
   const tracks = withAudio ? [video, audio] : [video];
   const stream = {
@@ -1100,7 +1107,7 @@ function screenStream(withAudio = true) {
     getVideoTracks: () => [video],
     getAudioTracks: () => (withAudio ? [audio] : []),
   } as unknown as MediaStream;
-  return { stream, video, audio, end: () => listeners.forEach((listener) => listener()) };
+  return { stream, video, audio, end: () => fire('ended'), mute: () => fire('mute'), unmute: () => fire('unmute') };
 }
 
 describe('screen share', () => {
@@ -1121,6 +1128,59 @@ describe('screen share', () => {
     other.a.peers[0]!.shareable = false;
     other.a.peers[0]!.options.onConnection('connected');
     expect(other.a.controller.getSnapshot().canShareScreen).toBe(false);
+  });
+
+  it('tells the viewer and the sharer when the browser stops providing frames and clears it on unmute', async () => {
+    const share = screenStream();
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+    await w.a.controller.toggleScreenShare();
+    const sent = peer.screenInfos.length;
+
+    share.mute();
+    expect(w.a.controller.getSnapshot().screenPaused).toBe(true);
+    expect(peer.screenInfos).toHaveLength(sent + 1);
+    expect(peer.screenInfos.at(-1)).toMatchObject({ paused: true });
+
+    share.mute();
+    expect(peer.screenInfos).toHaveLength(sent + 1);
+
+    share.unmute();
+    expect(w.a.controller.getSnapshot().screenPaused).toBe(false);
+    expect(peer.screenInfos.at(-1)).toMatchObject({ paused: false });
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(true);
+    expect(share.video.stopped).toBe(false);
+  });
+
+  it('keeps the paused flag across surface and movie updates and drops it when the share stops', async () => {
+    const share = screenStream();
+    const { w, peer } = await activeCall(() => Promise.resolve(share.stream));
+    await w.a.controller.toggleScreenShare();
+    share.mute();
+
+    await w.a.controller.setMovieMode(true);
+    expect(peer.screenInfos.at(-1)).toMatchObject({ movie: true, paused: true });
+
+    await w.a.controller.toggleScreenShare();
+    expect(w.a.controller.getSnapshot().screenPaused).toBe(false);
+    share.mute();
+    expect(w.a.controller.getSnapshot().screenPaused).toBe(false);
+  });
+
+  it('shows the viewer the paused state announced by the sharer and clears it', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.b.peers[0]!;
+    peer.options.onConnection('connected');
+
+    peer.options.onControl({ t: 'screen', on: true, surface: 'window', paused: true });
+    expect(w.b.controller.getSnapshot()).toMatchObject({ remoteScreenOn: true, remoteScreenPaused: true });
+
+    peer.options.onControl({ t: 'screen', on: true, surface: 'window', paused: false });
+    expect(w.b.controller.getSnapshot().remoteScreenPaused).toBe(false);
+
+    peer.options.onControl({ t: 'screen', on: true, paused: true });
+    peer.options.onControl({ t: 'screen', on: false });
+    expect(w.b.controller.getSnapshot()).toMatchObject({ remoteScreenOn: false, remoteScreenPaused: false });
   });
 
   it('shares the screen video and audio, then stops and releases the capture', async () => {

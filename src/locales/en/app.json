@@ -799,6 +799,8 @@
         "monitor": "The entire screen",
         "unknown": "The screen"
       },
+      "pausedViewer": "The shared window is minimized or hidden",
+      "pausedSharer": "Your viewer can't see your screen: your window is minimized. Restore it or share a tab or the entire screen",
       "volume": "Shared audio volume",
       "yourScreen": "Your screen",
       "live": "LIVE",
