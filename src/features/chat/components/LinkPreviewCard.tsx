@@ -3,7 +3,7 @@ import { FaExternalLinkAlt, FaLink, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
 import type { MessageLinkPreview } from '@lib/socket';
-import { hasDisplayableLinkPreviewImage, resolveLinkPreviewTarget } from '../utils/link-preview-target';
+import { getLinkPreviewHost, hasDisplayableLinkPreviewImage, resolveLinkPreviewTarget } from '../utils/link-preview-target';
 
 interface LinkPreviewCardProps {
   preview: MessageLinkPreview;
@@ -46,6 +46,7 @@ export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBl
   const iconColor = isComposer || !bubble ? theme.accentText : bubble.accentColor;
   const imageObjectUrl = isComposer ? composerImageUrl : hasDisplayableLinkPreviewImage(preview.imageUrl) ? preview.imageUrl : null;
   const linkTarget = isComposer ? null : resolveLinkPreviewTarget(preview.url, messageText ?? '');
+  const displayHost = getLinkPreviewHost(preview.url);
   const openPreview = linkTarget ? () => window.open(linkTarget, '_blank', 'noopener,noreferrer') : undefined;
 
   const textBlock = (
@@ -65,7 +66,7 @@ export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBl
       >
         {preview.title}
       </div>
-      {preview.siteName && (
+      {displayHost && (
         <div
           style={{
             display: 'flex',
@@ -80,7 +81,9 @@ export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBl
           }}
         >
           <FaExternalLinkAlt size={8} style={{ flexShrink: 0 }} />
-          {preview.siteName}
+          <span data-testid="link-preview-host" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {displayHost}
+          </span>
         </div>
       )}
     </div>

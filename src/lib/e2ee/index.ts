@@ -18,6 +18,7 @@ export {
   type ContactTrust,
   type ContactTrustStatus,
 } from './contact-trust';
+export { ownSigningKey } from './signing';
 export { computeSafetyNumber, type SafetyNumber } from './safety-number';
 export { lookupContactKey } from './room-keys';
 export {

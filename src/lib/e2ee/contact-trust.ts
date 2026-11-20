@@ -106,7 +106,8 @@ async function observe(own: OwnIdentityRef, entry: PublishedKeyEntry): Promise<C
   }
 
   const sameKey = pin.publicKey === entry.publicKey;
-  const sameSigning = pin.signingPublicKey === null ? true : pin.signingPublicKey === signingPublicKey;
+  const adoptsSigning = pin.signingPublicKey === null && signingPublicKey !== null && !pin.verified;
+  const sameSigning = pin.signingPublicKey === signingPublicKey || adoptsSigning || (pin.signingPublicKey === null && signingPublicKey === null);
 
   if (sameKey && sameSigning) {
     let next = pin;

@@ -15,3 +15,12 @@ export function resolveLinkPreviewTarget(url: string, messageText: string): stri
 export function hasDisplayableLinkPreviewImage(imageUrl: string | null): imageUrl is string {
   return Boolean(imageUrl?.startsWith('blob:'));
 }
+
+export function getLinkPreviewHost(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return OPENABLE_PROTOCOLS.has(parsed.protocol) && parsed.hostname ? parsed.hostname : null;
+  } catch {
+    return null;
+  }
+}

@@ -1934,3 +1934,111 @@ describe('missing generation lookups', () => {
     expect(requests.flatMap((request) => request.keyIds.group ?? []).sort()).toEqual([...ids].sort());
   });
 });
+
+describe('private room member pinning', () => {
+  async function directRoom(otherId = 'bia'): Promise<{ ana: Client; other: Client }> {
+    const ana = await loadClient('ana');
+    const other = await loadClient(otherId);
+    createRoom('dm', 'private', 'ana', ['ana', otherId]);
+    await Promise.all([track(ana, 'dm', true), track(other, 'dm')]);
+    await settle();
+    ana.socket.emitted.length = 0;
+    return { ana, other };
+  }
+
+  it('gives an injected third member no shared key when the server pushes a user-joined', async () => {
+    const { ana } = await directRoom();
+    await loadClient('mallory');
+
+    server.push('ana', 'group:user-joined', {
+      roomId: 'dm',
+      participants: ['ana', 'bia', 'mallory'].map((id) => ({ id, nickname: id })),
+    });
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:share-room-key')).toEqual([]);
+    expect(ana.socket.emittedOf('e2e:publish-room-key')).toEqual([]);
+  });
+
+  it('ignores a participant list that replaces the peer or arrives through the summary again', async () => {
+    const { ana } = await directRoom();
+    await loadClient('mallory');
+    const forged = server.summary('dm');
+    forged.participants = ['ana', 'bia', 'mallory'].map((id) => ({ id, nickname: id })) as unknown as RoomSummary['participants'];
+
+    await ana.roomKeys.trackRoom(ana.socket.asAppSocket(), forged);
+    ana.roomKeys.updateRoomParticipants('dm', [{ id: 'ana' }, { id: 'mallory' }] as never);
+    server.push('ana', 'group:user-joined', { roomId: 'dm', participants: [{ id: 'ana', nickname: 'ana' }, { id: 'mallory', nickname: 'mallory' }] });
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:share-room-key')).toEqual([]);
+  });
+
+  it('seals a rotation in a direct room only to the two pinned members', async () => {
+    const { ana } = await directRoom();
+    await loadClient('mallory');
+    server.push('ana', 'group:user-joined', {
+      roomId: 'dm',
+      participants: ['ana', 'bia', 'mallory'].map((id) => ({ id, nickname: id })),
+    });
+    server.requireRotation('dm');
+    await settle();
+
+    const batches = ana.socket.emittedOf('e2e:publish-room-key') as { keys: { userId: string }[] }[];
+    for (const batch of batches) {
+      expect(batch.keys.map((entry) => entry.userId).sort()).toEqual(['ana', 'bia']);
+    }
+  });
+
+  it('refuses to seal a rotation to the assistant id injected into a human direct room', async () => {
+    const { ana } = await directRoom();
+    await loadClient('spark-ai');
+    server.push('ana', 'group:user-joined', {
+      roomId: 'dm',
+      participants: ['ana', 'bia', 'spark-ai'].map((id) => ({ id, nickname: id })),
+    });
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:share-room-key')).toEqual([]);
+  });
+
+  it('treats the assistant as server-managed only when it is the pinned peer', async () => {
+    expect(await assistantRotation(['ana', 'spark-ai'])).toBe(1);
+    expect(await assistantRotation(['ana', 'bia'])).toBe(0);
+  });
+
+  async function assistantRotation(members: string[]): Promise<number> {
+    const ana = await loadClient('ana');
+    await loadClient('spark-ai');
+    await loadClient('bia');
+    createRoom('room', 'private', 'ana', members);
+    await track(ana, 'room', true);
+    await settle();
+    const other = members[1] as string;
+    if (other === 'bia') {
+      server.push('ana', 'group:user-joined', {
+        roomId: 'room',
+        participants: ['ana', 'bia', 'spark-ai'].map((id) => ({ id, nickname: id })),
+      });
+    }
+    await rekey(other);
+    server.requireRotation('room');
+    await settle();
+    return (ana.socket.emittedOf('e2e:publish-room-key') as { epoch: number }[]).filter((batch) => batch.epoch === 2).length;
+  }
+
+  it('still delivers the key to the peer in a legitimate direct room', async () => {
+    const { other } = await directRoom();
+    expect(other.roomKeys.getCurrentRoomKey('dm')).not.toBeNull();
+  });
+
+  it('refuses to pin a private room that does not consist of this user and one peer', async () => {
+    const ana = await loadClient('ana');
+    await loadClient('mallory');
+    createRoom('odd', 'private', 'ana', ['ana', 'bia', 'mallory']);
+    await track(ana, 'odd', true);
+    await settle();
+
+    expect(ana.socket.emittedOf('e2e:publish-room-key')).toEqual([]);
+  });
+});
