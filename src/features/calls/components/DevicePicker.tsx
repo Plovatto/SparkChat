@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaChevronDown, FaInfoCircle, FaMicrophone, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaInfoCircle, FaMicrophone, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
+import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
 import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
 import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
@@ -65,54 +66,19 @@ interface DeviceFieldProps {
 
 function DeviceField({ icon, label, hint, emptyLabel, value, list, defaultLabel, onChange }: DeviceFieldProps) {
   const { theme } = useTheme();
-  const empty = list.length === 0;
+  const labelId = useId();
   const known = value === '' || list.some((device) => device.deviceId === value);
+  const options: DropdownOption[] =
+    list.length === 0
+      ? []
+      : [{ value: '', label: defaultLabel }, ...list.map((device, index) => ({ value: device.deviceId, label: device.label || `${label} ${index + 1}` }))];
 
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '18px', minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
-        {label}
-        <span style={{ position: 'relative', display: 'block' }}>
-          <span aria-hidden="true" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', pointerEvents: 'none', color: theme.accentText }}>
-            {icon}
-          </span>
-          <select
-            value={known ? value : ''}
-            disabled={empty}
-            onChange={(event) => onChange(event.target.value)}
-            style={{
-              width: '100%',
-              appearance: 'none',
-              WebkitAppearance: 'none',
-              background: theme.input,
-              color: theme.textPrimary,
-              border: `1px solid ${theme.border}`,
-              borderRadius: '10px',
-              height: '42px',
-              padding: '0 34px 0 40px',
-              fontSize: '0.9rem',
-              fontWeight: 500,
-              cursor: empty ? 'not-allowed' : 'pointer',
-              opacity: empty ? 0.6 : 1,
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {empty ? (
-              <option value="">{emptyLabel}</option>
-            ) : (
-              <>
-                <option value="">{defaultLabel}</option>
-                {list.map((device, index) => (
-                  <option key={device.deviceId || index} value={device.deviceId}>
-                    {device.label || `${label} ${index + 1}`}
-                  </option>
-                ))}
-              </>
-            )}
-          </select>
-          <FaChevronDown size={11} aria-hidden="true" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: theme.textSecondary }} />
-        </span>
-        {hint && <span style={{ fontSize: '0.72rem', fontWeight: 400, color: theme.textSecondary, lineHeight: 1.3 }}>{hint}</span>}
-      </label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', lineHeight: '18px', minWidth: 0, fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.2px', color: theme.textSecondary }}>
+      <span id={labelId}>{label}</span>
+      <Dropdown value={known ? value : ''} options={options} onChange={onChange} icon={icon} emptyLabel={emptyLabel} labelledBy={labelId} />
+      {hint && <span style={{ fontSize: '0.72rem', fontWeight: 400, color: theme.textSecondary, lineHeight: 1.3 }}>{hint}</span>}
+    </div>
   );
 }
 
@@ -254,12 +220,15 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('[data-sc-dropdown]')) {
+        return;
+      }
       if (isOutside(event.target, panelRef.current, trigger?.current ?? null)) {
         onClose(false);
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         event.stopPropagation();
         onClose(true);
       }
