@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { acquireLocalMedia, acquireScreenShare, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
+import { SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -101,5 +101,26 @@ describe('screen share', () => {
     expect(await acquireScreenShare({ getDisplayMedia: () => Promise.resolve(audioOnly) })).toBeNull();
     expect(audioOnly.tracks[0]?.stopped).toBe(true);
     expect(await acquireScreenShare({})).toBeNull();
+  });
+});
+
+describe('share constraints', () => {
+  it('asks for 30 fps up to 4K in movie mode and turns off voice processing on share audio', async () => {
+    const applied: Array<{ kind: string; constraints: MediaTrackConstraints }> = [];
+    const track = (kind: string) => ({ kind, applyConstraints: (constraints: MediaTrackConstraints) => { applied.push({ kind, constraints }); return Promise.resolve(); } });
+    const video = track('video');
+    const audio = track('audio');
+    const stream = { getVideoTracks: () => [video], getAudioTracks: () => [audio] } as unknown as MediaStream;
+
+    await applyShareConstraints(stream, true);
+    expect(applied[0]).toEqual({ kind: 'video', constraints: { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } });
+    expect(applied[1]).toEqual({ kind: 'audio', constraints: SHARE_AUDIO_CONSTRAINTS });
+    expect(SHARE_AUDIO_CONSTRAINTS).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+    expect(shareVideoConstraints(false)).toEqual({ frameRate: { ideal: 15, max: 30 } });
+  });
+
+  it('ignores tracks that reject the constraints', async () => {
+    const stream = { getVideoTracks: () => [{ applyConstraints: () => Promise.reject(new Error('x')) }], getAudioTracks: () => [] } as unknown as MediaStream;
+    await expect(applyShareConstraints(stream, true)).resolves.toBeUndefined();
   });
 });

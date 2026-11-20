@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLegacyCallSettings, getAudioProcessing, getShareVolume, setAudioProcessing, setShareVolume } from './call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, setAudioProcessing, setMovieMode, setShareVolume } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -75,5 +75,13 @@ describe('shared audio volume', () => {
     expect(setShareVolume(-1)).toBe(0);
     localStorage.setItem('chatCallShareVolume', '"loud"');
     expect(getShareVolume()).toBe(1);
+  });
+});
+
+describe('movie mode setting', () => {
+  it('is off by default and remembers the choice', () => {
+    expect(getMovieMode()).toBe(false);
+    setMovieMode(true);
+    expect(getMovieMode()).toBe(true);
   });
 });

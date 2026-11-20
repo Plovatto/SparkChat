@@ -4,6 +4,7 @@ import { getItem, setItem } from '@lib/storage';
 const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
 const SHARE_VOLUME_KEY = 'chatCallShareVolume';
+const MOVIE_MODE_KEY = 'chatCallMovieMode';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -97,4 +98,13 @@ export function setShareVolume(value: number): number {
   const next = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
   setItem(SHARE_VOLUME_KEY, next);
   return next;
+}
+
+export function getMovieMode(): boolean {
+  return getItem<boolean>(MOVIE_MODE_KEY) === true;
+}
+
+export function setMovieMode(value: boolean): boolean {
+  setItem(MOVIE_MODE_KEY, value);
+  return value;
 }

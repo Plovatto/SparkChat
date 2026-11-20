@@ -20,6 +20,15 @@ import {
   preferredAudioCodecs,
   sanitizeScreenLabel,
   screenControl,
+  screenEncoding,
+  directMovieBitrate,
+  enableShareStereo,
+  MOVIE_4K_MAX_BITRATE,
+  MOVIE_1440_MAX_BITRATE,
+  MOVIE_1080_MAX_BITRATE,
+  MOVIE_RELAY_MAX_BITRATE,
+  MOVIE_DEGRADED_MAX_BITRATE,
+  MOVIE_AUDIO_MAX_BITRATE,
   screenAudioCodecs,
   screenVideoCodecs,
   senderParameters,
@@ -1049,10 +1058,11 @@ describe('codec preferences', () => {
 
   it('keeps only compact codecs for the screen so the offer stays inside the signal size limit', () => {
     expect(screenVideoCodecs(capabilities('video')).map((codec) => `${codec.mimeType} ${codec.sdpFmtpLine ?? ''}`.trim())).toEqual([
-      'video/VP8',
-      'video/rtx',
       'video/VP9 profile-id=0',
+      'video/AV1',
+      'video/VP8',
       'video/H264 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f',
+      'video/rtx',
     ]);
     expect(screenVideoCodecs(capabilities('video').filter((codec) => !['video/VP8', 'video/VP9', 'video/H264'].includes(codec.mimeType)))).toEqual([]);
     expect(screenAudioCodecs(capabilities('audio')).map((codec) => codec.mimeType)).toEqual(['audio/opus']);
@@ -1066,7 +1076,7 @@ describe('codec preferences', () => {
     const [audio, camera, screen, screenAudio] = h.connection.transceivers;
     expect(audio?.codecs?.map((codec) => codec.mimeType).slice(0, 2)).toEqual(['audio/red', 'audio/opus']);
     expect(camera?.codecs).toBeNull();
-    expect(screen?.codecs?.map((codec) => codec.mimeType)).toEqual(['video/VP8', 'video/rtx', 'video/VP9', 'video/H264']);
+    expect(screen?.codecs?.map((codec) => codec.mimeType)).toEqual(['video/VP9', 'video/AV1', 'video/VP8', 'video/H264', 'video/rtx']);
     expect(screenAudio?.codecs?.map((codec) => codec.mimeType)).toEqual(['audio/opus']);
   });
 
@@ -1082,7 +1092,7 @@ describe('codec preferences', () => {
 
     expect(h.connection.transceivers.every((transceiver) => transceiver.direction === 'sendrecv')).toBe(true);
     expect(h.connection.transceivers[0]?.codecs?.[0]?.mimeType).toBe('audio/red');
-    expect(h.connection.transceivers[2]?.codecs?.map((codec) => codec.mimeType)).toEqual(['video/VP8', 'video/rtx', 'video/VP9', 'video/H264']);
+    expect(h.connection.transceivers[2]?.codecs?.map((codec) => codec.mimeType)).toEqual(['video/VP9', 'video/AV1', 'video/VP8', 'video/H264', 'video/rtx']);
     expect(h.signals.map((signal) => signal.type)).toEqual(['answer']);
   });
 
@@ -1392,5 +1402,124 @@ describe('review hardening for screen info', () => {
     expect(parseControlMessage('{"t":"screen","on":true,"audio":"yes"}')).toEqual({ t: 'screen', on: true });
     expect(parseControlMessage('{"t":"screen","on":false,"audio":true}')).toEqual({ t: 'screen', on: false });
     expect(screenControl(true, { surface: 'window', label: null, audio: false })).toEqual({ t: 'screen', on: true, surface: 'window', audio: false });
+  });
+});
+
+describe('movie mode encodings', () => {
+  it('keeps the sharp text profile when movie mode is off', () => {
+    expect(screenEncoding({ movie: false, relayed: false, degrade: null, width: 3840, height: 2160 })).toEqual({ maxBitrate: SCREEN_MAX_BITRATE, scaleResolutionDownBy: 1, degradationPreference: 'maintain-resolution' });
+  });
+
+  it('picks the direct bitrate from the source resolution without capping it', () => {
+    expect(screenEncoding({ movie: true, relayed: false, degrade: null, width: 3840, height: 2160 })).toEqual({ maxBitrate: MOVIE_4K_MAX_BITRATE, scaleResolutionDownBy: 1, maxFramerate: 30, degradationPreference: 'maintain-framerate' });
+    expect(directMovieBitrate(2560, 1440)).toBe(MOVIE_1440_MAX_BITRATE);
+    expect(directMovieBitrate(1920, 1080)).toBe(MOVIE_1080_MAX_BITRATE);
+    expect(directMovieBitrate(null, null)).toBe(MOVIE_1080_MAX_BITRATE);
+  });
+
+  it('allows 60 fps only for a high frame rate source when the uplink estimate covers the bitrate', () => {
+    expect(screenEncoding({ movie: true, relayed: false, degrade: null, width: 1920, height: 1080, frameRate: 60, uplinkBps: 9_000_000 }).maxFramerate).toBe(60);
+    expect(screenEncoding({ movie: true, relayed: false, degrade: null, width: 1920, height: 1080, frameRate: 60, uplinkBps: 3_000_000 }).maxFramerate).toBe(30);
+    expect(screenEncoding({ movie: true, relayed: false, degrade: null, width: 1920, height: 1080, frameRate: 60, uplinkBps: null }).maxFramerate).toBe(30);
+  });
+
+  it('caps a relayed movie share at 1080p and 4 Mbps', () => {
+    expect(screenEncoding({ movie: true, relayed: true, degrade: null, width: 3840, height: 2160 })).toEqual({ maxBitrate: MOVIE_RELAY_MAX_BITRATE, scaleResolutionDownBy: 2, maxFramerate: 30, degradationPreference: 'maintain-framerate' });
+  });
+
+  it('lets the server video-360 step win over everything', () => {
+    expect(screenEncoding({ movie: true, relayed: false, degrade: 'video-360', width: 2560, height: 1440 })).toEqual({ maxBitrate: MOVIE_DEGRADED_MAX_BITRATE, scaleResolutionDownBy: 2, maxFramerate: 30, degradationPreference: 'maintain-framerate' });
+    expect(screenEncoding({ movie: false, relayed: false, degrade: 'video-360', width: 2560, height: 1440 }).maxBitrate).toBe(SCREEN_DEGRADED_MAX_BITRATE);
+  });
+
+  it('applies the movie profile live and restores the text profile', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"caps","screen":true}' });
+    const video = { kind: 'video', contentHint: '', getSettings: () => ({ width: 3840, height: 2160 }) } as unknown as MediaStreamTrack;
+    await h.session.setScreenTracks(video, null);
+
+    await h.session.setMovieMode(true);
+    expect(video.contentHint).toBe('motion');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: MOVIE_4K_MAX_BITRATE, maxFramerate: 30 });
+    expect(h.connection.transceivers[2]!.sender.parameters.degradationPreference).toBe('maintain-framerate');
+    expect(h.connection.transceivers[3]!.sender.parameters.encodings[0]?.maxBitrate).toBe(MOVIE_AUDIO_MAX_BITRATE);
+
+    await h.session.setMovieMode(false);
+    expect(video.contentHint).toBe('detail');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: SCREEN_MAX_BITRATE });
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).not.toHaveProperty('maxFramerate');
+  });
+});
+
+describe('share audio stereo', () => {
+  const sdp = [
+    'v=0',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111 63',
+    'a=mid:0',
+    'a=rtpmap:111 opus/48000/2',
+    'a=fmtp:111 minptime=10;useinbandfec=1',
+    'm=video 9 UDP/TLS/RTP/SAVPF 96',
+    'a=mid:1',
+    'm=audio 9 UDP/TLS/RTP/SAVPF 111',
+    'a=mid:3',
+    'a=rtpmap:111 opus/48000/2',
+    'a=fmtp:111 minptime=10;useinbandfec=1',
+    '',
+  ].join('\r\n');
+
+  it('enables high quality stereo only on the second audio section', () => {
+    const munged = enableShareStereo(sdp);
+    const [voice, share] = munged.split('m=audio').slice(1);
+    expect(voice).toContain('a=fmtp:111 minptime=10;useinbandfec=1\r\n');
+    expect(share).toContain('a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0\r\n');
+    expect(munged.replace(/;stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0/, '')).toBe(sdp);
+  });
+
+  it('adds an fmtp line when missing, keeps existing values and is idempotent', () => {
+    const bare = sdp.replace('a=fmtp:111 minptime=10;useinbandfec=1\r\n\r\n', '\r\n').split('m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1').join('m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=rtpmap:111 opus/48000/2');
+    expect(enableShareStereo(bare)).toContain('a=rtpmap:111 opus/48000/2\r\na=fmtp:111 stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0');
+    const once = enableShareStereo(sdp);
+    expect(enableShareStereo(once)).toBe(once);
+    expect(enableShareStereo('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n')).toBe('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n');
+  });
+
+  it('keeps the dtls fingerprint lines untouched', () => {
+    const withFingerprint = `v=0\r\na=fingerprint:sha-256 AA:BB\r\n${sdp.slice(5)}`;
+    expect(extractSdpFingerprints(enableShareStereo(withFingerprint))).toEqual(['sha-256 AA:BB']);
+  });
+});
+
+describe('screen message movie flag', () => {
+  it('accepts a boolean movie flag only while sharing', () => {
+    expect(parseControlMessage('{"t":"screen","on":true,"movie":true}')).toEqual({ t: 'screen', on: true, movie: true });
+    expect(parseControlMessage('{"t":"screen","on":true,"movie":1}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":false,"movie":true}')).toEqual({ t: 'screen', on: false });
+    expect(screenControl(true, { surface: 'browser', label: null, movie: true })).toEqual({ t: 'screen', on: true, surface: 'browser', movie: true });
+  });
+});
+
+describe('local description munging', () => {
+  it('sets the offer with share audio stereo enabled and sends the same description', async () => {
+    const h = build('caller');
+    const offer = 'v=0\r\na=fingerprint:sha-256 AA:AA:AA\r\nm=audio 9 X 111\r\na=rtpmap:111 opus/48000/2\r\nm=audio 9 X 111\r\na=rtpmap:111 opus/48000/2\r\n';
+    const applied: Array<{ type: string; sdp: string } | undefined> = [];
+    const connection = h.connection as unknown as Record<string, unknown>;
+    connection.createOffer = () => Promise.resolve({ type: 'offer', sdp: offer });
+    connection.setLocalDescription = (description?: { type: string; sdp: string }) => {
+      applied.push(description);
+      h.connection.localDescription = description ?? null;
+      h.connection.signalingState = 'have-local-offer';
+      return Promise.resolve();
+    };
+    h.session.start();
+    await settle();
+
+    expect(applied[0]?.sdp).toBe(enableShareStereo(offer));
+    expect(applied[0]?.sdp).toContain('stereo=1');
+    expect((h.signals[0]?.payload.description as { sdp: string }).sdp).toBe(applied[0]?.sdp);
+    expect(h.signals[0]?.payload.fingerprints).toEqual(['sha-256 AA:AA:AA']);
   });
 });

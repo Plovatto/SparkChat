@@ -67,3 +67,14 @@ export function registerAutoPip(handler: () => void, session: MediaSessionLike |
     }
   };
 }
+
+export type StreamWindowMode = 'document' | 'fullscreen' | null;
+
+export const STREAM_WINDOW_SIZE = { width: 960, height: 540 } as const;
+
+export function streamWindowMode(environment: PipEnvironment & { fullscreenEnabled?: boolean } = { ...browserPipEnvironment(), fullscreenEnabled: typeof document !== 'undefined' && document.fullscreenEnabled === true }): StreamWindowMode {
+  if (environment.documentPictureInPicture) {
+    return 'document';
+  }
+  return environment.fullscreenEnabled ? 'fullscreen' : null;
+}

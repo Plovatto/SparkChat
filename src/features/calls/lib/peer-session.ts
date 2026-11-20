@@ -9,6 +9,7 @@ export interface ScreenInfo {
   surface: ShareSurfaceKind;
   label: string | null;
   audio?: boolean;
+  movie?: boolean;
 }
 
 export interface ScreenControl {
@@ -17,6 +18,7 @@ export interface ScreenControl {
   surface?: ShareSurfaceKind;
   label?: string;
   audio?: boolean;
+  movie?: boolean;
 }
 
 export const MAX_SCREEN_LABEL_LENGTH = 80;
@@ -45,6 +47,9 @@ export function screenControl(on: boolean, info: ScreenInfo | null = null): Scre
   if (info.audio !== undefined) {
     message.audio = info.audio;
   }
+  if (info.movie !== undefined) {
+    message.movie = info.movie;
+  }
   let label = sanitizeScreenLabel(info.label);
   while (label && JSON.stringify({ ...message, label }).length > MAX_CONTROL_LENGTH) {
     label = sanitizeScreenLabel(Array.from(label).slice(0, -8).join(''));
@@ -69,6 +74,98 @@ export const VIDEO_UNSTABLE_MAX_BITRATE = 350_000;
 export const SCREEN_MAX_BITRATE = 2_500_000;
 export const SCREEN_DEGRADED_MAX_BITRATE = 1_000_000;
 export const SCREEN_AUDIO_MAX_BITRATE = 64_000;
+export const MOVIE_AUDIO_MAX_BITRATE = 192_000;
+export const MOVIE_4K_MAX_BITRATE = 20_000_000;
+export const MOVIE_1440_MAX_BITRATE = 12_000_000;
+export const MOVIE_1080_MAX_BITRATE = 8_000_000;
+export const MOVIE_RELAY_MAX_BITRATE = 4_000_000;
+export const MOVIE_HIGH_FRAMERATE = 60;
+export const MOVIE_DEGRADED_MAX_BITRATE = 1_500_000;
+export const MOVIE_MAX_FRAMERATE = 30;
+
+export interface ScreenEncodingInput {
+  movie: boolean;
+  relayed: boolean;
+  degrade: DegradeStep | null;
+  width: number | null;
+  height: number | null;
+  frameRate?: number | null;
+  uplinkBps?: number | null;
+}
+
+export interface ScreenEncoding {
+  maxBitrate: number;
+  scaleResolutionDownBy: number;
+  maxFramerate?: number;
+  degradationPreference: 'maintain-framerate' | 'maintain-resolution';
+}
+
+function fitScale(width: number | null, height: number | null, maxWidth: number, maxHeight: number): number {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return 1;
+  }
+  const scale = Math.max(width / maxWidth, height / maxHeight, 1);
+  return Math.round(scale * 1000) / 1000;
+}
+
+export function directMovieBitrate(width: number | null, height: number | null): number {
+  const lines = Math.min(width ?? 0, height ?? 0) > 0 ? Math.min(Math.max(width ?? 0, height ?? 0) * 9 / 16, Math.min(width ?? 0, height ?? 0)) : 0;
+  if (lines >= 2000) {
+    return MOVIE_4K_MAX_BITRATE;
+  }
+  if (lines >= 1400) {
+    return MOVIE_1440_MAX_BITRATE;
+  }
+  return MOVIE_1080_MAX_BITRATE;
+}
+
+export function screenEncoding({ movie, relayed, degrade, width, height, frameRate = null, uplinkBps = null }: ScreenEncodingInput): ScreenEncoding {
+  const degraded = degrade === 'video-360';
+  if (!movie) {
+    return { maxBitrate: degraded ? SCREEN_DEGRADED_MAX_BITRATE : SCREEN_MAX_BITRATE, scaleResolutionDownBy: 1, degradationPreference: 'maintain-resolution' };
+  }
+  if (degraded) {
+    return { maxBitrate: MOVIE_DEGRADED_MAX_BITRATE, scaleResolutionDownBy: fitScale(width, height, 1280, 720), maxFramerate: MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+  }
+  if (relayed) {
+    return { maxBitrate: MOVIE_RELAY_MAX_BITRATE, scaleResolutionDownBy: fitScale(width, height, 1920, 1080), maxFramerate: MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+  }
+  const maxBitrate = directMovieBitrate(width, height);
+  const highFrameRate = (frameRate ?? 0) >= 50 && uplinkBps !== null && uplinkBps >= maxBitrate;
+  return { maxBitrate, scaleResolutionDownBy: 1, maxFramerate: highFrameRate ? MOVIE_HIGH_FRAMERATE : MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+}
+
+const STEREO_PARAMS = ['stereo=1', 'sprop-stereo=1', `maxaveragebitrate=${MOVIE_AUDIO_MAX_BITRATE}`, 'cbr=0', 'usedtx=0'];
+
+export function enableShareStereo(sdp: string): string {
+  const sections = sdp.split(/(?=\nm=)/);
+  let audioIndex = 0;
+  return sections
+    .map((section) => {
+      if (!/^\n?m=audio /.test(section)) {
+        return section;
+      }
+      audioIndex += 1;
+      if (audioIndex !== 2) {
+        return section;
+      }
+      const payload = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(section)?.[1];
+      if (!payload) {
+        return section;
+      }
+      const fmtp = new RegExp(`(a=fmtp:${payload} )([^\r\n]*)`);
+      const match = fmtp.exec(section);
+      if (match) {
+        const existing = (match[2] ?? '').split(';').map((part) => part.trim()).filter(Boolean);
+        const keys = new Set(existing.map((part) => part.split('=')[0]));
+        const merged = [...existing, ...STEREO_PARAMS.filter((part) => !keys.has(part.split('=')[0]))].join(';');
+        return section.replace(fmtp, `$1${merged}`);
+      }
+      const eol = section.includes('\r\n') ? '\r\n' : '\n';
+      return section.replace(new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`), `$1${eol}a=fmtp:${payload} ${STEREO_PARAMS.join(';')}`);
+    })
+    .join('');
+}
 export const MAX_REMOTE_CANDIDATES = 200;
 export const DTLS_VERIFY_TIMEOUT_MS = 10_000;
 const MAX_SDP_LENGTH = 14_000;
@@ -165,12 +262,19 @@ function isCompactScreenCodec(codec: RTCRtpCodec): boolean {
   return false;
 }
 
+const SCREEN_CODEC_ORDER = ['video/vp9', 'video/av1', 'video/vp8', 'video/h264'];
+
+function isScreenAv1(codec: RTCRtpCodec): boolean {
+  return mimeOf(codec) === 'video/av1';
+}
+
 export function screenVideoCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
-  const primary = codecs.filter(isCompactScreenCodec);
-  if (primary.length === 0) {
+  const primary = codecs.filter((codec) => isCompactScreenCodec(codec) || isScreenAv1(codec));
+  if (primary.filter((codec) => !isScreenAv1(codec)).length === 0) {
     return [];
   }
-  return codecs.filter((codec) => primary.includes(codec) || mimeOf(codec) === 'video/rtx');
+  const ordered = [...primary].sort((a, b) => SCREEN_CODEC_ORDER.indexOf(mimeOf(a)) - SCREEN_CODEC_ORDER.indexOf(mimeOf(b)));
+  return [...ordered, ...codecs.filter((codec) => mimeOf(codec) === 'video/rtx')];
 }
 
 export function extractSdpFingerprints(sdp: string): string[] {
@@ -204,6 +308,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
       }
       if (message.on && typeof message.audio === 'boolean') {
         screen.audio = message.audio;
+      }
+      if (message.on && typeof message.movie === 'boolean') {
+        screen.movie = message.movie;
       }
       const label = message.on ? sanitizeScreenLabel(message.label) : null;
       if (label) {
@@ -246,6 +353,7 @@ function parseFingerprints(value: unknown): string[] | null {
 export interface SenderCap {
   maxBitrate: number;
   scaleResolutionDownBy?: number;
+  maxFramerate?: number;
   priority?: RTCPriorityType;
   degradationPreference?: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
 }
@@ -258,6 +366,11 @@ export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, 
   first.maxBitrate = cap.maxBitrate;
   if (cap.scaleResolutionDownBy !== undefined) {
     first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
+  }
+  if (cap.maxFramerate !== undefined) {
+    first.maxFramerate = cap.maxFramerate;
+  } else {
+    delete first.maxFramerate;
   }
   if (extended && cap.priority) {
     first.priority = cap.priority;
@@ -300,6 +413,7 @@ export class PeerSession {
   private remoteScreen: MediaStream | null = null;
   private remoteScreenExposed = false;
   private unstable = false;
+  private movie = false;
   private peerScreenCaps = false;
 
   constructor(options: PeerSessionOptions) {
@@ -426,7 +540,7 @@ export class PeerSession {
       if (this.polite) {
         this.applyCodecPreferences();
       }
-      await connection.setLocalDescription();
+      await this.setLocal('answer');
       this.sendDescription('answer');
     }
     this.verifyDtls();
@@ -460,13 +574,23 @@ export class PeerSession {
     return false;
   }
 
+  private async setLocal(kind: 'offer' | 'answer', options?: RTCOfferOptions): Promise<void> {
+    const connection = this.connection;
+    if (!(kind === 'offer' ? 'createOffer' in connection : 'createAnswer' in connection)) {
+      await connection.setLocalDescription();
+      return;
+    }
+    const description = kind === 'offer' ? await connection.createOffer(options) : await connection.createAnswer();
+    await connection.setLocalDescription({ type: description.type, sdp: enableShareStereo(description.sdp ?? '') });
+  }
+
   private async negotiate(): Promise<void> {
     if (this.closed) {
       return;
     }
     try {
       this.makingOffer = true;
-      await this.connection.setLocalDescription();
+      await this.setLocal('offer');
       this.sendDescription('offer');
     } catch {
       return;
@@ -655,7 +779,7 @@ export class PeerSession {
   private async restartWithOffer(): Promise<void> {
     try {
       this.makingOffer = true;
-      await this.connection.setLocalDescription(await this.connection.createOffer({ iceRestart: true }));
+      await this.setLocal('offer', { iceRestart: true });
       this.sendDescription('offer');
     } catch {
       return;
@@ -836,7 +960,7 @@ export class PeerSession {
       return false;
     }
     if (video && 'contentHint' in video) {
-      video.contentHint = 'detail';
+      video.contentHint = this.movie ? 'motion' : 'detail';
     }
     const audioSender = this.screenAudioTransceiver()?.sender;
     try {
@@ -853,6 +977,15 @@ export class PeerSession {
     this.sendControl(screenControl(video !== null, info));
     await this.applyCaps();
     return true;
+  }
+
+  async setMovieMode(movie: boolean): Promise<void> {
+    this.movie = movie;
+    const track = this.screenTransceiver()?.sender.track;
+    if (track && 'contentHint' in track) {
+      track.contentHint = movie ? 'motion' : 'detail';
+    }
+    await this.applyCaps();
   }
 
   async setNetworkUnstable(unstable: boolean): Promise<void> {
@@ -886,6 +1019,21 @@ export class PeerSession {
   async applyDegrade(step: DegradeStep | null): Promise<void> {
     this.degrade = step;
     await this.applyCaps();
+  }
+
+  private async uplinkEstimate(): Promise<number | null> {
+    try {
+      const report = await this.connection.getStats();
+      let estimate: number | null = null;
+      report.forEach((entry: Record<string, unknown>) => {
+        if (entry.type === 'candidate-pair' && entry.nominated === true && entry.state === 'succeeded' && typeof entry.availableOutgoingBitrate === 'number') {
+          estimate = entry.availableOutgoingBitrate;
+        }
+      });
+      return estimate;
+    } catch {
+      return null;
+    }
   }
 
   private async isRelayed(): Promise<boolean> {
@@ -935,11 +1083,20 @@ export class PeerSession {
       scaleResolutionDownBy: lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1,
       degradationPreference: 'maintain-framerate',
     });
-    await this.setSenderCap(screenSender, {
-      maxBitrate: degradeVideo ? SCREEN_DEGRADED_MAX_BITRATE : SCREEN_MAX_BITRATE,
-      degradationPreference: 'maintain-resolution',
-    });
-    await this.setSenderCap(screenAudioSender, { maxBitrate: SCREEN_AUDIO_MAX_BITRATE });
+    const screenSettings = screenSender?.track?.getSettings?.();
+    await this.setSenderCap(
+      screenSender,
+      screenEncoding({
+        movie: this.movie,
+        relayed: this.movie && screenSender?.track ? await this.isRelayed() : false,
+        degrade: this.degrade,
+        width: screenSettings?.width ?? null,
+        height: screenSettings?.height ?? null,
+        frameRate: screenSettings?.frameRate ?? null,
+        uplinkBps: this.movie && screenSender?.track ? await this.uplinkEstimate() : null,
+      }),
+    );
+    await this.setSenderCap(screenAudioSender, { maxBitrate: this.movie ? MOVIE_AUDIO_MAX_BITRATE : SCREEN_AUDIO_MAX_BITRATE });
     if (degradeVideo) {
       this.options.onDegrade?.('video-360');
     }

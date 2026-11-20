@@ -79,6 +79,8 @@ export interface CallSnapshot {
   remoteScreenAudio: boolean;
   shareAudio: boolean;
   shareVolume: number;
+  movieMode: boolean;
+  remoteScreenMovie: boolean;
   unstable: boolean;
   quality: QualityBars | null;
   relayed: boolean | null;
@@ -101,6 +103,7 @@ export interface PeerSessionLike {
   canShareScreen: () => boolean;
   setScreenTracks: (video: MediaStreamTrack | null, audio?: MediaStreamTrack | null, info?: ScreenInfo | null) => Promise<boolean>;
   updateScreenInfo: (info: ScreenInfo) => boolean;
+  setMovieMode: (movie: boolean) => Promise<void>;
   setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
   getStats: () => Promise<RTCStatsReport>;
@@ -145,6 +148,9 @@ export interface CallControllerDeps {
   createShareAudio: (track: MediaStreamTrack, volume: number) => ShareAudio;
   getShareVolume: () => number;
   saveShareVolume: (volume: number) => number;
+  getMovieMode: () => boolean;
+  saveMovieMode: (movie: boolean) => boolean;
+  applyShareConstraints: (stream: MediaStream, movie: boolean) => Promise<void>;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
   isMobile: () => boolean;
@@ -190,6 +196,10 @@ interface PendingIce {
 }
 
 export const SURFACE_WATCH_MS = 2_000;
+
+function withMovie(info: ScreenInfo | null, movie: boolean): ScreenInfo | null {
+  return info ? { ...info, movie } : null;
+}
 
 function toScreenInfo(stream: MediaStream): ScreenInfo | null {
   try {
@@ -239,6 +249,8 @@ export function initialSnapshot(): CallSnapshot {
     remoteScreenAudio: false,
     shareAudio: false,
     shareVolume: 1,
+    movieMode: false,
+    remoteScreenMovie: false,
     unstable: false,
     quality: null,
     relayed: null,
@@ -269,6 +281,7 @@ export class CallController {
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
+    this.snapshot = { ...this.snapshot, movieMode: deps.getMovieMode() };
     this.machine = createCallMachine({
       onEffect: (effect) => this.handleEffect(effect),
       onChange: (state) => this.handleChange(state),
@@ -678,10 +691,13 @@ export class CallController {
       this.deps.stopMedia(stream);
       return;
     }
+    const movie = this.deps.getMovieMode();
+    await this.deps.applyShareConstraints(stream, movie);
+    await peer.setMovieMode(movie);
     const rawAudio = stream.getAudioTracks()[0] ?? null;
     const volume = this.deps.getShareVolume();
     const shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
-    const described = toScreenInfo(stream);
+    const described = withMovie(toScreenInfo(stream), movie);
     const info = described ? { ...described, audio: shareAudio !== null } : null;
     const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
     if (!ok || this.session !== session || !this.isConnected()) {
@@ -715,7 +731,23 @@ export class CallController {
       },
       { once: true },
     );
-    this.update({ screenSharing: true, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume });
+    this.update({ screenSharing: true, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume, movieMode: movie });
+  }
+
+  async setMovieMode(movie: boolean): Promise<void> {
+    const saved = this.deps.saveMovieMode(movie);
+    this.update({ movieMode: saved });
+    const session = this.session;
+    if (!session?.screen || !session.peerSession) {
+      return;
+    }
+    await this.deps.applyShareConstraints(session.screen, saved);
+    await session.peerSession.setMovieMode(saved);
+    const info = withMovie(session.screenInfo ?? toScreenInfo(session.screen), saved);
+    if (info) {
+      session.screenInfo = info;
+      session.peerSession.updateScreenInfo(info);
+    }
   }
 
   setShareVolume(volume: number): void {
@@ -731,7 +763,7 @@ export class CallController {
         this.stopSurfaceWatch();
         return;
       }
-      const described = toScreenInfo(session.screen);
+      const described = withMovie(toScreenInfo(session.screen), this.snapshot.movieMode);
       const info = described ? { ...described, audio: session.shareAudio !== null } : null;
       if (info && (info.surface !== session.screenInfo?.surface || info.label !== session.screenInfo.label)) {
         session.screenInfo = info;
@@ -1173,7 +1205,7 @@ export class CallController {
     } else if (message.t === 'mute') {
       this.update({ remoteMuted: message.on });
     } else if (message.t === 'screen') {
-      this.update({ remoteScreenAudio: message.on && message.audio === true, remoteScreenOn: message.on, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
+      this.update({ remoteScreenMovie: message.on && message.movie === true, remoteScreenAudio: message.on && message.audio === true, remoteScreenOn: message.on, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
     } else if (message.t === 'caps') {
       this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
     } else {
@@ -1216,7 +1248,11 @@ export class CallController {
         .then((report) => {
           const reading = readQuality(report, session.statsSample);
           session.statsSample = reading.sample;
+          const wasRelayed = session.relay.relayed;
           session.relay = nextRelay(session.relay, selectedPairRelayed(report));
+          if (wasRelayed !== null && wasRelayed !== session.relay.relayed && session.screen && this.snapshot.movieMode) {
+            void peer.setMovieMode(true);
+          }
           if (this.session !== session) {
             return;
           }
@@ -1261,6 +1297,7 @@ export class CallController {
         remoteScreenSurface: null,
         remoteScreenLabel: null,
         remoteScreenAudio: false,
+        remoteScreenMovie: false,
         shareAudio: false,
         unstable: false,
         quality: null,
@@ -1314,7 +1351,7 @@ export class CallController {
       this.deps.tabs.announceReleased(session.callId);
     }
     this.deps.tabs.releaseCall();
-    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, remoteScreenAudio: false, shareAudio: false, unstable: false, relayed: null });
+    this.update({ localStream: null, remoteStream: null, quality: null, screenSharing: false, canShareScreen: false, localScreenStream: null, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, remoteScreenAudio: false, remoteScreenMovie: false, shareAudio: false, unstable: false, relayed: null });
   }
 
   dismissEnded(): void {

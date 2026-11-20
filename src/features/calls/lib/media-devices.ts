@@ -163,3 +163,18 @@ export async function acquireScreenShare(host: DisplayMediaHost | undefined = di
     return null;
   }
 }
+
+export function shareVideoConstraints(movie: boolean): MediaTrackConstraints {
+  return movie ? { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } : { frameRate: { ideal: 15, max: 30 } };
+}
+
+export const SHARE_AUDIO_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+export async function applyShareConstraints(stream: MediaStream, movie: boolean): Promise<void> {
+  for (const track of stream.getVideoTracks()) {
+    await track.applyConstraints(shareVideoConstraints(movie)).catch(() => undefined);
+  }
+  for (const track of stream.getAudioTracks()) {
+    await track.applyConstraints(SHARE_AUDIO_CONSTRAINTS).catch(() => undefined);
+  }
+}

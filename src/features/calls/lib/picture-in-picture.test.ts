@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pipMode, registerAutoPip, type DocumentPipHost } from './picture-in-picture';
+import { STREAM_WINDOW_SIZE, pipMode, registerAutoPip, streamWindowMode, type DocumentPipHost } from './picture-in-picture';
 
 const host: DocumentPipHost = { requestWindow: () => Promise.reject(new Error('x')), window: null };
 
@@ -37,5 +37,14 @@ describe('registerAutoPip', () => {
     });
     expect(() => undo()).not.toThrow();
     expect(() => registerAutoPip(() => undefined, undefined)()).not.toThrow();
+  });
+});
+
+describe('streamWindowMode', () => {
+  it('opens a large Document Picture-in-Picture window when available, else falls back to fullscreen', () => {
+    expect(streamWindowMode({ documentPictureInPicture: host, fullscreenEnabled: true })).toBe('document');
+    expect(streamWindowMode({ fullscreenEnabled: true })).toBe('fullscreen');
+    expect(streamWindowMode({ fullscreenEnabled: false })).toBeNull();
+    expect(STREAM_WINDOW_SIZE).toEqual({ width: 960, height: 540 });
   });
 });
