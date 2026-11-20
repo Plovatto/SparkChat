@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
+import { FaMicrophone, FaMicrophoneSlash, FaTimes } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
 import { useStreamOn } from './call-hooks';
@@ -16,9 +16,10 @@ interface CallPipProps {
   remoteMuted: boolean;
   onToggleMute: () => void;
   onHangup: () => void;
+  onClose: () => void;
 }
 
-export function CallPip({ target, peerName, avatar, stream, speaking, muted, remoteMuted, onToggleMute, onHangup }: CallPipProps) {
+export function CallPip({ target, peerName, avatar, stream, speaking, muted, remoteMuted, onToggleMute, onHangup, onClose }: CallPipProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   useStreamOn(videoRef, stream);
@@ -26,6 +27,9 @@ export function CallPip({ target, peerName, avatar, stream, speaking, muted, rem
 
   return createPortal(
     <div className="sc-call-pip">
+      <button type="button" className="sc-call-pip__close" onClick={onClose} title={t('calls.pip.dismiss')} aria-label={t('calls.pip.dismiss')}>
+        <FaTimes size={14} />
+      </button>
       <div className="sc-call-pip__media">
         {stream ? (
           <video ref={videoRef} autoPlay playsInline muted />

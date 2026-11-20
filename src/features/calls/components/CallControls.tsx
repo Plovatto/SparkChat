@@ -6,12 +6,13 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useCall } from '../call-context';
 import { isMounted } from '../lib/presence';
 import { usePresence } from './use-presence';
-import { DevicePicker, type DeviceSelection } from './DevicePicker';
+import { DevicePicker, type BroadcastSettings, type DeviceSelection } from './DevicePicker';
 
 interface CallControlsProps {
   supportsOutput: boolean;
   onAudioOutput: (deviceId: string) => void;
   infoRef?: RefObject<HTMLElement | null>;
+  broadcast?: BroadcastSettings | null;
 }
 
 const PANEL_GAP_PX = 32;
@@ -19,7 +20,7 @@ const SHEET_TOP_PX = 76;
 const SHEET_GAP_PX = 12;
 const MIN_PANEL_HEIGHT_PX = 220;
 
-export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallControlsProps) {
+export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast = null }: CallControlsProps) {
   const { t } = useTranslation();
   const call = useCall();
   const [showDevices, setShowDevices] = useState(false);
@@ -108,6 +109,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef }: CallCon
         {isMounted(panelStage) && (
           <DevicePicker
             stage={panelStage}
+            broadcast={broadcast}
             cameraOn={snapshot.cameraOn}
             supportsOutput={supportsOutput}
             selected={selected}

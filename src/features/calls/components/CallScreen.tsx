@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompressAlt, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } from 'react-icons/fa';
-import { MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
+import { MdScreenShare } from 'react-icons/md';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { useTheme } from '@features/theme';
-import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
@@ -14,10 +13,13 @@ import { isMounted } from '../lib/presence';
 import { selectStageLayout } from '../lib/stage-layout';
 import { describeShareSurface } from '../lib/share-surface';
 import { CallControls } from './CallControls';
+import type { BroadcastSettings } from './DevicePicker';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
 import { ShareStage } from './ShareStage';
 import { useSpeaking, useStreamOn } from './call-hooks';
+import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
+import { useDuckedVolume } from './use-ducking';
 import { usePip } from './use-pip';
 import { usePresence } from './use-presence';
 
@@ -64,11 +66,10 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
   const shareAudioRef = useRef<HTMLAudioElement>(null);
-  const [receiveVolume, setReceiveVolume] = useState(1);
+  const [pipDismissed, setPipDismissed] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const [showShareVolume, setShowShareVolume] = useState(false);
-  const desktop = useMediaQuery('(min-width: 768px) and (pointer: fine)');
   const peer = call.peerDisplay(state.peerId);
   const peerName = peer?.name ?? '';
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
@@ -83,19 +84,60 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const localStage = layout.main === 'local-screen';
   const stageStream = layout.main === 'remote-screen' ? snapshot.remoteScreenStream : localStage ? snapshot.localScreenStream : null;
   const showRemoteVideo = remoteCamera && !stageActive;
-  const remoteShareAudio = remoteSharing && snapshot.remoteScreenAudio;
+  const remoteShareAudio = remoteSharing && call.remoteShareHasAudio;
+  const broadcast: BroadcastSettings | null =
+    localSharing || remoteSharing
+      ? {
+          sharer: localSharing
+            ? {
+                movieMode: call.movieMode,
+                onMovieMode: call.setMovieMode,
+                hasAudio: call.shareHasAudio,
+                volume: call.shareVolume,
+                onVolume: call.setShareVolume,
+                previewHidden: call.sharePreviewHidden,
+                onPreviewHidden: call.setSharePreviewHidden,
+              }
+            : null,
+          receiver: remoteSharing ? { hasAudio: remoteShareAudio, volume: call.streamVolume, onVolume: call.setStreamVolume } : null,
+        }
+      : null;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = useSpeaking(snapshot.localStream, running && !snapshot.muted);
+  const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume);
   const fullscreen = useFullscreen(stageRef);
   const mode = pipMode();
   const pip = usePip({
     mode,
-    videoFor: () => (remoteSharing ? screenRef.current : remoteCamera ? videoRef.current : null),
+    videoFor: () => (stageActive ? screenRef.current : remoteCamera ? videoRef.current : null),
     active: running,
-    auto: running && isVideo,
+    auto: allowAutoPip({ running, video: isVideo, dismissed: pipDismissed }),
+    onUserClose: () => setPipDismissed(true),
   });
-  const pipAvailable = running && (mode === 'document' || (mode === 'video' && (remoteSharing || remoteCamera)));
+  const pipAvailable = running && (mode === 'document' || (mode === 'video' && (stageActive || remoteCamera)));
+  const { close: closePip } = pip;
+  const pipMomentRef = useRef({ minimized, sharing: stageActive });
+
+  useEffect(() => {
+    const previous = pipMomentRef.current;
+    const next = { minimized, sharing: stageActive };
+    pipMomentRef.current = next;
+    if (shouldClosePip(previous, next)) {
+      closePip();
+    }
+    if (previous.sharing && !next.sharing) {
+      setPipDismissed(false);
+    }
+  }, [minimized, stageActive, closePip]);
+
+  const minimize = () => {
+    setPipDismissed(false);
+    if (openOnMinimize({ sharing: stageActive, available: pipAvailable, open: pip.open })) {
+      void pip.openPip();
+    }
+    call.setMinimized(true);
+  };
 
   useEffect(() => {
     const element = videoRef.current;
@@ -114,9 +156,9 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   useStreamOn(shareAudioRef, remoteSharing ? snapshot.remoteScreenStream : null);
   useEffect(() => {
     if (shareAudioRef.current) {
-      shareAudioRef.current.volume = receiveVolume;
+      shareAudioRef.current.volume = shareAudioVolume;
     }
-  }, [receiveVolume]);
+  }, [shareAudioVolume]);
 
   const chooseOutput = (deviceId: string) => {
     for (const element of [videoRef.current, shareAudioRef.current]) {
@@ -190,25 +232,12 @@ export function CallScreen({ videoRef }: CallScreenProps) {
       <audio ref={shareAudioRef} autoPlay />
       <div className="sc-call-topbar">
         <div className="sc-call-topbar__group">
-          <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')} style={{ width: '44px', height: '44px' }}>
-            <FaCompressAlt size={19} />
+          <button type="button" className="sc-icon-btn sc-icon-btn--header sc-call-topbar__btn" onClick={minimize} title={t('calls.minimize')} aria-label={t('calls.minimize')}>
+            <FaCompressAlt size={20} />
           </button>
         </div>
         <div className="sc-call-topbar__group">
           <CallQualityBars bars={snapshot.quality} relayed={snapshot.relayed} />
-          {pipAvailable && (
-            <button
-              type="button"
-              className="sc-icon-btn sc-icon-btn--header"
-              onClick={pip.toggle}
-              title={pip.open ? t('calls.pip.close') : t('calls.pip.open')}
-              aria-label={pip.open ? t('calls.pip.close') : t('calls.pip.open')}
-              aria-pressed={pip.open}
-              style={{ width: '44px', height: '44px' }}
-            >
-              <MdPictureInPictureAlt size={20} />
-            </button>
-          )}
         </div>
       </div>
 
@@ -271,17 +300,10 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           myScreen={layout.localScreenTile ? snapshot.localScreenStream : null}
           stageRef={stageRef}
           streamVideoRef={screenRef}
-          fullscreen={{ available: desktop && fullscreen.supported, active: fullscreen.active, toggle: fullscreen.toggle }}
+          fullscreen={{ available: fullscreen.supported, active: fullscreen.active, toggle: fullscreen.toggle }}
           pip={{ available: pipAvailable, open: pip.open, toggle: pip.toggle }}
-          volume={
-            localStage
-              ? snapshot.shareAudio
-                ? { value: snapshot.shareVolume, label: t('calls.share.volume'), onChange: call.setShareVolume }
-                : null
-              : remoteShareAudio
-                ? { value: receiveVolume, label: t('calls.share.streamVolume'), onChange: setReceiveVolume }
-                : null
-          }
+          previewHidden={localStage && call.sharePreviewHidden}
+          streamWindow={call.streamWindowAvailable ? { open: call.streamWindowOpen, onOpen: call.openStreamWindow } : null}
           onStop={localStage ? () => void call.toggleScreenShare() : null}
         />
       ) : (
@@ -331,7 +353,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
               {t('calls.close')}
             </button>
           ) : (
-            <CallControls supportsOutput={supportsOutput} onAudioOutput={chooseOutput} infoRef={infoRef} />
+            <CallControls supportsOutput={supportsOutput} onAudioOutput={chooseOutput} infoRef={infoRef} broadcast={broadcast} />
           )}
         </div>
       </div>
@@ -340,12 +362,16 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           target={pip.window}
           peerName={peerName}
           avatar={avatar}
-          stream={remoteSharing ? snapshot.remoteScreenStream : remoteCamera ? snapshot.remoteStream : null}
+          stream={stageActive ? stageStream : remoteCamera ? snapshot.remoteStream : null}
           speaking={remoteSpeaking}
           muted={snapshot.muted}
           remoteMuted={snapshot.remoteMuted}
           onToggleMute={call.toggleMute}
           onHangup={call.hangup}
+          onClose={() => {
+            setPipDismissed(true);
+            pip.close();
+          }}
         />
       )}
     </div>

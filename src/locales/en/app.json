@@ -761,17 +761,20 @@
       "live": "LIVE",
       "hidePreview": "Hide preview",
       "showPreview": "Show preview",
-      "streamVolume": "Stream volume"
+      "streamVolume": "Stream volume",
+      "openWindow": "Open in a new window"
     },
     "unstable": "Unstable connection",
     "you": "You",
     "pip": {
       "open": "Open floating window",
-      "close": "Close floating window"
+      "close": "Close floating window",
+      "dismiss": "Close"
     },
     "tabs": {
       "devices": "Devices",
-      "audio": "Audio"
+      "audio": "Audio",
+      "broadcast": "Broadcast"
     },
     "settings": "Call settings",
     "incomingKind": {
@@ -783,6 +786,20 @@
     "route": {
       "direct": "Direct connection",
       "relay": "Connection through a server (TURN)"
+    },
+    "broadcast": {
+      "sending": "You are sharing",
+      "receiving": "You are watching",
+      "movie": "Movie mode",
+      "movieHint": "Smooth video and stereo audio for movies and shows",
+      "shareVolume": "Shared audio volume",
+      "shareVolumeHint": "How loud the screen sound is for the other person",
+      "noShareAudio": "To send sound, check Share audio when choosing the screen",
+      "hidePreview": "Hide preview",
+      "hidePreviewHint": "Shows a notice instead of your screen",
+      "streamVolume": "Stream volume",
+      "streamVolumeHint": "Changes the volume only for you",
+      "noStreamAudio": "This stream has no sound"
     }
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCompress, FaEye, FaEyeSlash, FaExpand, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
-import { MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
+import { FaCompress, FaExpand, FaMicrophoneSlash } from 'react-icons/fa';
+import { MdOpenInNew, MdPictureInPictureAlt, MdScreenShare } from 'react-icons/md';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
 import { OverlayVisibility, resolveFocus, stripItems, type StageItem } from '../lib/stage-focus';
 import { useStreamOn } from './call-hooks';
@@ -29,12 +29,6 @@ interface Person {
   muted: boolean;
 }
 
-interface VolumeControl {
-  value: number;
-  label: string;
-  onChange: (value: number) => void;
-}
-
 export interface ShareStageProps {
   stream: MediaStream | null;
   local: boolean;
@@ -47,7 +41,8 @@ export interface ShareStageProps {
   streamVideoRef: RefObject<HTMLVideoElement | null>;
   fullscreen: { available: boolean; active: boolean; toggle: () => void };
   pip: { available: boolean; open: boolean; toggle: () => void };
-  volume: VolumeControl | null;
+  previewHidden: boolean;
+  streamWindow: { open: boolean; onOpen: () => void } | null;
   onStop: (() => void) | null;
 }
 
@@ -59,11 +54,10 @@ function Avatar({ person, size }: { person: Person; size: number }) {
   );
 }
 
-export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, volume, onStop }: ShareStageProps) {
+export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, previewHidden, streamWindow, onStop }: ShareStageProps) {
   const { t } = useTranslation();
   const [focus, setFocus] = useState<StageItem>('stream');
   const [overlay, setOverlay] = useState(false);
-  const [hidePreview, setHidePreview] = useState(false);
   const visibilityRef = useRef<OverlayVisibility | null>(null);
   visibilityRef.current ??= new OverlayVisibility(setOverlay);
   const items = { stream: stream !== null, self: self !== null, myScreen: myScreen !== null };
@@ -71,12 +65,6 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
   const strip = stripItems(focus, items);
 
   useEffect(() => () => visibilityRef.current?.dispose(), []);
-
-  useEffect(() => {
-    if (!local) {
-      setHidePreview(false);
-    }
-  }, [local]);
 
   const mutedBadge = (
     <span className="sc-call-muted-badge sc-call-muted-badge--small" role="img" aria-label={t('calls.mutedBadge')}>
@@ -88,7 +76,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
     person.stream ? <StreamVideo stream={person.stream} mirror={mirror} /> : <Avatar person={person} size={size} />;
 
   const streamView = () => {
-    if (local && hidePreview) {
+    if (local && previewHidden) {
       return (
         <div className="sc-stage-placeholder">
           <MdScreenShare size={34} aria-hidden="true" />
@@ -118,7 +106,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
       case 'stream':
         return (
           <button key={item} {...common} className="sc-call-tile sc-call-tile--screen" aria-label={title}>
-            {local && hidePreview ? <MdScreenShare size={22} aria-hidden="true" /> : <StreamVideo stream={stream} fit="contain" />}
+            {local && previewHidden ? <MdScreenShare size={22} aria-hidden="true" /> : <StreamVideo stream={stream} fit="contain" />}
             <span className="sc-stage-live sc-stage-live--small">{t('calls.share.live')}</span>
           </button>
         );
@@ -155,7 +143,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
   };
 
   const visibility = visibilityRef.current;
-  const percent = volume ? Math.round(volume.value * 100) : 0;
+  const fullscreenLabel = fullscreen.active ? t('calls.share.exitFullscreen') : t('calls.share.fullscreen');
 
   return (
     <div className="sc-stage-wrap">
@@ -164,6 +152,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         className="sc-call-stage"
         data-overlay={overlay}
         data-focus={current}
+        data-fullscreen-control={fullscreen.available}
         onPointerMove={(event) => {
           if (event.pointerType === 'mouse') {
             visibility.activity();
@@ -183,6 +172,11 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         <div
           key={current}
           className="sc-stage-main"
+          onDoubleClick={() => {
+            if (fullscreen.available) {
+              fullscreen.toggle();
+            }
+          }}
           onClick={(event) => {
             if (current !== 'stream' && items.stream) {
               setFocus('stream');
@@ -195,6 +189,21 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         >
           {mainView()}
         </div>
+        {fullscreen.available && (
+          <button
+            type="button"
+            className="sc-stage-fullscreen"
+            onClick={fullscreen.toggle}
+            onPointerEnter={() => visibility.holdOpen(true)}
+            onPointerLeave={() => visibility.holdOpen(false)}
+            title={fullscreenLabel}
+            aria-label={fullscreenLabel}
+          >
+            <span key={fullscreen.active ? 'compress' : 'expand'} className="sc-call-icon-swap">
+              {fullscreen.active ? <FaCompress size={15} /> : <FaExpand size={15} />}
+            </span>
+          </button>
+        )}
         <div className="sc-stage-badges">
           <span className="sc-stage-live">{t('calls.share.live')}</span>
           <span className="sc-stage-chip" title={`${title} · ${detail}`}>
@@ -206,34 +215,14 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         {strip.length > 0 && <div className="sc-stage-tiles">{strip.map((item) => tile(item))}</div>}
         <div className="sc-stage-overlay" onPointerEnter={() => visibility.holdOpen(true)} onPointerLeave={() => visibility.holdOpen(false)}>
           <div className="sc-stage-overlay__group">
-            {volume && (
-              <label className="sc-stage-volume" title={volume.label}>
-                {percent === 0 ? <FaVolumeMute size={14} aria-hidden="true" /> : <FaVolumeUp size={14} aria-hidden="true" />}
-                <input type="range" min={0} max={100} step={1} value={percent} aria-label={volume.label} aria-valuetext={`${percent}%`} onChange={(event) => volume.onChange(Number(event.target.value) / 100)} />
-              </label>
-            )}
-            {local && (
-              <button type="button" className="sc-stage-btn" onClick={() => setHidePreview((value) => !value)} aria-pressed={hidePreview} title={hidePreview ? t('calls.share.showPreview') : t('calls.share.hidePreview')}>
-                {hidePreview ? <FaEye size={14} aria-hidden="true" /> : <FaEyeSlash size={14} aria-hidden="true" />}
-                <span>{hidePreview ? t('calls.share.showPreview') : t('calls.share.hidePreview')}</span>
+            {streamWindow && !streamWindow.open && (
+              <button type="button" className="sc-stage-icon" onClick={streamWindow.onOpen} title={t('calls.share.openWindow')} aria-label={t('calls.share.openWindow')}>
+                <MdOpenInNew size={17} />
               </button>
             )}
-          </div>
-          <div className="sc-stage-overlay__group">
             {pip.available && (
               <button type="button" className="sc-stage-icon" onClick={pip.toggle} aria-pressed={pip.open} title={pip.open ? t('calls.pip.close') : t('calls.pip.open')} aria-label={pip.open ? t('calls.pip.close') : t('calls.pip.open')}>
                 <MdPictureInPictureAlt size={17} />
-              </button>
-            )}
-            {fullscreen.available && (
-              <button
-                type="button"
-                className="sc-stage-icon"
-                onClick={fullscreen.toggle}
-                title={fullscreen.active ? t('calls.share.exitFullscreen') : t('calls.share.fullscreen')}
-                aria-label={fullscreen.active ? t('calls.share.exitFullscreen') : t('calls.share.fullscreen')}
-              >
-                {fullscreen.active ? <FaCompress size={14} /> : <FaExpand size={14} />}
               </button>
             )}
             {onStop && (

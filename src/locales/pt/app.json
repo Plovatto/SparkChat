@@ -761,17 +761,20 @@
       "live": "AO VIVO",
       "hidePreview": "Ocultar prévia",
       "showPreview": "Mostrar prévia",
-      "streamVolume": "Volume da transmissão"
+      "streamVolume": "Volume da transmissão",
+      "openWindow": "Abrir em nova janela"
     },
     "unstable": "Conexão instável",
     "you": "Você",
     "pip": {
       "open": "Abrir em janela flutuante",
-      "close": "Fechar janela flutuante"
+      "close": "Fechar janela flutuante",
+      "dismiss": "Fechar"
     },
     "tabs": {
       "devices": "Dispositivos",
-      "audio": "Áudio"
+      "audio": "Áudio",
+      "broadcast": "Transmissão"
     },
     "settings": "Configurações da chamada",
     "incomingKind": {
@@ -783,6 +786,20 @@
     "route": {
       "direct": "Conexão direta",
       "relay": "Conexão via servidor (TURN)"
+    },
+    "broadcast": {
+      "sending": "Você está transmitindo",
+      "receiving": "Você está assistindo",
+      "movie": "Modo filme",
+      "movieHint": "Vídeo fluido e áudio em estéreo para filmes e séries",
+      "shareVolume": "Volume do áudio compartilhado",
+      "shareVolumeHint": "Quanto do som da tela a outra pessoa ouve",
+      "noShareAudio": "Para enviar o som, marque Compartilhar áudio ao escolher a tela",
+      "hidePreview": "Ocultar prévia",
+      "hidePreviewHint": "Mostra só um aviso no lugar da sua tela",
+      "streamVolume": "Volume da transmissão",
+      "streamVolumeHint": "Muda o volume só para você",
+      "noStreamAudio": "Esta transmissão não tem som"
     }
   }
 }

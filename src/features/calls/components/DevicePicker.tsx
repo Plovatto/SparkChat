@@ -1,6 +1,6 @@
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaChevronDown, FaMicrophone, FaTimes, FaVideo, FaVolumeUp } from 'react-icons/fa';
+import { FaChevronDown, FaInfoCircle, FaMicrophone, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
@@ -8,6 +8,28 @@ import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
 import { listDevices, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
 import { isOutside } from './call-hooks';
+import { panelTabs, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
+
+export interface SharerSettings {
+  movieMode: boolean;
+  onMovieMode: (movie: boolean) => void;
+  hasAudio: boolean;
+  volume: number;
+  onVolume: (volume: number) => void;
+  previewHidden: boolean;
+  onPreviewHidden: (hidden: boolean) => void;
+}
+
+export interface ReceiverSettings {
+  hasAudio: boolean;
+  volume: number;
+  onVolume: (volume: number) => void;
+}
+
+export interface BroadcastSettings {
+  sharer: SharerSettings | null;
+  receiver: ReceiverSettings | null;
+}
 
 export interface DeviceSelection {
   audioInput: string;
@@ -27,9 +49,8 @@ interface DevicePickerProps {
   bottom?: number | undefined;
   trigger?: RefObject<HTMLElement | null>;
   stage?: PresenceStage;
+  broadcast?: BroadcastSettings | null | undefined;
 }
-
-type PanelTab = 'devices' | 'audio';
 
 interface DeviceFieldProps {
   icon: ReactNode;
@@ -120,17 +141,99 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
   );
 }
 
-export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger, stage = 'open' }: DevicePickerProps) {
+interface VolumeOptionProps {
+  id: string;
+  label: string;
+  description: string;
+  value: number;
+  onChange: (volume: number) => void;
+}
+
+function VolumeOption({ id, label, description, value, onChange }: VolumeOptionProps) {
+  const { theme } = useTheme();
+  const percent = toPercent(value);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
+          <span id={id} style={{ fontSize: '0.88rem', fontWeight: 600 }}>
+            {label}
+          </span>
+          <span id={id + '-hint'} style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.3 }}>
+            {description}
+          </span>
+        </div>
+        <span className="sc-call-range__value" aria-hidden="true">
+          {percent}%
+        </span>
+      </div>
+      <span className="sc-call-range-row">
+        <span className="sc-call-range-row__icon" aria-hidden="true">
+          {percent === 0 ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+        </span>
+        <input
+          type="range"
+          className="sc-call-range"
+          min={0}
+          max={100}
+          step={1}
+          value={percent}
+          aria-labelledby={id}
+          aria-describedby={id + '-hint'}
+          aria-valuetext={`${percent}%`}
+          style={{ '--fill': `${percent}%` } as CSSProperties}
+          onChange={(event) => onChange(Number(event.target.value) / 100)}
+        />
+      </span>
+    </div>
+  );
+}
+
+function PanelNote({ children }: { children: ReactNode }) {
+  return (
+    <p className="sc-call-panel-note">
+      <FaInfoCircle size={13} aria-hidden="true" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger, stage = 'open', broadcast = null }: DevicePickerProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const call = useCall();
   const [processing] = useAudioProcessing();
   const voiceIsolation = supportsVoiceIsolation();
-  const [tab, setTab] = useState<PanelTab>('devices');
+  const [selectedTab, setTab] = useState<PanelTab>('devices');
   const [devices, setDevices] = useState<DeviceLists>({ audioInputs: [], videoInputs: [], audioOutputs: [] });
   const panelRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const toggle = (key: keyof AudioProcessing) => call.changeAudioProcessing({ [key]: !processing[key] });
+  const sharer = broadcast?.sharer ?? null;
+  const receiver = broadcast?.receiver ?? null;
+  const tabs = panelTabs(sharer !== null || receiver !== null);
+  const tab = resolveTab(selectedTab, tabs);
+
+  useEffect(() => {
+    if (tab === selectedTab) {
+      return;
+    }
+    setTab(tab);
+    if (document.activeElement === null || document.activeElement === document.body) {
+      tablistRef.current?.querySelector<HTMLButtonElement>(`[data-tab='${tab}']`)?.focus();
+    }
+  }, [tab, selectedTab]);
+
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const next = stepTab(tabs, tab, event.key);
+    if (!next) {
+      return;
+    }
+    event.preventDefault();
+    setTab(next);
+    tablistRef.current?.querySelector<HTMLButtonElement>(`[data-tab='${next}']`)?.focus();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -169,11 +272,112 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
     };
   }, [onClose, trigger]);
 
-  const tabButton = (id: PanelTab, label: string) => (
-    <button type="button" role="tab" id={`${titleId}-${id}`} aria-selected={tab === id} aria-controls={`${titleId}-panel`} onClick={() => setTab(id)}>
-      {label}
+  const tabLabels: Record<PanelTab, string> = {
+    devices: t('calls.tabs.devices'),
+    audio: t('calls.tabs.audio'),
+    broadcast: t('calls.tabs.broadcast'),
+  };
+
+  const tabButton = (id: PanelTab) => (
+    <button
+      key={id}
+      type="button"
+      role="tab"
+      id={`${titleId}-${id}`}
+      data-tab={id}
+      aria-selected={tab === id}
+      aria-controls={`${titleId}-panel`}
+      tabIndex={tab === id ? 0 : -1}
+      title={tabLabels[id]}
+      onClick={() => setTab(id)}
+    >
+      {tabLabels[id]}
     </button>
   );
+
+  const sharerSection = sharer && (
+    <>
+      <AudioOption id="call-share-movie" label={t('calls.broadcast.movie')} description={t('calls.broadcast.movieHint')} checked={sharer.movieMode} onChange={() => sharer.onMovieMode(!sharer.movieMode)} />
+      {sharer.hasAudio ? (
+        <VolumeOption id="call-share-volume" label={t('calls.broadcast.shareVolume')} description={t('calls.broadcast.shareVolumeHint')} value={sharer.volume} onChange={sharer.onVolume} />
+      ) : (
+        <PanelNote>{t('calls.broadcast.noShareAudio')}</PanelNote>
+      )}
+      <AudioOption id="call-share-preview" label={t('calls.broadcast.hidePreview')} description={t('calls.broadcast.hidePreviewHint')} checked={sharer.previewHidden} onChange={() => sharer.onPreviewHidden(!sharer.previewHidden)} />
+    </>
+  );
+
+  const receiverSection = receiver &&
+    (receiver.hasAudio ? (
+      <VolumeOption id="call-stream-volume" label={t('calls.broadcast.streamVolume')} description={t('calls.broadcast.streamVolumeHint')} value={receiver.volume} onChange={receiver.onVolume} />
+    ) : (
+      <PanelNote>{t('calls.broadcast.noStreamAudio')}</PanelNote>
+    ));
+
+  const tabContent = () => {
+    if (tab === 'broadcast') {
+      return (
+        <div key="broadcast" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
+          {sharer && receiver ? (
+            <>
+              <span className="sc-call-panel-section">{t('calls.broadcast.sending')}</span>
+              {sharerSection}
+              <span className="sc-call-panel-section">{t('calls.broadcast.receiving')}</span>
+              {receiverSection}
+            </>
+          ) : (
+            (sharerSection ?? receiverSection)
+          )}
+        </div>
+      );
+    }
+    if (tab === 'audio') {
+      return (
+        <div key="audio" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
+          <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
+          <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
+          <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
+          {voiceIsolation && (
+            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+          )}
+        </div>
+      );
+    }
+    return (
+      <div key="devices" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <DeviceField
+          icon={<FaMicrophone size={13} />}
+          label={t('calls.microphone')}
+          emptyLabel={t('calls.noMicrophone')}
+          defaultLabel={t('calls.defaultDevice')}
+          value={selected.audioInput}
+          list={devices.audioInputs}
+          onChange={onAudioInput}
+        />
+        {supportsOutput && (
+          <DeviceField
+            icon={<FaVolumeUp size={13} />}
+            label={t('calls.speaker')}
+            emptyLabel={t('calls.noSpeaker')}
+            defaultLabel={t('calls.defaultDevice')}
+            value={selected.audioOutput}
+            list={devices.audioOutputs}
+            onChange={onAudioOutput}
+          />
+        )}
+        <DeviceField
+          icon={<FaVideo size={13} />}
+          label={t('calls.camera')}
+          hint={cameraOn ? undefined : t('calls.cameraHint')}
+          emptyLabel={t('calls.noCamera')}
+          defaultLabel={t('calls.defaultDevice')}
+          value={selected.videoInput}
+          list={devices.videoInputs}
+          onChange={onVideoInput}
+        />
+      </div>
+    );
+  };
 
   return (
     <div
@@ -198,55 +402,19 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
           <FaTimes size={13} />
         </button>
       </div>
-      <div className="sc-call-segmented" role="tablist" aria-label={t('calls.settings')}>
+      <div
+        ref={tablistRef}
+        className="sc-call-segmented"
+        role="tablist"
+        aria-label={t('calls.settings')}
+        onKeyDown={onTabKeyDown}
+        style={{ '--tabs': tabs.length, '--tab-index': tabs.indexOf(tab) } as CSSProperties}
+      >
         <span className="sc-call-segmented__indicator" data-tab={tab} aria-hidden="true" />
-        {tabButton('devices', t('calls.tabs.devices'))}
-        {tabButton('audio', t('calls.tabs.audio'))}
+        {tabs.map((id) => tabButton(id))}
       </div>
       <div className="sc-call-panel__body" role="tabpanel" id={`${titleId}-panel`} aria-labelledby={`${titleId}-${tab}`}>
-        {tab === 'devices' ? (
-          <div key="devices" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <DeviceField
-              icon={<FaMicrophone size={13} />}
-              label={t('calls.microphone')}
-              emptyLabel={t('calls.noMicrophone')}
-              defaultLabel={t('calls.defaultDevice')}
-              value={selected.audioInput}
-              list={devices.audioInputs}
-              onChange={onAudioInput}
-            />
-            {supportsOutput && (
-              <DeviceField
-                icon={<FaVolumeUp size={13} />}
-                label={t('calls.speaker')}
-                emptyLabel={t('calls.noSpeaker')}
-                defaultLabel={t('calls.defaultDevice')}
-                value={selected.audioOutput}
-                list={devices.audioOutputs}
-                onChange={onAudioOutput}
-              />
-            )}
-            <DeviceField
-              icon={<FaVideo size={13} />}
-              label={t('calls.camera')}
-              hint={cameraOn ? undefined : t('calls.cameraHint')}
-              emptyLabel={t('calls.noCamera')}
-              defaultLabel={t('calls.defaultDevice')}
-              value={selected.videoInput}
-              list={devices.videoInputs}
-              onChange={onVideoInput}
-            />
-          </div>
-        ) : (
-          <div key="audio" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
-            <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
-            <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
-            <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
-            {voiceIsolation && (
-              <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
-            )}
-          </div>
-        )}
+        {tabContent()}
       </div>
     </div>
   );
