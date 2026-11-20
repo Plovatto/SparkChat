@@ -1,5 +1,6 @@
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { DEFAULT_AUDIO_PROCESSING, type AudioProcessing } from './call-settings';
+import { supportsAdvancedNoise } from './denoiser';
 
 export interface MediaSelection {
   audioProcessing?: AudioProcessing | undefined;
@@ -26,10 +27,14 @@ export function supportsVoiceIsolation(): boolean {
   }
 }
 
-export function audioProcessingConstraints(processing: AudioProcessing): MediaTrackConstraints {
+export function usesAdvancedNoise(processing: AudioProcessing, advanced: boolean = supportsAdvancedNoise()): boolean {
+  return processing.noiseSuppression && advanced;
+}
+
+export function audioProcessingConstraints(processing: AudioProcessing, advanced: boolean = supportsAdvancedNoise()): MediaTrackConstraints {
   return {
     echoCancellation: processing.echoCancellation,
-    noiseSuppression: processing.noiseSuppression,
+    noiseSuppression: processing.noiseSuppression && !advanced,
     autoGainControl: processing.autoGainControl,
     ...(processing.voiceIsolation && supportsVoiceIsolation() ? ({ voiceIsolation: true } as MediaTrackConstraints) : {}),
   };

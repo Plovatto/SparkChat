@@ -22,6 +22,8 @@ import { ShareStage } from './ShareStage';
 import { useSpeaking, useStreamOn } from './call-hooks';
 import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
 import { useDuckedVolume } from './use-ducking';
+import { useVoicePlayback } from './use-voice-playback';
+import { useCallVolume } from '../lib/call-settings';
 import { audioTrackKey, voiceOnly } from '../lib/voice-stream';
 import { usePip } from './use-pip';
 import { usePresence } from './use-presence';
@@ -67,6 +69,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   const call = useCall();
   const { snapshot, minimized } = call;
   const voiceTrackKey = audioTrackKey(snapshot.remoteStream);
+  const [callVolumeLevel] = useCallVolume();
   const { state } = snapshot;
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
@@ -160,18 +163,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
 
   const voiceStream = useMemo(() => voiceOnly(snapshot.remoteStream, voiceTrackKey), [snapshot.remoteStream, voiceTrackKey]);
 
-  useEffect(() => {
-    const element = voiceRef.current;
-    if (!element) {
-      return;
-    }
-    if (element.srcObject !== voiceStream) {
-      element.srcObject = voiceStream;
-    }
-    if (voiceStream) {
-      autoplay.play(element);
-    }
-  }, [voiceStream, voiceRef]);
+  useVoicePlayback(voiceRef, voiceStream, callVolumeLevel);
 
   useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
   useStreamOn(shareAudioRef, remoteSharing ? snapshot.remoteScreenStream : null);

@@ -37,6 +37,7 @@ import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, Restart
 import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
+import type { VoiceLeveler } from './voice-leveler';
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
@@ -170,6 +171,7 @@ export interface CallControllerDeps {
   applyShareConstraints: (stream: MediaStream, movie: boolean) => Promise<void>;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
+  createVoiceLeveler?: (track: MediaStreamTrack) => VoiceLeveler;
   isMobile: () => boolean;
   startRingtone: (pattern: 'incoming' | 'outgoing') => void;
   stopRingtone: () => void;
@@ -317,6 +319,7 @@ export class CallController {
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private disposed = false;
+  private voice: VoiceLeveler | null = null;
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
@@ -688,8 +691,34 @@ export class CallController {
         track.enabled = !next;
       }
     }
+    this.voice?.setMuted(next);
     peer?.setMuted(next);
     this.update({ muted: next });
+  }
+
+  setMicVolume(volume: number): void {
+    this.voice?.setVolume(volume);
+  }
+
+  private levelVoice(stream: MediaStream | null): MediaStream | null {
+    this.releaseVoice();
+    const mic = stream?.getAudioTracks()[0];
+    if (!stream || !mic || !this.deps.createVoiceLeveler) {
+      return stream;
+    }
+    const voice = this.deps.createVoiceLeveler(mic);
+    if (!voice.processed) {
+      voice.close();
+      return stream;
+    }
+    voice.setMuted(this.snapshot.muted);
+    this.voice = voice;
+    return voice.sendStream(stream);
+  }
+
+  private releaseVoice(): void {
+    this.voice?.close();
+    this.voice = null;
   }
 
   async toggleCamera(): Promise<void> {
@@ -874,7 +903,7 @@ export class CallController {
     }
     track.enabled = !this.snapshot.muted;
     stream.addTrack(track);
-    await session.peerSession.setAudioTrack(track);
+    await session.peerSession.setAudioTrack(this.voice ? this.voice.setInput(track) : track);
     this.update({ localStream: stream });
   }
 
@@ -1492,7 +1521,7 @@ export class CallController {
       mobile: this.deps.isMobile(),
       iceServers,
       degrade,
-      localStream: session.media?.stream ?? null,
+      localStream: this.levelVoice(session.media?.stream ?? null),
       sendSignal: (type, payload) => this.sendSignal(session, type, payload),
       refreshIceServers: async () => {
         try {
@@ -1693,6 +1722,7 @@ export class CallController {
         zeroEphemeralKeyPair(session.ownEk);
       }
       this.deps.stopMedia(session.media?.stream ?? null);
+      this.releaseVoice();
       this.releaseScreen(session);
       this.deps.tabs.announceReleased(session.callId);
     }
@@ -1722,6 +1752,7 @@ export class CallController {
       zeroEphemeralKeyPair(this.session.ownEk);
     }
     this.deps.stopMedia(this.session?.media?.stream ?? null);
+    this.releaseVoice();
     if (this.session) {
       this.releaseScreen(this.session);
     }
