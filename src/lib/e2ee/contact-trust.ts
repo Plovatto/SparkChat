@@ -29,6 +29,12 @@ export function getContactTrust(contactId: string): ContactTrust | null {
   return trustByContact.get(contactId) ?? null;
 }
 
+export function listUsableContactIds(): string[] {
+  return Array.from(trustByContact.values())
+    .filter((trust) => trust.pin !== null && isKeyUsable(trust.status))
+    .map((trust) => trust.contactId);
+}
+
 export function subscribeContactTrust(listener: Listener): () => void {
   listeners.add(listener);
   return () => {

@@ -118,6 +118,8 @@ VITE_MEDIA_ORIGIN=
 
 ## Content-Security-Policy
 
+`VITE_KT_LOG_PUBLIC_KEY` e `VITE_KT_WITNESS_URL` são opcionais e só valem quando a API liga a transparência de chaves (`KEY_TRANSPARENCY_ENABLED`). A primeira fixa no build a chave pública do registro, em vez de confiar na que o servidor anuncia no primeiro uso. A segunda é a URL da cabeça assinada publicada pela testemunha (por exemplo, um arquivo no GitHub Pages); quando definida, a Content-Security-Policy libera conexões também para a origem dela. Com a transparência desligada no servidor o app não faz nada a mais, exceto quando a conta já usou o registro antes ou o build fixa a chave: nesse caso a ausência da configuração gera um alerta de rebaixamento, e com a chave fixada o app recusa chaves novas ou alteradas de contatos até o registro voltar. Detalhes do roteiro de ativação no repositório da API (`docs/key-transparency.md`).
+
 No build, as duas páginas (`index.html` e `app/index.html`) recebem uma Content-Security-Policy em `<meta http-equiv>`. Ela libera scripts do próprio site (mais o hash sha256 do script de inicialização da apresentação, calculado no build), `wasm-unsafe-eval` para libsodium e Bergamot, workers do próprio site e `blob:`, conexões para `VITE_API_URL`, `VITE_SOCKET_URL` (http e ws), a origem de mídia e `VITE_TRANSLATION_MODELS_URL`, e imagens do próprio site, `blob:`, `data:` e do Unsplash (papéis de parede). Plugins, frames, `<base>` e envio de formulários ficam bloqueados. O servidor de desenvolvimento não aplica a política.
 
 ## Tradução de mensagens

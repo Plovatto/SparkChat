@@ -32,6 +32,7 @@ import {
   updateRoomParticipants,
 } from '@lib/e2ee';
 import { translate } from '@lib/i18n/app-i18n';
+import { attachKeyTransparency } from '@lib/kt/kt-manager';
 import type { AppSocket } from './socket-client';
 import type {
   BlockStatusPayload,
@@ -287,12 +288,14 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   });
 
   const detachProfilePhotos = attachProfilePhotoSocket(socket);
+  const detachKeyTransparency = attachKeyTransparency(socket);
 
   const closable = socket as unknown as { close: () => AppSocket };
   const originalClose = closable.close.bind(socket);
   closable.close = () => {
     unsubscribeIdentity();
     detachProfilePhotos();
+    detachKeyTransparency();
     deferredRoomEvents.clear();
     pendingGroupName = null;
     return originalClose();

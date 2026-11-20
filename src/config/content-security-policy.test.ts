@@ -64,4 +64,21 @@ describe('buildContentSecurityPolicy', () => {
   it('renders an escaped meta tag', () => {
     expect(contentSecurityPolicyMetaTag("default-src 'self'")).toBe(`<meta http-equiv="Content-Security-Policy" content="default-src 'self'" />`);
   });
+
+  it('only opens connect-src to the key transparency witness when one is configured', () => {
+    const without = directivesOf(buildContentSecurityPolicy({ apiUrl: 'https://api.test' })).get('connect-src');
+    const withWitness = directivesOf(
+      buildContentSecurityPolicy({ apiUrl: 'https://api.test', keyTransparencyWitnessUrl: 'https://owner.github.io/witness/head.json' }),
+    ).get('connect-src');
+
+    expect(without).not.toContain('https://owner.github.io');
+    expect(withWitness).toContain('https://owner.github.io');
+    expect(withWitness?.filter((source) => source.startsWith('http')).length).toBe((without ?? []).filter((source) => source.startsWith('http')).length + 1);
+  });
+
+  it('ignores an invalid witness url', () => {
+    const policy = buildContentSecurityPolicy({ apiUrl: 'https://api.test', keyTransparencyWitnessUrl: 'javascript:alert(1)' });
+    expect(policy).not.toContain('javascript');
+    expect(policy).toBe(buildContentSecurityPolicy({ apiUrl: 'https://api.test' }));
+  });
 });

@@ -103,6 +103,7 @@ function injectContentSecurityPolicy(html: string, env: Record<string, string>, 
     socketUrl: env.VITE_SOCKET_URL,
     mediaOrigin: env.VITE_MEDIA_ORIGIN,
     translationModelsUrl: env.VITE_TRANSLATION_MODELS_URL,
+    keyTransparencyWitnessUrl: env.VITE_KT_WITNESS_URL,
     scriptHashes,
   });
   return html.replace(CHARSET_META, () => `${CHARSET_META}

@@ -30,6 +30,7 @@ import {
   useUnreadBadge,
 } from '@features/notifications';
 import { CallProvider } from '@features/calls';
+import { KeyTransparencyBanner } from '@features/key-transparency';
 import { PendingPhotoFailedToast, queuePendingMyPhoto } from '@features/profile-photos';
 import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, useNotificationMirror, usePwaChatShell } from '@features/pwa';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
@@ -260,6 +261,7 @@ function AuthGate({
       />
       <InstallSheet />
       <UpdateToast />
+      <KeyTransparencyBanner />
       <PendingPhotoFailedToast />
     </AppBackground>
   );

@@ -1,6 +1,7 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
 import type { RoomEncryptedName } from '@lib/socket/socket-events';
+import { verifyPublicKeyEntries } from '@lib/kt/kt-verify';
 import { createBatchedLookup } from './batched-lookup';
 import { ASSISTANT_USER_ID } from './assistant';
 import { getContactTrust, isKeyUsable, observeContactKey, subscribeContactTrust, type ContactTrust } from './contact-trust';
@@ -279,7 +280,12 @@ function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePubli
     };
 
     const handleKeys = (payload: { keys: E2ePublicKeyEntry[] }) => {
-      finish(payload.keys.filter((entry) => requested.has(entry.userId)));
+      const received = payload.keys.filter((entry) => requested.has(entry.userId));
+      window.clearTimeout(timeoutId);
+      verifyPublicKeyEntries(socket, received).then(finish, (error: unknown) => {
+        console.error('[kt] key verification crashed, refusing the keys', error);
+        finish([]);
+      });
     };
 
     socket.on('e2e:public-keys', handleKeys);
