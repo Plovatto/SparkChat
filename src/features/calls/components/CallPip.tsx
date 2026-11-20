@@ -10,6 +10,7 @@ interface CallPipProps {
   target: Window;
   peerName: string;
   avatar: (typeof AVATARS)[number] | undefined;
+  photo?: string | null;
   stream: MediaStream | null;
   speaking: boolean;
   muted: boolean;
@@ -19,7 +20,7 @@ interface CallPipProps {
   onClose: () => void;
 }
 
-export function CallPip({ target, peerName, avatar, stream, speaking, muted, remoteMuted, onToggleMute, onHangup, onClose }: CallPipProps) {
+export function CallPip({ target, peerName, avatar, photo, stream, speaking, muted, remoteMuted, onToggleMute, onHangup, onClose }: CallPipProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   useStreamOn(videoRef, stream);
@@ -35,7 +36,7 @@ export function CallPip({ target, peerName, avatar, stream, speaking, muted, rem
           <video ref={videoRef} autoPlay playsInline muted />
         ) : (
           <div className={`sc-call-avatar${speaking ? ' sc-call-speaking' : ''}`} style={{ width: '88px', height: '88px', background: avatar?.bgGradient }}>
-            {avatar ? <avatar.icon size={42} color={AVATAR_ICON_COLOR} /> : null}
+            {photo ? <img src={photo} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }} /> : avatar ? <avatar.icon size={42} color={AVATAR_ICON_COLOR} /> : null}
             {remoteMuted && (
               <span className="sc-call-muted-badge" role="img" aria-label={t('calls.mutedBadge')}>
                 <FaMicrophoneSlash size={12} />
