@@ -5,6 +5,7 @@ export interface ContentSecurityPolicyOptions {
   socketUrl?: string | undefined;
   mediaOrigin?: string | undefined;
   translationModelsUrl?: string | undefined;
+  keyTransparencyWitnessUrl?: string | undefined;
   scriptHashes?: readonly string[];
 }
 
@@ -51,6 +52,7 @@ export function buildContentSecurityPolicy(options: ContentSecurityPolicyOptions
       ...socketOriginsOf(options.socketUrl),
       mediaOrigin,
       originOf(options.translationModelsUrl),
+      originOf(options.keyTransparencyWitnessUrl),
     ]),
     'worker-src': ["'self'", 'blob:'],
     'manifest-src': ["'self'"],

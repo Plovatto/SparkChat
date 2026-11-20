@@ -9,6 +9,30 @@ export interface SocketErrorPayload {
   event?: string;
 }
 
+export interface KtSignedTreeHeadWire {
+  size: number;
+  root: string;
+  issuedAt: number;
+  signature: string;
+}
+
+export interface KtConfigPayload {
+  enabled: boolean;
+  logPublicKey: string;
+}
+
+export type KtProofWire =
+  | { userId: string; found: true; position: number; version: number; proof: string[] }
+  | { userId: string; found: false };
+
+export interface KtAuditEntryWire {
+  position: number;
+  version: number;
+  publicKey: string;
+  signingPublicKey: string | null;
+  proof: string[];
+}
+
 export interface PushConfigPayload {
   enabled: boolean;
   publicKey: string | null;
@@ -314,6 +338,12 @@ export interface ServerToClientEvents {
   'user:session-revoked': () => void;
   'user:chat-settings-updated': (payload: { chatSettings: SocketChatSettings }) => void;
   'e2e:public-keys': (payload: { keys: E2ePublicKeyEntry[] }) => void;
+  'kt:config': (payload: KtConfigPayload) => void;
+  'kt:head': (payload: { requestId?: string; head: KtSignedTreeHeadWire }) => void;
+  'kt:proofs': (payload: { requestId?: string; head: KtSignedTreeHeadWire; proofs: KtProofWire[] }) => void;
+  'kt:consistency': (payload: { requestId?: string; first: number; second: number; proof: string[] | null }) => void;
+  'kt:audit': (payload: { requestId?: string; head: KtSignedTreeHeadWire; entries: KtAuditEntryWire[]; truncated: boolean }) => void;
+  'kt:gossip': (payload: { from: string; envelope: string }) => void;
   'e2e:my-keys': (payload: {
     publicKey: string | null;
     encryptedPrivateKeyByPassword: string | null;
@@ -414,6 +444,15 @@ export interface ClientToServerEvents {
   }) => void;
   'e2e:publish-signing-key': (payload: { signingPublicKey: string; keySignature: string }) => void;
   'e2e:get-public-keys': (payload: { userIds: string[] }) => void;
+  'kt:get-head': (payload?: { requestId?: string }) => void;
+  'kt:get-proofs': (payload: {
+    requestId?: string;
+    treeSize?: number;
+    items: { userId: string; publicKey: string; signingPublicKey?: string }[];
+  }) => void;
+  'kt:get-consistency': (payload: { requestId?: string; first: number; second: number }) => void;
+  'kt:audit': (payload?: { requestId?: string; fromVersion?: number }) => void;
+  'kt:gossip': (payload: { to: string; envelope: string }) => void;
   'e2e:get-my-keys': () => void;
   'rooms:get': () => void;
   'room:create-private': (payload: { targetNickname: string }) => void;

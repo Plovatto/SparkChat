@@ -129,6 +129,7 @@
     },
     "e2e": {
       "lookupTooLarge": "Too many items in one key lookup. Send at most {{maxItems}} at a time.",
+      "transparencyInvalid": "Invalid key transparency request.",
       "keysLocked": "This account's encryption keys are already set and can't be replaced.",
       "invalidSigningKey": "The signing key is invalid or does not match your public key.",
       "signingKeyLocked": "The signing key of this account is already set.",
@@ -914,6 +915,28 @@
       "message": "A new version is available",
       "reload": "Reload",
       "dismiss": "Later"
+    }
+  },
+  "keyTransparency": {
+    "dismiss": "Dismiss",
+    "trustNewLog": "Trust the new log",
+    "alerts": {
+      "unknownOwnKey": {
+        "title": "An unknown key was registered on your account",
+        "text": "A key that is not yours showed up in your account's transparency log. This may mean the server tried to impersonate you. Compare the safety number with your contacts."
+      },
+      "splitView": {
+        "title": "The server is showing different records",
+        "text": "The key log you see does not match what other people or the external verifier see. Avoid sending sensitive information until you check your contacts' safety numbers."
+      },
+      "keyRejected": {
+        "title": "A contact's key could not be verified",
+        "text": "This contact's key is not in the transparency log, so it was blocked for safety. Try again later."
+      },
+      "logKeyChanged": {
+        "title": "The transparency log signature changed",
+        "text": "The server started signing the log with a different key. If you did not expect this change, do not trust it."
+      }
     }
   },
   "profilePhotos": {

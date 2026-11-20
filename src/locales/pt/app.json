@@ -129,6 +129,7 @@
     },
     "e2e": {
       "lookupTooLarge": "Consulta de chaves com itens demais. Envie no máximo {{maxItems}} por vez.",
+      "transparencyInvalid": "Pedido de transparência de chaves inválido.",
       "keysLocked": "As chaves de criptografia desta conta já foram definidas e não podem ser substituídas.",
       "invalidSigningKey": "A chave de assinatura é inválida ou não corresponde à sua chave pública.",
       "signingKeyLocked": "A chave de assinatura desta conta já está configurada.",
@@ -914,6 +915,28 @@
       "message": "Nova versão disponível",
       "reload": "Recarregar",
       "dismiss": "Depois"
+    }
+  },
+  "keyTransparency": {
+    "dismiss": "Dispensar",
+    "trustNewLog": "Confiar no novo registro",
+    "alerts": {
+      "unknownOwnKey": {
+        "title": "Uma chave desconhecida foi registrada na sua conta",
+        "text": "Uma chave que não é sua apareceu no registro de transparência da sua conta. Isso pode indicar que o servidor tentou se passar por você. Compare o número de segurança com seus contatos."
+      },
+      "splitView": {
+        "title": "O servidor está mostrando registros diferentes",
+        "text": "O registro de chaves que você vê não bate com o que outras pessoas ou o verificador externo enxergam. Evite enviar informações sensíveis até conferir o número de segurança dos seus contatos."
+      },
+      "keyRejected": {
+        "title": "Não foi possível verificar a chave de um contato",
+        "text": "A chave desse contato não está no registro de transparência, então foi bloqueada por segurança. Tente novamente mais tarde."
+      },
+      "logKeyChanged": {
+        "title": "A assinatura do registro de transparência mudou",
+        "text": "O servidor passou a assinar o registro com outra chave. Se você não esperava essa mudança, não confie nele."
+      }
     }
   },
   "profilePhotos": {
