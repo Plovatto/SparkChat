@@ -4,6 +4,7 @@ import { translate } from '@lib/i18n/app-i18n';
 import { getCurrentIdentity } from '@lib/e2ee';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useSocket, type RoomSummary } from '@lib/socket';
+import { useSpeaking } from './components/call-hooks';
 import { CallContext, type CallApi, type PeerDisplay } from './call-context';
 import { CallMiniBar } from './components/CallMiniBar';
 import { CallNotices } from './components/CallNotices';
@@ -13,6 +14,7 @@ import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, usesAdvancedNoise, videoConstraints, resetKnownDevices } from './lib/media-devices';
+import { showSelfSpeaking } from './lib/self-speaking';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
@@ -98,6 +100,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
 
   const snapshot = useSyncExternalStore(controller ? controller.subscribe : noopSubscribe, controller ? controller.getSnapshot : emptySnapshot);
   const phase = snapshot.state.phase;
+  const localSpeaking = showSelfSpeaking(useSpeaking(snapshot.localStream, (phase === 'active' || phase === 'reconnecting') && !snapshot.muted), snapshot.muted);
 
   useEffect(() => {
     if (phase === 'idle' || phase === 'ended') {
@@ -199,6 +202,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   }, [fullscreenStage]);
 
   const api: CallApi = {
+    localSpeaking,
     movieMode: snapshot.movieMode,
     shareVolume: snapshot.shareVolume,
     streamVolume,

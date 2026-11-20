@@ -113,7 +113,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
       : null;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
-  const localSpeaking = useSpeaking(snapshot.localStream, running && !snapshot.muted);
+  const localSpeaking = call.localSpeaking;
   const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume);
   const fullscreen = useFullscreen(stageRef);
   const mode = pipMode();
