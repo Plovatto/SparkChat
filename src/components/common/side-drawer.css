@@ -1,0 +1,264 @@
+.sc-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: var(--sc-overlay);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
+.sc-drawer-backdrop.is-exiting {
+  animation: scFadeOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9991;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, 100vw);
+  overflow: hidden;
+  border-left: 1px solid var(--sc-border-subtle);
+  border-radius: 20px 0 0 20px;
+  background: var(--sc-sidebar);
+  box-shadow: var(--sc-shadow-lg);
+  color: var(--sc-text-primary);
+  animation: scDrawerIn 380ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-drawer.is-exiting {
+  animation: scDrawerOut 260ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-drawer__header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+  min-height: 64px;
+  padding: 12px 14px 12px 20px;
+  background: var(--sc-gradient);
+  color: var(--sc-on-gradient);
+  box-shadow: var(--sc-shadow-sm);
+}
+
+.sc-drawer__header:has(.sc-drawer__back) {
+  padding-left: 12px;
+}
+
+.sc-drawer__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  animation: scDrawerTitleIn 260ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-drawer__icon-btn {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sc-gradient-control);
+  color: var(--sc-on-gradient);
+  cursor: pointer;
+  transition:
+    background-color var(--sc-dur-fast) ease,
+    transform 140ms var(--sc-ease-spring-soft);
+}
+
+.sc-drawer__icon-btn:active {
+  transform: scale(0.92);
+}
+
+.sc-drawer__icon-btn:focus-visible {
+  outline: 2px solid var(--sc-on-gradient);
+  outline-offset: 2px;
+}
+
+.sc-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  animation: scDrawerViewBack 300ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-drawer__body[data-direction='forward'] {
+  animation-name: scDrawerViewForward;
+}
+
+.sc-drawer__body[data-direction='none'] {
+  animation: none;
+}
+
+.sc-drawer__footer {
+  flex-shrink: 0;
+  padding: 6px 0 calc(8px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--sc-border-subtle);
+  background: color-mix(in srgb, var(--sc-sidebar) 85%, var(--sc-canvas));
+}
+
+.sc-drawer--inline {
+  position: relative;
+  inset: auto;
+  z-index: 3;
+  flex: none;
+  width: var(--sc-info-column-width, 340px);
+  height: 100%;
+  border-radius: 0;
+  box-shadow: -18px 0 40px -28px rgba(0, 0, 0, 0.55);
+  animation: scInfoColumnIn 420ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-drawer--inline > * {
+  min-width: var(--sc-info-column-width, 340px);
+}
+
+.sc-drawer--inline.is-exiting {
+  animation: scInfoColumnOut 260ms var(--sc-ease-exit) forwards;
+}
+
+.sc-drawer--inline .sc-drawer__header {
+  min-height: 0;
+  height: 58px;
+  padding: 0 12px 0 18px;
+}
+
+.sc-drawer--inline .sc-drawer__icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sc-drawer__icon-btn:hover {
+    background: var(--sc-gradient-control-hover);
+  }
+}
+
+@media (max-width: 600px) {
+  .sc-drawer {
+    width: 100vw;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .sc-drawer__header {
+    min-height: calc(58px + env(safe-area-inset-top));
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+}
+
+@keyframes scDrawerIn {
+  from {
+    opacity: 0.6;
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scDrawerOut {
+  to {
+    opacity: 0.6;
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+@keyframes scInfoColumnIn {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    width: var(--sc-info-column-width, 340px);
+    opacity: 1;
+  }
+}
+
+@keyframes scInfoColumnOut {
+  from {
+    width: var(--sc-info-column-width, 340px);
+    opacity: 1;
+  }
+  to {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes scDrawerViewForward {
+  from {
+    opacity: 0;
+    transform: translate3d(28px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scDrawerViewBack {
+  from {
+    opacity: 0;
+    transform: translate3d(-28px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scDrawerTitleIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-drawer,
+  .sc-drawer__body,
+  .sc-drawer__body[data-direction='forward'],
+  .sc-drawer__title {
+    animation: scFadeIn 200ms ease backwards;
+  }
+
+  .sc-drawer.is-exiting {
+    animation: scFadeOut 200ms ease forwards;
+  }
+
+  .sc-drawer--inline {
+    animation: scFadeIn 200ms ease backwards;
+  }
+
+  .sc-drawer__icon-btn:active {
+    transform: none;
+  }
+}

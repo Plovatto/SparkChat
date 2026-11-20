@@ -8,10 +8,10 @@ import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageReplySnapshot, MessageType } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
+import { jumpToMessage } from '../utils/jump-to-message';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 const REPLY_QUOTE_HEIGHT = 52;
-const HIGHLIGHT_DURATION_MS = 1500;
 
 interface MessageReplyQuoteProps {
   replyTo: MessageReplySnapshot;
@@ -19,16 +19,6 @@ interface MessageReplyQuoteProps {
   isOwn: boolean;
   bubble: ResolvedBubbleStyle;
   currentUserId: string | undefined;
-}
-
-function jumpToMessage(messageId: string): void {
-  const target = document.querySelector(`[data-message-id="${messageId}"]`);
-  if (!target) {
-    return;
-  }
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  target.classList.add('message-highlight-flash');
-  setTimeout(() => target.classList.remove('message-highlight-flash'), HIGHLIGHT_DURATION_MS);
 }
 
 export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentUserId }: MessageReplyQuoteProps) {

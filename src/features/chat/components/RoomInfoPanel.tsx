@@ -1,33 +1,38 @@
-import { useId, useState, type ReactNode } from 'react';
-import { FaBan, FaCheck, FaCopy, FaCrown, FaLink, FaSignOutAlt, FaUserMinus, FaUsers } from 'react-icons/fa';
-import { MdTranslate } from 'react-icons/md';
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LuBan, LuChevronRight, LuCopy, LuCheck, LuImage, LuLink, LuLogOut, LuPhone, LuSearch, LuVideo } from 'react-icons/lu';
+import { MdTranslate } from 'react-icons/md';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
-import { Modal } from '@components/common/Modal';
+import { SideDrawer } from '@components/common/SideDrawer';
 import { Switch } from '@components/common/Switch';
+import { useOptionalCall } from '@features/calls';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { GroupPhotoEditor } from '@features/profile-photos/components/GroupPhotoEditor';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
 import { getOtherParticipant } from '@features/rooms';
-import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { attestGroupAction, downloadMessageMedia } from '@lib/e2ee';
-import { formatTimeAgo, getDisplayName } from '@lib/format';
+import { formatTimeAgo } from '@lib/format';
 import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isAssistantRoom } from '../utils/assistant';
-import { AppearanceEditor } from './AppearanceEditor';
+import { getGalleryMedia } from '../utils/gallery-media';
+import { jumpToMessage } from '../utils/jump-to-message';
+import { ChatAppearanceModal } from './ChatAppearanceModal';
+import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
 import { GroupNameEditor } from './GroupNameEditor';
-import { ContactSecurityLink } from './ContactSecurityLink';
 import { ImageModal } from './ImageModal';
-import { MediaGallery } from './MediaGallery';
 import { PdfPreviewModal } from './PdfPreviewModal';
 import { VideoPreviewModal } from './VideoPreviewModal';
-import { WallpaperPicker } from './WallpaperPicker';
+import { InfoMediaGrid } from './room-info/InfoMediaGrid';
+import { InfoMessageSearch } from './room-info/InfoMessageSearch';
+import { MemberRow } from './room-info/MemberRow';
+import '../styles/room-info-drawer.css';
 
 interface RoomInfoPanelProps {
   isOpen: boolean;
+  inline?: boolean;
   onClose: () => void;
   room: RoomSummary;
   currentUserId: string | undefined;
@@ -42,7 +47,11 @@ interface RoomAutoTranslateProps {
   onChange: (enabled: boolean) => void;
 }
 
+type InfoView = 'main' | 'invite' | 'search' | 'media';
+
 const COPY_KEY_NICKNAME = 'nickname';
+const MEDIA_PREVIEW_COUNT = 6;
+const HERO_AVATAR_SIZE = 92;
 
 function getLastSeen(participant: RoomParticipant): string {
   if (participant.status === 'online') {
@@ -60,88 +69,72 @@ function getLastSeen(participant: RoomParticipant): string {
   return translate('presence.offline');
 }
 
-interface ActionIconButtonProps {
-  onClick: () => void;
-  title: string;
-  tone: 'accent' | 'danger';
-  children: ReactNode;
-}
-
-function ActionIconButton({ onClick, title, tone, children }: ActionIconButtonProps) {
-  return (
-    <button
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      title={title}
-      className={`sc-icon-btn ${tone === 'danger' ? 'sc-icon-btn--outline-danger' : 'sc-icon-btn--outline-accent'}`}
-      style={{ width: '32px', height: '32px' }}
-    >
-      {children}
-    </button>
-  );
-}
-
 function RoomAutoTranslateCard({ enabled, onChange }: RoomAutoTranslateProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const labelId = useId();
   const captionId = useId();
 
   return (
-    <div className="sc-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderRadius: '12px', padding: '18px 22px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-          <MdTranslate size={16} color={enabled ? theme.accentText : theme.textMuted} aria-hidden="true" style={{ flexShrink: 0 }} />
-          <span id={labelId} style={{ fontWeight: 600, color: theme.textPrimary, fontSize: '0.88rem', lineHeight: 1.3 }}>
-            {t('chat.translation.autoRoomTitle')}
-          </span>
-        </div>
-        <span style={{ display: 'inline-flex', flexShrink: 0, transform: 'scale(0.9)', transformOrigin: 'right center' }}>
-          <Switch checked={enabled} onChange={() => onChange(!enabled)} aria-labelledby={labelId} aria-describedby={captionId} />
+    <div className="sc-info-toggle">
+      <MdTranslate size={18} className="sc-info-toggle__icon" data-on={enabled} aria-hidden="true" />
+      <div className="sc-info-toggle__body">
+        <span id={labelId} className="sc-info-toggle__label">
+          {t('chat.translation.autoRoomTitle')}
         </span>
+        <small id={captionId} className="sc-info-toggle__caption">
+          {t('chat.translation.autoRoomCaption')}
+        </small>
       </div>
-      <small id={captionId} style={{ color: theme.textSecondary, fontSize: '0.8rem', lineHeight: 1.5 }}>
-        {t('chat.translation.autoRoomCaption')}
-      </small>
+      <Switch checked={enabled} onChange={() => onChange(!enabled)} aria-labelledby={labelId} aria-describedby={captionId} />
     </div>
   );
 }
 
-function SectionDivider() {
-  const { theme } = useTheme();
-
-  return <div style={{ height: '1px', background: theme.borderSubtle, margin: '4px 0' }} />;
+interface QuickActionProps {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  index: number;
+  disabled?: boolean;
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
-  const { theme } = useTheme();
-
+function QuickAction({ icon, label, onClick, index, disabled = false }: QuickActionProps) {
   return (
-    <div
-      style={{
-        fontSize: '0.85rem',
-        color: theme.textSecondary,
-        marginBottom: '12px',
-        fontWeight: 600,
-        textTransform: 'uppercase',
-        letterSpacing: '0.5px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-      }}
-    >
-      {children}
-    </div>
+    <button type="button" className="sc-info-action" onClick={onClick} disabled={disabled} style={{ '--sc-info-i': index } as CSSProperties}>
+      <span className="sc-info-action__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="sc-info-action__label">{label}</span>
+    </button>
   );
 }
 
-export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate }: RoomInfoPanelProps) {
+interface FooterRowProps {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+  tone?: 'danger';
+  withChevron?: boolean;
+}
+
+function FooterRow({ icon, label, onClick, tone, withChevron = false }: FooterRowProps) {
+  return (
+    <button type="button" className="sc-info-footer-row" data-tone={tone} onClick={onClick}>
+      <span className="sc-info-footer-row__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="sc-info-footer-row__label">{label}</span>
+      {withChevron && <LuChevronRight size={18} className="sc-info-footer-row__chevron" aria-hidden="true" />}
+    </button>
+  );
+}
+
+export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate }: RoomInfoPanelProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
+  const [view, setView] = useState<InfoView>('main');
+  const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);
@@ -156,11 +149,35 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   if (!isOpen && viewerPhoto) {
     setViewerPhoto(null);
   }
+  if (!isOpen && view !== 'main') {
+    setView('main');
+  }
 
+  const isGroup = room.type === 'group';
+  const isAssistant = isAssistantRoom(room);
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
+  const call = useOptionalCall();
+  const canCall = call !== null && call.canCall(room);
+  const callBusy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
   const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
   const isSelectedMediaVideo = selectedMedia?.type === 'file' && Boolean(selectedMedia.fileMeta?.mimeType.startsWith('video/'));
   const isSelectedMediaPdf = selectedMedia?.type === 'file' && selectedMedia.fileMeta?.mimeType === 'application/pdf';
+  const media = useMemo(() => getGalleryMedia(messages), [messages]);
+  const sortedParticipants = useMemo(
+    () =>
+      [...room.participants].sort((a, b) => {
+        const selfDiff = Number(b.id === currentUserId) - Number(a.id === currentUserId);
+        if (selfDiff !== 0) {
+          return selfDiff;
+        }
+        const adminDiff = Number(Boolean(b.isAdmin)) - Number(Boolean(a.isAdmin));
+        if (adminDiff !== 0) {
+          return adminDiff;
+        }
+        return a.nickname.localeCompare(b.nickname);
+      }),
+    [room.participants, currentUserId],
+  );
 
   const handleSelectMedia = (message: MessageView) => {
     if (message.type === 'file' && !message.fileMeta?.mimeType.startsWith('video/') && message.fileMeta?.mimeType !== 'application/pdf') {
@@ -214,307 +231,192 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     }
   };
 
-  const panelCloseHandler = removalTarget
+  const handleSearchSelect = (messageId: string) => {
+    onClose();
+    window.setTimeout(() => jumpToMessage(messageId), 320);
+  };
+
+  const drawerCloseHandler = removalTarget
     ? () => setPendingRemoval(null)
-    : isGroupPhotoConfirmOpen
+    : isGroupPhotoConfirmOpen || isAppearanceOpen
       ? () => {}
       : viewerPhoto
         ? () => setViewerPhoto(null)
         : onClose;
 
-  const avatarHaloStyle = {
+  const heroAvatarStyle: CSSProperties = {
     borderRadius: '50%',
-    background: theme.accentSoft,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 15px',
-    boxShadow: theme.shadowAccent,
-    position: 'relative' as const,
-    border: `3px solid ${theme.accent}`,
+    margin: '0 auto',
+    position: 'relative',
+    boxShadow: '0 0 0 4px color-mix(in srgb, var(--sc-accent) 55%, transparent), 0 14px 34px -10px color-mix(in srgb, var(--sc-accent) 80%, transparent)',
   };
 
-  return (
+  const creatorLabel = room.creatorId === currentUserId ? t('roomInfo.createdByYou') : t('roomInfo.createdByName', { name: room.createdBy ?? t('common.unknown') });
+
+  const viewTitles: Record<InfoView, string> = {
+    main: t('roomInfo.title'),
+    invite: t('roomInfo.invite'),
+    search: t('roomInfo.search'),
+    media: t('roomInfo.media'),
+  };
+
+  const footer =
+    view === 'main' ? (
+      <>
+        <FooterRow icon={<LuImage size={19} />} label={t('roomInfo.appearance')} onClick={() => setIsAppearanceOpen(true)} withChevron />
+        {isGroup && <FooterRow icon={<LuLogOut size={19} />} label={t('roomInfo.leave')} onClick={handleLeaveGroup} tone="danger" />}
+        {!isGroup && otherUser && !isAssistant && (
+          <FooterRow
+            icon={<LuBan size={19} />}
+            label={room.userBlocked ? t('roomInfo.unblock') : t('roomInfo.block')}
+            onClick={room.userBlocked ? handleUnblock : handleBlock}
+            tone={room.userBlocked ? undefined : 'danger'}
+          />
+        )}
+      </>
+    ) : undefined;
+
+  const mainView = (
     <>
-      <Modal isOpen={isOpen} onClose={panelCloseHandler} title={room.type === 'group' ? (room.name ?? t('common.group')) : otherUser?.nickname}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {room.type === 'private' && otherUser && (
+      <section className="sc-info-hero">
+        {isGroup ? (
+          <>
+            <GroupPhotoEditor
+              room={room}
+              size={HERO_AVATAR_SIZE}
+              iconSize={42}
+              avatarStyle={heroAvatarStyle}
+              onView={setViewerPhoto}
+              onConfirmChange={setIsGroupPhotoConfirmOpen}
+            />
+            <div className="sc-info-hero__name">
+              <GroupNameEditor room={room} currentUserId={currentUserId} />
+            </div>
+            <p className="sc-info-hero__meta">
+              {t('common.group')} · {t('roomInfo.members', { count: room.participants.length })} · {creatorLabel}
+            </p>
+          </>
+        ) : (
+          otherUser && (
             <>
-              <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <Avatar
-                  userId={otherUser.id}
-                  avatarIndex={otherUser.avatar}
-                  tone="soft"
-                  size={100}
-                  iconSize={50}
-                  style={avatarHaloStyle}
-                  onPhotoClick={setViewerPhoto}
-                >
-                  {otherUser.status === 'online' && (
-                    <span
-                      style={{
-                        position: 'absolute',
-                        bottom: '5px',
-                        right: '5px',
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        background: theme.online,
-                        border: `4px solid ${theme.surfaceElevated}`,
-                        boxShadow: theme.shadowSm,
-                      }}
-                    />
-                  )}
-                </Avatar>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '0 0 15px 0' }}>
-                  <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{otherUser.nickname}</h3>
-                  <button
-                    onClick={() => clipboard.copy(otherUser.nickname, COPY_KEY_NICKNAME)}
-                    title={t('roomInfo.copyUsername')}
-                    className="sc-icon-btn sc-icon-btn--soft"
-                    style={{ width: '26px', height: '26px', borderRadius: '6px', alignSelf: 'center', position: 'relative', top: '2px' }}
-                  >
-                    {clipboard.isCopied(COPY_KEY_NICKNAME) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
-                  </button>
-                </div>
-                {!isAssistantRoom(room) && <ContactSecurityLink contactId={otherUser.id} contactName={otherUser.nickname} />}
-              </div>
-
-              <div className="sc-card" style={{ padding: '15px' }}>
-                <div
-                  style={{
-                    fontSize: '0.85rem',
-                    color: theme.textSecondary,
-                    marginBottom: '8px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  {t('roomInfo.status')}
-                </div>
-                <div
-                  style={{
-                    fontSize: '1rem',
-                    color: otherUser.status === 'online' ? theme.successText : theme.textPrimary,
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  {getLastSeen(otherUser)}
-                </div>
-              </div>
-
-              <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
-
-              {autoTranslate && <RoomAutoTranslateCard enabled={autoTranslate.enabled} onChange={autoTranslate.onChange} />}
-
-              <WallpaperPicker roomId={room.id} />
-
-              <SectionDivider />
-
-              <AppearanceEditor roomId={room.id} />
-
-              {!isAssistantRoom(room) && (
-                <div style={{ display: 'flex', gap: '10px', paddingTop: '20px', borderTop: `1px solid ${theme.border}` }}>
-                  {room.userBlocked ? (
-                    <button onClick={handleUnblock} className="sc-btn sc-btn--warning" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
-                      <FaBan size={16} />
-                      {t('roomInfo.unblock')}
-                    </button>
-                  ) : (
-                    <button onClick={handleBlock} className="sc-btn sc-btn--danger" style={{ flex: 1, padding: '10px', fontSize: '0.9rem', borderRadius: '8px' }}>
-                      <FaBan size={16} />
-                      {t('roomInfo.block')}
-                    </button>
-                  )}
+              <Avatar
+                userId={otherUser.id}
+                avatarIndex={otherUser.avatar}
+                tone="soft"
+                size={HERO_AVATAR_SIZE}
+                iconSize={44}
+                style={heroAvatarStyle}
+                onPhotoClick={setViewerPhoto}
+              >
+                {otherUser.status === 'online' && <span className="sc-info-hero__online" />}
+              </Avatar>
+              <h3 className="sc-info-hero__title">{otherUser.nickname}</h3>
+              <p className="sc-info-hero__meta" data-online={otherUser.status === 'online'}>
+                {getLastSeen(otherUser)}
+              </p>
+              {!isAssistant && (
+                <div className="sc-info-hero__security">
+                  <ContactSecurityLink contactId={otherUser.id} contactName={otherUser.nickname} />
                 </div>
               )}
             </>
-          )}
+          )
+        )}
 
-          {room.type === 'group' && (
+        <div className="sc-info-actions">
+          {isGroup && <QuickAction icon={<LuLink size={19} />} label={t('roomInfo.invite')} onClick={() => setView('invite')} index={0} />}
+          {canCall && call && (
             <>
-              <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <GroupPhotoEditor
-                  room={room}
-                  size={90}
-                  iconSize={45}
-                  avatarStyle={avatarHaloStyle}
-                  onView={setViewerPhoto}
-                  onConfirmChange={setIsGroupPhotoConfirmOpen}
-                />
-
-                <GroupNameEditor room={room} currentUserId={currentUserId} />
-
-                <div style={{ fontSize: '0.9rem', color: theme.textSecondary, fontWeight: 500 }}>
-                  {t('roomInfo.members', { count: room.participants.length })}
-                </div>
-              </div>
-
-              <div className="sc-card" style={{ padding: '15px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '50%',
-                    background: theme.accentSoft,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <FaCrown size={18} color={theme.accentText} />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: '0.75rem',
-                      color: theme.textSecondary,
-                      fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    {t('roomInfo.createdBy')}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '1rem',
-                      color: theme.textPrimary,
-                      fontWeight: 600,
-                      marginTop: '2px',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {room.creatorId === currentUserId ? t('common.you') : (room.createdBy ?? t('common.unknown'))}
-                  </div>
-                </div>
-              </div>
-
-              <GroupInviteSection
-                room={room}
-                title={
-                  <SectionTitle>
-                    <FaLink /> {t('roomInfo.inviteLink')}
-                  </SectionTitle>
-                }
-              />
-
-              <div>
-                <SectionTitle>
-                  <FaUsers /> {t('roomInfo.membersTitle', { count: room.participants.length })}
-                </SectionTitle>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto', paddingRight: '6px' }}>
-                  {room.participants.map((participant) => {
-                    const canManage = isCurrentUserAdmin && participant.id !== currentUserId;
-
-                    return (
-                      <div
-                        key={participant.id}
-                        className="sc-card sc-card--hover"
-                        style={{
-                          padding: '10px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          transition: 'border-color var(--sc-dur-fast) var(--sc-ease-standard), box-shadow var(--sc-dur-normal) var(--sc-ease-standard)',
-                        }}
-                      >
-                        <Avatar
-                          userId={participant.id}
-                          avatarIndex={participant.avatar}
-                          tone="soft"
-                          size={42}
-                          iconSize={20}
-                          onPhotoClick={setViewerPhoto}
-                        >
-                          {participant.status === 'online' && (
-                            <span
-                              style={{
-                                position: 'absolute',
-                                bottom: '-1px',
-                                right: '-1px',
-                                width: '11px',
-                                height: '11px',
-                                borderRadius: '50%',
-                                background: theme.online,
-                                border: `2px solid ${theme.surfaceSunken}`,
-                              }}
-                            />
-                          )}
-                        </Avatar>
-
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {getDisplayName(participant.id, participant.nickname, currentUserId)}
-                            </span>
-                            {participant.isAdmin && <FaCrown size={12} color={theme.warning} title={t('roomInfo.admin')} style={{ flexShrink: 0 }} />}
-                          </div>
-                          <div style={{ fontSize: '0.78rem', color: participant.status === 'online' ? theme.successText : theme.textSecondary, marginTop: '2px' }}>
-                            {getLastSeen(participant)}
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                          <ActionIconButton onClick={() => clipboard.copy(participant.nickname, participant.id)} title={t('roomInfo.copyUsername')} tone="accent">
-                            {clipboard.isCopied(participant.id) ? <FaCheck size={13} className="sc-anim-badge-pop" /> : <FaCopy size={13} />}
-                          </ActionIconButton>
-
-                          {canManage && !participant.isAdmin && (
-                            <ActionIconButton onClick={() => handlePromoteAdmin(participant.id)} title={t('roomInfo.promote')} tone="accent">
-                              <FaCrown size={13} />
-                            </ActionIconButton>
-                          )}
-
-                          {canManage && (
-                            <ActionIconButton onClick={() => setPendingRemoval({ roomId: room.id, participant })} title={t('roomInfo.remove')} tone="danger">
-                              <FaUserMinus size={13} />
-                            </ActionIconButton>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <MediaGallery messages={messages} messagesLoaded={messagesLoaded} onSelectMedia={handleSelectMedia} />
-
-              {autoTranslate && <RoomAutoTranslateCard enabled={autoTranslate.enabled} onChange={autoTranslate.onChange} />}
-
-              <WallpaperPicker roomId={room.id} />
-
-              <SectionDivider />
-
-              <AppearanceEditor roomId={room.id} />
-
-              <div
-                style={{
-                  padding: '15px',
-                  background: theme.warningSoft,
-                  borderRadius: '12px',
-                  border: `1px solid ${theme.warning}`,
-                  marginTop: '15px',
-                }}
-              >
-                <button onClick={handleLeaveGroup} className="sc-btn sc-btn--warning sc-btn--lift" style={{ width: '100%', padding: '12px 15px', borderRadius: '8px' }}>
-                  <FaSignOutAlt size={16} />
-                  {t('roomInfo.leave')}
-                </button>
-              </div>
+              <QuickAction icon={<LuPhone size={19} />} label={t('chat.header.voiceCall')} onClick={() => call.startCall(room, 'voice')} disabled={callBusy} index={0} />
+              <QuickAction icon={<LuVideo size={19} />} label={t('roomInfo.videoCall')} onClick={() => call.startCall(room, 'video')} disabled={callBusy} index={1} />
             </>
           )}
+          <QuickAction icon={<LuSearch size={19} />} label={t('roomInfo.search')} onClick={() => setView('search')} index={2} />
+          {!isGroup && otherUser && !canCall && (
+            <QuickAction
+              icon={clipboard.isCopied(COPY_KEY_NICKNAME) ? <LuCheck size={19} className="sc-anim-badge-pop" /> : <LuCopy size={19} />}
+              label={clipboard.isCopied(COPY_KEY_NICKNAME) ? t('roomInfo.copied') : t('roomInfo.copyUsername')}
+              onClick={() => clipboard.copy(otherUser.nickname, COPY_KEY_NICKNAME)}
+              index={3}
+            />
+          )}
         </div>
-      </Modal>
+      </section>
+
+      <section className="sc-info-section">
+        <div className="sc-info-section__head">
+          <h4 className="sc-info-section__title">{t('roomInfo.media')}</h4>
+          {media.length > 0 && (
+            <button type="button" className="sc-info-link" onClick={() => setView('media')}>
+              {t('roomInfo.seeAll')}
+            </button>
+          )}
+        </div>
+        <InfoMediaGrid media={media} messagesLoaded={messagesLoaded} limit={MEDIA_PREVIEW_COUNT} variant="preview" onSelect={handleSelectMedia} />
+      </section>
+
+      {autoTranslate && (
+        <section className="sc-info-section">
+          <RoomAutoTranslateCard enabled={autoTranslate.enabled} onChange={autoTranslate.onChange} />
+        </section>
+      )}
+
+      {isGroup && (
+        <section className="sc-info-section">
+          <div className="sc-info-section__head">
+            <h4 className="sc-info-section__title">{t('roomInfo.members', { count: room.participants.length })}</h4>
+          </div>
+          <div className="sc-info-members">
+            {sortedParticipants.map((participant, index) => (
+              <MemberRow
+                key={participant.id}
+                participant={participant}
+                currentUserId={currentUserId}
+                subtitle={participant.isAdmin ? t('roomInfo.admin') : getLastSeen(participant)}
+                canManage={isCurrentUserAdmin && participant.id !== currentUserId}
+                isCopied={clipboard.isCopied(participant.id)}
+                index={Math.min(index, 12)}
+                onCopy={() => clipboard.copy(participant.nickname, participant.id)}
+                onPromote={() => handlePromoteAdmin(participant.id)}
+                onRemove={() => setPendingRemoval({ roomId: room.id, participant })}
+                onViewPhoto={setViewerPhoto}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      <SideDrawer
+        isOpen={isOpen}
+        title={viewTitles[view]}
+        onClose={drawerCloseHandler}
+        onBack={view === 'main' ? undefined : () => setView('main')}
+        footer={footer}
+        viewKey={view}
+        inline={inline}
+      >
+        {view === 'main' && mainView}
+        {view === 'invite' && isGroup && (
+          <section className="sc-info-section sc-info-section--flat">
+            <GroupInviteSection room={room} title={null} />
+          </section>
+        )}
+        {view === 'search' && (
+          <section className="sc-info-section sc-info-section--flat">
+            <InfoMessageSearch messages={messages} currentUserId={currentUserId} onSelect={handleSearchSelect} />
+          </section>
+        )}
+        {view === 'media' && (
+          <section className="sc-info-section sc-info-section--flat">
+            <InfoMediaGrid media={media} messagesLoaded={messagesLoaded} variant="full" onSelect={handleSelectMedia} />
+          </section>
+        )}
+      </SideDrawer>
+      <ChatAppearanceModal isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} roomId={room.id} />
       <ConfirmDialog
         isOpen={removalTarget !== null}
         title={t('roomInfo.removeTitle')}
