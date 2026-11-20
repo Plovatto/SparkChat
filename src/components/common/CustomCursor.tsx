@@ -88,7 +88,15 @@ export function CustomCursor() {
       return;
     }
 
-    document.documentElement.classList.add('sc-cursor-active');
+    const syncFullscreen = () => {
+      const inFullscreen = document.fullscreenElement !== null && document.fullscreenElement !== undefined;
+      document.documentElement.classList.toggle('sc-cursor-active', !inFullscreen);
+      if (inFullscreen) {
+        layer.dataset.visible = 'false';
+      }
+    };
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
 
     const particles = new Set<HTMLSpanElement>();
     const timers = new Set<number>();
@@ -171,6 +179,7 @@ export function CustomCursor() {
     window.addEventListener('blur', handlePointerLeave);
 
     return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
       document.removeEventListener('pointermove', handlePointerMove);
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('pointerup', handlePointerUp);
