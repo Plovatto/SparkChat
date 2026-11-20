@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
+import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, audioProcessingConstraints, usesAdvancedNoise, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -173,5 +173,21 @@ describe('known devices lifecycle', () => {
     resetKnownDevices();
     const empty = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
     expect(empty.audioInputs).toEqual([]);
+  });
+});
+
+describe('advanced noise suppression constraints', () => {
+  const all = { noiseSuppression: true, echoCancellation: true, autoGainControl: true, voiceIsolation: false };
+
+  it('turns the browser suppression off when the on-device model replaces it', () => {
+    expect(audioProcessingConstraints(all, true)).toMatchObject({ noiseSuppression: false, echoCancellation: true, autoGainControl: true });
+    expect(usesAdvancedNoise(all, true)).toBe(true);
+  });
+
+  it('keeps the browser suppression when the model is unavailable or the switch is off', () => {
+    expect(audioProcessingConstraints(all, false)).toMatchObject({ noiseSuppression: true });
+    expect(usesAdvancedNoise(all, false)).toBe(false);
+    expect(usesAdvancedNoise({ ...all, noiseSuppression: false }, true)).toBe(false);
+    expect(audioProcessingConstraints({ ...all, noiseSuppression: false, echoCancellation: false }, true)).toMatchObject({ noiseSuppression: false, echoCancellation: false });
   });
 });

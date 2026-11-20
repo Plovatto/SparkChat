@@ -715,7 +715,7 @@
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
       "screen-failed": "Não foi possível compartilhar a tela.",
       "transferred": "Chamada transferida para outro aparelho",
-      "transfer-failed": "Não foi possível trazer a chamada para este aparelho."
+      "transfer-failed": "Não foi possível trocar de aparelho"
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",
@@ -764,12 +764,20 @@
       "title": "Qualidade do áudio",
       "noise": "Redução de ruído",
       "noiseHint": "Reduz ruídos de fundo, como teclado e ventilador.",
+      "noiseAdvancedHint": "Remove teclado, cliques e ruídos de fundo com IA no seu aparelho.",
       "echo": "Cancelamento de eco",
       "echoHint": "Evita que a voz da outra pessoa volte pelo seu microfone. Pode desligar com fones de ouvido.",
       "gain": "Volume automático",
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
-      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
+      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons.",
+      "isolationWarning": "Pode deixar sua voz mais baixa para quem ouve",
+      "volumeSection": "Volume",
+      "processingSection": "Processamento",
+      "micVolume": "Volume do microfone",
+      "micVolumeHint": "Quão alto sua voz chega para quem ouve.",
+      "callVolume": "Volume da chamada",
+      "callVolumeHint": "Quão alto você ouve a outra pessoa."
     },
     "share": {
       "start": "Compartilhar tela",

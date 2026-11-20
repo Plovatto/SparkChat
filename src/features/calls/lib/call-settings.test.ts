@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareMonitorVolume, getShareVolume, setAudioProcessing, setMovieMode, setShareMonitorVolume, setShareVolume, subscribeShareMonitorVolume } from './call-settings';
+import { callVolume, clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareMonitorVolume, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareMonitorVolume, setShareVolume, subscribeShareMonitorVolume } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -99,5 +99,42 @@ describe('share monitor volume', () => {
     setShareMonitorVolume(0.2);
     expect(seen).toEqual([0.35, 1, 1]);
     expect(getShareMonitorVolume()).toBe(0.2);
+  });
+});
+
+describe('volume settings', () => {
+  it('defaults both volumes to 100%', () => {
+    expect(micVolume.get()).toBe(1);
+    expect(callVolume.get()).toBe(1);
+  });
+
+  it('persists clamped volumes and notifies subscribers', () => {
+    const heard: number[] = [];
+    const stop = micVolume.subscribe(() => heard.push(micVolume.get()));
+
+    expect(micVolume.set(1.5)).toBe(1.5);
+    expect(micVolume.set(0.1)).toBe(0.5);
+    expect(callVolume.set(3)).toBe(2);
+    stop();
+    micVolume.set(1.2);
+
+    expect(heard).toEqual([1.5, 0.5]);
+    expect(localStorage.getItem('chatCallMicVolume')).toBe('1.2');
+    expect(callVolume.get()).toBe(2);
+  });
+
+  it('ignores corrupted stored volumes', () => {
+    localStorage.setItem('chatCallMicVolume', '"loud"');
+    localStorage.setItem('chatCallVolume', 'not json');
+
+    expect(micVolume.get()).toBe(1);
+    expect(callVolume.get()).toBe(1);
+  });
+
+  it('keeps saved audio processing choices untouched', () => {
+    setAudioProcessing({ voiceIsolation: true, noiseSuppression: false });
+    micVolume.set(1.4);
+
+    expect(getAudioProcessing()).toMatchObject({ voiceIsolation: true, noiseSuppression: false });
   });
 });

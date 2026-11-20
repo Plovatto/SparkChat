@@ -11,13 +11,14 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints, resetKnownDevices } from './lib/media-devices';
+import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, usesAdvancedNoise, videoConstraints, resetKnownDevices } from './lib/media-devices';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
 import { StreamWindow } from './components/StreamWindow';
 import { createShareAudio } from './lib/share-audio';
+import { createVoiceLeveler, primeVoiceContext } from './lib/voice-leveler';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
@@ -72,6 +73,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       applyShareConstraints,
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
+      createVoiceLeveler: (track) => createVoiceLeveler(track, micVolume.get(), { denoise: () => usesAdvancedNoise(getAudioProcessing()) }),
       isMobile: isMobileDevice,
       startRingtone,
       stopRingtone,
@@ -86,6 +88,13 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       setController(null);
     };
   }, [socket]);
+
+  useEffect(() => {
+    if (!controller) {
+      return;
+    }
+    return micVolume.subscribe(() => controller.setMicVolume(micVolume.get()));
+  }, [controller]);
 
   const snapshot = useSyncExternalStore(controller ? controller.subscribe : noopSubscribe, controller ? controller.getSnapshot : emptySnapshot);
   const phase = snapshot.state.phase;
@@ -114,6 +123,11 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     autoplay.play(voiceRef.current);
   }, []);
 
+  const primeCallAudio = useCallback(() => {
+    primePlayback();
+    primeVoiceContext({ denoise: usesAdvancedNoise(getAudioProcessing()) });
+  }, [primePlayback]);
+
   const startCallInRoom = useCallback(
     (roomId: string, kind: CallKind) => {
       const room = roomsRef.current.find((candidate) => candidate.id === roomId);
@@ -122,11 +136,11 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       if (!controller || !room || !peerId || room.type !== 'private' || isAssistantRoom(room) || isBlocked(room)) {
         return;
       }
-      primePlayback();
+      primeCallAudio();
       setMinimized(false);
       void controller.startCall({ roomId, peerId, kind });
     },
-    [controller, primePlayback],
+    [controller, primeCallAudio],
   );
 
   const replaceTrackFromDevice = useCallback(
@@ -204,7 +218,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     startCall: (room, kind) => startCallInRoom(room.id, kind),
     startCallInRoom,
     accept: () => {
-      primePlayback();
+      primeCallAudio();
       setMinimized(false);
       void controller?.accept();
     },
