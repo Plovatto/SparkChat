@@ -2084,6 +2084,9 @@
 @media (prefers-reduced-motion: reduce) {
   .sc-stage-paused {
     animation: none;
+  }
+}
+
 .sc-call-option-warning {
   display: flex;
   align-items: flex-start;
