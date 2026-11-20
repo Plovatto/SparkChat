@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, setAudioProcessing, setMovieMode, setShareVolume } from './call-settings';
+import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareMonitorVolume, getShareVolume, setAudioProcessing, setMovieMode, setShareMonitorVolume, setShareVolume, subscribeShareMonitorVolume } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -83,5 +83,21 @@ describe('movie mode setting', () => {
     expect(getMovieMode()).toBe(false);
     setMovieMode(true);
     expect(getMovieMode()).toBe(true);
+  });
+});
+
+describe('share monitor volume', () => {
+  it('defaults to full volume, clamps and notifies subscribers', () => {
+    expect(getShareMonitorVolume()).toBe(1);
+    const seen: number[] = [];
+    const unsubscribe = subscribeShareMonitorVolume(() => seen.push(getShareMonitorVolume()));
+    expect(setShareMonitorVolume(0.35)).toBe(0.35);
+    expect(getShareMonitorVolume()).toBe(0.35);
+    expect(setShareMonitorVolume(4)).toBe(1);
+    expect(setShareMonitorVolume(Number.NaN)).toBe(1);
+    unsubscribe();
+    setShareMonitorVolume(0.2);
+    expect(seen).toEqual([0.35, 1, 1]);
+    expect(getShareMonitorVolume()).toBe(0.2);
   });
 });

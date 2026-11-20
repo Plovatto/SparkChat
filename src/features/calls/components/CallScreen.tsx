@@ -14,6 +14,8 @@ import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
 import { selectStageLayout } from '../lib/stage-layout';
 import { describeShareSurface } from '../lib/share-surface';
+import { useShareMonitorVolume } from '../lib/call-settings';
+import { shareAudioTrack, shareMonitorSupport } from '../lib/share-monitor';
 import { CallControls } from './CallControls';
 import type { BroadcastSettings } from './DevicePicker';
 import { CallPip } from './CallPip';
@@ -22,6 +24,7 @@ import { ShareStage } from './ShareStage';
 import { useSpeaking, useStreamOn } from './call-hooks';
 import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
 import { useDuckedVolume } from './use-ducking';
+import { useShareMonitor } from './use-share-monitor';
 import { audioTrackKey, voiceOnly } from '../lib/voice-stream';
 import { usePip } from './use-pip';
 import { usePresence } from './use-presence';
@@ -71,6 +74,8 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
   const shareAudioRef = useRef<HTMLAudioElement>(null);
+  const shareMonitorRef = useRef<HTMLAudioElement>(null);
+  const [shareMonitorVolume, setShareMonitorVolume] = useShareMonitorVolume();
   const [pipDismissed, setPipDismissed] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
@@ -91,6 +96,8 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   const stageStream = layout.main === 'remote-screen' ? snapshot.remoteScreenStream : localStage ? snapshot.localScreenStream : null;
   const showRemoteVideo = remoteCamera && !stageActive;
   const remoteShareAudio = remoteSharing && call.remoteShareHasAudio;
+  const monitorSupport = localSharing ? shareMonitorSupport(snapshot.localScreenStream) : 'none';
+  const monitorTrack = monitorSupport === 'local' ? shareAudioTrack(snapshot.localScreenStream) : null;
   const broadcast: BroadcastSettings | null =
     localSharing || remoteSharing
       ? {
@@ -103,6 +110,9 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
                 onVolume: call.setShareVolume,
                 previewHidden: call.sharePreviewHidden,
                 onPreviewHidden: call.setSharePreviewHidden,
+                monitor: monitorSupport,
+                monitorVolume: shareMonitorVolume,
+                onMonitorVolume: setShareMonitorVolume,
               }
             : null,
           receiver: remoteSharing ? { hasAudio: remoteShareAudio, volume: call.streamVolume, onVolume: call.setStreamVolume } : null,
@@ -112,6 +122,8 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = useSpeaking(snapshot.localStream, running && !snapshot.muted);
   const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume);
+  const monitorVolume = useDuckedVolume(call.movieMode && monitorTrack !== null, localSpeaking || remoteSpeaking, shareMonitorVolume);
+  useShareMonitor(shareMonitorRef, monitorTrack, monitorVolume);
   const fullscreen = useFullscreen(stageRef);
   const mode = pipMode();
   const pip = usePip({
@@ -182,7 +194,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   }, [shareAudioVolume]);
 
   const chooseOutput = (deviceId: string) => {
-    for (const element of [voiceRef.current, shareAudioRef.current]) {
+    for (const element of [voiceRef.current, shareAudioRef.current, shareMonitorRef.current]) {
       void element?.setSinkId?.(deviceId).catch(() => undefined);
     }
   };
@@ -252,6 +264,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
       {remoteVideo}
       <audio ref={voiceRef} autoPlay />
       <audio ref={shareAudioRef} autoPlay />
+      <audio ref={shareMonitorRef} />
       <div className="sc-call-topbar">
         <div className="sc-call-topbar__group">
           <button type="button" className="sc-icon-btn sc-icon-btn--header sc-call-topbar__btn" onClick={minimize} title={t('calls.minimize')} aria-label={t('calls.minimize')}>
