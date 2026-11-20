@@ -1,5 +1,6 @@
 import {
   applyRoomParticipants,
+  applyRoomSummaries,
   applyRoomSummary,
   applySelfUser,
   attachProfilePhotoSocket,
@@ -317,8 +318,8 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     maybeEstablishRoomKey(socket, payload.room, 'room:new', deferredRoomEvents);
   });
   originalOn('rooms:list', (payload: { rooms: RoomSummary[] }) => {
+    applyRoomSummaries(payload.rooms);
     for (const room of payload.rooms) {
-      applyRoomSummary(room);
       maybeEstablishRoomKey(socket, room, 'rooms:list', deferredRoomEvents);
     }
   });

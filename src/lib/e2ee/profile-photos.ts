@@ -91,6 +91,11 @@ const ownEnvelopeChecks = new Map<string, Promise<void>>();
 const ownEnvelopeReruns = new Set<string>();
 const verifiedOwnEnvelopes = new Map<string, string>();
 const listeners = new Set<ProfilePhotoListener>();
+const blockedByMe = new Set<string>();
+const userAvatarQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
+const roomAvatarQueue: { tail: Promise<void> } = { tail: Promise.resolve() };
+let roomListApplied = false;
+let applyingRoomList = false;
 let activeSocket: AppSocket | null = null;
 let stateOwnerId: string | null = null;
 let stateGeneration = 0;
@@ -176,6 +181,18 @@ export function getRoomPhotoUrl(roomId: string | null | undefined): string | nul
     return roomPhotos.get(roomId)?.url ?? null;
   }
   return getUserPhotoUrl(otherParticipant(room));
+}
+
+export function isRoomBlocked(roomId: string | null | undefined): boolean {
+  const room = roomId ? rooms.get(roomId) : undefined;
+  if (!room || room.type !== 'private') {
+    return false;
+  }
+  if (Object.keys(room.blockedBy).some((userId) => room.participants.has(userId))) {
+    return true;
+  }
+  const other = otherParticipant(room);
+  return other !== null && blockedByMe.has(other);
 }
 
 function isInterested(key: string): boolean {
@@ -556,6 +573,7 @@ export function applyRoomSummary(summary: RoomSummary): void {
     }
   }
   rooms.set(summary.id, room);
+  syncBlockedFromRoom(room);
   for (const participant of participants) {
     applyParticipant(summary.id, room, participant);
   }
@@ -566,11 +584,26 @@ export function applyRoomSummary(summary: RoomSummary): void {
       setPhoto('room', summary.id, null);
     }
   }
-  if (!previous) {
+  if (!previous || blockSignature(previous.blockedBy) !== blockSignature(room.blockedBy)) {
     notify({ kind: 'room', id: summary.id });
   }
   resolveInterestedRoom(summary.id, room);
-  scheduleOwnEnvelope(summary.id);
+  if (!applyingRoomList) {
+    scheduleOwnEnvelope(summary.id);
+  }
+}
+
+export function applyRoomSummaries(summaries: RoomSummary[]): void {
+  applyingRoomList = true;
+  try {
+    for (const summary of Array.isArray(summaries) ? summaries : []) {
+      applyRoomSummary(summary);
+    }
+  } finally {
+    applyingRoomList = false;
+  }
+  roomListApplied = true;
+  scheduleAllOwnEnvelopes();
 }
 
 function resolveInterestedRoom(roomId: string, room: RoomRecord): void {
@@ -674,16 +707,41 @@ export function handleProfileKeysUpdated(payload: { roomId?: unknown; keyId?: un
   }
 }
 
+function blockSignature(blockedBy: Record<string, string>): string {
+  return Object.entries(blockedBy)
+    .map(([blocked, blocker]) => `${blocked}>${blocker}`)
+    .sort()
+    .join(',');
+}
+
+function syncBlockedFromRoom(room: RoomRecord): void {
+  const me = currentUserId();
+  if (!me || room.type !== 'private') {
+    return;
+  }
+  for (const userId of room.participants) {
+    if (userId === me) {
+      continue;
+    }
+    if (room.blockedBy[userId] === me) {
+      blockedByMe.add(userId);
+    } else {
+      blockedByMe.delete(userId);
+    }
+  }
+}
+
 function blockedUsers(): Set<string> {
   const me = currentUserId();
-  const blocked = new Set<string>();
+  const blocked = new Set(blockedByMe);
   if (!me) {
     return blocked;
   }
   for (const room of rooms.values()) {
-    const target = room.blockedBy[me];
-    if (typeof target === 'string') {
-      blocked.add(target);
+    for (const [blockedUserId, blockerId] of Object.entries(room.blockedBy)) {
+      if (blockerId === me) {
+        blocked.add(blockedUserId);
+      }
     }
   }
   return blocked;
@@ -694,18 +752,30 @@ export function handleBlockStatus(payload: BlockStatusPayload): void {
     return;
   }
   const me = currentUserId();
+  const before = blockedUsers();
   const room = rooms.get(payload.roomId);
-  const previousTarget = me && room ? room.blockedBy[me] : undefined;
+  const blockedBy = Object.fromEntries(Object.entries(payload.blockedBy).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   if (room) {
-    room.blockedBy = { ...payload.blockedBy };
+    room.blockedBy = blockedBy;
+    syncBlockedFromRoom(room);
   }
-  const target = me ? payload.blockedBy[me] : undefined;
-  if (target === previousTarget) {
+  if (me && payload.isBlocking === true && typeof payload.blockedUserId === 'string' && payload.blockedUserId !== me) {
+    if (blockedBy[payload.blockedUserId] === me) {
+      blockedByMe.add(payload.blockedUserId);
+    } else {
+      blockedByMe.delete(payload.blockedUserId);
+    }
+  }
+  notify({ kind: 'room', id: payload.roomId });
+  if (!me) {
     return;
   }
-  if (typeof target === 'string') {
-    void rotateOwnProfileKey();
-  } else {
+  const after = blockedUsers();
+  if (Array.from(after).some((userId) => !before.has(userId))) {
+    void rotateOwnProfileKey().catch((error: unknown) => {
+      console.error('[e2e] rotating the profile key after a block failed', error);
+    });
+  } else if (Array.from(before).some((userId) => !after.has(userId))) {
     scheduleAllOwnEnvelopes();
   }
 }
@@ -719,6 +789,9 @@ function eligibleForOwnEnvelope(room: RoomRecord, me: string): boolean {
 }
 
 function scheduleOwnEnvelope(roomId: string): void {
+  if (!roomListApplied) {
+    return;
+  }
   if (ownEnvelopeChecks.has(roomId)) {
     ownEnvelopeReruns.add(roomId);
     return;
@@ -801,12 +874,28 @@ async function publishOwnEnvelopeOnce(roomId: string): Promise<void> {
   if (getCurrentIdentity() !== identity || users.get(me) !== record || rooms.get(roomId) !== room || activeSocket !== socket) {
     return;
   }
+  if (!roomListApplied || applyingRoomList || !eligibleForOwnEnvelope(room, me)) {
+    return;
+  }
   socket.emit('room:publish-profile-key', { roomId, keyId: generation.keyId, envelope });
   room.envelopes.set(me, { envelope, keyId: generation.keyId });
   verifiedOwnEnvelopes.set(roomId, `${marker}|${envelope}`);
 }
 
-async function rotateOwnProfileKey(): Promise<void> {
+function enqueue<T>(queue: { tail: Promise<void> }, task: () => Promise<T>): Promise<T> {
+  const run = queue.tail.then(task);
+  queue.tail = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+function rotateOwnProfileKey(): Promise<void> {
+  return enqueue(userAvatarQueue, rotateOwnProfileKeyNow);
+}
+
+async function rotateOwnProfileKeyNow(): Promise<void> {
   const identity = getCurrentIdentity();
   const socket = activeSocket;
   if (!identity || !socket) {
@@ -830,8 +919,17 @@ async function rotateOwnProfileKey(): Promise<void> {
   if (getCurrentIdentity() !== identity || users.get(me) !== record || activeSocket !== socket) {
     return;
   }
+  const confirmation = awaitConfirmation(
+    socket,
+    'user:avatar-updated',
+    (payload) => payload.userId === me && payload.encryptedAvatar === encryptedAvatar,
+    'user:set-avatar',
+  );
   socket.emit('user:set-avatar', { url: pointer.url, encryptedAvatar, profileKeyVersion: nextVersion });
-  updateUser(me, encryptedAvatar, nextVersion);
+  await confirmation.promise;
+  if (getCurrentIdentity() === identity && users.get(me) === record) {
+    updateUser(me, encryptedAvatar, nextVersion);
+  }
 }
 
 async function handleOwnRotationImpl(roomId: string, generation: RoomKeyGeneration): Promise<void> {
@@ -847,8 +945,27 @@ async function handleOwnRotationImpl(roomId: string, generation: RoomKeyGenerati
     const pointer = previousKey ? await openRoomPhotoPointer(avatar.encryptedAvatar, previousKey, roomId, avatar.keyId) : null;
     if (pointer && room.avatar === avatar) {
       const encryptedAvatar = await sealRoomPhotoPointer(pointer, generation.key, roomId, generation.keyId);
-      socket.emit('room:set-avatar', { roomId, url: pointer.url, encryptedAvatar, keyId: generation.keyId });
-      room.avatar = { encryptedAvatar, keyId: generation.keyId };
+      void enqueue(roomAvatarQueue, async () => {
+        if (room.avatar !== avatar || rooms.get(roomId) !== room || activeSocket !== socket) {
+          return;
+        }
+        const confirmation = awaitConfirmation(
+          socket,
+          'room:avatar-updated',
+          (payload) => payload.roomId === roomId && payload.encryptedAvatar === encryptedAvatar,
+          'room:set-avatar',
+        );
+        socket.emit('room:set-avatar', { roomId, url: pointer.url, encryptedAvatar, keyId: generation.keyId });
+        try {
+          await confirmation.promise;
+        } catch (error) {
+          console.error('[e2e] re-sealing the group photo after a rotation failed', error);
+          return;
+        }
+        if (room.avatar === avatar) {
+          room.avatar = { encryptedAvatar, keyId: generation.keyId };
+        }
+      });
     }
   }
   const envelopes: Record<string, string> = {};
@@ -944,7 +1061,7 @@ function awaitConfirmation(
     generic.on('error', onError);
     const timeoutId = setTimeout(() => {
       cleanup();
-      resolve();
+      reject(createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE));
     }, CONFIRM_TIMEOUT_MS);
   });
   return { promise };
@@ -990,44 +1107,54 @@ export async function publishMyPhoto(pointer: PhotoPointer, version: number, pla
   } finally {
     profileKey.fill(0);
   }
-  if (getCurrentIdentity() !== identity || activeSocket !== socket) {
-    throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
-  }
-  const confirmation = awaitConfirmation(
-    socket,
-    'user:avatar-updated',
-    (payload) => payload.userId === me && payload.encryptedAvatar === encryptedAvatar,
-    'user:set-avatar',
-  );
-  socket.emit('user:set-avatar', { url: pointer.url, encryptedAvatar, profileKeyVersion: version });
-  updateUser(me, encryptedAvatar, version);
-  attempted.add(userKey(me));
-  setPhoto('user', me, { cacheKey: userPhotoCacheKey(me, userPointer), url: URL.createObjectURL(plaintext) });
-  try {
-    await confirmation.promise;
-  } catch (error) {
-    if (users.get(me)?.encryptedAvatar === encryptedAvatar) {
-      markDirty(userKey(me));
+  await enqueue(userAvatarQueue, async () => {
+    if (getCurrentIdentity() !== identity || activeSocket !== socket) {
+      throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
     }
-    throw error;
-  }
+    const previous = users.get(me);
+    const confirmation = awaitConfirmation(
+      socket,
+      'user:avatar-updated',
+      (payload) => payload.userId === me && payload.encryptedAvatar === encryptedAvatar,
+      'user:set-avatar',
+    );
+    socket.emit('user:set-avatar', { url: pointer.url, encryptedAvatar, profileKeyVersion: version });
+    updateUser(me, encryptedAvatar, version);
+    attempted.add(userKey(me));
+    setPhoto('user', me, { cacheKey: userPhotoCacheKey(me, userPointer), url: URL.createObjectURL(plaintext) });
+    try {
+      await confirmation.promise;
+    } catch (error) {
+      if (users.get(me)?.encryptedAvatar === encryptedAvatar) {
+        setPhoto('user', me, null);
+        updateUser(me, previous?.encryptedAvatar ?? null, previous?.version ?? DEFAULT_VERSION);
+        markDirty(userKey(me));
+      }
+      throw error;
+    }
+  });
 }
 
 export async function clearMyPhoto(): Promise<void> {
   const { identity, socket } = requireSession();
   const me = identity.userId;
-  const previous = users.get(me);
-  const confirmation = awaitConfirmation(socket, 'user:avatar-updated', (payload) => payload.userId === me && payload.encryptedAvatar === null, 'user:clear-avatar');
-  socket.emit('user:clear-avatar', {});
-  updateUser(me, null, previous?.version ?? DEFAULT_VERSION);
-  try {
-    await confirmation.promise;
-  } catch (error) {
-    if (previous?.encryptedAvatar && users.get(me)?.encryptedAvatar === null) {
-      updateUser(me, previous.encryptedAvatar, previous.version);
+  await enqueue(userAvatarQueue, async () => {
+    if (getCurrentIdentity() !== identity || activeSocket !== socket) {
+      throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
     }
-    throw error;
-  }
+    const previous = users.get(me);
+    const confirmation = awaitConfirmation(socket, 'user:avatar-updated', (payload) => payload.userId === me && payload.encryptedAvatar === null, 'user:clear-avatar');
+    socket.emit('user:clear-avatar', {});
+    updateUser(me, null, previous?.version ?? DEFAULT_VERSION);
+    try {
+      await confirmation.promise;
+    } catch (error) {
+      if (previous?.encryptedAvatar && users.get(me)?.encryptedAvatar === null) {
+        updateUser(me, previous.encryptedAvatar, previous.version);
+      }
+      throw error;
+    }
+  });
 }
 
 export async function canChangeRoomPhoto(roomId: string): Promise<boolean> {
@@ -1059,50 +1186,55 @@ export async function publishRoomPhoto(roomId: string, pointer: PhotoPointer, pl
     throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
   }
   const encryptedAvatar = await sealRoomPhotoPointer(pointer, generation.key, roomId, generation.keyId);
-  const room = rooms.get(roomId);
-  if (!room || activeSocket !== socket) {
-    throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
-  }
-  const previous = room.avatar;
-  const confirmation = awaitConfirmation(
-    socket,
-    'room:avatar-updated',
-    (payload) => payload.roomId === roomId && payload.encryptedAvatar === encryptedAvatar,
-    'room:set-avatar',
-  );
-  socket.emit('room:set-avatar', { roomId, url: pointer.url, encryptedAvatar, keyId: generation.keyId });
-  room.avatar = { encryptedAvatar, keyId: generation.keyId };
-  attempted.add(roomKey(roomId));
-  setPhoto('room', roomId, { cacheKey: roomPhotoCacheKey(roomId, pointer), url: URL.createObjectURL(plaintext) });
-  try {
-    await confirmation.promise;
-  } catch (error) {
-    if (room.avatar?.encryptedAvatar === encryptedAvatar) {
-      room.avatar = previous;
-      markDirty(roomKey(roomId));
-      if (!previous) {
-        setPhoto('room', roomId, null);
-      }
+  await enqueue(roomAvatarQueue, async () => {
+    const room = rooms.get(roomId);
+    if (!room || activeSocket !== socket) {
+      throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
     }
-    throw error;
-  }
+    const previous = room.avatar;
+    const confirmation = awaitConfirmation(
+      socket,
+      'room:avatar-updated',
+      (payload) => payload.roomId === roomId && payload.encryptedAvatar === encryptedAvatar,
+      'room:set-avatar',
+    );
+    socket.emit('room:set-avatar', { roomId, url: pointer.url, encryptedAvatar, keyId: generation.keyId });
+    room.avatar = { encryptedAvatar, keyId: generation.keyId };
+    attempted.add(roomKey(roomId));
+    setPhoto('room', roomId, { cacheKey: roomPhotoCacheKey(roomId, pointer), url: URL.createObjectURL(plaintext) });
+    try {
+      await confirmation.promise;
+    } catch (error) {
+      if (room.avatar?.encryptedAvatar === encryptedAvatar) {
+        room.avatar = previous;
+        setPhoto('room', roomId, null);
+        markDirty(roomKey(roomId));
+      }
+      throw error;
+    }
+  });
 }
 
 export async function clearRoomPhoto(roomId: string): Promise<void> {
   const socket = await requireRoomPermission(roomId);
-  const room = rooms.get(roomId);
-  const previous = room?.avatar ?? null;
-  const confirmation = awaitConfirmation(socket, 'room:avatar-updated', (payload) => payload.roomId === roomId && payload.encryptedAvatar === null, 'room:clear-avatar');
-  socket.emit('room:clear-avatar', { roomId });
-  handleRoomAvatarUpdated({ roomId, encryptedAvatar: null, keyId: null });
-  try {
-    await confirmation.promise;
-  } catch (error) {
-    if (previous && room && room.avatar === null) {
-      handleRoomAvatarUpdated({ roomId, ...previous });
+  await enqueue(roomAvatarQueue, async () => {
+    if (activeSocket !== socket) {
+      throw createProfilePhotoError(PROFILE_PHOTO_FAILED_CODE);
     }
-    throw error;
-  }
+    const room = rooms.get(roomId);
+    const previous = room?.avatar ?? null;
+    const confirmation = awaitConfirmation(socket, 'room:avatar-updated', (payload) => payload.roomId === roomId && payload.encryptedAvatar === null, 'room:clear-avatar');
+    socket.emit('room:clear-avatar', { roomId });
+    handleRoomAvatarUpdated({ roomId, encryptedAvatar: null, keyId: null });
+    try {
+      await confirmation.promise;
+    } catch (error) {
+      if (previous && room && room.avatar === null) {
+        handleRoomAvatarUpdated({ roomId, ...previous });
+      }
+      throw error;
+    }
+  });
 }
 
 export function resetProfilePhotos(): void {
@@ -1126,6 +1258,8 @@ export function resetProfilePhotos(): void {
   rerun.clear();
   ownEnvelopeReruns.clear();
   verifiedOwnEnvelopes.clear();
+  blockedByMe.clear();
+  roomListApplied = false;
   notify({ kind: 'reset' });
 }
 
@@ -1135,6 +1269,7 @@ export function getProfilePhotoCacheSize(): number {
 
 export function attachProfilePhotoSocket(socket: AppSocket): () => void {
   activeSocket = socket;
+  roomListApplied = false;
   notify({ kind: 'ready' });
   scheduleAllOwnEnvelopes();
   return () => {

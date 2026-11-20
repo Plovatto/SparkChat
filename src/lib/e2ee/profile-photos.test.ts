@@ -234,6 +234,7 @@ afterEach(() => {
 function signIn(me: Person): void {
   identity.setCurrentIdentity({ userId: me.userId, publicKey: me.publicKey, privateKey: me.privateKey });
   photos.attachProfilePhotoSocket(socket.asAppSocket());
+  photos.applyRoomSummaries([]);
 }
 
 describe('contact photos', () => {
@@ -376,7 +377,7 @@ describe('own photo', () => {
     const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1, profileKeyEnvelope: null };
     photos.applyRoomSummary(summary('dm', 'private', [me, { id: 'alice' }]));
     photos.applyRoomSummary(summary('ai', 'private', [me, { id: 'spark-ai' }]));
-    photos.applyRoomSummary(summary('blocked', 'private', [me, { id: 'mallory' }], { blockedBy: { bob: 'mallory' } }));
+    photos.applyRoomSummary(summary('blocked', 'private', [me, { id: 'mallory' }], { blockedBy: { mallory: 'bob' } }));
     await settle();
 
     const published = socket.emittedOf('room:publish-profile-key');
@@ -433,14 +434,17 @@ describe('own photo', () => {
     const photo = await publishUserPhoto(bob, 1);
     setGeneration('dm', newGeneration(KEY_ONE, 1));
     setGeneration('group', newGeneration(KEY_TWO, 1));
+    setGeneration('shared', newGeneration(KEY_TWO, 1));
     signIn(bob);
     const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1 };
     photos.applyRoomSummary(summary('dm', 'private', [me, { id: 'mallory' }]));
     photos.applyRoomSummary(summary('group', 'group', [me, { id: 'carol' }]));
+    photos.applyRoomSummary(summary('shared', 'group', [me, { id: 'carol' }, { id: 'mallory' }]));
     await settle();
+    expect(socket.emittedOf('room:publish-profile-key').map((entry) => entry.roomId).sort()).toEqual(['dm', 'group', 'shared']);
     socket.emitted.length = 0;
 
-    photos.handleBlockStatus({ roomId: 'dm', blockedBy: { bob: 'mallory' }, isBlocking: true, blockedUserId: 'mallory' });
+    photos.handleBlockStatus({ roomId: 'dm', blockedUserId: 'mallory', blockedBy: { mallory: 'bob' }, isBlocking: true });
     await settle();
 
     const [sent] = socket.emittedOf('user:set-avatar');
@@ -449,11 +453,133 @@ describe('own photo', () => {
     const newKey = await crypto.deriveProfileKey(bob.privateKey, 2);
     expect(await crypto.openUserPhotoPointer(sent?.encryptedAvatar as string, oldKey, 'bob', 2)).toBeNull();
     expect(await crypto.openUserPhotoPointer(sent?.encryptedAvatar as string, newKey, 'bob', 2)).toMatchObject({ url: photo.url, fileVersion: 1 });
+    expect(socket.emittedOf('room:publish-profile-key')).toHaveLength(0);
+
+    socket.receive('user:avatar-updated', { userId: 'bob', encryptedAvatar: sent?.encryptedAvatar, profileKeyVersion: 2 });
+    await settle();
     expect(socket.emittedOf('room:publish-profile-key').map((entry) => entry.roomId)).toEqual(['group']);
 
     photos.retainUserPhoto('bob');
     await settle();
     expect(await bytesOfUrl(photos.getUserPhotoUrl('bob'))).toEqual(Array.from(PLAINTEXT));
+  });
+
+  it('keeps its profile key when somebody else blocks it', async () => {
+    const bob = await person('bob');
+    const photo = await publishUserPhoto(bob, 1);
+    setGeneration('dm', newGeneration(KEY_ONE, 1));
+    setGeneration('group', newGeneration(KEY_TWO, 1));
+    signIn(bob);
+    const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1 };
+    photos.applyRoomSummary(summary('dm', 'private', [me, { id: 'mallory' }]));
+    photos.applyRoomSummary(summary('group', 'group', [me, { id: 'mallory' }]));
+    await settle();
+    socket.emitted.length = 0;
+
+    photos.handleBlockStatus({ roomId: 'dm', blockedByUserId: 'mallory', blockedBy: { bob: 'mallory' }, isBlocking: false });
+    await settle();
+
+    expect(socket.emittedOf('user:set-avatar')).toHaveLength(0);
+    expect(photos.isRoomBlocked('dm')).toBe(true);
+    photos.applyRoomSummary(summary('group', 'group', [me, { id: 'mallory' }, { id: 'carol' }]));
+    await settle();
+    expect(socket.emittedOf('user:set-avatar')).toHaveLength(0);
+  });
+
+  it('republishes into the private room after unblocking', async () => {
+    const bob = await person('bob');
+    const photo = await publishUserPhoto(bob, 1);
+    setGeneration('dm', newGeneration(KEY_ONE, 1));
+    signIn(bob);
+    const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1 };
+    photos.applyRoomSummary(summary('dm', 'private', [me, { id: 'mallory' }], { blockedBy: { mallory: 'bob' } }));
+    await settle();
+    expect(socket.emittedOf('room:publish-profile-key')).toHaveLength(0);
+
+    photos.handleBlockStatus({ roomId: 'dm', blockedUserId: 'mallory', blockedBy: {}, isBlocking: true });
+    await settle();
+    expect(socket.emittedOf('user:set-avatar')).toHaveLength(0);
+    expect(socket.emittedOf('room:publish-profile-key').map((entry) => entry.roomId)).toEqual(['dm']);
+  });
+
+  it('waits for the whole room list before publishing and never publishes into a group with someone it blocked', async () => {
+    const bob = await person('bob');
+    const photo = await publishUserPhoto(bob, 2);
+    setGeneration('group', newGeneration(KEY_ONE, 1));
+    setGeneration('dm', newGeneration(KEY_TWO, 1));
+    setGeneration('other', newGeneration(KEY_TWO, 1));
+    identity.setCurrentIdentity({ userId: bob.userId, publicKey: bob.publicKey, privateKey: bob.privateKey });
+    photos.attachProfilePhotoSocket(socket.asAppSocket());
+    const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 2 };
+
+    photos.applyRoomSummary(summary('other', 'group', [me, { id: 'carol' }]));
+    await settle();
+    expect(socket.emittedOf('room:publish-profile-key')).toHaveLength(0);
+
+    photos.applyRoomSummaries([
+      summary('group', 'group', [me, { id: 'carol' }, { id: 'mallory' }]),
+      summary('other', 'group', [me, { id: 'carol' }]),
+      summary('dm', 'private', [me, { id: 'mallory' }], { blockedBy: { mallory: 'bob' } }),
+    ]);
+    await settle();
+    expect(socket.emittedOf('room:publish-profile-key').map((entry) => entry.roomId)).toEqual(['other']);
+
+    photos.forgetRoom('dm');
+    photos.applyRoomParticipants('group', [{ id: 'bob' }, { id: 'carol' }, { id: 'mallory' }, { id: 'dave' }] as never);
+    await settle();
+    expect(socket.emittedOf('room:publish-profile-key').map((entry) => entry.roomId)).toEqual(['other']);
+  });
+
+  it('rejects and rolls back the optimistic photo when the server never confirms', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const bob = await person('bob');
+      signIn(bob);
+      const upload = photos.publishMyPhoto({ url: `${MEDIA}/new.bin`, fileKey: 'd'.repeat(43), mime: 'image/webp' }, 2, new Blob([PLAINTEXT], { type: 'image/webp' }));
+      const outcome = upload.catch((error: unknown) => error);
+      for (let round = 0; round < 30; round += 1) {
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(socket.emittedOf('user:set-avatar')).toHaveLength(1);
+      expect(photos.getUserPhotoUrl('bob')).not.toBeNull();
+
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(await outcome).toMatchObject({ code: 'profilePhoto.failed' });
+      expect(photos.getUserPhotoUrl('bob')).toBeNull();
+      expect(photos.nextProfileKeyVersion()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends one avatar change at a time so a rotation error is not blamed on the upload', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bob = await person('bob');
+    const photo = await publishUserPhoto(bob, 1);
+    setGeneration('dm', newGeneration(KEY_ONE, 1));
+    signIn(bob);
+    const me = { id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1 };
+    photos.applyRoomSummary(summary('dm', 'private', [me, { id: 'mallory' }]));
+    await settle();
+
+    photos.handleBlockStatus({ roomId: 'dm', blockedUserId: 'mallory', blockedBy: { mallory: 'bob' }, isBlocking: true });
+    await settle();
+    expect(socket.emittedOf('user:set-avatar')).toHaveLength(1);
+
+    const upload = photos.publishMyPhoto({ url: `${MEDIA}/new.bin`, fileKey: 'd'.repeat(43), mime: 'image/webp' }, 3, new Blob([PLAINTEXT], { type: 'image/webp' }));
+    await settle();
+    expect(socket.emittedOf('user:set-avatar')).toHaveLength(1);
+
+    socket.receive('error', { message: 'nope', code: 'avatar.unknownCode', event: 'user:set-avatar' });
+    await settle();
+    expect(consoleError).toHaveBeenCalled();
+    const sent = socket.emittedOf('user:set-avatar');
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ url: `${MEDIA}/new.bin`, profileKeyVersion: 3 });
+
+    socket.receive('user:avatar-updated', { userId: 'bob', encryptedAvatar: sent[1]?.encryptedAvatar, profileKeyVersion: 3 });
+    await expect(upload).resolves.toBeUndefined();
   });
 });
 

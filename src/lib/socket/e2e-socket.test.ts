@@ -25,6 +25,7 @@ const roomKeyHandlers = vi.hoisted(() => ({
 
 const profilePhotoHandlers = vi.hoisted(() => ({
   applyRoomParticipants: vi.fn(),
+  applyRoomSummaries: vi.fn(),
   applyRoomSummary: vi.fn(),
   applySelfUser: vi.fn(),
   attachProfilePhotoSocket: vi.fn(() => () => undefined),
@@ -425,16 +426,17 @@ describe('wrapSocketWithE2e profile photos', () => {
     receive('user:avatar-updated', { userId: 'u2', encryptedAvatar: null, profileKeyVersion: 2 });
     receive('room:avatar-updated', { roomId: 'room-1', encryptedAvatar: null, keyId: null });
     receive('room:profile-keys-updated', { roomId: 'room-1', keyId: 'k', envelopes: {} });
-    receive('user:blocked', { roomId: 'room-1', blockedBy: { me: 'u2' }, isBlocking: true });
+    receive('user:blocked', { roomId: 'room-1', blockedUserId: 'u2', blockedBy: { u2: 'me' }, isBlocking: true });
     receive('user:resumed', { user: { id: 'me', profileKeyVersion: 3 }, authMethod: 'password' });
 
-    expect(profilePhotoHandlers.applyRoomSummary).toHaveBeenCalledTimes(2);
+    expect(profilePhotoHandlers.applyRoomSummaries).toHaveBeenCalledWith([privateRoom]);
+    expect(profilePhotoHandlers.applyRoomSummary).toHaveBeenCalledTimes(1);
     expect(profilePhotoHandlers.applyRoomParticipants).toHaveBeenCalledWith('room-1', []);
     expect(profilePhotoHandlers.forgetRoom).toHaveBeenCalledWith('room-1');
     expect(profilePhotoHandlers.handleUserAvatarUpdated).toHaveBeenCalledWith({ userId: 'u2', encryptedAvatar: null, profileKeyVersion: 2 });
     expect(profilePhotoHandlers.handleRoomAvatarUpdated).toHaveBeenCalledOnce();
     expect(profilePhotoHandlers.handleProfileKeysUpdated).toHaveBeenCalledOnce();
-    expect(profilePhotoHandlers.handleBlockStatus).toHaveBeenCalledOnce();
+    expect(profilePhotoHandlers.handleBlockStatus).toHaveBeenCalledWith({ roomId: 'room-1', blockedUserId: 'u2', blockedBy: { u2: 'me' }, isBlocking: true });
     expect(profilePhotoHandlers.applySelfUser).toHaveBeenCalledWith({ id: 'me', profileKeyVersion: 3 });
   });
 });

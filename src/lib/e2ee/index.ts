@@ -89,6 +89,7 @@ export {
 } from './attachment-crypto';
 export {
   applyRoomParticipants,
+  applyRoomSummaries,
   applyRoomSummary,
   applySelfUser,
   assertCanChangeRoomPhoto,
@@ -103,6 +104,7 @@ export {
   getRoomPhotoUrl,
   getTrackedRoomIds,
   getUserPhotoUrl,
+  isRoomBlocked,
   handleBlockStatus,
   handleProfileKeysUpdated,
   handleRoomAvatarUpdated,
