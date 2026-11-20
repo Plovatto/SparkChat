@@ -579,8 +579,7 @@
     "revokeSession": "Sign out this session",
     "nicknamePasswordHint": "Changing your username signs out your other sessions. Confirm with your current password.",
     "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
-    "confirmRegenerate": "Generate new file",
-    "callProtectIp": "Protect my IP in calls"
+    "confirmRegenerate": "Generate new file"
   },
   "notifications": {
     "sentImage": "Sent an image",
@@ -655,12 +654,11 @@
     "camera": "Camera",
     "speaker": "Audio output",
     "defaultDevice": "Default",
-    "tapToResume": "Tap to enable audio",
     "quality": "Connection quality: {{bars}} of 3",
     "remoteMuted": "Microphone off",
     "remoteCameraOff": "Camera off",
     "cameraFailed": "Could not use the camera. Continuing with audio only.",
-    "relayDegraded": "Video turned off to save data on the protected connection.",
+    "relayDegraded": "Video turned off to save data on the relayed connection.",
     "videoDegraded": "Video quality reduced.",
     "otherTab": "Call in another tab",
     "otherTabHint": "Use the tab where the call is happening.",
@@ -684,7 +682,6 @@
     "detail": {
       "fingerprint-mismatch": "The call security check failed. The call was ended.",
       "invalid-accept": "The call answer could not be verified.",
-      "relay-unavailable": "Relay is unavailable and Protect my IP is on.",
       "connect-timeout": "The connection took too long.",
       "signal-failed": "The call signaling could not be sent.",
       "media-attach-failed": "Your audio or video could not be sent in the call."
@@ -693,11 +690,12 @@
       "media-denied": "Allow microphone access to make calls.",
       "key-changed": "This contact's security key changed. Confirm the new key before calling.",
       "unverifiable": "This contact could not be verified for calls.",
-      "relay-unavailable": "Relay is unavailable. Turn off Protect my IP or try later.",
       "other-tab": "There is already a call in another tab.",
       "disabled": "Calls are unavailable right now.",
       "interrupted": "A previous call was interrupted.",
-      "server-error": "The call could not be completed."
+      "server-error": "The call could not be completed.",
+      "screen-degraded": "Screen sharing stopped to save data on this connection.",
+      "screen-failed": "Could not share your screen."
     },
     "callBack": "Call back",
     "close": "Close",
@@ -752,6 +750,74 @@
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds."
+    },
+    "share": {
+      "start": "Share screen",
+      "stop": "Stop sharing",
+      "banner": "You are sharing your screen",
+      "stopShort": "Stop",
+      "remote": "{{name}}'s screen",
+      "fullscreen": "Full screen",
+      "exitFullscreen": "Exit full screen",
+      "unavailable": "Screen sharing is unavailable in this call",
+      "title": "You are sharing",
+      "surface": {
+        "browser": "A browser tab",
+        "window": "A window",
+        "monitor": "Your entire screen",
+        "unknown": "Your screen"
+      },
+      "peerTitle": "{{name}} is sharing",
+      "peerSurface": {
+        "browser": "A browser tab",
+        "window": "A window",
+        "monitor": "The entire screen",
+        "unknown": "The screen"
+      },
+      "volume": "Shared audio volume",
+      "yourScreen": "Your screen",
+      "live": "LIVE",
+      "hidePreview": "Hide preview",
+      "showPreview": "Show preview",
+      "streamVolume": "Stream volume",
+      "openWindow": "Open in a new window"
+    },
+    "unstable": "Unstable connection",
+    "you": "You",
+    "pip": {
+      "open": "Open floating window",
+      "close": "Close floating window",
+      "dismiss": "Close"
+    },
+    "tabs": {
+      "devices": "Devices",
+      "audio": "Audio",
+      "broadcast": "Broadcast"
+    },
+    "settings": "Call settings",
+    "incomingKind": {
+      "voice": "Voice call",
+      "video": "Video call"
+    },
+    "mutedBadge": "Microphone off",
+    "speaking": "Speaking",
+    "route": {
+      "direct": "Direct connection",
+      "relay": "Connection through a server (TURN)"
+    },
+    "broadcast": {
+      "sending": "You are sharing",
+      "receiving": "You are watching",
+      "movie": "Movie mode",
+      "movieHint": "Smooth video and stereo audio for movies and shows",
+      "shareVolume": "Shared audio volume",
+      "shareVolumeHint": "How loud the screen sound is for the other person",
+      "noShareAudio": "To send sound, check Share audio when choosing the screen",
+      "hidePreview": "Hide preview",
+      "hidePreviewHint": "Shows a notice instead of your screen",
+      "streamVolume": "Stream volume",
+      "streamVolumeHint": "Changes the volume only for you",
+      "noStreamAudio": "This stream has no sound"
     }
   },
   "gifs": {

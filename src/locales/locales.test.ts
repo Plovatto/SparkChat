@@ -61,3 +61,13 @@ describe('theme names', () => {
     }
   });
 });
+
+describe('removed call options', () => {
+  it('no longer offer the protect my IP option for calls', () => {
+    for (const app of [ptApp, enApp]) {
+      const keys = [...flatten(app).keys()];
+      expect(keys).not.toContain('profile.callProtectIp');
+      expect(keys.filter((key) => key.endsWith('.relay-unavailable'))).toEqual([]);
+    }
+  });
+});
