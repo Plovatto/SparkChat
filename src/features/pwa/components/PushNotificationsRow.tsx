@@ -6,7 +6,7 @@ import { Switch } from '@components/common/Switch';
 import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { usePushNotifications, type PushStatus } from '../hooks/usePushNotifications';
-import { detectDesktop, openInstallSheet } from '../lib/install-state';
+import { openInstallSheet } from '../lib/install-state';
 import '../styles/pwa.css';
 
 const HINT_KEYS = {
@@ -16,9 +16,6 @@ const HINT_KEYS = {
   'server-disabled': 'pwa.push.serverDisabled',
 } as const satisfies Partial<Record<PushStatus, string>>;
 
-const DESKTOP_HELP_KEYS = ['pwa.push.desktopHelpBrowser', 'pwa.push.desktopHelpSystem', 'pwa.push.desktopHelpFocus', 'pwa.push.desktopHelpOpen'] as const;
-const DESKTOP_HELP_STATUSES: readonly PushStatus[] = ['on', 'off', 'blocked'];
-
 export function PushNotificationsRow() {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -27,7 +24,6 @@ export function PushNotificationsRow() {
   const { status, busy, error, serverError, enable, disable } = usePushNotifications();
   const isOn = status === 'on';
   const isToggleable = status === 'on' || status === 'off';
-  const showDesktopHelp = DESKTOP_HELP_STATUSES.includes(status) && detectDesktop();
   const hintKey = status in HINT_KEYS ? HINT_KEYS[status as keyof typeof HINT_KEYS] : null;
 
   const handleToggle = () => {
@@ -71,16 +67,6 @@ export function PushNotificationsRow() {
             </button>
           )}
         </div>
-      )}
-      {showDesktopHelp && (
-        <details className="pwa-push-help">
-          <summary style={{ color: theme.accentText }}>{t('pwa.push.desktopHelpTitle')}</summary>
-          <ol style={{ color: theme.textSecondary }}>
-            {DESKTOP_HELP_KEYS.map((key) => (
-              <li key={key}>{t(key)}</li>
-            ))}
-          </ol>
-        </details>
       )}
       {error && (
         <div className="sc-notice sc-notice--danger pwa-push-notice" role="alert">

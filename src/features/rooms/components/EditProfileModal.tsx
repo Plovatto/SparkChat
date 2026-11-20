@@ -23,7 +23,7 @@ import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownl
 import { Switch } from '@components/common/Switch';
 import type { User } from '@features/auth';
 import { PasswordField, PasswordFieldHint } from '@features/auth/components/PasswordField';
-import { AVATARS } from '@features/auth/constants/avatars';
+import { SELECTABLE_AVATARS } from '@features/auth/constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
@@ -50,6 +50,7 @@ import {
   resolveProfileUpdateProof,
 } from '../utils/credential-requests';
 import { buildProfileUpdatePayload, isNicknameChange } from '../utils/profile-update';
+import { LanguageSettingRow } from './LanguageSettingRow';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -543,7 +544,7 @@ export function EditProfileModal({
                 className={photo.isSelected ? undefined : 'sc-anim-tile-in sc-stagger'}
                 style={{ height: `${avatarSize}px`, '--sc-stagger-index': 0, '--sc-stagger-step': '22ms' } as CSSProperties}
               />
-              {AVATARS.map((avatarOption, index) => {
+              {SELECTABLE_AVATARS.map(({ avatar: avatarOption, index }, position) => {
                 const isSelected = !photo.isSelected && avatar === index;
                 return (
                   <button
@@ -562,7 +563,7 @@ export function EditProfileModal({
                         height: `${avatarSize}px`,
                         '--avatar-gradient': avatarOption.bgGradient,
                         '--avatar-color': avatarOption.color,
-                        '--sc-stagger-index': Math.min(index + 1, 11),
+                        '--sc-stagger-index': Math.min(position + 1, 11),
                         '--sc-stagger-step': '22ms',
                       } as CSSProperties
                     }
@@ -722,6 +723,7 @@ export function EditProfileModal({
 
       {activeTab === 'system' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <LanguageSettingRow />
           <PushNotificationsRow />
           <SettingRow
             icon={soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}

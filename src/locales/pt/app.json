@@ -686,6 +686,7 @@
     "changeLogsOut": "Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.",
     "changePassword": "Trocar senha",
     "downloadRecovery": "Baixar arquivo de recuperação",
+    "appLanguage": "Idioma do app",
     "sounds": "Sons do app",
     "hideNotificationContent": "Ocultar conteúdo nas notificações",
     "activeSessions": "Dispositivos com sessão ativa",
@@ -1001,12 +1002,7 @@
       "iosNeedsInstall": "No iPhone e no iPad, instale o app na Tela de Início para receber notificações.",
       "serverDisabled": "As notificações com o app fechado ainda não estão disponíveis neste servidor.",
       "checking": "Verificando…",
-      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes.",
-      "desktopHelpTitle": "Não está chegando no computador?",
-      "desktopHelpBrowser": "Deixe o Chrome ou o Edge rodando em segundo plano: em Configurações > Sistema, ative \"Continuar executando apps em segundo plano quando o navegador estiver fechado\". Com o navegador totalmente fechado, nenhum aviso chega.",
-      "desktopHelpSystem": "Permita os avisos no sistema: no Windows, em Configurações > Sistema > Notificações, ative o Chrome ou o Edge e o SparkChat; no Mac, em Ajustes do Sistema > Notificações.",
-      "desktopHelpFocus": "Desligue o Não Perturbar ou o Assistente de Foco, que escondem os avisos.",
-      "desktopHelpOpen": "Se o SparkChat estiver aberto e visível em alguma janela, o aviso aparece dentro do app em vez de no sistema."
+      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes."
     },
     "update": {
       "message": "Nova versão disponível",

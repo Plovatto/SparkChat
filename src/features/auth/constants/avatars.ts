@@ -46,3 +46,7 @@ export const AVATARS: Avatar[] = [
   { icon: FaMusic, name: 'Music', color: '#378856ff', bgGradient: 'linear-gradient(135deg, #ff6b81 0%, #ff8e53 100%)' },
   { icon: FaPalette, name: 'Art', color: '#278699ff', bgGradient: 'linear-gradient(135deg, #ee5a6f 0%, #ec008c 100%)' },
 ];
+
+export const ASSISTANT_AVATAR_INDEX = 1;
+
+export const SELECTABLE_AVATARS = AVATARS.map((avatar, index) => ({ avatar, index })).filter(({ index }) => index !== ASSISTANT_AVATAR_INDEX);

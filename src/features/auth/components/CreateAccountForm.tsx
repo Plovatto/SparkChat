@@ -10,7 +10,7 @@ import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { prepareRegistrationCredentials } from '@lib/e2ee';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { AVATARS } from '../constants/avatars';
+import { SELECTABLE_AVATARS } from '../constants/avatars';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
 import { useNicknameAvailability, type NicknameCheckState } from '../hooks/useNicknameAvailability';
 import { getPasswordMatchStatus } from '../lib/password-match';
@@ -142,7 +142,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                 className="welcome-avatar-tile welcome-photo-tile"
                 style={{ width: '100%', maxWidth: `${avatarSize}px`, '--welcome-i': 0 } as CSSProperties}
               />
-              {AVATARS.map((avatar, index) => {
+              {SELECTABLE_AVATARS.map(({ avatar, index }, position) => {
                 const IconComponent = avatar.icon;
                 const isSelected = !photo.isSelected && selectedAvatar === index;
 
@@ -159,7 +159,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                     title={translate(`avatars.${avatar.name}`)}
                     aria-label={translate(`avatars.${avatar.name}`)}
                     className="welcome-avatar-tile welcome-avatar-option"
-                    style={{ maxWidth: `${avatarSize}px`, '--welcome-i': Math.min(index + 1, 12) } as CSSProperties}
+                    style={{ maxWidth: `${avatarSize}px`, '--welcome-i': Math.min(position + 1, 12) } as CSSProperties}
                   >
                     <IconComponent size={iconSize} />
                   </button>

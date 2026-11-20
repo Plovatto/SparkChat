@@ -28,8 +28,6 @@ import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { useEscapeKey } from '@hooks/useEscapeKey';
-import { useAppLanguage } from '@lib/i18n/app-i18n';
-import { LanguageMenuButton } from '@lib/i18n/LanguageMenuButton';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { InstallAppButton } from '@features/pwa/components/InstallAppButton';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
@@ -109,7 +107,6 @@ export function Sidebar({
   listHeader,
 }: SidebarProps) {
   const { t } = useTranslation();
-  const { language, changeLanguage } = useAppLanguage();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -394,13 +391,6 @@ export function Sidebar({
           </div>
 
           <div className="sidebar-header-actions">
-            <LanguageMenuButton
-              value={language}
-              onChange={changeLanguage}
-              label={t('language.label')}
-              className="sc-icon-btn sc-icon-btn--header sidebar-header-btn"
-            />
-
             <HeaderIconButton onClick={handleThemeButtonClick} title={t('sidebar.themes')}>
               <FaPalette size={16} />
             </HeaderIconButton>
