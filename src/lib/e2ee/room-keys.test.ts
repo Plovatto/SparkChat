@@ -649,6 +649,42 @@ describe('rotation', () => {
     expect(server.envelopes.some((entry) => entry.recipientId === 'caio' && entry.epoch === 2)).toBe(false);
   });
 
+  it('tells only the member whose rotation the server accepted, once the new generation is adopted', async () => {
+    const [ana, bia] = await groupAtEpochOne(['ana', 'bia', 'caio']);
+    if (!ana || !bia) {
+      throw new Error('clients missing');
+    }
+    const seen: { userId: string; roomId: string; keyId: string; epoch: number; key: number[] }[] = [];
+    for (const client of [ana, bia]) {
+      client.roomKeys.subscribeOwnRotation((roomId, generation) => {
+        seen.push({ userId: client.userId, roomId, keyId: generation.keyId, epoch: generation.epoch, key: Array.from(generation.key) });
+      });
+    }
+
+    server.requireRotation('group', 'caio');
+    await settle();
+
+    const currentKeyId = server.rooms.get('group')?.currentKeyId;
+    expect(seen).toHaveLength(1);
+    const [event] = seen;
+    const winner = event?.userId === 'ana' ? ana : bia;
+    expect(event).toMatchObject({ roomId: 'group', keyId: currentKeyId, epoch: 2 });
+    expect(event?.key).toEqual(Array.from(winner.roomKeys.getCurrentRoomKey('group')?.key ?? []));
+    const accepted = winner.socket.emittedOf('e2e:publish-room-key') as { epoch: number; keyId: string }[];
+    expect(accepted.some((batch) => batch.epoch === 2 && batch.keyId === currentKeyId)).toBe(true);
+  });
+
+  it('resolves the pinned signing key of a member and its own derived key', async () => {
+    const [ana] = await groupAtEpochOne(['ana', 'bia']);
+    if (!ana) {
+      throw new Error('clients missing');
+    }
+    const socket = ana.socket.asAppSocket();
+    expect(await ana.roomKeys.resolveSigningPublicKey(socket, 'bia')).toBe(server.directory.get('bia')?.signingPublicKey);
+    expect(await ana.roomKeys.resolveSigningPublicKey(socket, 'ana')).toBe(server.directory.get('ana')?.signingPublicKey);
+    expect(await ana.roomKeys.resolveSigningPublicKey(socket, 'nobody')).toBeNull();
+  });
+
   it('never seals the new generation to the member who left', async () => {
     const [ana] = await groupAtEpochOne(['ana', 'bia', 'caio']);
     server.requireRotation('group', 'caio');

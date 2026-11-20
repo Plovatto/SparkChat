@@ -42,7 +42,9 @@
       "credentialsInvalid": "The security data sent is invalid. Please try again.",
       "credentialsIncomplete": "Some security data is missing. Please try again.",
       "passwordTooLong": "Your password must be at most {{maxLength}} characters long.",
-      "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file."
+      "currentPasswordRequired": "Enter your current password. Changing it without the current one is only allowed once, within 10 minutes of signing in with your recovery file.",
+      "avatarUploadInvalid": "This photo upload is no longer valid. Please send the photo again.",
+      "profileKeyVersionStale": "Your profile photo was changed on another device. Please try again."
     },
     "room": {
       "notFound": "Conversation not found.",
@@ -53,7 +55,8 @@
       "cannotRemoveSelf": "Use the leave group option to remove yourself.",
       "notMember": "This user isn't a member of the group.",
       "groupFull": "This group has reached its member limit.",
-      "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one."
+      "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one.",
+      "avatarUploadInvalid": "This group photo upload is no longer valid. Please send the photo again."
     },
     "message": {
       "notFound": "Message not found.",
@@ -80,6 +83,8 @@
       "contentMismatch": "The file content doesn't match its declared type.",
       "quotaExceeded": "The server storage limit was reached. Please try again later.",
       "userQuotaExceeded": "You reached your storage limit. Delete old files to send new ones.",
+      "invalidType_avatar": "Invalid photo format. Use a JPEG, PNG or WEBP image.",
+      "tooLarge_avatar": "The photo exceeds the maximum allowed size of {{maxSize}}.",
       "invalidType_gif": "Invalid GIF type. Pick another GIF from the gallery.",
       "invalidGifSize": "This GIF is too large to send.",
       "userQuotaExceeded_gif": "You reached the limit of stored GIFs. GIFs expire after 30 days; try again later."
@@ -134,7 +139,10 @@
       "rosterRequired": "A new group key must include the verified member list.",
       "nameRequired": "A new group key must include the encrypted group name.",
       "nameKeyStale": "The group name was encrypted with an old key. Try again.",
-      "renameRequiresRoster": "Only members listed in the group's current verified member list can rename it."
+      "renameRequiresRoster": "Only members listed in the group's current verified member list can rename it.",
+      "avatarKeyStale": "The group encryption key just changed. Please try again.",
+      "avatarRequiresRoster": "Only verified members can change this group's photo.",
+      "profileKeyStale": "The group encryption key just changed. Your photo will be shared again automatically."
     },
     "call": {
       "disabled": "Calls are disabled.",
@@ -146,6 +154,11 @@
       "invalidState": "This action is not possible right now in the call.",
       "signalTooLarge": "Call message too large.",
       "relayUnavailable": "Relay is unavailable."
+    },
+    "profilePhoto": {
+      "failed": "Couldn't update the photo. Please try again.",
+      "unavailable": "Couldn't access your encryption key on this device. Sign in again and try once more.",
+      "notAllowed": "You don't have permission to change this group's photo."
     },
     "push": {
       "disabled": "Notifications with the app closed are disabled on this server.",
@@ -871,6 +884,39 @@
       "message": "A new version is available",
       "reload": "Reload",
       "dismiss": "Later"
+    }
+  },
+  "profilePhotos": {
+    "choose": "Choose a photo",
+    "change": "Change photo",
+    "remove": "Remove photo",
+    "useMine": "Use my photo",
+    "viewMine": "View my photo",
+    "view": "View photo",
+    "downloadName": "sparkchat-photo",
+    "uploading": "Saving photo...",
+    "group": {
+      "change": "Change group photo",
+      "remove": "Remove group photo",
+      "removeTitle": "Remove group photo?",
+      "removeConfirm": "Everyone in the group will see the default icon again.",
+      "view": "View group photo"
+    },
+    "crop": {
+      "title": "Adjust your photo",
+      "hint": "Drag to reposition. Pinch, scroll or use the slider to zoom.",
+      "zoom": "Zoom",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "confirm": "Use photo"
+    },
+    "errors": {
+      "notImage": "That file is not an image. Choose a JPG, PNG or WebP photo.",
+      "tooLarge": "That photo is too large. Choose one under 30 MB.",
+      "decodeFailed": "Couldn't open that photo on this device. Try another one.",
+      "encodeFailed": "Couldn't prepare that photo. Try another one.",
+      "uploadFailed": "Couldn't save your photo. Check your connection and try again.",
+      "removeFailed": "Couldn't remove your photo. Try again."
     }
   },
   "gifs": {

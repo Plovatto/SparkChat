@@ -2,37 +2,91 @@ import { getSharedAudioContext, resumeIfSuspended } from '@lib/audio/shared-audi
 
 export type RingPattern = 'incoming' | 'outgoing';
 
-const PERIOD_MS: Record<RingPattern, number> = { incoming: 2000, outgoing: 3000 };
-
-let timer: ReturnType<typeof setInterval> | null = null;
-
-function beep(context: AudioContext, frequency: number, start: number, duration: number): void {
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = 'sine';
-  oscillator.frequency.value = frequency;
-  gain.gain.setValueAtTime(0, start);
-  gain.gain.linearRampToValueAtTime(0.18, start + 0.03);
-  gain.gain.setValueAtTime(0.18, start + duration - 0.05);
-  gain.gain.linearRampToValueAtTime(0, start + duration);
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration);
+export interface RingNote {
+  offset: number;
+  frequency: number;
+  duration: number;
+  peak: number;
 }
 
-function playOnce(pattern: RingPattern): void {
+export interface RingPartial {
+  ratio: number;
+  level: number;
+  decay: number;
+}
+
+export const RING_PERIOD_MS: Record<RingPattern, number> = { incoming: 2200, outgoing: 3200 };
+
+const RING_NOTES: Record<RingPattern, readonly RingNote[]> = {
+  incoming: [
+    { offset: 0, frequency: 659.25, duration: 0.9, peak: 0.16 },
+    { offset: 0.16, frequency: 987.77, duration: 0.9, peak: 0.13 },
+    { offset: 0.32, frequency: 830.61, duration: 1.2, peak: 0.14 },
+  ],
+  outgoing: [
+    { offset: 0, frequency: 523.25, duration: 0.7, peak: 0.07 },
+    { offset: 0.24, frequency: 659.25, duration: 0.9, peak: 0.06 },
+  ],
+};
+
+export const RING_PARTIALS: readonly RingPartial[] = [
+  { ratio: 1, level: 1, decay: 1 },
+  { ratio: 2, level: 0.18, decay: 0.6 },
+  { ratio: 4, level: 0.06, decay: 0.3 },
+];
+
+const ATTACK_S = 0.012;
+const FLOOR = 0.0001;
+const RELEASE_S = 0.08;
+
+export function ringNotes(pattern: RingPattern): readonly RingNote[] {
+  return RING_NOTES[pattern];
+}
+
+export function ringLength(pattern: RingPattern): number {
+  return Math.max(...RING_NOTES[pattern].map((note) => note.offset + note.duration));
+}
+
+interface RingSession {
+  context: AudioContext;
+  master: GainNode;
+  oscillators: Set<OscillatorNode>;
+  timer: ReturnType<typeof setInterval> | null;
+}
+
+let session: RingSession | null = null;
+
+function voice(current: RingSession, note: RingNote, start: number): void {
+  const { context, master, oscillators } = current;
+  for (const partial of RING_PARTIALS) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const peak = note.peak * partial.level;
+    const end = start + note.duration * partial.decay;
+    oscillator.type = 'sine';
+    oscillator.frequency.value = note.frequency * partial.ratio;
+    gain.gain.setValueAtTime(FLOOR, start);
+    gain.gain.linearRampToValueAtTime(peak, start + ATTACK_S);
+    gain.gain.exponentialRampToValueAtTime(FLOOR, end);
+    oscillator.connect(gain);
+    gain.connect(master);
+    oscillators.add(oscillator);
+    oscillator.onended = () => {
+      oscillators.delete(oscillator);
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+    oscillator.start(start);
+    oscillator.stop(end + 0.02);
+  }
+}
+
+function playOnce(current: RingSession, pattern: RingPattern): void {
   try {
-    const context = getSharedAudioContext();
-    resumeIfSuspended(context);
-    const now = context.currentTime;
-    if (pattern === 'incoming') {
-      beep(context, 440, now, 0.4);
-      beep(context, 480, now, 0.4);
-      beep(context, 440, now + 0.6, 0.4);
-      beep(context, 480, now + 0.6, 0.4);
-    } else {
-      beep(context, 425, now, 1.0);
+    resumeIfSuspended(current.context);
+    const now = current.context.currentTime + 0.02;
+    for (const note of RING_NOTES[pattern]) {
+      voice(current, note, now + note.offset);
     }
   } catch {
     return;
@@ -41,13 +95,41 @@ function playOnce(pattern: RingPattern): void {
 
 export function startRingtone(pattern: RingPattern): void {
   stopRingtone();
-  playOnce(pattern);
-  timer = setInterval(() => playOnce(pattern), PERIOD_MS[pattern]);
+  let context: AudioContext;
+  try {
+    context = getSharedAudioContext();
+  } catch {
+    return;
+  }
+  const master = context.createGain();
+  master.gain.setValueAtTime(1, context.currentTime);
+  master.connect(context.destination);
+  const current: RingSession = { context, master, oscillators: new Set(), timer: null };
+  session = current;
+  playOnce(current, pattern);
+  current.timer = setInterval(() => playOnce(current, pattern), RING_PERIOD_MS[pattern]);
 }
 
 export function stopRingtone(): void {
-  if (timer !== null) {
-    clearInterval(timer);
-    timer = null;
+  const current = session;
+  if (!current) {
+    return;
+  }
+  session = null;
+  if (current.timer !== null) {
+    clearInterval(current.timer);
+  }
+  try {
+    const now = current.context.currentTime;
+    const level = current.master.gain;
+    level.cancelScheduledValues(now);
+    level.setValueAtTime(level.value, now);
+    level.linearRampToValueAtTime(0, now + RELEASE_S);
+    for (const oscillator of current.oscillators) {
+      oscillator.stop(now + RELEASE_S + 0.02);
+    }
+    setTimeout(() => current.master.disconnect(), (RELEASE_S + 0.1) * 1000);
+  } catch {
+    return;
   }
 }

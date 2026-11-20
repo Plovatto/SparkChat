@@ -54,6 +54,8 @@ export interface SocketUser {
   statusText: string | null;
   theme: SocketUserTheme;
   chatSettings: SocketChatSettings | null;
+  encryptedAvatar?: string | null;
+  profileKeyVersion?: number;
 }
 
 type JoinPayload =
@@ -88,6 +90,19 @@ export interface RoomParticipant {
   statusText: string | null;
   lastSeen: string;
   isAdmin: boolean;
+  encryptedAvatar?: string | null;
+  profileKeyVersion?: number;
+  profileKeyEnvelope?: ProfileKeyEnvelopeSummary | null;
+}
+
+export interface ProfileKeyEnvelopeSummary {
+  envelope: string;
+  keyId: string;
+}
+
+export interface RoomEncryptedAvatar {
+  encryptedAvatar: string;
+  keyId: string;
 }
 
 export type MessageType = 'text' | 'system' | 'image' | 'audio' | 'file' | 'error';
@@ -181,6 +196,7 @@ export interface RoomSummary {
   roster?: RoomRosterSummary | null;
   inviteProofs?: RoomInviteProof[];
   encryptedName?: RoomEncryptedName | null;
+  encryptedAvatar?: RoomEncryptedAvatar | null;
 }
 
 export interface RoomEncryptedName {
@@ -321,6 +337,9 @@ export interface ServerToClientEvents {
   'e2e:room-key': (payload: SealedRoomKeyEntry) => void;
   'e2e:key-request': (payload: { roomId: string; requesterId: string; proof?: string | null }) => void;
   'room:name-updated': (payload: { roomId: string; encryptedName: string; keyId: string }) => void;
+  'user:avatar-updated': (payload: { userId: string; encryptedAvatar: string | null; profileKeyVersion: number }) => void;
+  'room:avatar-updated': (payload: { roomId: string; encryptedAvatar: string | null; keyId: string | null }) => void;
+  'room:profile-keys-updated': (payload: { roomId: string; keyId: string; envelopes: Record<string, string> }) => void;
   'room:invite-updated': (payload: { roomId: string; invite: RoomInviteSummary | null; roster?: RoomRosterSummary | null }) => void;
   'e2e:room-key-rejected': (payload: {
     roomId: string;
@@ -402,6 +421,12 @@ export interface ClientToServerEvents {
   'e2e:share-room-key': (payload: RoomKeyBatch) => void;
   'e2e:get-room-keys': (payload: { roomIds: string[]; keyIds?: Record<string, string[]> }) => void;
   'room:rename': (payload: { roomId: string; name: string; keyId: string }) => void;
+  'user:set-avatar': (payload: { url: string; encryptedAvatar: string; profileKeyVersion: number }) => void;
+  'user:clear-avatar': (payload: Record<string, never>) => void;
+  'room:set-avatar': (payload: { roomId: string; url: string; encryptedAvatar: string; keyId: string }) => void;
+  'room:clear-avatar': (payload: { roomId: string }) => void;
+  'room:publish-profile-key': (payload: { roomId: string; keyId: string; envelope: string }) => void;
+  'room:rewrap-profile-keys': (payload: { roomId: string; keyId: string; envelopes: Record<string, string> }) => void;
   'e2e:request-room-key': (payload: { roomId: string }) => void;
   'message:send': (payload: {
     roomId: string;

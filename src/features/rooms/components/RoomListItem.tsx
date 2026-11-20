@@ -22,9 +22,10 @@ import {
 } from 'react-icons/fa';
 import { MEDIUM_SCREEN_MIN_WIDTH_PX, minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import type { User } from '@features/auth';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { AVATARS } from '@features/auth/constants/avatars';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { localizeAssistantWelcome } from '@features/chat/utils/assistant-welcome';
+import { Avatar, type AvatarProps } from '@features/profile-photos/components/Avatar';
 import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatAudioTime, formatTime, getDisplayName, resolveActiveUserNames, systemMessageSegments } from '@lib/format';
@@ -71,23 +72,19 @@ function truncate(text: string, maxLength: number): string {
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
-function getRoomAvatar(room: RoomSummary, userId: string | undefined, theme: ThemeTokens) {
+type RoomAvatarProps = Pick<AvatarProps, 'userId' | 'roomId' | 'avatarIndex' | 'icon' | 'iconSize' | 'iconColor' | 'background'>;
+
+function getRoomAvatar(room: RoomSummary, userId: string | undefined, theme: ThemeTokens): RoomAvatarProps {
   if (room.type === 'group') {
-    return { icon: <FaComments size={22} color={theme.onGradient} />, gradient: theme.gradient };
+    return { roomId: room.id, icon: FaComments, iconSize: 22, iconColor: theme.onGradient, background: theme.gradient };
   }
 
   const otherUser = getOtherParticipant(room, userId);
   if (!otherUser) {
-    return { icon: <FaUser size={20} color={theme.onGradient} />, gradient: theme.gradient };
+    return { icon: FaUser, iconSize: 20, iconColor: theme.onGradient, background: theme.gradient };
   }
 
-  const avatar = AVATARS[otherUser.avatar] ?? AVATARS[0];
-  if (!avatar) {
-    return { icon: <FaUser size={20} color={theme.onGradient} />, gradient: theme.gradient };
-  }
-
-  const Icon = avatar.icon;
-  return { icon: <Icon size={22} color={AVATAR_ICON_COLOR} />, gradient: avatar.bgGradient };
+  return { userId: otherUser.id, avatarIndex: AVATARS[otherUser.avatar] ? otherUser.avatar : 0, iconSize: 22 };
 }
 
 function isRoomParticipantOnline(room: RoomSummary, userId: string | undefined): boolean {
@@ -380,21 +377,7 @@ export const RoomListItem = memo(function RoomListItem({
           {isChecked ? <FaCheckSquare size={18} color={theme.accentText} /> : <FaSquare size={18} color={theme.borderStrong} />}
         </div>
       )}
-      <div
-        style={{
-          position: 'relative',
-          width: '48px',
-          height: '48px',
-          background: avatar.gradient,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          boxShadow: theme.shadowSm,
-        }}
-      >
-        {avatar.icon}
+      <Avatar {...avatar} size={48} style={{ boxShadow: theme.shadowSm }}>
         {online && (
           <FaCircle
             size={20}
@@ -411,7 +394,7 @@ export const RoomListItem = memo(function RoomListItem({
             }}
           />
         )}
-      </div>
+      </Avatar>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0 }}>

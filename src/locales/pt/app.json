@@ -42,7 +42,9 @@
       "credentialsInvalid": "Os dados de segurança enviados são inválidos. Tente novamente.",
       "credentialsIncomplete": "Faltam dados de segurança. Tente novamente.",
       "passwordTooLong": "A senha deve ter no máximo {{maxLength}} caracteres.",
-      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação."
+      "currentPasswordRequired": "Informe a senha atual. A troca sem a senha atual só é permitida uma vez, nos 10 minutos seguintes à entrada com o arquivo de recuperação.",
+      "avatarUploadInvalid": "Este envio de foto não é mais válido. Envie a foto novamente.",
+      "profileKeyVersionStale": "Sua foto de perfil foi alterada em outro dispositivo. Tente novamente."
     },
     "room": {
       "notFound": "Sala não encontrada.",
@@ -53,7 +55,8 @@
       "cannotRemoveSelf": "Use a opção de sair do grupo para se remover.",
       "notMember": "Usuário não faz parte do grupo.",
       "groupFull": "Este grupo atingiu o limite de membros.",
-      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro."
+      "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro.",
+      "avatarUploadInvalid": "Este envio de foto do grupo não é mais válido. Envie a foto novamente."
     },
     "message": {
       "notFound": "Mensagem não encontrada.",
@@ -80,6 +83,8 @@
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
       "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
       "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos.",
+      "invalidType_avatar": "Formato de foto inválido. Use uma imagem JPEG, PNG ou WEBP.",
+      "tooLarge_avatar": "A foto excede o tamanho máximo permitido de {{maxSize}}.",
       "invalidType_gif": "Tipo de GIF inválido. Escolha outro GIF da galeria.",
       "invalidGifSize": "Este GIF é grande demais para ser enviado.",
       "userQuotaExceeded_gif": "Você atingiu o limite de GIFs guardados. GIFs expiram em 30 dias; tente novamente mais tarde."
@@ -134,7 +139,10 @@
       "rosterRequired": "Uma nova chave de grupo precisa incluir a lista verificada de membros.",
       "nameRequired": "A nova chave do grupo precisa incluir o nome do grupo criptografado.",
       "nameKeyStale": "O nome do grupo foi criptografado com uma chave antiga. Tente novamente.",
-      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo."
+      "renameRequiresRoster": "Só membros que estão na lista verificada atual do grupo podem renomeá-lo.",
+      "avatarKeyStale": "A chave de criptografia do grupo acabou de mudar. Tente novamente.",
+      "avatarRequiresRoster": "Só membros verificados podem trocar a foto deste grupo.",
+      "profileKeyStale": "A chave de criptografia do grupo acabou de mudar. Sua foto será compartilhada de novo automaticamente."
     },
     "call": {
       "disabled": "As chamadas estão desativadas.",
@@ -146,6 +154,11 @@
       "invalidState": "Esta ação não é possível agora na chamada.",
       "signalTooLarge": "Mensagem da chamada grande demais.",
       "relayUnavailable": "A retransmissão está indisponível."
+    },
+    "profilePhoto": {
+      "failed": "Não foi possível atualizar a foto. Tente novamente.",
+      "unavailable": "Não foi possível acessar sua chave de criptografia neste dispositivo. Entre novamente e tente de novo.",
+      "notAllowed": "Você não tem permissão para trocar a foto deste grupo."
     },
     "push": {
       "disabled": "As notificações com o app fechado estão desativadas neste servidor.",
@@ -871,6 +884,39 @@
       "message": "Nova versão disponível",
       "reload": "Recarregar",
       "dismiss": "Depois"
+    }
+  },
+  "profilePhotos": {
+    "choose": "Escolher uma foto",
+    "change": "Trocar foto",
+    "remove": "Remover foto",
+    "useMine": "Usar minha foto",
+    "viewMine": "Ver minha foto",
+    "view": "Ver foto",
+    "downloadName": "foto-sparkchat",
+    "uploading": "Salvando foto...",
+    "group": {
+      "change": "Trocar foto do grupo",
+      "remove": "Remover foto do grupo",
+      "removeTitle": "Remover foto do grupo?",
+      "removeConfirm": "Todos no grupo voltarão a ver o ícone padrão.",
+      "view": "Ver foto do grupo"
+    },
+    "crop": {
+      "title": "Ajuste sua foto",
+      "hint": "Arraste para posicionar. Use o gesto de pinça, a rolagem ou o controle para dar zoom.",
+      "zoom": "Zoom",
+      "zoomIn": "Aumentar zoom",
+      "zoomOut": "Diminuir zoom",
+      "confirm": "Usar foto"
+    },
+    "errors": {
+      "notImage": "Esse arquivo não é uma imagem. Escolha uma foto JPG, PNG ou WebP.",
+      "tooLarge": "Essa foto é grande demais. Escolha uma com menos de 30 MB.",
+      "decodeFailed": "Não foi possível abrir essa foto neste dispositivo. Tente outra.",
+      "encodeFailed": "Não foi possível preparar essa foto. Tente outra.",
+      "uploadFailed": "Não foi possível salvar sua foto. Verifique sua conexão e tente de novo.",
+      "removeFailed": "Não foi possível remover sua foto. Tente de novo."
     }
   },
   "gifs": {

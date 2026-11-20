@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompressAlt, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } from 'react-icons/fa';
 import { MdScreenShare } from 'react-icons/md';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { AVATARS } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
@@ -310,10 +311,16 @@ export function CallScreen({ videoRef }: CallScreenProps) {
         <>
           <div ref={infoRef} className="sc-call-info">
             {!showRemoteVideo && (
-              <div className={`sc-call-avatar${remoteSpeaking ? ' sc-call-speaking' : ''}`} style={{ background: avatar?.bgGradient ?? theme.gradientControl }}>
-                {avatar ? <avatar.icon size={52} color={AVATAR_ICON_COLOR} /> : null}
+              <Avatar
+                userId={peer ? state.peerId : null}
+                avatarIndex={peer?.avatar}
+                size={112}
+                iconSize={52}
+                className={`sc-call-avatar${remoteSpeaking ? ' sc-call-speaking' : ''}`}
+                style={{ width: undefined, height: undefined }}
+              >
                 {snapshot.remoteMuted && running && mutedBadge(false)}
-              </div>
+              </Avatar>
             )}
             {!showRemoteVideo && <h2 className="sc-call-name">{peerName}</h2>}
             <div aria-live="polite" style={{ fontSize: '1rem', color: showRemoteVideo ? '#ffffff' : theme.onGradientMuted, textShadow: showRemoteVideo ? '0 1px 3px rgba(0,0,0,0.6)' : undefined, fontVariantNumeric: 'tabular-nums' }}>

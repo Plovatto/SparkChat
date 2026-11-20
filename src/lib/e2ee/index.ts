@@ -79,5 +79,50 @@ export {
   type EncryptedMediaSource,
 } from './message-crypto';
 export { isExpiredMediaUrl } from './media-cache';
-export { sealAttachment, type AttachmentBinding, type AttachmentSlot, type SealedAttachment } from './attachment-crypto';
+export {
+  sealAttachment,
+  sealAvatarFile,
+  type AttachmentBinding,
+  type AttachmentSlot,
+  type AvatarBinding,
+  type SealedAttachment,
+} from './attachment-crypto';
+export {
+  applyRoomParticipants,
+  applyRoomSummaries,
+  applyRoomSummary,
+  applySelfUser,
+  assertCanChangeRoomPhoto,
+  attachProfilePhotoSocket,
+  canChangeRoomPhoto,
+  clearMyPhoto,
+  clearRoomPhoto,
+  createProfilePhotoError,
+  forgetRoom,
+  getProfilePhotoCacheSize,
+  getProfilePhotoUserId,
+  getRoomPhotoUrl,
+  getTrackedRoomIds,
+  getUserPhotoUrl,
+  isRoomBlocked,
+  handleBlockStatus,
+  handleProfileKeysUpdated,
+  handleRoomAvatarUpdated,
+  handleUserAvatarUpdated,
+  isProfilePhotoReady,
+  nextProfileKeyVersion,
+  privateRoomsWith,
+  PROFILE_PHOTO_FAILED_CODE,
+  PROFILE_PHOTO_NOT_ALLOWED_CODE,
+  PROFILE_PHOTO_UNAVAILABLE_CODE,
+  publishMyPhoto,
+  publishRoomPhoto,
+  resetProfilePhotos,
+  retainRoomPhoto,
+  retainUserPhoto,
+  subscribeProfilePhotos,
+  type ProfilePhotoChange,
+  type ProfilePhotoListener,
+} from './profile-photos';
+export { PHOTO_MIME_TYPES } from './profile-photo-crypto';
 export { downloadMessageMedia, resolveDownloadableMediaUrl, UndecryptableMediaError, type MessageMediaDownload } from './media-download';

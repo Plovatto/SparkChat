@@ -7,6 +7,7 @@ import {
   type WorkerToClientMessage,
 } from './protocol';
 import type { NotificationText, PushMessagePreview } from './message-preview';
+import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '../../profile-photos/lib/notification-icon-cache';
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
@@ -61,6 +62,7 @@ export interface WorkerEnvironment {
   saveLanguage: (language: 'pt' | 'en') => Promise<void>;
   now: () => number;
   previewMessage?: (roomId: string, preview: PushMessagePreview | undefined, strings: WorkerStrings) => Promise<NotificationText | null>;
+  roomIcon?: (roomId: string) => Promise<string | null>;
 }
 
 export interface WorkerState {
@@ -71,6 +73,7 @@ export const NOTIFICATION_ICON = '/icon-192.png';
 export const NOTIFICATION_BADGE = '/badge-96.png';
 export const CALL_VIBRATION = [400, 200, 400, 200, 400, 200, 400];
 export const MISSED_CALL_REASONS: readonly string[] = ['missed', 'cancelled'];
+export const MAX_ROOM_ICON_BYTES = 256 * 1024;
 
 const HTML_LANG = { pt: 'pt-BR', en: 'en' } as const;
 const PREVIEW_KINDS: readonly string[] = ['text', 'image', 'audio', 'file'];
@@ -143,6 +146,49 @@ function baseOptions(language: 'pt' | 'en', env: WorkerEnvironment): WorkerNotif
   return { icon: NOTIFICATION_ICON, badge: NOTIFICATION_BADGE, lang: HTML_LANG[language], timestamp: env.now() };
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let start = 0; start < bytes.length; start += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(start, start + 0x8000));
+  }
+  return btoa(binary);
+}
+
+export async function readCachedRoomIcon(storage: CacheStorage | undefined | null, roomId: string): Promise<string | null> {
+  if (!storage || !isSafeId(roomId)) {
+    return null;
+  }
+  try {
+    if (!(await storage.has(NOTIFICATION_ICON_CACHE_NAME))) {
+      return null;
+    }
+    const cache = await storage.open(NOTIFICATION_ICON_CACHE_NAME);
+    const response = await cache.match(notificationIconUrl(roomId));
+    if (!response?.ok) {
+      return null;
+    }
+    const type = response.headers.get('Content-Type') ?? '';
+    if (type !== 'image/png') {
+      return null;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > MAX_ROOM_ICON_BYTES) {
+      return null;
+    }
+    return `data:image/png;base64,${bytesToBase64(bytes)}`;
+  } catch {
+    return null;
+  }
+}
+
+async function roomIconOr(env: WorkerEnvironment, roomId: string | undefined, fallback: string | undefined): Promise<string | undefined> {
+  if (!roomId || !env.roomIcon) {
+    return fallback;
+  }
+  const icon = await env.roomIcon(roomId).catch(() => null);
+  return icon ?? fallback;
+}
+
 function roomIdOf(data: unknown): string | undefined {
   if (typeof data === 'object' && data !== null && isSafeId((data as Record<string, unknown>).roomId)) {
     return (data as { roomId: string }).roomId;
@@ -159,8 +205,10 @@ async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language
   if (await hasFocusedVisibleClient(env)) {
     return;
   }
+  const base = baseOptions(language, env);
   const options: WorkerNotificationOptions = {
-    ...baseOptions(language, env),
+    ...base,
+    icon: await roomIconOr(env, message.roomId, base.icon),
     body: message.kind === 'video' ? strings.videoCallBody : strings.voiceCallBody,
     tag: callTag(message.callId),
     renotify: true,
@@ -187,8 +235,10 @@ async function showCallEnd(env: WorkerEnvironment, strings: WorkerStrings, langu
   if (!MISSED_CALL_REASONS.includes(message.reason)) {
     return;
   }
+  const base = baseOptions(language, env);
   await env.showNotification(strings.missedCall, {
-    ...baseOptions(language, env),
+    ...base,
+    icon: await roomIconOr(env, roomId, base.icon),
     body: strings.missedCallBody,
     tag,
     data: { kind: 'missed', callId: message.callId, ...(roomId ? { roomId } : {}) },
@@ -222,8 +272,10 @@ async function showMessage(
   message: Extract<PushMessage, { t: 'msg' }>,
 ): Promise<void> {
   const [silent, text] = await Promise.all([isRoomVisible(env, state, message.roomId).catch(() => false), previewWithin(env, strings, message)]);
+  const base = baseOptions(language, env);
   await env.showNotification(text?.title ?? strings.newMessage, {
-    ...baseOptions(language, env),
+    ...base,
+    icon: await roomIconOr(env, message.roomId, base.icon),
     body: text?.body ?? strings.newMessageBody,
     tag: messageTag(message.roomId),
     renotify: !silent,
