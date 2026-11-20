@@ -44,6 +44,7 @@ interface RoomView {
   type: RoomType | null;
   creatorId: string | null;
   members: Set<string>;
+  pinnedMembers: Set<string> | null;
   currentEpoch: number;
   rotationRequiredEpoch: number | null;
   inviteProofs: Map<string, string>;
@@ -1261,7 +1262,13 @@ function isEnvelopeSenderAllowed(roomId: string, view: RoomView, userId: string,
 }
 
 function isServerManaged(view: RoomView, userId: string): boolean {
-  return view.type === 'private' && userId === ASSISTANT_USER_ID;
+  return (
+    view.type === 'private' &&
+    userId === ASSISTANT_USER_ID &&
+    view.pinnedMembers !== null &&
+    view.pinnedMembers.size === 2 &&
+    view.pinnedMembers.has(ASSISTANT_USER_ID)
+  );
 }
 
 async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Promise<boolean> {
@@ -1622,6 +1629,7 @@ function viewFor(roomId: string): RoomView {
       type: null,
       creatorId: null,
       members: new Set(),
+      pinnedMembers: null,
       currentEpoch: 0,
       rotationRequiredEpoch: null,
       inviteProofs: new Map(),
@@ -1633,9 +1641,32 @@ function viewFor(roomId: string): RoomView {
 }
 
 function applyParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id'>[]): string[] {
+  if (view.type === 'private') {
+    return applyPrivateParticipants(view, participants);
+  }
   const added = participants.filter((participant) => !view.members.has(participant.id)).map((participant) => participant.id);
   view.members = new Set(participants.map((participant) => participant.id));
   return added;
+}
+
+function applyPrivateParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id'>[]): string[] {
+  const identity = getCurrentIdentity();
+  if (view.pinnedMembers) {
+    const incoming = new Set(participants.map((participant) => participant.id));
+    const same = incoming.size === view.pinnedMembers.size && Array.from(incoming).every((id) => view.pinnedMembers?.has(id));
+    if (!same) {
+      console.warn('[e2e] ignored a participant change in a private room');
+    }
+    return [];
+  }
+  const ids = new Set(participants.map((participant) => participant.id));
+  if (!identity || ids.size !== 2 || !ids.has(identity.userId)) {
+    console.warn('[e2e] ignored an invalid participant set for a private room');
+    return [];
+  }
+  view.pinnedMembers = ids;
+  view.members = new Set(ids);
+  return [];
 }
 
 function applyRotationRequired(view: RoomView, roomId: string, epoch: number | null | undefined): void {
@@ -1675,8 +1706,8 @@ export interface TrackRoomOptions {
 
 async function trackRoomImpl(socket: AppSocket, room: RoomSummary, options: TrackRoomOptions = {}): Promise<void> {
   const view = viewFor(room.id);
-  applyParticipants(view, room.participants);
   applyRoomType(view, room.id, room.type);
+  applyParticipants(view, room.participants);
   view.creatorId = room.creatorId ?? null;
   applyRoomInvite(room.id, room.invite);
   applyRoomRoster(room.id, room.roster);
@@ -1798,7 +1829,7 @@ async function handleRotationRequiredImpl(
     return;
   }
   applyInviteProofs(payload.roomId, view, payload.inviteProofs);
-  if (Array.isArray(payload.memberIds)) {
+  if (view.type !== 'private' && Array.isArray(payload.memberIds)) {
     const remaining = new Set(payload.memberIds);
     view.members = new Set(Array.from(view.members).filter((userId) => remaining.has(userId)));
   }
@@ -1814,10 +1845,11 @@ async function handleGroupUserJoinedImpl(socket: AppSocket, payload: { roomId: s
   if (!view) {
     return;
   }
-  const added = applyParticipants(view, payload.participants);
   if (view.type === 'private') {
-    await shareCurrentGeneration(socket, payload.roomId, added);
+    applyParticipants(view, payload.participants);
+    return;
   }
+  applyParticipants(view, payload.participants);
 }
 
 export function updateRoomParticipants(roomId: string, participants: RoomParticipant[]): void {
