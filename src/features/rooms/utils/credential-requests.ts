@@ -49,6 +49,7 @@ export async function buildChangePasswordRequest(
     payload: {
       currentPassword: currentProof,
       newPassword: passwordMaterial.authKey,
+      passwordLength: newPassword.length,
       newAuthSalt: passwordMaterial.authSalt,
       encryptedPrivateKeyByPassword: passwordMaterial.encryptedPrivateKeyByPassword,
     },

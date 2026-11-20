@@ -190,6 +190,15 @@ describe('recovery file one-shot guards', () => {
     expect(second).toBeNull();
   });
 
+  it('declares the password length in the registration credentials without exposing the password', async () => {
+    const credentials = await prepareRegistrationCredentials('correct horse battery');
+
+    expect(credentials.passwordLength).toBe('correct horse battery'.length);
+    expect(JSON.stringify(credentials)).not.toContain('correct horse battery');
+    credentials.wrapKey.fill(0);
+    credentials.recoveryWrapKey.fill(0);
+  });
+
   it('completes a registration once even when the registered event is handled twice', async () => {
     const credentials = await prepareRegistrationCredentials('pw-123456');
     const fake = createSocket(null);

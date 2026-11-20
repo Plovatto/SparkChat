@@ -87,6 +87,7 @@ export function useSocketAuthSync({
           password: currentRegistration.credentials.authKey,
           authSalt: currentRegistration.credentials.authSalt,
           recoveryVerifier: currentRegistration.credentials.recoveryVerifier,
+          passwordLength: currentRegistration.credentials.passwordLength,
         });
       }
     };
