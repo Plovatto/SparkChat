@@ -13,7 +13,7 @@ export function AppBackground({ theme, children }: PropsWithChildren<AppBackgrou
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme.gradient,
+        background: theme.pageGradient,
         position: 'relative',
         overflow: 'hidden',
       }}

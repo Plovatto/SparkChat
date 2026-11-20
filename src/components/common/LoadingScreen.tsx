@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import Logo from '@/assets/Logo.svg';
-import { buildTheme, withAlpha, type ThemeTokens } from '@features/theme';
+import { buildTheme, DEFAULT_COLOR_THEME, withAlpha, type ThemeTokens } from '@features/theme';
+import { SplashWarpField } from './SplashWarpField';
 import './loading-screen.css';
 
-const DEFAULT_LOADING_THEME = buildTheme('dark', 'standard').tokens;
+const DEFAULT_LOADING_THEME = buildTheme('dark', DEFAULT_COLOR_THEME).tokens;
 const BRAND_NAME = 'SparkChat';
 const GLOWS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
 const ORBITS = [1, 2, 3] as const;
@@ -27,8 +28,9 @@ interface LoadingScreenProps {
 function themeVars(theme: ThemeTokens): CSSProperties {
   const ink = theme.onGradient;
   const isDark = theme.kind === 'dark';
+  const hasPageTone = theme.pageGradient !== theme.gradient;
   return {
-    '--spl-bg': theme.gradient,
+    '--spl-bg': theme.pageGradient,
     '--spl-logo': `url("${Logo}")`,
     '--spl-ink': ink,
     '--spl-ink-soft': withAlpha(ink, 0.72),
@@ -36,8 +38,8 @@ function themeVars(theme: ThemeTokens): CSSProperties {
     '--spl-ring': withAlpha(ink, isDark ? 0.12 : 0.18),
     '--spl-glass-strong': withAlpha(ink, isDark ? 0.14 : 0.2),
     '--spl-glass-border': withAlpha(ink, isDark ? 0.2 : 0.28),
-    '--spl-shade': isDark ? 'rgba(8, 6, 24, 0.52)' : 'rgba(10, 8, 30, 0.34)',
-    '--spl-shade-edge': isDark ? 'rgba(4, 3, 14, 0.45)' : 'rgba(6, 5, 20, 0.3)',
+    '--spl-shade': hasPageTone ? 'transparent' : isDark ? 'rgba(8, 6, 24, 0.52)' : 'rgba(10, 8, 30, 0.34)',
+    '--spl-shade-edge': hasPageTone ? 'rgba(4, 3, 14, 0.3)' : isDark ? 'rgba(4, 3, 14, 0.45)' : 'rgba(6, 5, 20, 0.3)',
     '--spl-glow-a': withAlpha(theme.accent, 0.85),
     '--spl-glow-b': withAlpha(theme.accentSecondary, 0.8),
     '--spl-glow-c': withAlpha(ink, 0.2),
@@ -73,6 +75,8 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
         ))}
       </div>
 
+      <SplashWarpField inkColor={theme.onGradient} accentColor={theme.accentText} leaving={leaving} />
+
       <div className="sc-splash__sparkles" aria-hidden="true">
         {SPARKLES.map((sparkle, index) => (
           <span
@@ -84,6 +88,8 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
           </span>
         ))}
       </div>
+
+      <span className="sc-splash__veil" aria-hidden="true" />
 
       <div className="sc-splash__core">
         <div className="sc-splash__emblem" aria-hidden="true">
@@ -100,6 +106,7 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
             ))}
           </div>
           <span className="sc-splash__halo" />
+          <span className="sc-splash__aura" />
           <svg className="sc-splash__progress" viewBox="0 0 140 140">
             <defs>
               <linearGradient id="sc-splash-arc" gradientUnits="userSpaceOnUse" x1="134" y1="62" x2="44" y2="134">

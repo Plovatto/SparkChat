@@ -224,6 +224,7 @@ export function buildTheme(baseId: ThemeBaseId, colorId: ColorThemeId): BuiltThe
     accentSecondary: recipe.accentSecondary,
 
     gradient,
+    pageGradient: gradient,
     gradientHover: recipe.gradient ? gradient : buildGradientVariant(recipe, accentHover, 0.18),
     gradientPressed: recipe.gradient ? gradient : buildGradientVariant(recipe, accentPressed, 0.3),
     onGradient,

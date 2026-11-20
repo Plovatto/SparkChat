@@ -5,7 +5,8 @@
     "midnight": "Midnight"
   },
   "colors": {
-    "standard": "Default",
+    "duskViolet": "Violet Night",
+    "standard": "Classic",
     "black": "Black",
     "forest": "Forest",
     "sunset": "Sunset",
@@ -46,7 +47,7 @@
     "abyss": "Abyss",
     "steel": "Steel",
     "paper": "Paper",
-    "violetNight": "Violet Night",
+    "violetNight": "Amethyst",
     "jade": "Jade",
     "flamingo": "Flamingo",
     "cherry": "Cherry",

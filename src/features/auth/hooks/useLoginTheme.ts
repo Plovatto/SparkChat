@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LOGIN_DARK_MODE_STORAGE_KEY as DARK_MODE_KEY } from '@constants/storage-keys';
 import { MOTION_DURATION_MS } from '@features/motion';
-import { buildTheme, mix, type ThemeTokens } from '@features/theme';
+import { buildTheme, DEFAULT_COLOR_THEME, mix, type ThemeTokens } from '@features/theme';
 import { getItem, setItem } from '@lib/storage';
 
 const WHITE = '#ffffff';
@@ -38,7 +38,7 @@ export function useLoginTheme(): LoginThemeControls {
 
   const toggle = useCallback(() => setDarkMode((previous) => !previous), []);
 
-  const rawTheme = buildTheme(darkMode ? 'dark' : 'light', 'standard').tokens;
+  const rawTheme = buildTheme(darkMode ? 'dark' : 'light', DEFAULT_COLOR_THEME).tokens;
   const theme: ThemeTokens = darkMode
     ? rawTheme
     : {
