@@ -1,21 +1,20 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { LuLock, LuPalette, LuPencilLine } from 'react-icons/lu';
 import { Spinner } from '@components/common/Spinner';
-import { PhotoPickerTile } from '@features/profile-photos/components/PhotoPickerTile';
 import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
 import { usePhotoPicker } from '@features/profile-photos/hooks/usePhotoPicker';
 import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { prepareRegistrationCredentials } from '@lib/e2ee';
-import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { SELECTABLE_AVATARS } from '../constants/avatars';
+import { useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
 import { useNicknameAvailability, type NicknameCheckState } from '../hooks/useNicknameAvailability';
 import { getPasswordMatchStatus } from '../lib/password-match';
 import type { PendingRegistration } from '../types';
 import { AuthErrorAlert } from './AuthErrorAlert';
+import { AvatarPicker } from './AvatarPicker';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField } from './PasswordField';
 import { WelcomeHint } from './welcome-form-parts';
@@ -129,43 +128,24 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
               <LuPalette size={15} aria-hidden="true" />
               {t('auth.register.avatar')}
             </span>
-            <div className="welcome-avatar-panel" role="group" aria-labelledby="register-avatar-label">
-              <PhotoPickerTile
-                size={avatarSize}
-                iconSize={iconSize}
-                photoUrl={photo.photoUrl}
-                isSelected={photo.isSelected}
-                isBusy={photoPicker.isPreparing}
-                onChoose={photoPicker.open}
-                onSelect={photo.selectPhoto}
-                onRemove={photo.remove}
-                className="welcome-avatar-tile welcome-photo-tile"
-                style={{ width: '100%', maxWidth: `${avatarSize}px`, '--welcome-i': 0 } as CSSProperties}
-              />
-              {SELECTABLE_AVATARS.map(({ avatar, index }, position) => {
-                const IconComponent = avatar.icon;
-                const isSelected = !photo.isSelected && selectedAvatar === index;
-
-                return (
-                  <button
-                    type="button"
-                    key={avatar.name}
-                    onClick={() => {
-                      setSelectedAvatar(index);
-                      photo.selectPreset();
-                    }}
-                    data-selected={isSelected}
-                    aria-pressed={isSelected}
-                    title={translate(`avatars.${avatar.name}`)}
-                    aria-label={translate(`avatars.${avatar.name}`)}
-                    className="welcome-avatar-tile welcome-avatar-option"
-                    style={{ maxWidth: `${avatarSize}px`, '--welcome-i': Math.min(position + 1, 12) } as CSSProperties}
-                  >
-                    <IconComponent size={iconSize} />
-                  </button>
-                );
-              })}
-            </div>
+            <AvatarPicker
+              selectedAvatar={selectedAvatar}
+              onSelectAvatar={(index) => {
+                setSelectedAvatar(index);
+                photo.selectPreset();
+              }}
+              photoUrl={photo.photoUrl}
+              isPhotoSelected={photo.isSelected}
+              isPhotoBusy={photoPicker.isPreparing}
+              onChoosePhoto={photoPicker.open}
+              onSelectPhoto={photo.selectPhoto}
+              onRemovePhoto={photo.remove}
+              labelledBy="register-avatar-label"
+              kind={darkMode ? 'dark' : 'light'}
+              tileSize={avatarSize}
+              iconSize={iconSize}
+              entranceDelayMs={640}
+            />
             {photoPicker.error && (
               <small key={photoPicker.error} role="alert" className="welcome-field-error sc-anim-shake">
                 {photoPicker.error}

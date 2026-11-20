@@ -130,11 +130,11 @@ describe('CreateAccountForm', () => {
 
   it('marks the chosen avatar as pressed', () => {
     renderRegister();
-    const options = screen.getAllByRole('button', { pressed: false }).filter((button) => button.classList.contains('welcome-avatar-option'));
+    const options = screen.getAllByRole('button', { pressed: false }).filter((button) => button.classList.contains('sc-avatar-picker__option'));
     const target = options[1]!;
     fireEvent.click(target);
     expect(target.getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getAllByRole('button', { pressed: true }).filter((button) => button.classList.contains('welcome-avatar-option'))).toHaveLength(1);
+    expect(screen.getAllByRole('button', { pressed: true }).filter((button) => button.classList.contains('sc-avatar-picker__option'))).toHaveLength(1);
   });
 
   it('strips symbols from the username and counts characters', () => {

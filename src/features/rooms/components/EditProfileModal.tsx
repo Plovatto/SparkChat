@@ -23,12 +23,10 @@ import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownl
 import { Switch } from '@components/common/Switch';
 import type { User } from '@features/auth';
 import { PasswordField, PasswordFieldHint } from '@features/auth/components/PasswordField';
-import { SELECTABLE_AVATARS } from '@features/auth/constants/avatars';
+import { AvatarPicker } from '@features/auth/components/AvatarPicker';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
-import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import { removeMyPhoto, uploadMyPhoto, useUserPhoto } from '@features/profile-photos';
-import { PhotoPickerTile } from '@features/profile-photos/components/PhotoPickerTile';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
 import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
 import { usePhotoPicker } from '@features/profile-photos/hooks/usePhotoPicker';
@@ -131,12 +129,12 @@ export function EditProfileModal({
   notificationContentHidden,
   onToggleNotificationContent,
 }: EditProfileModalProps) {
+  const avatarLabelId = useId();
   const soundsLabelId = useId();
   const notificationContentLabelId = useId();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
-  const { avatarSize, iconSize } = useResponsiveAvatarSize();
   const clipboard = useClipboardCopy();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('profile');
@@ -515,64 +513,23 @@ export function EditProfileModal({
           </div>
 
           <div>
-            <label style={{ ...labelStyle, marginBottom: '12px' }}>{t('profile.avatar')}</label>
-            <div
-              className="sc-card"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(auto-fill, ${avatarSize}px)`,
-                justifyContent: 'space-evenly',
-                columnGap: '8px',
-                rowGap: 'clamp(15px, 3vw, 22px)',
-                maxHeight: '220px',
-                overflowY: 'auto',
-                scrollbarGutter: 'stable both-edges',
-                padding: '24px 16px',
-                borderRadius: '18px',
+            <span id={avatarLabelId} style={{ ...labelStyle, display: 'block', marginBottom: '12px' }}>{t('profile.avatar')}</span>
+            <AvatarPicker
+              selectedAvatar={avatar}
+              onSelectAvatar={(index) => {
+                setAvatar(index);
+                photo.selectPreset();
               }}
-            >
-              <PhotoPickerTile
-                size={avatarSize}
-                iconSize={iconSize}
-                photoUrl={photo.photoUrl}
-                isSelected={photo.isSelected}
-                isBusy={photoPicker.isPreparing || isSavingPhoto}
-                onChoose={photoPicker.open}
-                onSelect={photo.selectPhoto}
-                onRemove={photo.remove}
-                onView={setViewerPhoto}
-                className={photo.isSelected ? undefined : 'sc-anim-tile-in sc-stagger'}
-                style={{ height: `${avatarSize}px`, '--sc-stagger-index': 0, '--sc-stagger-step': '22ms' } as CSSProperties}
-              />
-              {SELECTABLE_AVATARS.map(({ avatar: avatarOption, index }, position) => {
-                const isSelected = !photo.isSelected && avatar === index;
-                return (
-                  <button
-                    key={avatarOption.name}
-                    onClick={() => {
-                      setAvatar(index);
-                      photo.selectPreset();
-                    }}
-                    data-selected={isSelected}
-                    title={translate(`avatars.${avatarOption.name}`)}
-                    aria-label={translate(`avatars.${avatarOption.name}`)}
-                    className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
-                    style={
-                      {
-                        width: `${avatarSize}px`,
-                        height: `${avatarSize}px`,
-                        '--avatar-gradient': avatarOption.bgGradient,
-                        '--avatar-color': avatarOption.color,
-                        '--sc-stagger-index': Math.min(position + 1, 11),
-                        '--sc-stagger-step': '22ms',
-                      } as CSSProperties
-                    }
-                  >
-                    <avatarOption.icon size={iconSize} />
-                  </button>
-                );
-              })}
-            </div>
+              photoUrl={photo.photoUrl}
+              isPhotoSelected={photo.isSelected}
+              isPhotoBusy={photoPicker.isPreparing || isSavingPhoto}
+              onChoosePhoto={photoPicker.open}
+              onSelectPhoto={photo.selectPhoto}
+              onRemovePhoto={photo.remove}
+              onViewPhoto={setViewerPhoto}
+              labelledBy={avatarLabelId}
+              kind={theme.kind}
+            />
             {photoPicker.error && (
               <small key={photoPicker.error} role="alert" className="sc-anim-shake" style={{ display: 'block', marginTop: '10px', color: theme.dangerText, fontWeight: 600 }}>
                 {photoPicker.error}

@@ -286,110 +286,21 @@
   font-size: 0.78rem;
 }
 
-.welcome-avatar-panel {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  justify-items: center;
-  gap: 16px 12px;
-  max-height: 160px;
-  overflow-y: auto;
-  padding: 18px 16px;
-  border-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 7%, transparent);
-  background: color-mix(in srgb, var(--sc-surface-sunken) 72%, #000000);
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--sc-border-focus) 40%, transparent) transparent;
-}
 
-.welcome-root[data-kind='light'] .welcome-avatar-panel {
-  background: color-mix(in srgb, var(--sc-surface-sunken) 92%, var(--sc-accent));
-}
 
-.welcome-avatar-tile {
-  animation: welcomePop 460ms var(--welcome-ease-spring) calc(640ms + var(--welcome-i, 0) * 32ms) both;
-}
 
-.welcome-avatar-option {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  border: 1.5px solid color-mix(in srgb, var(--sc-text-primary) 9%, transparent);
-  background: var(--sc-input);
-  color: color-mix(in srgb, var(--sc-text-primary) 92%, var(--sc-border-focus));
-  cursor: pointer;
-  transition:
-    transform 260ms var(--welcome-ease-spring),
-    background-color 200ms ease,
-    border-color 200ms ease,
-    box-shadow 240ms ease;
-}
 
-.welcome-avatar-option svg {
-  transition: transform 300ms var(--welcome-ease-spring);
-}
 
-.welcome-avatar-option:hover {
-  transform: translateY(-3px);
-  border-color: color-mix(in srgb, var(--sc-border-focus) 60%, transparent);
-  background: color-mix(in srgb, var(--sc-border-focus) 16%, var(--sc-input));
-  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--sc-border-focus) 80%, transparent);
-}
 
-.welcome-avatar-option:hover svg {
-  transform: scale(1.12) rotate(-6deg);
-}
 
-.welcome-avatar-option:active {
-  transform: scale(0.92);
-  transition-duration: 90ms;
-}
 
-.welcome-avatar-option:focus-visible {
-  outline: 2px solid var(--sc-border-focus);
-  outline-offset: 2px;
-}
 
-.welcome-avatar-option[data-selected='true'] {
-  color: #ffffff;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  background: linear-gradient(150deg, color-mix(in srgb, var(--sc-border-focus) 85%, #ffffff), color-mix(in srgb, var(--sc-border-focus) 60%, var(--sc-accent-secondary)));
-  box-shadow:
-    0 10px 22px -8px color-mix(in srgb, var(--sc-border-focus) 85%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--sc-border-focus) 22%, transparent);
-  transform: scale(1.04);
-}
 
-.welcome-avatar-option[data-selected='true'] svg {
-  animation: welcomeSelect 460ms var(--welcome-ease-spring) both;
-}
 
-.welcome-photo-tile .sc-photo-tile__button {
-  border: 1.5px dashed color-mix(in srgb, var(--sc-border-focus) 75%, transparent);
-  background: transparent;
-  color: color-mix(in srgb, var(--sc-border-focus) 70%, var(--sc-text-primary));
-}
 
-.welcome-photo-tile .sc-photo-tile__button:hover {
-  background: color-mix(in srgb, var(--sc-border-focus) 14%, transparent);
-  border-color: var(--sc-border-focus);
-}
 
-.welcome-photo-tile .sc-photo-tile__button[data-selected='true'] {
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc-border-focus) 30%, transparent);
-}
 
-.welcome-photo-tile .sc-photo-tile__badge {
-  border-color: var(--sc-surface-sunken);
-  background: linear-gradient(140deg, color-mix(in srgb, var(--sc-border-focus) 80%, var(--sc-accent)), var(--sc-accent-secondary));
-}
 
-.welcome-photo-tile .sc-photo-tile__badge[data-static='true'] {
-  animation: welcomeBadgeNudge 3.6s ease-in-out 2.2s infinite;
-}
 
 .welcome-card--form .welcome-cta {
   animation-delay: calc(620ms + var(--welcome-i, 0) * 90ms);
@@ -471,39 +382,6 @@
     padding: 22px 18px 22px;
   }
 
-  .welcome-avatar-panel {
-    gap: 12px 8px;
-    padding: 14px 10px;
-  }
-}
-
-@keyframes welcomeSelect {
-  0% {
-    scale: 0.6;
-    rotate: -14deg;
-  }
-  60% {
-    scale: 1.18;
-    rotate: 6deg;
-  }
-  100% {
-    scale: 1;
-    rotate: 0deg;
-  }
-}
-
-@keyframes welcomeBadgeNudge {
-  0%,
-  86%,
-  100% {
-    transform: scale(1) rotate(0deg);
-  }
-  90% {
-    transform: scale(1.22) rotate(90deg);
-  }
-  95% {
-    transform: scale(0.95) rotate(90deg);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -512,8 +390,6 @@
   .welcome-form-subtitle,
   .welcome-field-group,
   .welcome-field-group--reveal,
-  .welcome-avatar-tile,
-  .welcome-avatar-option[data-selected='true'] svg,
   .welcome-input-adornment,
   .welcome-hint__status,
   .welcome-divider,
@@ -524,24 +400,19 @@
     animation: welcomeFade 320ms ease-out both;
   }
 
-  .welcome-photo-tile .sc-photo-tile__badge[data-static='true'],
   .welcome-cta--ghost:hover .welcome-cta__key {
     animation: none;
   }
 
-  .welcome-avatar-option,
-  .welcome-avatar-option svg,
   .welcome-label svg,
   .welcome-back svg {
     transition-property: background-color, border-color, color, box-shadow;
   }
 
-  .welcome-avatar-option:hover,
   .welcome-cta--ghost:hover {
     transform: none;
   }
 
-  .welcome-avatar-option:hover svg,
   .welcome-field-group:focus-within .welcome-label svg,
   .welcome-back:hover svg {
     transform: none;
