@@ -2,18 +2,10 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode 
 import { useTranslation } from 'react-i18next';
 import {
   FaCheck,
-  FaDesktop,
   FaExclamationTriangle,
   FaEye,
   FaEyeSlash,
-  FaFileDownload,
   FaKey,
-  FaLock,
-  FaPen,
-  FaShareAlt,
-  FaShieldAlt,
-  FaSignOutAlt,
-  FaUser,
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
@@ -38,8 +30,8 @@ import { buildRecoveryFile } from '@lib/e2ee';
 import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-storage';
 import { shareLinkNatively } from '@lib/share-link';
 import { translateError, translateErrorPayload } from '@lib/api/api-error';
-import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
+import { LuCheck, LuInfo, LuLink, LuLock, LuRefreshCw } from 'react-icons/lu';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
 import { PushNotificationsRow } from '@features/pwa/components/PushNotificationsRow';
 import {
@@ -50,6 +42,8 @@ import {
 } from '../utils/credential-requests';
 import { buildProfileUpdatePayload, isNicknameChange } from '../utils/profile-update';
 import { LanguageSettingRow } from './LanguageSettingRow';
+import { SessionCard } from './SessionCard';
+import '../styles/profile-modal.css';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -68,11 +62,7 @@ type PendingAction = 'profile' | 'password' | 'regenerate';
 
 const LOGOUT_AFTER_PASSWORD_CHANGE_MS = 1600;
 
-const TABS: { id: ProfileTab; icon: typeof FaUser }[] = [
-  { id: 'profile', icon: FaUser },
-  { id: 'security', icon: FaShieldAlt },
-  { id: 'system', icon: FaDesktop },
-];
+const TABS: ProfileTab[] = ['profile', 'security', 'system'];
 
 function buildRecoveryFileName(nickname: string): string {
   return `sparkchat-${nickname.toLowerCase()}.sparkkey`;
@@ -131,6 +121,7 @@ export function EditProfileModal({
   onToggleNotificationContent,
 }: EditProfileModalProps) {
   const avatarLabelId = useId();
+  const usernameInputId = useId();
   const { avatarSize } = useResponsiveAvatarSize();
   const soundsLabelId = useId();
   const notificationContentLabelId = useId();
@@ -441,7 +432,6 @@ export function EditProfileModal({
     onClose();
   };
 
-  const labelStyle: CSSProperties = { fontWeight: 600, display: 'block', marginBottom: '10px', color: theme.textPrimary, fontSize: '0.95rem' };
   const needsCurrentPassword = user.authMethod !== 'keyfile' || isCurrentPasswordRequired;
   const changePasswordDisabled = !newPassword || !confirmNewPassword || (needsCurrentPassword && !currentPassword) || isDeriving;
   const otherSessionsCount = sessions.filter((session) => !session.isCurrent).length;
@@ -454,25 +444,22 @@ export function EditProfileModal({
       title={t('profile.title')}
       maxWidth="600px"
     >
-      <div style={{ display: 'flex', borderBottom: `2px solid ${theme.border}`, marginBottom: '20px' }}>
-        {TABS.map(({ id, icon: Icon }) => (
+      <div
+        className="sc-profile-tabs"
+        role="tablist"
+        style={{ '--sc-profile-tab-count': TABS.length, '--sc-profile-tab-index': Math.max(0, TABS.indexOf(activeTab)) } as CSSProperties}
+      >
+        <span className="sc-profile-tabs__thumb" aria-hidden="true" />
+        {TABS.map((id) => (
           <button
             key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
             onClick={() => setActiveTab(id)}
             data-active={activeTab === id}
-            className="sc-tab"
-            style={{
-              flex: 1,
-              padding: '12px 8px',
-              fontSize: '0.9rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              borderRadius: '8px 8px 0 0',
-            }}
+            className="sc-profile-tabs__tab"
           >
-            <Icon size={14} />
             {t(`profile.tabs.${id}`)}
           </button>
         ))}
@@ -486,36 +473,35 @@ export function EditProfileModal({
       )}
 
       {activeTab === 'profile' && (
-        <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div className="sc-profile-panel" style={{ gap: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <label style={labelStyle}>{t('profile.username')}</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  value={nickname}
-                  onChange={(event) => setNickname(event.target.value)}
-                  maxLength={NICKNAME_MAX_LENGTH}
-                  placeholder={t('profile.usernamePlaceholder')}
-                  className="sc-input"
-                  style={{ padding: '15px clamp(14px, 3vw, 22px)', paddingRight: '46px', borderRadius: '14px', fontSize: '0.95rem' }}
-                />
-                <FaPen
-                  size={14}
-                  color={theme.textMuted}
-                  style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-                />
-              </div>
+              <label className="sc-profile-label" htmlFor={usernameInputId}>
+                {t('profile.username')}
+              </label>
+              <input
+                id={usernameInputId}
+                type="text"
+                value={nickname}
+                onChange={(event) => setNickname(event.target.value)}
+                maxLength={NICKNAME_MAX_LENGTH}
+                placeholder={t('profile.usernamePlaceholder')}
+                className="sc-profile-input"
+                autoComplete="off"
+                spellCheck={false}
+              />
             </div>
 
-            <button onClick={handleShare} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
-              {clipboard.isCopied() ? <FaCheck size={14} /> : <FaShareAlt size={14} />}
+            <button type="button" onClick={handleShare} className="sc-profile-share" data-copied={clipboard.isCopied()}>
+              {clipboard.isCopied() ? <LuCheck size={18} aria-hidden="true" /> : <LuLink size={18} aria-hidden="true" />}
               {clipboard.isCopied() ? t('profile.linkCopied') : t('profile.shareLink')}
             </button>
           </div>
 
           <div>
-            <span id={avatarLabelId} style={{ ...labelStyle, display: 'block', marginBottom: '12px' }}>{t('profile.avatar')}</span>
+            <span id={avatarLabelId} className="sc-profile-label">
+              {t('profile.avatar')}
+            </span>
             <AvatarPicker
               selectedAvatar={avatar}
               onSelectAvatar={(index) => {
@@ -588,22 +574,22 @@ export function EditProfileModal({
       )}
 
       {activeTab === 'security' && (
-        <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {needsCurrentPassword ? (
-            <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder={t('profile.currentPassword')} autoComplete="current-password" dense />
-          ) : (
-            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-              {t('profile.keyfileNoCurrent')}
-            </InfoNotice>
-          )}
+        <div className="sc-profile-panel">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {needsCurrentPassword ? (
+              <PasswordField value={currentPassword} onChange={setCurrentPassword} placeholder={t('profile.currentPassword')} autoComplete="current-password" dense />
+            ) : (
+              <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
+                {t('profile.keyfileNoCurrent')}
+              </InfoNotice>
+            )}
 
-          <div style={{ marginTop: '9px' }}>
-            <PasswordField value={newPassword} onChange={setNewPassword} placeholder={t('profile.newPasswordPlaceholder', { minLength: PASSWORD_MIN_LENGTH })} dense />
-            <PasswordFieldHint length={newPassword.length} maxLength={PASSWORD_MIN_LENGTH} />
-          </div>
+            <div>
+              <PasswordField value={newPassword} onChange={setNewPassword} placeholder={t('profile.newPasswordPlaceholder', { minLength: PASSWORD_MIN_LENGTH })} dense />
+              {newPassword.length > 0 && <PasswordFieldHint length={newPassword.length} maxLength={PASSWORD_MIN_LENGTH} />}
+            </div>
 
-          {newPassword.length > 0 && (
-            <div className="sc-anim-rise-in">
+            <div>
               <PasswordField
                 value={confirmNewPassword}
                 onChange={setConfirmNewPassword}
@@ -611,44 +597,45 @@ export function EditProfileModal({
                 matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
                 dense
               />
-              <PasswordFieldHint
-                length={confirmNewPassword.length}
-                maxLength={PASSWORD_MIN_LENGTH}
-                matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
-              />
+              {confirmNewPassword.length > 0 && (
+                <PasswordFieldHint
+                  length={confirmNewPassword.length}
+                  maxLength={PASSWORD_MIN_LENGTH}
+                  matchStatus={getPasswordMatchStatus(confirmNewPassword, newPassword)}
+                />
+              )}
             </div>
-          )}
 
-          {passwordError && <small key={passwordError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
-          {passwordError && isWrongPassword && (
-            <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
-              {t('profile.forgotPassword')}
-            </InfoNotice>
-          )}
-
-          {newPassword.length > 0 && (
-            <>
-              <InfoNotice icon={<FaExclamationTriangle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="danger">
-                {t('profile.changeLogsOut')}
+            {passwordError && <small key={passwordError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{passwordError}</small>}
+            {passwordError && isWrongPassword && (
+              <InfoNotice icon={<FaKey size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="info">
+                {t('profile.forgotPassword')}
               </InfoNotice>
+            )}
 
-              <button
-                onClick={() => void handleChangePassword()}
-                disabled={changePasswordDisabled}
-                className="sc-btn sc-btn--gradient sc-btn--lift"
-                style={{ padding: '11px 16px', fontSize: '0.9rem' }}
-              >
-                {isDeriving ? <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaLock size={14} />}
-                {t('profile.changePassword')}
-              </button>
-            </>
+            <div className="sc-profile-warning" role="note">
+              <LuInfo size={20} aria-hidden="true" />
+              <span>{t('profile.changeLogsOut')}</span>
+            </div>
+
+            <button type="button" onClick={() => void handleChangePassword()} disabled={changePasswordDisabled} className="sc-profile-cta">
+              {isDeriving ? <Spinner size={16} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <LuLock size={18} aria-hidden="true" />}
+              {t('profile.changePassword')}
+            </button>
+          </div>
+
+          <hr className="sc-profile-divider" />
+
+          <h3 className="sc-profile-section-title">{t('profile.recoveryTitle')}</h3>
+          <p className="sc-profile-section-text">{t('profile.forgotPassword')}</p>
+
+          {regenerateError && (
+            <small key={regenerateError} className="sc-anim-shake" style={{ display: 'block', marginBottom: '10px', color: theme.dangerText, fontWeight: 600 }}>
+              {regenerateError}
+            </small>
           )}
-
-          <div style={{ borderTop: `2px solid ${theme.borderStrong}`, margin: '14px 0' }} />
-
-          {regenerateError && <small key={regenerateError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{regenerateError}</small>}
           {isConfirmingRegenerate ? (
-            <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="sc-profile-panel" style={{ gap: '12px' }}>
               <InfoNotice icon={<FaExclamationTriangle size={13} style={{ flexShrink: 0, marginTop: '2px' }} />} tone="danger">
                 {t('profile.regeneratePasswordHint')}
               </InfoNotice>
@@ -660,31 +647,33 @@ export function EditProfileModal({
                 dense
               />
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={handleCancelRegenerate} className="sc-btn sc-btn--secondary" style={{ flex: 1, padding: '11px 16px', fontSize: '0.9rem' }}>
+                <button type="button" onClick={handleCancelRegenerate} className="sc-profile-outline-btn" style={{ flex: 1 }}>
                   {t('common.cancel')}
                 </button>
                 <button
+                  type="button"
                   onClick={() => void handleRegenerateRecoveryFile()}
                   disabled={!regeneratePassword || isDeriving}
-                  className="sc-btn sc-btn--gradient sc-btn--lift"
-                  style={{ flex: 1, padding: '11px 16px', fontSize: '0.9rem' }}
+                  className="sc-profile-outline-btn"
+                  data-tone="danger"
+                  style={{ flex: 1 }}
                 >
-                  {isDeriving ? <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaFileDownload size={14} />}
+                  {isDeriving ? <Spinner size={16} /> : <LuRefreshCw size={18} aria-hidden="true" />}
                   {t('profile.confirmRegenerate')}
                 </button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setIsConfirmingRegenerate(true)} className="sc-btn sc-btn--secondary" style={{ padding: '11px 16px', fontSize: '0.9rem' }}>
-              <FaFileDownload size={14} />
-              {t('profile.downloadRecovery')}
+            <button type="button" onClick={() => setIsConfirmingRegenerate(true)} className="sc-profile-outline-btn" data-tone="danger">
+              <LuRefreshCw size={18} aria-hidden="true" />
+              {t('profile.confirmRegenerate')}
             </button>
           )}
         </div>
       )}
 
       {activeTab === 'system' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="sc-profile-panel" style={{ gap: '8px' }}>
           <LanguageSettingRow />
           <PushNotificationsRow />
           <SettingRow
@@ -702,58 +691,23 @@ export function EditProfileModal({
             onChange={onToggleNotificationContent}
           />
 
-          <div style={{ marginTop: '14px' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '6px 10px', marginBottom: '10px' }}>
-              <small style={{ color: theme.textSecondary, overflowWrap: 'anywhere' }}>{t('profile.activeSessions')}</small>
-              {otherSessionsCount > 0 && (
-                <button onClick={handleRevokeOtherSessions} className="sc-btn sc-btn--text-danger" style={{ fontSize: '0.78rem' }}>
-                  {t('profile.revokeOthers')}
-                </button>
-              )}
-            </div>
-            {sessions.length === 0 ? (
-              <small style={{ color: theme.textSecondary }}>{t('profile.noOtherSessions')}</small>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="sc-card"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '10px',
-                      borderRadius: '10px',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: theme.textPrimary, lineHeight: 1.35, overflowWrap: 'anywhere' }}>
-                        {session.device}
-                        {session.isCurrent && <span style={{ color: theme.accentText, fontWeight: 600 }}> · {t('profile.thisDevice')}</span>}
-                      </span>
-                      <span style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
-                        {t(`profile.authMethod.${session.authMethod}`)}
-                      </span>
-                      <span style={{ fontSize: '0.76rem', color: theme.textSecondary, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
-                        {t('profile.lastUsed', { date: formatDateTime(session.lastUsedAt) })}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleRevokeSession(session.id)}
-                      title={t('profile.revokeSession')}
-                      aria-label={t('profile.revokeSession')}
-                      className="sc-icon-btn sc-icon-btn--danger-soft"
-                      style={{ width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0 }}
-                    >
-                      <FaSignOutAlt size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+          <div className="sc-sessions-header">
+            <h3 className="sc-sessions-header__title">{t('profile.activeSessions')}</h3>
+            {otherSessionsCount > 0 && (
+              <button type="button" onClick={handleRevokeOtherSessions} className="sc-sessions-header__revoke">
+                {t('profile.revokeOthers')}
+              </button>
             )}
           </div>
+          {sessions.length === 0 ? (
+            <small style={{ color: theme.textSecondary }}>{t('profile.noOtherSessions')}</small>
+          ) : (
+            <div className="sc-sessions-list">
+              {sessions.map((session, index) => (
+                <SessionCard key={session.id} session={session} index={index} onRevoke={handleRevokeSession} />
+              ))}
+            </div>
+          )}
         </div>
       )}
 

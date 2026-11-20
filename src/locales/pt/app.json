@@ -661,7 +661,7 @@
     "colors": "Tema de Cores"
   },
   "profile": {
-    "title": "Editar Perfil",
+    "title": "Editar perfil",
     "tabs": {
       "profile": "Perfil",
       "security": "Segurança",
@@ -672,11 +672,11 @@
     "passwordChangedSigningOut": "Senha alterada. Encerrando a sessão...",
     "shareText": "Fale comigo no SparkChat! Meu username é {{name}}",
     "newPasswordTooShort": "A nova senha deve ter pelo menos {{minLength}} caracteres.",
-    "username": "Username",
+    "username": "Nome de usuário",
     "usernamePlaceholder": "Digite seu username",
     "linkCopied": "Link copiado!",
-    "shareLink": "Compartilhar link de chat",
-    "avatar": "Avatar",
+    "shareLink": "Compartilhar link de conversa",
+    "avatar": "Escolha seu avatar",
     "saveChanges": "Salvar Alterações",
     "currentPassword": "Senha atual",
     "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — nos primeiros 10 minutos pode trocar a senha uma vez sem informar a atual.",
@@ -685,6 +685,7 @@
     "forgotPassword": "Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da atual.",
     "changeLogsOut": "Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.",
     "changePassword": "Trocar senha",
+    "recoveryTitle": "Arquivo de recuperação",
     "downloadRecovery": "Baixar arquivo de recuperação",
     "appLanguage": "Idioma do app",
     "sounds": "Sons do app",
