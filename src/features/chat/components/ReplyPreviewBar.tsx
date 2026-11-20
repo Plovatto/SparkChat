@@ -1,12 +1,13 @@
-import { FaPlay, FaTimes } from 'react-icons/fa';
+import { FaPlay } from 'react-icons/fa';
+import { LuX } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@features/theme';
 import { formatAudioTime } from '@lib/format';
 import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageView } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
+import '../styles/reply-preview-bar.css';
 
 interface ReplyPreviewBarProps {
   message: MessageView;
@@ -17,111 +18,88 @@ interface ReplyPreviewBarProps {
 
 export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onCancel }: ReplyPreviewBarProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const isVideo = message.type === 'file' && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
   const videoThumbnail = useReplyVideoThumbnail(isVideo, message.content);
+  const isGif = isGifMimeType(message.fileMeta?.mimeType);
 
-  const renderPreview = () => {
+  const title = message.sender.id === currentUserId
+    ? t('chat.message.replyingToSelf')
+    : t('chat.message.replyingTo', { name: message.sender.unknown ? t('common.unknownUser') : message.sender.nickname });
+
+  const renderPreviewText = () => {
     if (message.type === 'image') {
-      const imageSrc = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
-      return imageSrc ? (
-        <img
-          src={imageSrc}
-          alt={isGifMimeType(message.fileMeta?.mimeType) ? t('chat.message.gif') : t('chat.message.image')}
-          style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
-        />
-      ) : (
-        <div style={{ width: 56, height: 40, borderRadius: 6, flexShrink: 0, background: theme.skeleton }} />
-      );
+      return <span className="sc-reply-bar__ellipsis">{message.caption || (isGif ? t('chat.message.gif') : t('chat.message.image'))}</span>;
     }
 
     if (message.type === 'audio') {
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <FaPlay size={12} />
-          <span>{t('chat.message.audio', { duration: formatAudioTime(message.duration ?? 0) })}</span>
-        </div>
+        <>
+          <FaPlay size={10} className="sc-reply-bar__inline-icon" aria-hidden="true" />
+          <span className="sc-reply-bar__ellipsis">{t('chat.message.audio', { duration: formatAudioTime(message.duration ?? 0) })}</span>
+        </>
       );
     }
 
     if (message.type === 'file') {
       if (isVideo) {
-        return videoThumbnail ? (
-          <img
-            src={videoThumbnail}
-            alt={t('chat.message.video')}
-            style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0, background: theme.skeleton }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 56,
-              height: 40,
-              borderRadius: 6,
-              flexShrink: 0,
-              background: theme.skeleton,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <FaPlay size={12} />
-          </div>
-        );
+        return <span className="sc-reply-bar__ellipsis">{message.caption || t('chat.message.video')}</span>;
       }
 
       const fileIcon = getFileTypeIcon(message.fileMeta?.mimeType ?? '');
       const FileIcon = fileIcon.icon;
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', minWidth: 0 }}>
-          <FileIcon size={14} color={fileIcon.color} style={{ flexShrink: 0 }} />
-          <span style={{ display: 'block', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {message.fileMeta?.name ?? fileIcon.label}
-          </span>
+        <>
+          <FileIcon size={13} color={fileIcon.color} className="sc-reply-bar__inline-icon" aria-hidden="true" />
+          <span className="sc-reply-bar__ellipsis">{message.fileMeta?.name ?? fileIcon.label}</span>
+        </>
+      );
+    }
+
+    return <span className="sc-reply-bar__ellipsis">{message.content}</span>;
+  };
+
+  const renderThumbnail = () => {
+    if (message.type === 'image') {
+      const imageSrc = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
+      return imageSrc ? (
+        <img className="sc-reply-bar__thumb" src={imageSrc} alt={isGif ? t('chat.message.gif') : t('chat.message.image')} />
+      ) : (
+        <div className="sc-reply-bar__thumb" aria-hidden="true" />
+      );
+    }
+
+    if (isVideo) {
+      return videoThumbnail ? (
+        <img className="sc-reply-bar__thumb" src={videoThumbnail} alt={t('chat.message.video')} />
+      ) : (
+        <div className="sc-reply-bar__thumb sc-reply-bar__thumb--video" aria-hidden="true">
+          <FaPlay size={10} />
         </div>
       );
     }
 
-    return (
-      <span style={{ display: 'block', minWidth: 0, flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {message.content}
-      </span>
-    );
+    return null;
   };
 
   return (
-    <div
-      className={`chat-preview-bar ${isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
-      style={{
-        background: theme.surfaceSelected,
-        borderLeft: `4px solid ${theme.accent}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderTop: `1px solid ${theme.border}`,
-      }}
-    >
-      <div style={{ flex: '1 1 auto', minWidth: 0, marginRight: '12px' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: theme.accentText, marginBottom: '4px' }}>
-          {message.sender.id === currentUserId ? t('chat.message.replyingToSelf') : t('chat.message.replyingTo', { name: message.sender.unknown ? t('common.unknownUser') : message.sender.nickname })}
+    <div className="sc-reply-bar-wrap">
+      <div className={`sc-reply-bar${isExiting ? ' is-exiting' : ''}`} data-testid="reply-preview-bar">
+        <span className="sc-reply-bar__accent" aria-hidden="true" />
+        <div className="sc-reply-bar__text">
+          <div className="sc-reply-bar__title sc-reply-bar__ellipsis">{title}</div>
+          <div className="sc-reply-bar__preview">{renderPreviewText()}</div>
         </div>
-        <div
-          style={{
-            fontSize: '0.9rem',
-            color: theme.textPrimary,
-            minWidth: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            overflow: 'hidden',
-          }}
+        {renderThumbnail()}
+        <button
+          type="button"
+          onClick={onCancel}
+          title={t('chat.message.cancelReply')}
+          aria-label={t('chat.message.cancelReply')}
+          className="sc-reply-bar__close"
         >
-          {renderPreview()}
-        </div>
+          <LuX size={18} aria-hidden="true" />
+        </button>
       </div>
-      <button type="button" onClick={onCancel} title={t('chat.message.cancelReply')} className="sc-icon-btn sc-icon-btn--ghost" style={{ width: '32px', height: '32px' }}>
-        <FaTimes size={14} />
-      </button>
     </div>
   );
 }
