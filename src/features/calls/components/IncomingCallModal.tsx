@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
@@ -11,7 +11,7 @@ import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useCall } from '../call-context';
 import { isMounted } from '../lib/presence';
 import { usePresence } from './use-presence';
-import { getIncomingSlot, isSlotVisible, releaseIncomingSlot, setIncomingSlot, subscribeIncomingSlot } from '../lib/incoming-slot';
+import { getIncomingSlot, isSlotVisible, releaseIncomingSlot, setIncomingSlot, subscribeIncomingSlot, watchSlotVisibility } from '../lib/incoming-slot';
 
 export function IncomingCallSlot() {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -39,7 +39,9 @@ export function IncomingCallModal() {
   const slot = useSyncExternalStore(subscribeIncomingSlot, getIncomingSlot, getServerSlot);
   const ringing = state.phase === 'incoming-ringing' && state.kind !== null;
   const { silence } = call;
-  const docked = wide && isSlotVisible(slot);
+  const [slotVisible, setSlotVisible] = useState(() => isSlotVisible(slot));
+  useEffect(() => watchSlotVisibility(slot, setSlotVisible), [slot]);
+  const docked = wide && slotVisible && slot !== null;
   const stage = usePresence(ringing, 240, 180);
   const lastRef = useRef<{ kind: CallKind; peerId: string | null } | null>(null);
   if (ringing && state.kind) {

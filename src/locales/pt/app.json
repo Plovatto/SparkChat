@@ -636,7 +636,6 @@
     "camera": "Câmera",
     "speaker": "Saída de áudio",
     "defaultDevice": "Padrão",
-    "tapToResume": "Toque para ativar o áudio",
     "quality": "Qualidade da conexão: {{bars}} de 3",
     "remoteMuted": "Microfone desligado",
     "remoteCameraOff": "Câmera desligada",

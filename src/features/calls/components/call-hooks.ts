@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { monitorSpeaking } from '../lib/audio-level';
+import { autoplay } from '../lib/autoplay';
 
 export function useSpeaking(stream: MediaStream | null, enabled: boolean): boolean {
   const [speaking, setSpeaking] = useState(false);
@@ -28,7 +29,9 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
       element.srcObject = stream;
     }
     if (stream) {
-      void element.play().catch(() => undefined);
+      autoplay.play(element);
+    } else {
+      autoplay.forget(element);
     }
   });
 }

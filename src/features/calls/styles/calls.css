@@ -1431,6 +1431,17 @@
   border-radius: 14px;
 }
 
+.sc-stage-pip-source {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .sc-stage-tiles {
   position: absolute;
   right: 10px;

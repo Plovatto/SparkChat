@@ -8,6 +8,7 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { useCall } from '../call-context';
+import { autoplay } from '../lib/autoplay';
 import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
 import { selectStageLayout } from '../lib/stage-layout';
@@ -66,7 +67,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const [receiveVolume, setReceiveVolume] = useState(1);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
-  const [needsTap, setNeedsTap] = useState(false);
   const [showShareVolume, setShowShareVolume] = useState(false);
   const desktop = useMediaQuery('(min-width: 768px) and (pointer: fine)');
   const peer = call.peerDisplay(state.peerId);
@@ -83,7 +83,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const localStage = layout.main === 'local-screen';
   const stageStream = layout.main === 'remote-screen' ? snapshot.remoteScreenStream : localStage ? snapshot.localScreenStream : null;
   const showRemoteVideo = remoteCamera && !stageActive;
-  const remoteShareAudio = remoteSharing && (snapshot.remoteScreenStream?.getAudioTracks().length ?? 0) > 0;
+  const remoteShareAudio = remoteSharing && snapshot.remoteScreenAudio;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = useSpeaking(snapshot.localStream, running && !snapshot.muted);
@@ -102,12 +102,11 @@ export function CallScreen({ videoRef }: CallScreenProps) {
     if (!element) {
       return;
     }
-    element.srcObject = snapshot.remoteStream;
+    if (element.srcObject !== snapshot.remoteStream) {
+      element.srcObject = snapshot.remoteStream;
+    }
     if (snapshot.remoteStream) {
-      void element.play().then(
-        () => setNeedsTap(false),
-        () => setNeedsTap(true),
-      );
+      autoplay.play(element);
     }
   }, [snapshot.remoteStream, videoRef, stageActive]);
 
@@ -191,15 +190,9 @@ export function CallScreen({ videoRef }: CallScreenProps) {
       <audio ref={shareAudioRef} autoPlay />
       <div className="sc-call-topbar">
         <div className="sc-call-topbar__group">
-          <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')} style={{ width: '52px', height: '52px' }}>
-            <FaCompressAlt size={22} />
+          <button type="button" className="sc-icon-btn sc-icon-btn--header" onClick={() => call.setMinimized(true)} title={t('calls.minimize')} aria-label={t('calls.minimize')} style={{ width: '44px', height: '44px' }}>
+            <FaCompressAlt size={19} />
           </button>
-          {(stageActive || showRemoteVideo) && (
-            <span className={`sc-call-chip${remoteSpeaking ? ' sc-call-speaking' : ''}`} style={{ maxWidth: 'min(260px, 50vw)' }}>
-              <span>{peerName}</span>
-              {snapshot.remoteMuted && <FaMicrophoneSlash size={11} aria-label={t('calls.mutedBadge')} />}
-            </span>
-          )}
         </div>
         <div className="sc-call-topbar__group">
           <CallQualityBars bars={snapshot.quality} relayed={snapshot.relayed} />
@@ -325,11 +318,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
               </div>
             )}
           </div>
-        )}
-        {needsTap && (
-          <button type="button" className="sc-btn sc-btn--primary" onClick={() => void videoRef.current?.play().then(() => setNeedsTap(false))}>
-            {t('calls.tapToResume')}
-          </button>
         )}
         <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
           {snapshot.cameraOn && !stageActive && (

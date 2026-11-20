@@ -96,7 +96,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         </div>
       );
     }
-    return <StreamVideo stream={stream} fit="contain" videoRef={streamVideoRef} label={title} />;
+    return <StreamVideo stream={stream} fit="contain" label={title} />;
   };
 
   const mainView = (): ReactNode => {
@@ -177,6 +177,9 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         onFocus={() => visibility.holdOpen(true)}
         onBlur={() => visibility.holdOpen(false)}
       >
+        <div className="sc-stage-pip-source" aria-hidden="true">
+          <StreamVideo stream={stream} fit="contain" videoRef={streamVideoRef} />
+        </div>
         <div
           key={current}
           className="sc-stage-main"

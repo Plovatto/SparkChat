@@ -1227,7 +1227,7 @@ describe('screen share info and volume', () => {
 
     await w.a.controller.toggleScreenShare();
     expect(peer.screenTracks[0]).toEqual({ video: share.video, audio: mixed });
-    expect(peer.screenInfos[0]).toEqual({ surface: 'browser', label: 'Docs' });
+    expect(peer.screenInfos[0]).toEqual({ surface: 'browser', label: 'Docs', audio: true });
     expect(w.a.controller.getSnapshot()).toMatchObject({ shareAudio: true, shareVolume: 0.5 });
 
     w.a.controller.setShareVolume(0.2);
@@ -1236,7 +1236,7 @@ describe('screen share info and volume', () => {
 
     share.switchTo({ surface: 'window', label: 'Editor' });
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(peer.screenInfos.at(-1)).toEqual({ surface: 'window', label: 'Editor' });
+    expect(peer.screenInfos.at(-1)).toEqual({ surface: 'window', label: 'Editor', audio: true });
     const sent = peer.screenInfos.length;
     await vi.advanceTimersByTimeAsync(2_000);
     expect(peer.screenInfos).toHaveLength(sent);
@@ -1308,5 +1308,46 @@ describe('relay indicator', () => {
     w.a.controller.hangup();
     await settle();
     expect(w.a.controller.getSnapshot().relayed).toBeNull();
+  });
+});
+
+describe('screen share review hardening', () => {
+  it('releases the capture and the audio mixer when attaching the share throws', async () => {
+    const share = screenStream();
+    let mixerStopped = 0;
+    const w = await world({
+      alice: {
+        acquireScreen: () => Promise.resolve(share.stream),
+        stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } },
+        createShareAudio: (track) => ({ track, controllable: true, setVolume: () => undefined, stop: () => void (mixerStopped += 1) }),
+      },
+    });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    peer.setScreenTracks = () => Promise.reject(new Error('boom'));
+
+    await w.a.controller.toggleScreenShare();
+
+    expect(share.video.stopped).toBe(true);
+    expect(mixerStopped).toBe(1);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: false, shareAudio: false, notice: { kind: 'screen-failed' } });
+  });
+
+  it('tells the peer whether the share carries audio and shows it on the receiver', async () => {
+    const share = screenStream();
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(share.stream) } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    Object.defineProperty(share.video, 'getSettings', { value: () => ({ displaySurface: 'browser' }) });
+    Object.defineProperty(share.video, 'label', { value: 'Tab' });
+    await w.a.controller.toggleScreenShare();
+    expect(peer.screenInfos[0]).toMatchObject({ audio: true });
+
+    peer.options.onControl({ t: 'screen', on: true, audio: false });
+    expect(w.a.controller.getSnapshot().remoteScreenAudio).toBe(false);
+    peer.options.onControl({ t: 'screen', on: true, audio: true });
+    expect(w.a.controller.getSnapshot().remoteScreenAudio).toBe(true);
   });
 });

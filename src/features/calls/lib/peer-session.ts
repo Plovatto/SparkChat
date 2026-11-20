@@ -8,6 +8,7 @@ export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t:
 export interface ScreenInfo {
   surface: ShareSurfaceKind;
   label: string | null;
+  audio?: boolean;
 }
 
 export interface ScreenControl {
@@ -15,13 +16,15 @@ export interface ScreenControl {
   on: boolean;
   surface?: ShareSurfaceKind;
   label?: string;
+  audio?: boolean;
 }
 
 export const MAX_SCREEN_LABEL_LENGTH = 80;
 const SURFACES: ReadonlySet<string> = new Set(['browser', 'window', 'monitor', 'unknown']);
+const UNSAFE_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
 function isUnsafeChar(char: string): boolean {
-  const code = char.codePointAt(0) ?? 0;
-  return code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029 || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
+  return UNSAFE_CHAR.test(char);
 }
 
 export function sanitizeScreenLabel(value: unknown): string | null {
@@ -39,6 +42,9 @@ export function screenControl(on: boolean, info: ScreenInfo | null = null): Scre
     return message;
   }
   message.surface = SURFACES.has(info.surface) ? info.surface : 'unknown';
+  if (info.audio !== undefined) {
+    message.audio = info.audio;
+  }
   let label = sanitizeScreenLabel(info.label);
   while (label && JSON.stringify({ ...message, label }).length > MAX_CONTROL_LENGTH) {
     label = sanitizeScreenLabel(Array.from(label).slice(0, -8).join(''));
@@ -195,6 +201,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
       const screen: ScreenControl = { t: 'screen', on: message.on };
       if (message.on && typeof message.surface === 'string' && SURFACES.has(message.surface)) {
         screen.surface = message.surface as ShareSurfaceKind;
+      }
+      if (message.on && typeof message.audio === 'boolean') {
+        screen.audio = message.audio;
       }
       const label = message.on ? sanitizeScreenLabel(message.label) : null;
       if (label) {

@@ -636,7 +636,6 @@
     "camera": "Camera",
     "speaker": "Audio output",
     "defaultDevice": "Default",
-    "tapToResume": "Tap to enable audio",
     "quality": "Connection quality: {{bars}} of 3",
     "remoteMuted": "Microphone off",
     "remoteCameraOff": "Camera off",

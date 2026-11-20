@@ -12,6 +12,7 @@ import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, getShareVolume, setAudioProcessing, setShareVolume, type AudioProcessing } from './lib/call-settings';
 import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints } from './lib/media-devices';
+import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { createShareAudio } from './lib/share-audio';
 import { startRingtone, stopRingtone } from './lib/ringtone';
@@ -94,7 +95,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   }, []);
 
   const primePlayback = useCallback(() => {
-    void remoteRef.current?.play().catch(() => undefined);
+    autoplay.play(remoteRef.current);
   }, []);
 
   const startCallInRoom = useCallback(

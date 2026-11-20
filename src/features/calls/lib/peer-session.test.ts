@@ -1381,3 +1381,16 @@ describe('screen share info', () => {
     expect(channel.sent.at(-1)).toBe('{"t":"screen","on":false}');
   });
 });
+
+describe('review hardening for screen info', () => {
+  it('strips invisible format characters from labels', () => {
+    expect(sanitizeScreenLabel('a\u200eb\u200fc\u061cd\u200be\u2060f\ufeffg\u{e0041}h')).toBe('abcdefgh');
+  });
+
+  it('carries a validated audio flag only while sharing', () => {
+    expect(parseControlMessage('{"t":"screen","on":true,"audio":true}')).toEqual({ t: 'screen', on: true, audio: true });
+    expect(parseControlMessage('{"t":"screen","on":true,"audio":"yes"}')).toEqual({ t: 'screen', on: true });
+    expect(parseControlMessage('{"t":"screen","on":false,"audio":true}')).toEqual({ t: 'screen', on: false });
+    expect(screenControl(true, { surface: 'window', label: null, audio: false })).toEqual({ t: 'screen', on: true, surface: 'window', audio: false });
+  });
+});
