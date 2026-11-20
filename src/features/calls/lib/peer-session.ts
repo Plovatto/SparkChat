@@ -1,8 +1,64 @@
 import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
+import type { ShareSurfaceKind } from './share-surface';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean };
+
+export interface ScreenInfo {
+  surface: ShareSurfaceKind;
+  label: string | null;
+  audio?: boolean;
+  movie?: boolean;
+}
+
+export interface ScreenControl {
+  t: 'screen';
+  on: boolean;
+  surface?: ShareSurfaceKind;
+  label?: string;
+  audio?: boolean;
+  movie?: boolean;
+}
+
+export const MAX_SCREEN_LABEL_LENGTH = 80;
+const SURFACES: ReadonlySet<string> = new Set(['browser', 'window', 'monitor', 'unknown']);
+const UNSAFE_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
+function isUnsafeChar(char: string): boolean {
+  return UNSAFE_CHAR.test(char);
+}
+
+export function sanitizeScreenLabel(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const visible = Array.from(value).filter((char) => !isUnsafeChar(char)).join('').trim();
+  const clean = Array.from(visible).slice(0, MAX_SCREEN_LABEL_LENGTH).join('').trim();
+  return clean === '' ? null : clean;
+}
+
+export function screenControl(on: boolean, info: ScreenInfo | null = null): ScreenControl {
+  const message: ScreenControl = { t: 'screen', on };
+  if (!on || !info) {
+    return message;
+  }
+  message.surface = SURFACES.has(info.surface) ? info.surface : 'unknown';
+  if (info.audio !== undefined) {
+    message.audio = info.audio;
+  }
+  if (info.movie !== undefined) {
+    message.movie = info.movie;
+  }
+  let label = sanitizeScreenLabel(info.label);
+  while (label && JSON.stringify({ ...message, label }).length > MAX_CONTROL_LENGTH) {
+    label = sanitizeScreenLabel(Array.from(label).slice(0, -8).join(''));
+  }
+  if (label) {
+    message.label = label;
+  }
+  return message;
+}
 
 export type ConnectionStatus = 'connected' | 'interrupted';
 
@@ -14,6 +70,102 @@ export const CREDENTIAL_REFRESH_MS = 3.5 * 60 * 60 * 1000;
 export const AUDIO_MAX_BITRATE = 32_000;
 export const VIDEO_MAX_BITRATE = 1_500_000;
 export const VIDEO_DEGRADED_MAX_BITRATE = 600_000;
+export const VIDEO_UNSTABLE_MAX_BITRATE = 350_000;
+export const SCREEN_MAX_BITRATE = 2_500_000;
+export const SCREEN_DEGRADED_MAX_BITRATE = 1_000_000;
+export const SCREEN_AUDIO_MAX_BITRATE = 64_000;
+export const MOVIE_AUDIO_MAX_BITRATE = 192_000;
+export const MOVIE_4K_MAX_BITRATE = 20_000_000;
+export const MOVIE_1440_MAX_BITRATE = 12_000_000;
+export const MOVIE_1080_MAX_BITRATE = 8_000_000;
+export const MOVIE_RELAY_MAX_BITRATE = 4_000_000;
+export const MOVIE_HIGH_FRAMERATE = 60;
+export const MOVIE_DEGRADED_MAX_BITRATE = 1_500_000;
+export const MOVIE_MAX_FRAMERATE = 30;
+
+export interface ScreenEncodingInput {
+  movie: boolean;
+  relayed: boolean;
+  degrade: DegradeStep | null;
+  width: number | null;
+  height: number | null;
+  frameRate?: number | null;
+  uplinkBps?: number | null;
+}
+
+export interface ScreenEncoding {
+  maxBitrate: number;
+  scaleResolutionDownBy: number;
+  maxFramerate?: number;
+  degradationPreference: 'maintain-framerate' | 'maintain-resolution';
+}
+
+function fitScale(width: number | null, height: number | null, maxWidth: number, maxHeight: number): number {
+  if (!width || !height || width <= 0 || height <= 0) {
+    return 1;
+  }
+  const scale = Math.max(width / maxWidth, height / maxHeight, 1);
+  return Math.round(scale * 1000) / 1000;
+}
+
+export function directMovieBitrate(width: number | null, height: number | null): number {
+  const lines = Math.min(width ?? 0, height ?? 0) > 0 ? Math.min(Math.max(width ?? 0, height ?? 0) * 9 / 16, Math.min(width ?? 0, height ?? 0)) : 0;
+  if (lines >= 2000) {
+    return MOVIE_4K_MAX_BITRATE;
+  }
+  if (lines >= 1400) {
+    return MOVIE_1440_MAX_BITRATE;
+  }
+  return MOVIE_1080_MAX_BITRATE;
+}
+
+export function screenEncoding({ movie, relayed, degrade, width, height, frameRate = null, uplinkBps = null }: ScreenEncodingInput): ScreenEncoding {
+  const degraded = degrade === 'video-360';
+  if (!movie) {
+    return { maxBitrate: degraded ? SCREEN_DEGRADED_MAX_BITRATE : SCREEN_MAX_BITRATE, scaleResolutionDownBy: 1, degradationPreference: 'maintain-resolution' };
+  }
+  if (degraded) {
+    return { maxBitrate: MOVIE_DEGRADED_MAX_BITRATE, scaleResolutionDownBy: fitScale(width, height, 1280, 720), maxFramerate: MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+  }
+  if (relayed) {
+    return { maxBitrate: MOVIE_RELAY_MAX_BITRATE, scaleResolutionDownBy: fitScale(width, height, 1920, 1080), maxFramerate: MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+  }
+  const maxBitrate = directMovieBitrate(width, height);
+  const highFrameRate = (frameRate ?? 0) >= 50 && uplinkBps !== null && uplinkBps >= maxBitrate;
+  return { maxBitrate, scaleResolutionDownBy: 1, maxFramerate: highFrameRate ? MOVIE_HIGH_FRAMERATE : MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+}
+
+const STEREO_PARAMS = ['stereo=1', 'sprop-stereo=1', `maxaveragebitrate=${MOVIE_AUDIO_MAX_BITRATE}`, 'cbr=0', 'usedtx=0'];
+
+export function enableShareStereo(sdp: string): string {
+  const sections = sdp.split(/(?=\nm=)/);
+  let audioIndex = 0;
+  return sections
+    .map((section) => {
+      if (!/^\n?m=audio /.test(section)) {
+        return section;
+      }
+      audioIndex += 1;
+      if (audioIndex !== 2) {
+        return section;
+      }
+      const payload = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(section)?.[1];
+      if (!payload) {
+        return section;
+      }
+      const fmtp = new RegExp(`(a=fmtp:${payload} )([^\r\n]*)`);
+      const match = fmtp.exec(section);
+      if (match) {
+        const existing = (match[2] ?? '').split(';').map((part) => part.trim()).filter(Boolean);
+        const keys = new Set(existing.map((part) => part.split('=')[0]));
+        const merged = [...existing, ...STEREO_PARAMS.filter((part) => !keys.has(part.split('=')[0]))].join(';');
+        return section.replace(fmtp, `$1${merged}`);
+      }
+      const eol = section.includes('\r\n') ? '\r\n' : '\n';
+      return section.replace(new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`), `$1${eol}a=fmtp:${payload} ${STEREO_PARAMS.join(';')}`);
+    })
+    .join('');
+}
 export const MAX_REMOTE_CANDIDATES = 200;
 export const DTLS_VERIFY_TIMEOUT_MS = 10_000;
 const MAX_SDP_LENGTH = 14_000;
@@ -23,13 +175,13 @@ const MAX_FINGERPRINTS = 4;
 const MIN_RESTART_GAP_MS = 1_000;
 const FINGERPRINT_PATTERN = /^[a-z0-9-]+ (?:[0-9A-Fa-f]{2}:)*[0-9A-Fa-f]{2}$/;
 const SDP_FINGERPRINT = /^a=fingerprint:(\S+) (\S+)\s*$/gm;
-const CANDIDATE_TYPE = / typ (\w+)/;
 
 export interface PeerSessionDeps {
   createConnection: (config: RTCConfiguration) => RTCPeerConnection;
   hashCertificate: (certificate: ArrayBuffer) => Promise<string>;
   createStream: () => MediaStream;
   now: () => number;
+  codecCapabilities: (kind: 'audio' | 'video') => RTCRtpCodec[];
 }
 
 export interface IceRefresh {
@@ -40,7 +192,6 @@ export interface IceRefresh {
 export interface PeerSessionOptions {
   role: CallRole;
   kind: CallKind;
-  protectIp: boolean;
   mobile: boolean;
   iceServers: RTCIceServer[];
   degrade?: DegradeStep | null;
@@ -50,6 +201,7 @@ export interface PeerSessionOptions {
   onConnection: (status: ConnectionStatus) => void;
   onFatal: (detail: string) => void;
   onRemoteStream: (stream: MediaStream) => void;
+  onRemoteScreen?: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade?: (step: DegradeStep | null) => void;
   deps?: Partial<PeerSessionDeps>;
@@ -67,7 +219,62 @@ function defaultDeps(): PeerSessionDeps {
     hashCertificate: defaultHashCertificate,
     createStream: () => new MediaStream(),
     now: () => Date.now(),
+    codecCapabilities: (kind) => {
+      try {
+        return typeof RTCRtpReceiver !== 'undefined' && typeof RTCRtpReceiver.getCapabilities === 'function' ? (RTCRtpReceiver.getCapabilities(kind)?.codecs ?? []) : [];
+      } catch {
+        return [];
+      }
+    },
   };
+}
+
+function mimeOf(codec: RTCRtpCodec): string {
+  return codec.mimeType.toLowerCase();
+}
+
+export function preferredAudioCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  const red = codecs.filter((codec) => mimeOf(codec) === 'audio/red');
+  const opus = codecs.filter((codec) => mimeOf(codec) === 'audio/opus');
+  if (opus.length === 0) {
+    return [];
+  }
+  const rest = codecs.filter((codec) => !red.includes(codec) && !opus.includes(codec));
+  return [...red, ...opus, ...rest];
+}
+
+export function screenAudioCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  return codecs.filter((codec) => mimeOf(codec) === 'audio/opus');
+}
+
+function isCompactScreenCodec(codec: RTCRtpCodec): boolean {
+  const mime = mimeOf(codec);
+  const fmtp = (codec.sdpFmtpLine ?? '').toLowerCase();
+  if (mime === 'video/vp8') {
+    return true;
+  }
+  if (mime === 'video/vp9') {
+    return fmtp === '' || fmtp.includes('profile-id=0');
+  }
+  if (mime === 'video/h264') {
+    return fmtp.includes('packetization-mode=1') && fmtp.includes('profile-level-id=42e01f');
+  }
+  return false;
+}
+
+const SCREEN_CODEC_ORDER = ['video/vp9', 'video/av1', 'video/vp8', 'video/h264'];
+
+function isScreenAv1(codec: RTCRtpCodec): boolean {
+  return mimeOf(codec) === 'video/av1';
+}
+
+export function screenVideoCodecs(codecs: readonly RTCRtpCodec[]): RTCRtpCodec[] {
+  const primary = codecs.filter((codec) => isCompactScreenCodec(codec) || isScreenAv1(codec));
+  if (primary.filter((codec) => !isScreenAv1(codec)).length === 0) {
+    return [];
+  }
+  const ordered = [...primary].sort((a, b) => SCREEN_CODEC_ORDER.indexOf(mimeOf(a)) - SCREEN_CODEC_ORDER.indexOf(mimeOf(b)));
+  return [...ordered, ...codecs.filter((codec) => mimeOf(codec) === 'video/rtx')];
 }
 
 export function extractSdpFingerprints(sdp: string): string[] {
@@ -76,17 +283,6 @@ export function extractSdpFingerprints(sdp: string): string[] {
     found.add(`${(match[1] ?? '').toLowerCase()} ${(match[2] ?? '').toUpperCase()}`);
   }
   return Array.from(found);
-}
-
-export function candidateType(candidate: string): string | null {
-  return CANDIDATE_TYPE.exec(candidate)?.[1] ?? null;
-}
-
-export function hasRelayServer(servers: readonly RTCIceServer[]): boolean {
-  return servers.some((server) => {
-    const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-    return urls.some((url) => /^turns?:/i.test(url));
-  });
 }
 
 export function parseControlMessage(raw: unknown): ControlMessage | null {
@@ -101,6 +297,26 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     const message = parsed as Record<string, unknown>;
     if (message.t === 'hangup') {
       return { t: 'hangup' };
+    }
+    if (message.t === 'caps' && typeof message.screen === 'boolean') {
+      return { t: 'caps', screen: message.screen };
+    }
+    if (message.t === 'screen' && typeof message.on === 'boolean') {
+      const screen: ScreenControl = { t: 'screen', on: message.on };
+      if (message.on && typeof message.surface === 'string' && SURFACES.has(message.surface)) {
+        screen.surface = message.surface as ShareSurfaceKind;
+      }
+      if (message.on && typeof message.audio === 'boolean') {
+        screen.audio = message.audio;
+      }
+      if (message.on && typeof message.movie === 'boolean') {
+        screen.movie = message.movie;
+      }
+      const label = message.on ? sanitizeScreenLabel(message.label) : null;
+      if (label) {
+        screen.label = label;
+      }
+      return screen;
     }
     if ((message.t === 'mute' || message.t === 'camera') && typeof message.on === 'boolean') {
       return { t: message.t, on: message.on };
@@ -134,6 +350,40 @@ function parseFingerprints(value: unknown): string[] | null {
   return normalized;
 }
 
+export interface SenderCap {
+  maxBitrate: number;
+  scaleResolutionDownBy?: number;
+  maxFramerate?: number;
+  priority?: RTCPriorityType;
+  degradationPreference?: 'maintain-framerate' | 'maintain-resolution' | 'balanced';
+}
+
+type ExtendedEncoding = RTCRtpEncodingParameters & { priority?: RTCPriorityType; networkPriority?: RTCPriorityType };
+
+export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, extended: boolean): RTCRtpSendParameters {
+  const encodings: ExtendedEncoding[] = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
+  const first: ExtendedEncoding = encodings[0] ?? {};
+  first.maxBitrate = cap.maxBitrate;
+  if (cap.scaleResolutionDownBy !== undefined) {
+    first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
+  }
+  if (cap.maxFramerate !== undefined) {
+    first.maxFramerate = cap.maxFramerate;
+  } else {
+    delete first.maxFramerate;
+  }
+  if (extended && cap.priority) {
+    first.priority = cap.priority;
+    first.networkPriority = cap.priority;
+  }
+  encodings[0] = first;
+  const next = { ...current, encodings } as RTCRtpSendParameters & { degradationPreference?: string };
+  if (extended && cap.degradationPreference) {
+    next.degradationPreference = cap.degradationPreference;
+  }
+  return next;
+}
+
 export class PeerSession {
   private readonly options: PeerSessionOptions;
   private readonly deps: PeerSessionDeps;
@@ -160,6 +410,11 @@ export class PeerSession {
   private fallbackStream: MediaStream | null = null;
   private degrade: DegradeStep | null;
   private localAttached = false;
+  private remoteScreen: MediaStream | null = null;
+  private remoteScreenExposed = false;
+  private unstable = false;
+  private movie = false;
+  private peerScreenCaps = false;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -171,7 +426,7 @@ export class PeerSession {
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
       iceCandidatePoolSize: 1,
-      iceTransportPolicy: options.protectIp ? 'relay' : 'all',
+      iceTransportPolicy: 'all',
     });
     this.bind();
   }
@@ -192,10 +447,6 @@ export class PeerSession {
   }
 
   start(): void {
-    if (this.options.protectIp && !hasRelayServer(this.options.iceServers)) {
-      this.fatal('relay-unavailable');
-      return;
-    }
     this.connectTimer = setTimeout(() => {
       this.connectTimer = null;
       if (!this.connected) {
@@ -210,6 +461,28 @@ export class PeerSession {
     const init: RTCRtpTransceiverInit = { direction: 'sendrecv' };
     this.connection.addTransceiver('audio', init);
     this.connection.addTransceiver('video', init);
+    this.connection.addTransceiver('video', init);
+    this.connection.addTransceiver('audio', init);
+    this.applyCodecPreferences();
+  }
+
+  private applyCodecPreferences(): void {
+    const audio = this.deps.codecCapabilities('audio');
+    const video = this.deps.codecCapabilities('video');
+    this.preferCodecs(this.transceiversOf('audio')[0], preferredAudioCodecs(audio));
+    this.preferCodecs(this.screenTransceiver(), screenVideoCodecs(video));
+    this.preferCodecs(this.screenAudioTransceiver(), screenAudioCodecs(audio));
+  }
+
+  private preferCodecs(transceiver: RTCRtpTransceiver | undefined, codecs: RTCRtpCodec[]): void {
+    if (!transceiver || codecs.length === 0 || typeof transceiver.setCodecPreferences !== 'function') {
+      return;
+    }
+    try {
+      transceiver.setCodecPreferences(codecs);
+    } catch {
+      return;
+    }
   }
 
   receiveSignal(type: SignalType, payload: Record<string, unknown>): Promise<void> {
@@ -264,7 +537,10 @@ export class PeerSession {
       for (const transceiver of connection.getTransceivers()) {
         transceiver.direction = 'sendrecv';
       }
-      await connection.setLocalDescription();
+      if (this.polite) {
+        this.applyCodecPreferences();
+      }
+      await this.setLocal('answer');
       this.sendDescription('answer');
     }
     this.verifyDtls();
@@ -298,13 +574,23 @@ export class PeerSession {
     return false;
   }
 
+  private async setLocal(kind: 'offer' | 'answer', options?: RTCOfferOptions): Promise<void> {
+    const connection = this.connection;
+    if (!(kind === 'offer' ? 'createOffer' in connection : 'createAnswer' in connection)) {
+      await connection.setLocalDescription();
+      return;
+    }
+    const description = kind === 'offer' ? await connection.createOffer(options) : await connection.createAnswer();
+    await connection.setLocalDescription({ type: description.type, sdp: enableShareStereo(description.sdp ?? '') });
+  }
+
   private async negotiate(): Promise<void> {
     if (this.closed) {
       return;
     }
     try {
       this.makingOffer = true;
-      await this.connection.setLocalDescription();
+      await this.setLocal('offer');
       this.sendDescription('offer');
     } catch {
       return;
@@ -332,9 +618,6 @@ export class PeerSession {
       this.options.sendSignal('end-of-candidates', {});
       return;
     }
-    if (this.options.protectIp && candidateType(candidate.candidate) !== 'relay') {
-      return;
-    }
     this.options.sendSignal('candidate', {
       candidate: {
         candidate: candidate.candidate,
@@ -351,9 +634,6 @@ export class PeerSession {
     }
     const raw = value as Record<string, unknown>;
     if (typeof raw.candidate !== 'string' || raw.candidate.length === 0 || raw.candidate.length > MAX_CANDIDATE_LENGTH) {
-      return;
-    }
-    if (this.options.protectIp && candidateType(raw.candidate) !== 'relay') {
       return;
     }
     if (this.receivedCandidates >= MAX_REMOTE_CANDIDATES) {
@@ -390,6 +670,13 @@ export class PeerSession {
   }
 
   private handleTrack(event: RTCTrackEvent): void {
+    const transceiver = event.transceiver as RTCRtpTransceiver | undefined;
+    if (transceiver && (transceiver === this.screenTransceiver() || transceiver === this.screenAudioTransceiver())) {
+      this.remoteScreen ??= this.deps.createStream();
+      this.remoteScreen.addTrack(event.track);
+      this.exposeRemoteScreen();
+      return;
+    }
     const stream = event.streams[0];
     if (stream) {
       this.exposeRemoteStream(stream);
@@ -406,6 +693,14 @@ export class PeerSession {
       return;
     }
     this.pendingRemoteStreams.set(stream.id || 'fallback', stream);
+  }
+
+  private exposeRemoteScreen(): void {
+    if (!this.verified || !this.remoteScreen || this.closed) {
+      return;
+    }
+    this.remoteScreenExposed = true;
+    this.options.onRemoteScreen?.(this.remoteScreen);
   }
 
   private handleIceState(): void {
@@ -484,7 +779,7 @@ export class PeerSession {
   private async restartWithOffer(): Promise<void> {
     try {
       this.makingOffer = true;
-      await this.connection.setLocalDescription(await this.connection.createOffer({ iceRestart: true }));
+      await this.setLocal('offer', { iceRestart: true });
       this.sendDescription('offer');
     } catch {
       return;
@@ -570,7 +865,11 @@ export class PeerSession {
     for (const stream of pending) {
       this.options.onRemoteStream(stream);
     }
+    if (!this.remoteScreenExposed) {
+      this.exposeRemoteScreen();
+    }
     void this.attachLocalTracks();
+    this.announceCaps();
     const state = this.connection.iceConnectionState;
     if (state === 'connected' || state === 'completed') {
       this.options.onConnection('connected');
@@ -584,11 +883,22 @@ export class PeerSession {
         return;
       }
       const message = parseControlMessage(event.data);
-      if (message) {
-        this.options.onControl(message);
+      if (!message) {
+        return;
       }
+      if (message.t === 'caps') {
+        this.peerScreenCaps = message.screen;
+      }
+      this.options.onControl(message);
     };
+    channel.onopen = () => this.announceCaps();
     this.control = channel;
+  }
+
+  private announceCaps(): void {
+    if (this.verified && !this.closed) {
+      this.sendControl({ t: 'caps', screen: this.screenTransceiver() !== undefined });
+    }
   }
 
   sendControl(message: ControlMessage): boolean {
@@ -608,7 +918,7 @@ export class PeerSession {
   }
 
   async setVideoTrack(track: MediaStreamTrack | null): Promise<void> {
-    const transceiver = this.videoTransceiver();
+    const transceiver = this.cameraTransceiver();
     if (!transceiver || !this.verified) {
       return;
     }
@@ -627,12 +937,83 @@ export class PeerSession {
     await this.audioSender()?.replaceTrack(track);
   }
 
-  private videoTransceiver(): RTCRtpTransceiver | undefined {
-    return this.connection.getTransceivers().find((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === 'video');
+  canShareScreen(): boolean {
+    return this.verified && !this.closed && this.peerScreenCaps && this.screenTransceiver() !== undefined;
+  }
+
+  updateScreenInfo(info: ScreenInfo): boolean {
+    if (!this.screenTransceiver()?.sender.track) {
+      return false;
+    }
+    return this.sendControl(screenControl(true, info));
+  }
+
+  async setScreenTracks(video: MediaStreamTrack | null, audio: MediaStreamTrack | null = null, info: ScreenInfo | null = null): Promise<boolean> {
+    const transceiver = this.screenTransceiver();
+    if (!transceiver || !this.verified || this.closed) {
+      return false;
+    }
+    if (video && !this.peerScreenCaps) {
+      return false;
+    }
+    if (video && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {
+      return false;
+    }
+    if (video && 'contentHint' in video) {
+      video.contentHint = this.movie ? 'motion' : 'detail';
+    }
+    const audioSender = this.screenAudioTransceiver()?.sender;
+    try {
+      await transceiver.sender.replaceTrack(video);
+      if (audioSender && (audio || audioSender.track)) {
+        await audioSender.replaceTrack(video ? audio : null);
+      }
+    } catch {
+      await transceiver.sender.replaceTrack(null).catch(() => undefined);
+      await audioSender?.replaceTrack(null).catch(() => undefined);
+      this.sendControl({ t: 'screen', on: false });
+      return false;
+    }
+    this.sendControl(screenControl(video !== null, info));
+    await this.applyCaps();
+    return true;
+  }
+
+  async setMovieMode(movie: boolean): Promise<void> {
+    this.movie = movie;
+    const track = this.screenTransceiver()?.sender.track;
+    if (track && 'contentHint' in track) {
+      track.contentHint = movie ? 'motion' : 'detail';
+    }
+    await this.applyCaps();
+  }
+
+  async setNetworkUnstable(unstable: boolean): Promise<void> {
+    if (this.unstable === unstable) {
+      return;
+    }
+    this.unstable = unstable;
+    await this.applyCaps();
+  }
+
+  private transceiversOf(kind: 'audio' | 'video'): RTCRtpTransceiver[] {
+    return this.connection.getTransceivers().filter((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === kind);
+  }
+
+  private cameraTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('video')[0];
+  }
+
+  private screenTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('video')[1];
+  }
+
+  private screenAudioTransceiver(): RTCRtpTransceiver | undefined {
+    return this.transceiversOf('audio')[1];
   }
 
   private audioSender(): RTCRtpSender | undefined {
-    return this.connection.getTransceivers().find((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === 'audio')?.sender;
+    return this.transceiversOf('audio')[0]?.sender;
   }
 
   async applyDegrade(step: DegradeStep | null): Promise<void> {
@@ -640,10 +1021,22 @@ export class PeerSession {
     await this.applyCaps();
   }
 
-  private async isRelayed(): Promise<boolean> {
-    if (this.options.protectIp) {
-      return true;
+  private async uplinkEstimate(): Promise<number | null> {
+    try {
+      const report = await this.connection.getStats();
+      let estimate: number | null = null;
+      report.forEach((entry: Record<string, unknown>) => {
+        if (entry.type === 'candidate-pair' && entry.nominated === true && entry.state === 'succeeded' && typeof entry.availableOutgoingBitrate === 'number') {
+          estimate = entry.availableOutgoingBitrate;
+        }
+      });
+      return estimate;
+    } catch {
+      return null;
     }
+  }
+
+  private async isRelayed(): Promise<boolean> {
     try {
       const report = await this.connection.getStats();
       let relayed = false;
@@ -667,39 +1060,60 @@ export class PeerSession {
     }
     const degradeVideo = this.degrade === 'video-360';
     const audioOnly = this.degrade === 'audio-only-relay' && (await this.isRelayed());
-    await this.setSenderCap(this.audioSender(), { maxBitrate: AUDIO_MAX_BITRATE });
-    const videoSender = this.videoTransceiver()?.sender;
-    if (audioOnly && videoSender?.track) {
-      await videoSender.replaceTrack(null);
-      this.sendControl({ t: 'camera', on: false });
+    await this.setSenderCap(this.audioSender(), { maxBitrate: AUDIO_MAX_BITRATE, priority: 'high' });
+    const videoSender = this.cameraTransceiver()?.sender;
+    const screenSender = this.screenTransceiver()?.sender;
+    const screenAudioSender = this.screenAudioTransceiver()?.sender;
+    if (audioOnly && (videoSender?.track || screenSender?.track)) {
+      if (videoSender?.track) {
+        await videoSender.replaceTrack(null);
+        this.sendControl({ t: 'camera', on: false });
+      }
+      if (screenSender?.track) {
+        await screenSender.replaceTrack(null);
+        await screenAudioSender?.replaceTrack(null);
+        this.sendControl({ t: 'screen', on: false });
+      }
       this.options.onDegrade?.('audio-only-relay');
       return;
     }
+    const lowerCamera = degradeVideo || this.unstable;
     await this.setSenderCap(videoSender, {
-      maxBitrate: degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE,
-      scaleResolutionDownBy: degradeVideo ? (this.options.mobile ? 1.333 : 2) : 1,
+      maxBitrate: this.unstable ? VIDEO_UNSTABLE_MAX_BITRATE : degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE,
+      scaleResolutionDownBy: lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1,
+      degradationPreference: 'maintain-framerate',
     });
+    const screenSettings = screenSender?.track?.getSettings?.();
+    await this.setSenderCap(
+      screenSender,
+      screenEncoding({
+        movie: this.movie,
+        relayed: this.movie && screenSender?.track ? await this.isRelayed() : false,
+        degrade: this.degrade,
+        width: screenSettings?.width ?? null,
+        height: screenSettings?.height ?? null,
+        frameRate: screenSettings?.frameRate ?? null,
+        uplinkBps: this.movie && screenSender?.track ? await this.uplinkEstimate() : null,
+      }),
+    );
+    await this.setSenderCap(screenAudioSender, { maxBitrate: this.movie ? MOVIE_AUDIO_MAX_BITRATE : SCREEN_AUDIO_MAX_BITRATE });
     if (degradeVideo) {
       this.options.onDegrade?.('video-360');
     }
   }
 
-  private async setSenderCap(sender: RTCRtpSender | undefined, cap: { maxBitrate: number; scaleResolutionDownBy?: number }): Promise<void> {
+  private async setSenderCap(sender: RTCRtpSender | undefined, cap: SenderCap): Promise<void> {
     if (!sender) {
       return;
     }
     try {
-      const parameters = sender.getParameters();
-      const encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-      const first = encodings[0] ?? {};
-      first.maxBitrate = cap.maxBitrate;
-      if (cap.scaleResolutionDownBy !== undefined) {
-        first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
-      }
-      encodings[0] = first;
-      await sender.setParameters({ ...parameters, encodings });
+      await sender.setParameters(senderParameters(sender.getParameters(), cap, true));
     } catch {
-      return;
+      try {
+        await sender.setParameters(senderParameters(sender.getParameters(), cap, false));
+      } catch {
+        return;
+      }
     }
   }
 
@@ -750,6 +1164,7 @@ export class PeerSession {
     this.refreshTimer = null;
     this.dtlsTimer = null;
     this.pendingRemoteStreams.clear();
+    this.remoteScreen = null;
     this.pendingCandidates = [];
     this.connection.onicecandidate = null;
     this.connection.onnegotiationneeded = null;

@@ -22,6 +22,7 @@ import { IconPillButton } from '@components/common/IconPillButton';
 import type { User } from '@features/auth';
 import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
+import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -548,6 +549,8 @@ export function Sidebar({
           </div>
         )}
       </div>
+
+      <IncomingCallSlot />
 
       {isSelectionMode && selectedIds.size > 0 && (
         <div
