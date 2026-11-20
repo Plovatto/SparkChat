@@ -581,6 +581,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             >
               <FaPaperclip size={18} />
             </button>
+            <GifButton
+              ref={gifButtonRef}
+              enabled={isGifEnabled}
+              isOpen={isGifPanelOpen}
+              disabled={isBlocked}
+              onToggle={() => setIsGifPanelOpen((open) => !open)}
+            />
             <button
               type="button"
               onClick={() => void handleMicClick()}
@@ -591,13 +598,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             >
               <FaMicrophone size={18} />
             </button>
-            <GifButton
-              ref={gifButtonRef}
-              enabled={isGifEnabled}
-              isOpen={isGifPanelOpen}
-              disabled={isBlocked}
-              onToggle={() => setIsGifPanelOpen((open) => !open)}
-            />
           </>
         )}
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>

@@ -1,6 +1,5 @@
 import { forwardRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MdGifBox } from 'react-icons/md';
 
 interface GifButtonProps {
   enabled: boolean;
@@ -33,7 +32,9 @@ export const GifButton = forwardRef<HTMLButtonElement, GifButtonProps>(function 
       className={`sc-gif-btn sc-icon-btn ${isOpen ? 'sc-icon-btn--soft' : 'sc-icon-btn--muted'} sc-anim-pop-in`}
       style={{ width: '44px', height: '44px', flexShrink: 0 }}
     >
-      <MdGifBox size={24} />
+      <span aria-hidden="true" className="sc-gif-badge">
+        GIF
+      </span>
     </button>
   );
 });

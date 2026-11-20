@@ -1086,11 +1086,22 @@ html.sc-theme-transition *::after {
   animation: scGifReveal var(--sc-dur-slow) var(--sc-ease-spring-soft) backwards;
 }
 
-.sc-gif-btn svg {
+.sc-gif-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid currentColor;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1;
   transition: transform var(--sc-dur-normal) var(--sc-ease-spring);
 }
 
-.sc-gif-btn[aria-expanded='true'] svg {
+.sc-gif-btn[aria-expanded='true'] .sc-gif-badge {
   transform: scale(1.1) rotate(-8deg);
 }
 
@@ -1109,14 +1120,14 @@ html.sc-theme-transition *::after {
   }
 
   .sc-gif-tile,
-  .sc-gif-btn svg {
+  .sc-gif-badge {
     transition-duration: 1ms;
   }
 
   .sc-gif-tile[data-shown='true']:hover,
   .sc-gif-tile[data-shown='true']:active,
   .sc-gif-tile[data-picked='true'],
-  .sc-gif-btn[aria-expanded='true'] svg {
+  .sc-gif-btn[aria-expanded='true'] .sc-gif-badge {
     transform: none;
   }
 }
