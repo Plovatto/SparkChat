@@ -317,6 +317,25 @@ describe('contact photos', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('keeps the old photo and switches to the new one when the new envelope arrives after the pointer', async () => {
+    const { alice, generation } = await dmWithAlice();
+    photos.retainUserPhoto('alice');
+    await settle();
+    const oldUrl = photos.getUserPhotoUrl('alice');
+    expect(oldUrl).not.toBeNull();
+
+    const next = await publishUserPhoto(alice, 2);
+    photos.handleUserAvatarUpdated({ userId: 'alice', encryptedAvatar: next.encryptedAvatar, profileKeyVersion: 2 });
+    await settle();
+    expect(photos.getUserPhotoUrl('alice')).toBe(oldUrl);
+
+    photos.handleProfileKeysUpdated({ roomId: 'dm', keyId: KEY_ONE, envelopes: { alice: await envelopeOf(alice, 'dm', generation, 2) } });
+    await settle();
+    const newUrl = photos.getUserPhotoUrl('alice');
+    expect(newUrl).not.toBeNull();
+    expect(newUrl).not.toBe(oldUrl);
+  });
+
   it('drops the photo as soon as the contact removes it and revokes the object URL', async () => {
     await dmWithAlice();
     photos.retainUserPhoto('alice');

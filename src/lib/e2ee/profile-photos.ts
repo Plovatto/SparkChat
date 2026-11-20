@@ -382,7 +382,11 @@ async function resolveUser(key: string, userId: string): Promise<void> {
   const isSelf = userId === identity.userId;
   const profileKey = isSelf ? await deriveProfileKey(identity.privateKey, record.version) : await profileKeyFor(userId, record.version);
   if (!profileKey) {
-    markFailed(key, 'user', userId);
+    if (userPhotos.has(userId)) {
+      failedAt.set(key, Date.now());
+    } else {
+      markFailed(key, 'user', userId);
+    }
     return;
   }
   const pointer = await openUserPhotoPointer(record.encryptedAvatar, profileKey, userId, record.version);
@@ -701,7 +705,7 @@ export function handleProfileKeysUpdated(payload: { roomId?: unknown; keyId?: un
     if (userId === currentUserId()) {
       verifiedOwnEnvelopes.delete(payload.roomId);
       scheduleOwnEnvelope(payload.roomId);
-    } else if (!userPhotos.has(userId)) {
+    } else {
       markDirty(userKey(userId));
     }
   }
