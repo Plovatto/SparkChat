@@ -481,7 +481,14 @@
       "empty": "Nenhuma conversa disponível",
       "submitCount": "Encaminhar ({{count}})",
       "sending": "Encaminhando...",
-      "failed": "Não foi possível encaminhar a mensagem. Tente novamente."
+      "failed": "Não foi possível encaminhar a mensagem. Tente novamente.",
+      "subtitle": "Escolha para quem enviar",
+      "previewLabel": "Mensagem",
+      "moreMessages": "+{{count}}",
+      "groupMembers_one": "Grupo · {{count}} membro",
+      "groupMembers_other": "Grupo · {{count}} membros",
+      "submitTo_one": "Encaminhar para {{count}} conversa",
+      "submitTo_other": "Encaminhar para {{count}} conversas"
     },
     "gallery": {
       "title": "Mídias ({{count}})",
@@ -507,6 +514,16 @@
       "bubbleBlur": "Desfoque dos balões (ambos os lados)",
       "resetChat": "Restaurar aparência padrão deste chat",
       "none": "Nenhum"
+    },
+    "appearanceModal": {
+      "subtitle": "Papel de parede e balões desta conversa",
+      "sent": "Enviadas",
+      "received": "Recebidas",
+      "preview": "Prévia dos balões",
+      "previewIncoming": "Bom dia!",
+      "previewOutgoing": "Tudo certo por aí?",
+      "useAuto": "Usar automático",
+      "resetAll": "Restaurar aparência padrão"
     },
     "assistantStatus": "100% pilha, 0% sono 🔋",
     "deleteTitle_one": "Deletar mensagem",
@@ -558,15 +575,15 @@
     "renameSave": "Salvar nome",
     "renameCancel": "Cancelar",
     "status": "Status",
-    "unblock": "Desbloquear Usuário",
-    "block": "Bloquear Usuário",
+    "unblock": "Desbloquear usuário",
+    "block": "Bloquear usuário",
     "createdBy": "Criado por",
     "admin": "Administrador",
     "promote": "Promover a administrador",
     "remove": "Remover do grupo",
     "removeTitle": "Remover membro",
     "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o link de convite.",
-    "leave": "Sair do Grupo",
+    "leave": "Sair do grupo",
     "seen": "Visto {{time}}",
     "members_one": "{{count}} membro",
     "members_other": "{{count}} membros",
@@ -581,7 +598,20 @@
     "resetInviteTitle": "Redefinir link de convite?",
     "resetInviteConfirm": "Um novo link e uma nova chave do grupo serão criados. O link atual deixará de funcionar para quem ainda não entrou.",
     "inviteResetDone": "Um novo link de convite foi criado.",
-    "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente."
+    "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente.",
+    "title": "Informações",
+    "invite": "Convite",
+    "search": "Buscar",
+    "media": "Mídia",
+    "seeAll": "Ver tudo",
+    "appearance": "Papel de parede e bolhas",
+    "createdByYou": "criado por você",
+    "createdByName": "criado por {{name}}",
+    "memberOptions": "Opções de {{name}}",
+    "searchPlaceholder": "Buscar nesta conversa",
+    "searchLoadedOnly": "A busca considera as mensagens já carregadas nesta conversa.",
+    "searchEmpty": "Nenhuma mensagem encontrada",
+    "videoCall": "Vídeo"
   },
   "presence": {
     "online": "Online",
@@ -837,6 +867,10 @@
       "outgoing": "Você ligou",
       "incoming": "Ligou para você",
       "answered": "Atendida",
+      "missedTitle": {
+        "voice": "Chamada perdida",
+        "video": "Chamada de vídeo perdida"
+      },
       "outcome": {
         "missed": {
           "outgoing": "Sem resposta",

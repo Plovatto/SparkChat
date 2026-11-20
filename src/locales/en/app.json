@@ -481,7 +481,14 @@
       "empty": "No conversations available",
       "submitCount": "Forward ({{count}})",
       "sending": "Forwarding...",
-      "failed": "Couldn't forward the message. Please try again."
+      "failed": "Couldn't forward the message. Please try again.",
+      "subtitle": "Choose who to send it to",
+      "previewLabel": "Message",
+      "moreMessages": "+{{count}}",
+      "groupMembers_one": "Group · {{count}} member",
+      "groupMembers_other": "Group · {{count}} members",
+      "submitTo_one": "Forward to {{count}} conversation",
+      "submitTo_other": "Forward to {{count}} conversations"
     },
     "gallery": {
       "title": "Media ({{count}})",
@@ -507,6 +514,16 @@
       "bubbleBlur": "Bubble blur (both sides)",
       "resetChat": "Reset this chat's appearance",
       "none": "None"
+    },
+    "appearanceModal": {
+      "subtitle": "Wallpaper and bubbles for this chat",
+      "sent": "Sent",
+      "received": "Received",
+      "preview": "Bubble preview",
+      "previewIncoming": "Good morning!",
+      "previewOutgoing": "All good over there?",
+      "useAuto": "Use automatic",
+      "resetAll": "Reset to default appearance"
     },
     "assistantStatus": "100% charged, 0% sleepy 🔋",
     "deleteTitle_one": "Delete message",
@@ -558,15 +575,15 @@
     "renameSave": "Save name",
     "renameCancel": "Cancel",
     "status": "Status",
-    "unblock": "Unblock User",
-    "block": "Block User",
+    "unblock": "Unblock user",
+    "block": "Block user",
     "createdBy": "Created by",
     "admin": "Admin",
     "promote": "Make admin",
     "remove": "Remove from group",
     "removeTitle": "Remove member",
     "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite link.",
-    "leave": "Leave Group",
+    "leave": "Leave group",
     "seen": "Seen {{time}}",
     "members_one": "{{count}} member",
     "members_other": "{{count}} members",
@@ -581,7 +598,20 @@
     "resetInviteTitle": "Reset invite link?",
     "resetInviteConfirm": "A new link and a new group key will be created. The current link stops working for anyone who has not joined yet.",
     "inviteResetDone": "A new invite link was created.",
-    "inviteResetFailed": "Couldn't reset the invite link. Please try again."
+    "inviteResetFailed": "Couldn't reset the invite link. Please try again.",
+    "title": "Info",
+    "invite": "Invite",
+    "search": "Search",
+    "media": "Media",
+    "seeAll": "See all",
+    "appearance": "Wallpaper and bubbles",
+    "createdByYou": "created by you",
+    "createdByName": "created by {{name}}",
+    "memberOptions": "Options for {{name}}",
+    "searchPlaceholder": "Search this chat",
+    "searchLoadedOnly": "Search covers the messages already loaded in this chat.",
+    "searchEmpty": "No messages found",
+    "videoCall": "Video"
   },
   "presence": {
     "online": "Online",
@@ -837,6 +867,10 @@
       "outgoing": "You called",
       "incoming": "Called you",
       "answered": "Answered",
+      "missedTitle": {
+        "voice": "Missed call",
+        "video": "Missed video call"
+      },
       "outcome": {
         "missed": {
           "outgoing": "No answer",

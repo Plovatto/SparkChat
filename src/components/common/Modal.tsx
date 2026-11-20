@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
@@ -11,18 +11,22 @@ import { useEscapeKey } from '@hooks/useEscapeKey';
 interface ModalProps {
   isOpen: boolean;
   title?: string;
+  header?: ReactNode;
   onClose: () => void;
   showCloseButton?: boolean;
   children: ReactNode;
   maxWidth?: string;
+  bodyStyle?: CSSProperties;
+  panelClassName?: string;
 }
 
 interface ModalContent {
   title?: string;
+  header?: ReactNode;
   children: ReactNode;
 }
 
-export function Modal({ isOpen, title, onClose, showCloseButton = true, children, maxWidth = '500px' }: ModalProps) {
+export function Modal({ isOpen, title, header, onClose, showCloseButton = true, children, maxWidth = '500px', bodyStyle, panelClassName }: ModalProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.normal);
@@ -32,14 +36,14 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
   const backdropDismissProps = useBackdropDismiss(onClose);
 
   if (isOpen) {
-    lastContentRef.current = { title, children };
+    lastContentRef.current = { title, header, children };
   }
 
   if (!isPresent) {
     return null;
   }
 
-  const content = isOpen ? { title, children } : lastContentRef.current;
+  const content = isOpen ? { title, header, children } : lastContentRef.current;
   const exitClassName = isExiting ? ' is-exiting' : '';
 
   return createPortal(
@@ -61,7 +65,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
       />
 
       <div
-        className={`sc-modal-panel${exitClassName}`}
+        className={`sc-modal-panel${panelClassName ? ` ${panelClassName}` : ''}${exitClassName}`}
         style={{
           position: 'fixed',
           top: '50%',
@@ -84,7 +88,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
             flexDirection: 'column',
           }}
         >
-          {content.title && (
+          {content.header ?? (content.title && (
             <div
               style={{
                 padding: '20px 24px',
@@ -109,7 +113,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
                 </button>
               )}
             </div>
-          )}
+          ))}
 
           <div
             style={{
@@ -119,6 +123,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
               overflowX: 'hidden',
               color: theme.textPrimary,
               scrollbarGutter: 'stable both-edges',
+              ...bodyStyle,
             }}
           >
             {content.children}
