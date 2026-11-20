@@ -12,7 +12,7 @@ vi.mock('@features/theme', () => ({
   }),
 }));
 
-const spoofed = { url: 'https://evil.example/login', title: 'Google: security alert', siteName: 'accounts.google.com', imageUrl: null };
+const spoofed = { url: 'https://evil.example/login', title: 'Google: security alert', description: null, siteName: 'accounts.google.com', imageUrl: null };
 
 describe('LinkPreviewCard origin indicator', () => {
   afterEach(() => {
@@ -33,7 +33,7 @@ describe('LinkPreviewCard origin indicator', () => {
 
     render(
       <LinkPreviewCard
-        preview={{ url: 'https://example.com/a', title: 'Example', siteName: 'example.com', imageUrl: null }}
+        preview={{ url: 'https://example.com/a', title: 'Example', description: null, siteName: 'example.com', imageUrl: null }}
         variant="bubble"
         messageText="https://example.com/a"
       />,

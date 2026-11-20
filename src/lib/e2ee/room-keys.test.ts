@@ -1964,10 +1964,10 @@ describe('private room member pinning', () => {
     const { ana } = await directRoom();
     await loadClient('mallory');
     const forged = server.summary('dm');
-    forged.participants = ['ana', 'bia', 'mallory'].map((id) => ({ id, nickname: id }));
+    forged.participants = ['ana', 'bia', 'mallory'].map((id) => ({ id, nickname: id })) as unknown as RoomSummary['participants'];
 
     await ana.roomKeys.trackRoom(ana.socket.asAppSocket(), forged);
-    ana.roomKeys.updateRoomParticipants('dm', [{ id: 'ana', nickname: 'ana' }, { id: 'mallory', nickname: 'mallory' }]);
+    ana.roomKeys.updateRoomParticipants('dm', [{ id: 'ana' }, { id: 'mallory' }] as never);
     server.push('ana', 'group:user-joined', { roomId: 'dm', participants: [{ id: 'ana', nickname: 'ana' }, { id: 'mallory', nickname: 'mallory' }] });
     await settle();
 
