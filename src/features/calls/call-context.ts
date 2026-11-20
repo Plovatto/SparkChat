@@ -11,6 +11,18 @@ export interface PeerDisplay {
 }
 
 export interface CallApi {
+  movieMode: boolean;
+  shareVolume: number;
+  streamVolume: number;
+  setStreamVolume: (volume: number) => void;
+  sharePreviewHidden: boolean;
+  setSharePreviewHidden: (hidden: boolean) => void;
+  shareHasAudio: boolean;
+  remoteShareHasAudio: boolean;
+  remoteShareMovie: boolean;
+  streamWindowAvailable: boolean;
+  streamWindowOpen: boolean;
+  openStreamWindow: () => void;
   snapshot: CallSnapshot;
   minimized: boolean;
   setMinimized: (value: boolean) => void;
@@ -23,6 +35,10 @@ export interface CallApi {
   hangup: () => void;
   toggleMute: () => void;
   toggleCamera: () => void;
+  toggleScreenShare: () => void;
+  setShareVolume: (volume: number) => void;
+  setMovieMode: (movie: boolean) => void;
+  canShareScreen: boolean;
   dismissNotice: () => void;
   dismissEnded: () => void;
   changeAudioInput: (deviceId: string) => void;

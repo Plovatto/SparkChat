@@ -17,7 +17,6 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from 'react-icons/fa';
-import { useProtectIp } from '@features/calls/lib/call-settings';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
@@ -43,6 +42,7 @@ import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { formatDateTime } from '@lib/format';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
+import { PushNotificationsRow } from '@features/pwa/components/PushNotificationsRow';
 import {
   buildChangePasswordRequest,
   buildRegenerateRecoveryRequest,
@@ -131,8 +131,6 @@ export function EditProfileModal({
   onToggleNotificationContent,
 }: EditProfileModalProps) {
   const soundsLabelId = useId();
-  const callProtectIpLabelId = useId();
-  const [protectCallIp, setProtectCallIp] = useProtectIp();
   const notificationContentLabelId = useId();
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -724,6 +722,7 @@ export function EditProfileModal({
 
       {activeTab === 'system' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <PushNotificationsRow />
           <SettingRow
             icon={soundEnabled ? <FaVolumeUp size={16} color={theme.accentText} /> : <FaVolumeMute size={16} color={theme.textMuted} />}
             labelId={soundsLabelId}
@@ -737,13 +736,6 @@ export function EditProfileModal({
             label={t('profile.hideNotificationContent')}
             checked={notificationContentHidden}
             onChange={onToggleNotificationContent}
-          />
-          <SettingRow
-            icon={<FaShieldAlt size={16} color={protectCallIp ? theme.accentText : theme.textMuted} />}
-            labelId={callProtectIpLabelId}
-            label={t('profile.callProtectIp')}
-            checked={protectCallIp}
-            onChange={() => setProtectCallIp(!protectCallIp)}
           />
 
           <div style={{ marginTop: '14px' }}>

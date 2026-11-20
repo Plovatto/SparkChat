@@ -30,6 +30,7 @@ import {
 } from '@features/notifications';
 import { CallProvider } from '@features/calls';
 import { queuePendingMyPhoto } from '@features/profile-photos';
+import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, usePwaChatShell } from '@features/pwa';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -230,6 +231,7 @@ function AuthGate({
     if (currentUserId && currentSessionToken) {
       void revokeServerSession({ userId: currentUserId, sessionToken: currentSessionToken });
     }
+    emitPushUnsubscribeForLogout(socket);
     socket?.emit('user:logout');
     onLogout();
   }, [socket, onLogout, currentUserId, currentSessionToken]);
@@ -255,6 +257,8 @@ function AuthGate({
         onClose={() => setRecoveryFilePrompt(null)}
         isFirstDownload
       />
+      <InstallSheet />
+      <UpdateToast />
     </AppBackground>
   );
 }
@@ -312,6 +316,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   useEnsureAssistantChat(rooms, isLoaded);
 
   const handleSelectRoom = useCallback((room: RoomSummary) => setSelectedRoomId(room.id), []);
+  const { language: appLanguage } = useAppLanguage();
+  const openNewChat = useCallback(() => setIsNewChatOpen(true), []);
+  usePwaChatShell({ socket, connected, selectedRoomId, language: appLanguage, onOpenRoom: setSelectedRoomId, onNewChat: openNewChat });
 
   useEffect(() => {
     try {
@@ -324,6 +331,11 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       console.error(error);
     }
   }, [selectedRoomId, user.id]);
+
+  const enableNotificationPreference = notificationPreference.enable;
+  const handleNotificationsGranted = useCallback(() => {
+    void enableNotificationPreference();
+  }, [enableNotificationPreference]);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {
@@ -467,6 +479,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   return (
     <CallProvider rooms={rooms}>
+    <PwaCallBridge />
     <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {!connected && (
@@ -526,6 +539,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 onToggleNotificationContent={notificationContentPreference.toggle}
                 mutedRoomIds={mutedRoomIds}
                 onToggleMuted={toggleMuted}
+                listHeader={<PwaOnboardingCard onNotificationsGranted={handleNotificationsGranted} />}
               />
             </Col>
             <Col

@@ -23,6 +23,7 @@ import type { User } from '@features/auth';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
+import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -30,6 +31,7 @@ import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { LanguageMenuButton } from '@lib/i18n/LanguageMenuButton';
 import { useSocket, type RoomSummary } from '@lib/socket';
+import { InstallAppButton } from '@features/pwa/components/InstallAppButton';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import { EditProfileModal } from './EditProfileModal';
 import { RoomListItem } from './RoomListItem';
@@ -78,6 +80,7 @@ interface SidebarProps {
   onToggleNotificationContent: () => void;
   mutedRoomIds: Set<string>;
   onToggleMuted: (roomIds: string[]) => void;
+  listHeader?: ReactNode;
 }
 
 export function Sidebar({
@@ -101,6 +104,7 @@ export function Sidebar({
   onToggleNotificationContent,
   mutedRoomIds,
   onToggleMuted,
+  listHeader,
 }: SidebarProps) {
   const { t } = useTranslation();
   const { language, changeLanguage } = useAppLanguage();
@@ -412,6 +416,8 @@ export function Sidebar({
               </HeaderIconButton>
             )}
 
+            <InstallAppButton />
+
             <HeaderIconButton onClick={onLogout} title={t('sidebar.logout')}>
               <FaSignOutAlt size={16} />
             </HeaderIconButton>
@@ -500,6 +506,7 @@ export function Sidebar({
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
+        {listHeader}
         {rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
             <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
@@ -536,6 +543,8 @@ export function Sidebar({
           </div>
         )}
       </div>
+
+      <IncomingCallSlot />
 
       {isSelectionMode && selectedIds.size > 0 && (
         <div

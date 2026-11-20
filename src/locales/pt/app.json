@@ -160,6 +160,11 @@
       "unavailable": "Não foi possível acessar sua chave de criptografia neste dispositivo. Entre novamente e tente de novo.",
       "notAllowed": "Você não tem permissão para trocar a foto deste grupo."
     },
+    "push": {
+      "disabled": "As notificações com o app fechado estão desativadas neste servidor.",
+      "invalidSubscription": "Este navegador gerou uma inscrição de notificações que o servidor não aceita.",
+      "rateLimited": "Muitas tentativas seguidas. Espere um pouco e tente de novo."
+    },
     "gifs": {
       "unavailable": "A galeria de GIFs não está disponível agora.",
       "providerFailed": "Não foi possível carregar os GIFs. Tente novamente.",
@@ -592,8 +597,7 @@
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
     "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
-    "confirmRegenerate": "Gerar novo arquivo",
-    "callProtectIp": "Proteger meu IP nas chamadas"
+    "confirmRegenerate": "Gerar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
@@ -668,12 +672,11 @@
     "camera": "Câmera",
     "speaker": "Saída de áudio",
     "defaultDevice": "Padrão",
-    "tapToResume": "Toque para ativar o áudio",
     "quality": "Qualidade da conexão: {{bars}} de 3",
     "remoteMuted": "Microfone desligado",
     "remoteCameraOff": "Câmera desligada",
     "cameraFailed": "Não foi possível usar a câmera. Seguindo só com áudio.",
-    "relayDegraded": "Vídeo desligado para economizar dados da conexão protegida.",
+    "relayDegraded": "Vídeo desligado para economizar dados na conexão retransmitida.",
     "videoDegraded": "Qualidade de vídeo reduzida.",
     "otherTab": "Chamada em outra aba",
     "otherTabHint": "Use a aba onde a chamada está ocorrendo.",
@@ -697,7 +700,6 @@
     "detail": {
       "fingerprint-mismatch": "A verificação de segurança da chamada falhou. A chamada foi encerrada.",
       "invalid-accept": "A resposta da chamada não pôde ser verificada.",
-      "relay-unavailable": "A retransmissão está indisponível e a opção Proteger meu IP está ligada.",
       "connect-timeout": "A conexão demorou demais.",
       "signal-failed": "Não foi possível enviar a sinalização da chamada.",
       "media-attach-failed": "Não foi possível enviar seu áudio ou vídeo na chamada."
@@ -706,11 +708,12 @@
       "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
       "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
       "unverifiable": "Não foi possível verificar este contato para chamadas.",
-      "relay-unavailable": "A retransmissão está indisponível. Desligue Proteger meu IP ou tente mais tarde.",
       "other-tab": "Já existe uma chamada em outra aba.",
       "disabled": "As chamadas estão indisponíveis no momento.",
       "interrupted": "Uma chamada anterior foi interrompida.",
-      "server-error": "Não foi possível completar a chamada."
+      "server-error": "Não foi possível completar a chamada.",
+      "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
+      "screen-failed": "Não foi possível compartilhar a tela."
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",
@@ -765,6 +768,117 @@
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
+    },
+    "share": {
+      "start": "Compartilhar tela",
+      "stop": "Parar compartilhamento",
+      "banner": "Você está compartilhando a tela",
+      "stopShort": "Parar",
+      "remote": "Tela de {{name}}",
+      "fullscreen": "Tela cheia",
+      "exitFullscreen": "Sair da tela cheia",
+      "unavailable": "Compartilhamento de tela indisponível nesta chamada",
+      "title": "Você está compartilhando",
+      "surface": {
+        "browser": "Uma aba do navegador",
+        "window": "Uma janela",
+        "monitor": "Sua tela inteira",
+        "unknown": "Sua tela"
+      },
+      "peerTitle": "{{name}} está compartilhando",
+      "peerSurface": {
+        "browser": "Uma aba do navegador",
+        "window": "Uma janela",
+        "monitor": "A tela inteira",
+        "unknown": "A tela"
+      },
+      "volume": "Volume do áudio compartilhado",
+      "yourScreen": "Sua tela",
+      "live": "AO VIVO",
+      "hidePreview": "Ocultar prévia",
+      "showPreview": "Mostrar prévia",
+      "streamVolume": "Volume da transmissão",
+      "openWindow": "Abrir em nova janela"
+    },
+    "unstable": "Conexão instável",
+    "you": "Você",
+    "pip": {
+      "open": "Abrir em janela flutuante",
+      "close": "Fechar janela flutuante",
+      "dismiss": "Fechar"
+    },
+    "tabs": {
+      "devices": "Dispositivos",
+      "audio": "Áudio",
+      "broadcast": "Transmissão"
+    },
+    "settings": "Configurações da chamada",
+    "incomingKind": {
+      "voice": "Chamada de voz",
+      "video": "Chamada de vídeo"
+    },
+    "mutedBadge": "Microfone desligado",
+    "speaking": "Falando",
+    "route": {
+      "direct": "Conexão direta",
+      "relay": "Conexão via servidor (TURN)"
+    },
+    "broadcast": {
+      "sending": "Você está transmitindo",
+      "receiving": "Você está assistindo",
+      "movie": "Modo filme",
+      "movieHint": "Vídeo fluido e áudio em estéreo para filmes e séries",
+      "shareVolume": "Volume do áudio compartilhado",
+      "shareVolumeHint": "Quanto do som da tela a outra pessoa ouve",
+      "noShareAudio": "Para enviar o som, marque Compartilhar áudio ao escolher a tela",
+      "hidePreview": "Ocultar prévia",
+      "hidePreviewHint": "Mostra só um aviso no lugar da sua tela",
+      "streamVolume": "Volume da transmissão",
+      "streamVolumeHint": "Muda o volume só para você",
+      "noStreamAudio": "Esta transmissão não tem som"
+    }
+  },
+  "pwa": {
+    "installApp": "Instalar app",
+    "install": "Instalar",
+    "notNow": "Agora não",
+    "close": "Fechar",
+    "card": {
+      "installTitle": "Instale o SparkChat",
+      "installText": "Abra direto da tela inicial ou da área de trabalho e receba chamadas e mensagens mesmo com o app fechado.",
+      "iosInstallAction": "Ver como instalar",
+      "notificationsTitle": "Ativar notificações",
+      "notificationsText": "Saiba na hora quando chegar uma mensagem ou alguém te ligar, mesmo com o app fechado. Nada do conteúdo aparece no aviso.",
+      "enable": "Ativar",
+      "dismiss": "Dispensar"
+    },
+    "sheet": {
+      "title": "Instalar o SparkChat",
+      "installedTitle": "O SparkChat já está instalado",
+      "installedText": "Você já está usando o app instalado. Pode fechar este aviso.",
+      "lead": "Com o app instalado, o SparkChat abre em janela própria e avisa sobre chamadas e mensagens mesmo fechado.",
+      "promptText": "Toque em Instalar e confirme no aviso do navegador.",
+      "manualText": "Abra o menu do navegador e escolha \"Instalar app\" ou \"Adicionar à tela inicial\". No computador, procure o ícone de instalar na barra de endereço.",
+      "iosWhy": "No iPhone e no iPad, as notificações de chamadas e mensagens só funcionam com o SparkChat instalado na Tela de Início.",
+      "iosStep1": "Toque em Compartilhar na barra do navegador.",
+      "iosStep2": "Escolha \"Adicionar à Tela de Início\" e toque em Adicionar.",
+      "iosStep3": "Abra o SparkChat pelo novo ícone e ative as notificações.",
+      "stepsLabel": "Passos para instalar"
+    },
+    "push": {
+      "label": "Notificações",
+      "description": "Chamadas e mensagens mesmo com o app fechado, sem mostrar o conteúdo.",
+      "blocked": "As notificações estão bloqueadas neste navegador. Para liberar, toque no cadeado ou no ícone de ajustes ao lado do endereço, permita Notificações e recarregue a página. No app instalado, libere em Ajustes do sistema > Notificações > SparkChat.",
+      "unsupported": "Este navegador não aceita notificações com o app fechado.",
+      "iosNeedsInstall": "No iPhone e no iPad, instale o app na Tela de Início para receber notificações.",
+      "serverDisabled": "As notificações com o app fechado ainda não estão disponíveis neste servidor.",
+      "checking": "Verificando…",
+      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes."
+    },
+    "update": {
+      "message": "Nova versão disponível",
+      "reload": "Recarregar",
+      "dismiss": "Depois"
     }
   },
   "profilePhotos": {

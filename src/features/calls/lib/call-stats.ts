@@ -13,6 +13,31 @@ export interface QualityReading {
   lossRatio: number;
   rttMs: number | null;
   jitterMs: number | null;
+  outboundLoss: number;
+}
+
+export const UNSTABLE_LOSS_RATIO = 0.05;
+export const UNSTABLE_AFTER_MS = 4_000;
+
+export interface InstabilityState {
+  unstable: boolean;
+  highSince: number | null;
+  lowSince: number | null;
+}
+
+export const STABLE: InstabilityState = { unstable: false, highSince: null, lowSince: null };
+
+export function nextInstability(state: InstabilityState, lossRatio: number, now: number): InstabilityState {
+  const windowStart = now - STATS_INTERVAL_MS;
+  if (lossRatio > UNSTABLE_LOSS_RATIO) {
+    const highSince = state.highSince ?? windowStart;
+    return { unstable: state.unstable || now - highSince >= UNSTABLE_AFTER_MS, highSince, lowSince: null };
+  }
+  if (!state.unstable) {
+    return STABLE;
+  }
+  const lowSince = state.lowSince ?? windowStart;
+  return now - lowSince >= UNSTABLE_AFTER_MS ? STABLE : { unstable: true, highSince: null, lowSince };
 }
 
 function barsFor(value: number | null, good: number, fair: number): QualityBars {
@@ -34,6 +59,7 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
   let packetsLost = 0;
   let jitterMs: number | null = null;
   let rttMs: number | null = null;
+  let outboundLoss = 0;
 
   report.forEach((entry: Record<string, unknown>) => {
     if (entry.type === 'inbound-rtp' && (entry.kind === 'audio' || entry.kind === 'video')) {
@@ -42,6 +68,9 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
       if (typeof entry.jitter === 'number') {
         jitterMs = Math.max(jitterMs ?? 0, entry.jitter * 1000);
       }
+    }
+    if (entry.type === 'remote-inbound-rtp' && typeof entry.fractionLost === 'number' && Number.isFinite(entry.fractionLost)) {
+      outboundLoss = Math.max(outboundLoss, Math.min(1, Math.max(0, entry.fractionLost)));
     }
     if (entry.type === 'candidate-pair' && entry.nominated === true && typeof entry.currentRoundTripTime === 'number') {
       rttMs = entry.currentRoundTripTime * 1000;
@@ -53,5 +82,65 @@ export function readQuality(report: RTCStatsReport, previous: QualitySample | nu
   const lostDelta = previous ? Math.max(0, packetsLost - previous.packetsLost) : packetsLost;
   const total = receivedDelta + lostDelta;
   const lossRatio = total > 0 ? lostDelta / total : 0;
-  return { bars: qualityBars(lossRatio, rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs };
+  return { bars: qualityBars(Math.max(lossRatio, outboundLoss), rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs, outboundLoss };
+}
+
+export function selectedPairRelayed(report: RTCStatsReport): boolean | null {
+  let pair: Record<string, unknown> | undefined;
+  report.forEach((entry: Record<string, unknown>) => {
+    if (!pair && entry.type === 'transport' && typeof entry.selectedCandidatePairId === 'string') {
+      pair = report.get(entry.selectedCandidatePairId) as Record<string, unknown> | undefined;
+    }
+  });
+  if (!pair) {
+    report.forEach((entry: Record<string, unknown>) => {
+      if (entry.type === 'candidate-pair' && entry.nominated === true && entry.state === 'succeeded' && (!pair || entry.selected === true)) {
+        pair = entry;
+      }
+    });
+  }
+  if (!pair) {
+    return null;
+  }
+  const local = report.get(String(pair.localCandidateId)) as Record<string, unknown> | undefined;
+  const remote = report.get(String(pair.remoteCandidateId)) as Record<string, unknown> | undefined;
+  if (!local && !remote) {
+    return null;
+  }
+  return local?.candidateType === 'relay' || remote?.candidateType === 'relay';
+}
+
+export interface RelayState {
+  relayed: boolean | null;
+  pending: boolean | null;
+}
+
+export const RELAY_UNKNOWN: RelayState = { relayed: null, pending: null };
+
+export function nextRelay(state: RelayState, reading: boolean | null): RelayState {
+  if (reading === null) {
+    return state;
+  }
+  if (state.relayed === null) {
+    return { relayed: reading, pending: null };
+  }
+  if (reading === state.relayed) {
+    return state.pending === null ? state : { relayed: state.relayed, pending: null };
+  }
+  if (state.pending === reading) {
+    return { relayed: reading, pending: null };
+  }
+  return { relayed: state.relayed, pending: reading };
+}
+
+export type QualityTone = 'good' | 'relay' | 'fair' | 'poor';
+
+export function qualityTone(bars: QualityBars, relayed: boolean | null): QualityTone {
+  if (bars === 1) {
+    return 'poor';
+  }
+  if (bars === 2) {
+    return 'fair';
+  }
+  return relayed === true ? 'relay' : 'good';
 }
