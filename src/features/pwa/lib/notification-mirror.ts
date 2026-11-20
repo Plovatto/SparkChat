@@ -3,6 +3,8 @@ import { openLocalSecret, sealLocalSecret } from '../../../lib/e2ee/key-store';
 export const NOTIFICATION_MIRROR_DB = 'sparkchat-notify';
 const STORE = 'kv';
 const RECORD_KEY = 'current';
+const SEEN_KEY = 'seen';
+export const SEEN_MESSAGE_LIMIT = 200;
 const DISPLAY_CONTEXT = 'sparkchat:notify-display:v1';
 const MAX_NAME_LENGTH = 80;
 
@@ -37,6 +39,7 @@ function openDb(): Promise<IDBDatabase> {
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('notify store unavailable'));
+    request.onblocked = () => reject(new Error('notify store blocked'));
   });
 }
 
@@ -108,6 +111,42 @@ export async function readNotificationMirror(): Promise<NotificationMirror | nul
   } catch {
     return null;
   }
+}
+
+export async function readNotificationLanguage(): Promise<'pt' | 'en' | null> {
+  try {
+    const stored = await run<StoredMirror>('readonly', (store) => store.get(RECORD_KEY));
+    return stored ? (stored.language === 'en' ? 'en' : 'pt') : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function rememberMessageId(messageId: string): Promise<boolean> {
+  const db = await openDb();
+  return new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    const store = tx.objectStore(STORE);
+    let fresh = false;
+    const request = store.get(SEEN_KEY);
+    request.onsuccess = () => {
+      const seen = Array.isArray(request.result) ? (request.result as unknown[]).filter((value): value is string => typeof value === 'string') : [];
+      if (seen.includes(messageId)) {
+        return;
+      }
+      fresh = true;
+      store.put([...seen, messageId].slice(-SEEN_MESSAGE_LIMIT), SEEN_KEY);
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve(fresh);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error ?? new Error('notify store failed'));
+    };
+    tx.onabort = tx.onerror;
+  });
 }
 
 export async function clearNotificationMirror(): Promise<void> {

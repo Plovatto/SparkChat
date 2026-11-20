@@ -13,6 +13,7 @@ import {
   messageTag,
   NOTIFICATION_ICON,
   parsePushMessage,
+  LANGUAGE_TIMEOUT_MS,
   PREVIEW_TIMEOUT_MS,
   readCachedRoomIcon,
   type WorkerEnvironment,
@@ -164,6 +165,15 @@ describe('message previews in pushes', () => {
     const previewMessage = vi.fn(() => Promise.resolve({ title: 'x', body: 'y' }));
     await handlePush({ ...env, previewMessage }, createWorkerState(), { t: 'msg', roomId: 'r1' });
     expect(previewMessage).not.toHaveBeenCalled();
+    expect(visible()[0]!.title).toBe('Nova mensagem');
+  });
+
+  it('falls back to Portuguese when reading the language hangs instead of delaying the notification', async () => {
+    vi.useFakeTimers();
+    const { env, visible } = fakeEnv({ language: 'en' });
+    const done = handlePush({ ...env, language: () => new Promise(() => undefined) }, createWorkerState(), { t: 'msg', roomId: 'r1' });
+    await vi.advanceTimersByTimeAsync(LANGUAGE_TIMEOUT_MS);
+    await done;
     expect(visible()[0]!.title).toBe('Nova mensagem');
   });
 

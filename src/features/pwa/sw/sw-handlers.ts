@@ -79,6 +79,7 @@ const HTML_LANG = { pt: 'pt-BR', en: 'en' } as const;
 const PREVIEW_KINDS: readonly string[] = ['text', 'image', 'audio', 'file'];
 const MAX_PREVIEW_FIELD_LENGTH = 4096;
 export const PREVIEW_TIMEOUT_MS = 4000;
+export const LANGUAGE_TIMEOUT_MS = 1500;
 
 function parsePreview(raw: unknown): PushMessagePreview | undefined {
   if (typeof raw !== 'object' || raw === null) {
@@ -245,18 +246,27 @@ async function showCallEnd(env: WorkerEnvironment, strings: WorkerStrings, langu
   });
 }
 
+function withinTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      },
+    );
+  });
+}
+
 function previewWithin(env: WorkerEnvironment, strings: WorkerStrings, message: Extract<PushMessage, { t: 'msg' }>): Promise<NotificationText | null> {
   if (!env.previewMessage || !message.preview) {
     return Promise.resolve(null);
   }
-  const pending = env.previewMessage(message.roomId, message.preview, strings).catch(() => null);
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), PREVIEW_TIMEOUT_MS);
-    void pending.then((value) => {
-      clearTimeout(timer);
-      resolve(value);
-    });
-  });
+  return withinTimeout(env.previewMessage(message.roomId, message.preview, strings), PREVIEW_TIMEOUT_MS, null);
 }
 
 async function isRoomVisible(env: WorkerEnvironment, state: WorkerState, roomId: string): Promise<boolean> {
@@ -294,7 +304,7 @@ async function showGeneric(env: WorkerEnvironment, strings: WorkerStrings, langu
 }
 
 export async function handlePush(env: WorkerEnvironment, state: WorkerState, raw: unknown): Promise<void> {
-  const language = await env.language().catch(() => 'pt' as const);
+  const language = await withinTimeout(env.language(), LANGUAGE_TIMEOUT_MS, 'pt' as const);
   const strings = WORKER_STRINGS[language];
   const message = parsePushMessage(raw);
   try {

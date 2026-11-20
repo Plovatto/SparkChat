@@ -312,15 +312,6 @@ export async function loadPrivateKey(userId: string): Promise<{ publicKey: strin
   }
 }
 
-export async function loadStoredIdentityUserId(): Promise<string | null> {
-  try {
-    const stored = await withDb((db) => readRecord<StoredIdentityRecord>(db, IDENTITY_STORE_NAME, RECORD_KEY));
-    return stored && typeof stored.userId === 'string' ? stored.userId : null;
-  } catch {
-    return null;
-  }
-}
-
 export function forgetCachedWrappingKey(): void {
   wrappingKeyPromise = null;
 }

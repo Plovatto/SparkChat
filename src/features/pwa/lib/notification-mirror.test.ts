@@ -61,6 +61,26 @@ describe('notification mirror', () => {
   });
 });
 
+describe('notification mirror light reads', () => {
+  it('reads the language without unwrapping anything', async () => {
+    const { mirror } = await fresh();
+    expect(await mirror.readNotificationLanguage()).toBeNull();
+    await mirror.writeNotificationMirror({ ownerId: 'u1', hideContent: false, language: 'en', names });
+    expect(await mirror.readNotificationLanguage()).toBe('en');
+  });
+
+  it('remembers message ids once and keeps only the most recent ones', async () => {
+    const { mirror } = await fresh();
+    expect(await mirror.rememberMessageId('m-0')).toBe(true);
+    expect(await mirror.rememberMessageId('m-0')).toBe(false);
+    for (let index = 1; index <= mirror.SEEN_MESSAGE_LIMIT; index += 1) {
+      expect(await mirror.rememberMessageId(`m-${index}`)).toBe(true);
+    }
+    expect(await mirror.rememberMessageId(`m-${mirror.SEEN_MESSAGE_LIMIT}`)).toBe(false);
+    expect(await mirror.rememberMessageId('m-0')).toBe(true);
+  });
+});
+
 describe('buildNotificationDisplayNames', () => {
   it('collects other participants and named groups only', () => {
     const rooms = [

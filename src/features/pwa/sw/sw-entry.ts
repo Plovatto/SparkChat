@@ -1,7 +1,7 @@
 import { openAuthenticatedField } from '../../../lib/e2ee/authenticated-field';
 import { forgetCachedWrappingKey, loadContactPin, loadRoomKeyGenerations } from '../../../lib/e2ee/key-store';
 import { getSodium } from '../../../lib/e2ee/sodium';
-import { readNotificationMirror } from '../lib/notification-mirror';
+import { readNotificationLanguage, readNotificationMirror, rememberMessageId } from '../lib/notification-mirror';
 import { resolveMessagePreview, type PreviewDeps } from './message-preview';
 import { OFFLINE_PAGE_PATH } from './protocol';
 import {
@@ -109,12 +109,13 @@ const previewDeps: PreviewDeps = {
   loadRoomKey,
   loadSigningKey,
   openField: openAuthenticatedField,
+  rememberMessage: rememberMessageId,
 };
 
 async function readLanguage(): Promise<'pt' | 'en'> {
-  const mirror = await readNotificationMirror().catch(() => null);
-  if (mirror) {
-    return mirror.language;
+  const mirrored = await readNotificationLanguage();
+  if (mirrored) {
+    return mirrored;
   }
   const cache = await worker.caches.open(PREFERENCES_CACHE);
   const stored = await cache.match(languageUrl);
