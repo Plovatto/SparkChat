@@ -23,6 +23,9 @@ import { AutofillDecoyFields } from './AutofillDecoyFields';
 import { PasswordField, PasswordFieldHint } from './PasswordField';
 import { ThemeToggleButton } from './ThemeToggleButton';
 
+const AVATAR_GRID_COLUMN_GAP = 'clamp(8px, 2.5vw, 20px)';
+const AVATAR_GRID_COLUMNS = `repeat(auto-fill, minmax(max(44px, calc((100% - 4 * ${AVATAR_GRID_COLUMN_GAP}) / 5)), 1fr))`;
+
 interface CreateAccountFormProps {
   darkMode: boolean;
   theme: ThemeTokens;
@@ -204,9 +207,10 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
                   className="sc-card"
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                    gridTemplateColumns: AVATAR_GRID_COLUMNS,
                     justifyContent: 'center',
-                    columnGap: 'clamp(14px, 3vw, 20px)',
+                    justifyItems: 'center',
+                    columnGap: AVATAR_GRID_COLUMN_GAP,
                     rowGap: 'clamp(15px, 3vw, 22px)',
                     maxHeight: '200px',
                     overflowY: 'auto',

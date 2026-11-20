@@ -917,6 +917,11 @@
       "encodeFailed": "Couldn't prepare that photo. Try another one.",
       "uploadFailed": "Couldn't save your photo. Check your connection and try again.",
       "removeFailed": "Couldn't remove your photo. Try again."
+    },
+    "signupFailed": {
+      "message": "Couldn't save your profile photo.",
+      "retry": "Try again",
+      "dismiss": "Not now"
     }
   },
   "gifs": {

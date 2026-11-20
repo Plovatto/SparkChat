@@ -1,4 +1,5 @@
 export { useRoomPhoto, useUserPhoto } from './hooks/usePhotos';
+export { PendingPhotoFailedToast } from './components/PendingPhotoFailedToast';
 export { queuePendingMyPhoto, removeMyPhoto, removeRoomPhoto, uploadMyPhoto, uploadRoomPhoto } from './lib/photo-actions';
 export {
   clearNotificationIcons,
