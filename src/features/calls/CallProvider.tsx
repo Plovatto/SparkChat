@@ -42,6 +42,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   const [sharePreviewHidden, setSharePreviewHidden] = useState(false);
   const [streamWindow, setStreamWindow] = useState<Window | null>(null);
   const remoteRef = useRef<HTMLVideoElement>(null);
+  const voiceRef = useRef<HTMLAudioElement>(null);
   const roomsRef = useRef(rooms);
   roomsRef.current = rooms;
 
@@ -110,7 +111,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   }, []);
 
   const primePlayback = useCallback(() => {
-    autoplay.play(remoteRef.current);
+    autoplay.play(voiceRef.current);
   }, []);
 
   const startCallInRoom = useCallback(
@@ -253,7 +254,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
   return (
     <CallContext value={api}>
       {children}
-      <CallScreen videoRef={remoteRef} />
+      <CallScreen videoRef={remoteRef} voiceRef={voiceRef} />
       <CallMiniBar />
       <IncomingCallModal />
       <CallNotices />

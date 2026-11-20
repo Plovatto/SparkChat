@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompressAlt, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } from 'react-icons/fa';
 import { MdScreenShare } from 'react-icons/md';
@@ -22,11 +22,13 @@ import { ShareStage } from './ShareStage';
 import { useSpeaking, useStreamOn } from './call-hooks';
 import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
 import { useDuckedVolume } from './use-ducking';
+import { audioTrackKey, voiceOnly } from '../lib/voice-stream';
 import { usePip } from './use-pip';
 import { usePresence } from './use-presence';
 
 interface CallScreenProps {
   videoRef: RefObject<HTMLVideoElement | null>;
+  voiceRef: RefObject<HTMLAudioElement | null>;
 }
 
 function useElapsed(connectedAt: number | null, running: boolean): number {
@@ -59,11 +61,12 @@ function useFullscreen(target: RefObject<HTMLElement | null>): { supported: bool
   return { supported, active, toggle };
 }
 
-export function CallScreen({ videoRef }: CallScreenProps) {
+export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const call = useCall();
   const { snapshot, minimized } = call;
+  const voiceTrackKey = audioTrackKey(snapshot.remoteStream);
   const { state } = snapshot;
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
@@ -155,6 +158,21 @@ export function CallScreen({ videoRef }: CallScreenProps) {
     }
   }, [snapshot.remoteStream, videoRef, stageActive]);
 
+  const voiceStream = useMemo(() => voiceOnly(snapshot.remoteStream, voiceTrackKey), [snapshot.remoteStream, voiceTrackKey]);
+
+  useEffect(() => {
+    const element = voiceRef.current;
+    if (!element) {
+      return;
+    }
+    if (element.srcObject !== voiceStream) {
+      element.srcObject = voiceStream;
+    }
+    if (voiceStream) {
+      autoplay.play(element);
+    }
+  }, [voiceStream, voiceRef]);
+
   useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
   useStreamOn(shareAudioRef, remoteSharing ? snapshot.remoteScreenStream : null);
   useEffect(() => {
@@ -164,7 +182,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   }, [shareAudioVolume]);
 
   const chooseOutput = (deviceId: string) => {
-    for (const element of [videoRef.current, shareAudioRef.current]) {
+    for (const element of [voiceRef.current, shareAudioRef.current]) {
       void element?.setSinkId?.(deviceId).catch(() => undefined);
     }
   };
@@ -227,11 +245,12 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const sharePercent = Math.round(snapshot.shareVolume * 100);
   const peerSurfaceText = `${t(`calls.share.peerSurface.${snapshot.remoteScreenSurface ?? 'unknown'}`)}${snapshot.remoteScreenLabel ? ` · ${snapshot.remoteScreenLabel}` : ''}`;
 
-  const remoteVideo = <video ref={videoRef} autoPlay playsInline style={remoteVideoStyle} />;
+  const remoteVideo = <video ref={videoRef} autoPlay playsInline muted style={remoteVideoStyle} />;
 
   return (
     <div role="dialog" aria-label={isVideo ? t('calls.start.video') : t('calls.start.voice')} className="sc-call-screen" data-state={screenStage} style={{ display: isMounted(screenStage) ? 'flex' : 'none' }}>
       {remoteVideo}
+      <audio ref={voiceRef} autoPlay />
       <audio ref={shareAudioRef} autoPlay />
       <div className="sc-call-topbar">
         <div className="sc-call-topbar__group">
