@@ -184,9 +184,9 @@ const rotationClocks = new Map<string, RotationClock>();
 const rotationTimers = new Map<string, number>();
 const reportedBadKeys = new Set<string>();
 const deferredEnvelopes = new Map<string, SealedRoomKeyEntry[]>();
-const deferralAttempts = new Map<string, number>();
+const deferralStarted = new Map<string, number>();
 const deferralTimers = new Map<string, number>();
-const MAX_DEFERRALS = 4;
+const DEFERRAL_BUDGET_MS = ROTATION_STALL_MS * 5;
 const ROTATION_WATCHDOG_MS = 20_000;
 const ROTATION_RANK_SPACING_MS = 4000;
 const MIN_ROTATION_RETRY_MS = 1000;
@@ -939,6 +939,9 @@ async function verifyIncomingRoster(
   const roomId = entry.roomId;
   const roster =
     typeof entry.roster === 'string' ? await openRoster(entry.roster, opened.roomKey, roomId, opened.keyId, opened.epoch) : null;
+  if (roster?.sig !== undefined && opened.epoch > 1 && signedFromEpoch(roomId) !== null && !anchorFor(roomId, opened.epoch, identity.userId)) {
+    return { ok: false, reason: 'not-admin' };
+  }
   const verdict = await verifyGroupRoster(roster, {
     roomId,
     keyId: opened.keyId,
@@ -947,7 +950,6 @@ async function verifyIncomingRoster(
     creatorId: view.creatorId,
     previous: await previousGenerationContext(roomId, opened.epoch),
     anchor: anchorFor(roomId, opened.epoch, identity.userId),
-    goneAdmins: new Set(getDepartures(identity.userId, roomId).keys()),
     signedFromEpoch: signedFromEpoch(roomId),
     signedIssuers: signedIssuersOf(roomId),
     enforceSigned: ENFORCE_SIGNED_ROSTERS,
@@ -969,10 +971,10 @@ async function verifyIncomingRoster(
 
 function deferEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): void {
   const marker = missingKey(entry.roomId, entry.keyId);
-  const attempts = (deferralAttempts.get(marker) ?? 0) + 1;
-  deferralAttempts.set(marker, attempts);
-  if (attempts > MAX_DEFERRALS) {
-    reportUnusableKey(socket, entry.roomId, entry.keyId, entry.epoch);
+  const started = deferralStarted.get(marker) ?? Date.now();
+  deferralStarted.set(marker, started);
+  if (Date.now() - started > DEFERRAL_BUDGET_MS) {
+    deferralStarted.delete(marker);
     return;
   }
   noteRotationStarted(entry.roomId, entry.epoch);
@@ -1647,6 +1649,7 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
     queueEnvelope(entry);
     return false;
   }
+  await loadPersistedGenerations(entry.roomId);
   if (generationsByRoom.get(entry.roomId)?.has(entry.keyId)) {
     return true;
   }
@@ -2317,7 +2320,7 @@ async function clearRoomKeysImpl(): Promise<void> {
   }
   reportedBadKeys.clear();
   deferredEnvelopes.clear();
-  deferralAttempts.clear();
+  deferralStarted.clear();
   for (const timer of deferralTimers.values()) {
     window.clearTimeout(timer);
   }

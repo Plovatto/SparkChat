@@ -57,7 +57,6 @@ export interface RosterVerificationContext {
   creatorId: string | null;
   previous: PreviousGeneration | null;
   anchor: RosterAnchor | null;
-  goneAdmins: ReadonlySet<string>;
   signedFromEpoch: number | null;
   signedIssuers: ReadonlySet<string>;
   enforceSigned: boolean;
@@ -169,8 +168,7 @@ function authorityRejection(roster: Required<GroupRoster> | null, issuer: string
   if (issuer !== null && admins.has(issuer)) {
     return null;
   }
-  const present = [...admins].filter((id) => context.currentMemberIds.has(id));
-  const adminless = admins.size === 0 || (present.length === 0 && (context.stallElapsed || [...admins].every((id) => context.goneAdmins.has(id))));
+  const adminless = admins.size === 0;
   if (!roster || issuer === null) {
     return adminless ? null : 'not-admin';
   }
@@ -189,7 +187,7 @@ function authorityRejection(roster: Required<GroupRoster> | null, issuer: string
     return 'escalation';
   }
   const listed = new Set(roster.admins);
-  if (present.some((id) => !listed.has(id))) {
+  if ([...admins].some((id) => !listed.has(id))) {
     return 'dropped-admins';
   }
   const allowedMembers = new Set([...anchorMembers, ...context.currentMemberIds]);

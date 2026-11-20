@@ -362,7 +362,9 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
   const systemEvent =
     names && message.systemEvent ? { ...message.systemEvent, params: { ...message.systemEvent.params, ...names } } : message.systemEvent;
   if (eventTrust === 'forged') {
-    return { ...message, eventTrust, unencrypted };
+    return message.systemEvent?.type === 'group.memberJoined'
+      ? { ...message, eventTrust, unencrypted }
+      : { ...message, systemEvent: null, content: translate('systemEvents.forgedEvent'), eventTrust, unencrypted };
   }
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal =

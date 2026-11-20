@@ -189,7 +189,8 @@
       "encryptionUnavailable": "Couldn't set up the encrypted conversation. Please try sending your message again shortly.",
       "replyFailed": "I couldn't reply right now. Please try again shortly."
     },
-    "unverifiedSuffix": "not verified"
+    "unverifiedSuffix": "not verified",
+    "forgedEvent": "A group event could not be verified and was hidden."
   },
   "auth": {
     "tagline": "Where conversations get charged up",

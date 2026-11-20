@@ -33,10 +33,10 @@ export interface SystemMessageLike {
 }
 
 const MAX_TRACKED_EVENTS = 5000;
-const MAX_PERSISTED_EVENTS = 1000;
+const MAX_EVENTS_PER_ROOM = 500;
 const SEEN_STORAGE_PREFIX = 'sparkchat:group-event-seen:';
 
-const seenEvents = new Map<string, string>();
+const seenEvents = new Map<string, Map<string, string>>();
 const loadedSeen = new Set<string>();
 const attestedNames = new Map<string, { actor?: string; target?: string }>();
 const removals = new Map<string, number>();
@@ -52,18 +52,29 @@ function messageTime(message: { timestamp: string }): number {
   return Number.isFinite(parsed) ? parsed : Date.now();
 }
 
-function loadSeen(selfId: string): void {
-  if (loadedSeen.has(selfId)) {
+function seenFor(roomId: string): Map<string, string> {
+  let seen = seenEvents.get(roomId);
+  if (!seen) {
+    seen = new Map();
+    seenEvents.set(roomId, seen);
+  }
+  return seen;
+}
+
+function loadSeen(selfId: string, roomId: string): void {
+  const key = selfId + '|' + roomId;
+  if (loadedSeen.has(key)) {
     return;
   }
-  loadedSeen.add(selfId);
+  loadedSeen.add(key);
+  const seen = seenFor(roomId);
   try {
-    const raw = globalThis.localStorage?.getItem(SEEN_STORAGE_PREFIX + selfId);
+    const raw = globalThis.localStorage?.getItem(SEEN_STORAGE_PREFIX + key);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     if (typeof parsed === 'object' && parsed !== null) {
       for (const [identity, messageId] of Object.entries(parsed)) {
-        if (typeof messageId === 'string' && !seenEvents.has(identity)) {
-          seenEvents.set(identity, messageId);
+        if (typeof messageId === 'string' && !seen.has(identity)) {
+          seen.set(identity, messageId);
         }
       }
     }
@@ -72,23 +83,24 @@ function loadSeen(selfId: string): void {
   }
 }
 
-function persistSeen(selfId: string): void {
+function persistSeen(selfId: string, roomId: string): void {
   try {
-    const recent = Array.from(seenEvents).slice(-MAX_PERSISTED_EVENTS);
-    globalThis.localStorage?.setItem(SEEN_STORAGE_PREFIX + selfId, JSON.stringify(Object.fromEntries(recent)));
+    const recent = Array.from(seenFor(roomId)).slice(-MAX_EVENTS_PER_ROOM);
+    globalThis.localStorage?.setItem(SEEN_STORAGE_PREFIX + selfId + '|' + roomId, JSON.stringify(Object.fromEntries(recent)));
   } catch {
     return;
   }
 }
 
-function rememberSeen(identity: string, messageId: string): void {
-  if (seenEvents.size >= MAX_TRACKED_EVENTS) {
-    const oldest = seenEvents.keys().next().value;
+function rememberSeen(roomId: string, identity: string, messageId: string): void {
+  const seen = seenFor(roomId);
+  if (seen.size >= MAX_EVENTS_PER_ROOM) {
+    const oldest = seen.keys().next().value;
     if (oldest !== undefined) {
-      seenEvents.delete(oldest);
+      seen.delete(oldest);
     }
   }
-  seenEvents.set(identity, messageId);
+  seen.set(identity, messageId);
 }
 
 export function getRemovedAt(roomId: string, userId: string): number | undefined {
@@ -111,12 +123,19 @@ function noteSignedEvent(roomId: string, at: number): void {
   }
 }
 
-function applyVerifiedEffects(roomId: string, type: AttestedEventType, actorId: string, targetId: string | null, at: number): void {
+function applyVerifiedEffects(
+  roomId: string,
+  type: AttestedEventType,
+  actorId: string,
+  targetId: string | null,
+  at: number,
+  counter: number,
+): void {
   const identity = getCurrentIdentity();
   if (identity && type === 'group.memberRemoved' && targetId) {
-    revokeVerifiedPromotion(identity.userId, roomId, targetId, at);
+    revokeVerifiedPromotion(identity.userId, roomId, targetId, counter);
   } else if (identity && type === 'group.memberLeft') {
-    revokeVerifiedPromotion(identity.userId, roomId, actorId, at);
+    revokeVerifiedPromotion(identity.userId, roomId, actorId, counter);
   }
   if (type === 'group.memberRemoved' && targetId) {
     removals.set(removalKey(roomId, targetId), Math.min(removals.get(removalKey(roomId, targetId)) ?? at, at));
@@ -128,7 +147,7 @@ function applyVerifiedEffects(roomId: string, type: AttestedEventType, actorId: 
       removals.delete(removalKey(roomId, actorId));
     }
   } else if (type === 'group.adminPromoted' && targetId && identity) {
-    rememberVerifiedPromotion(identity.userId, roomId, targetId, at);
+    rememberVerifiedPromotion(identity.userId, roomId, targetId, counter);
   }
 }
 
@@ -146,10 +165,10 @@ async function assessAttested(socket: AppSocket, message: SystemMessageLike, typ
   }
   const self = getCurrentIdentity();
   if (self) {
-    loadSeen(self.userId);
+    loadSeen(self.userId, message.roomId);
   }
   const identity = eventIdentity(attestation);
-  const owner = seenEvents.get(identity);
+  const owner = seenFor(message.roomId).get(identity);
   if (owner !== undefined && owner !== message.id) {
     return 'forged';
   }
@@ -157,7 +176,7 @@ async function assessAttested(socket: AppSocket, message: SystemMessageLike, typ
     return 'forged';
   }
   if (type !== 'group.memberJoined' && attestation.epoch > currentGroupEpoch(message.roomId)) {
-    return 'forged';
+    return 'unverified';
   }
   if (type === 'group.memberRemoved' || type === 'group.adminPromoted') {
     const admins = getVerifiedGroupAdmins(message.roomId, attestation.epoch);
@@ -168,9 +187,9 @@ async function assessAttested(socket: AppSocket, message: SystemMessageLike, typ
       return 'forged';
     }
   }
-  rememberSeen(identity, message.id);
+  rememberSeen(message.roomId, identity, message.id);
   if (self) {
-    persistSeen(self.userId);
+    persistSeen(self.userId, message.roomId);
   }
   attestedNames.set(message.id, {
     ...(getMemberNickname(message.roomId, attestation.actorId) ? { actor: getMemberNickname(message.roomId, attestation.actorId) } : {}),
@@ -178,7 +197,7 @@ async function assessAttested(socket: AppSocket, message: SystemMessageLike, typ
   });
   const at = messageTime(message);
   noteSignedEvent(message.roomId, at);
-  applyVerifiedEffects(message.roomId, type, attestation.actorId, attestation.targetId, at);
+  applyVerifiedEffects(message.roomId, type, attestation.actorId, attestation.targetId, at, attestation.counter);
   if (type === 'group.adminPromoted') {
     void retryDeferredEnvelopes(socket, message.roomId);
   }

@@ -82,7 +82,6 @@ function context(overrides: Partial<RosterVerificationContext> = {}): RosterVeri
     creatorId: null,
     previous: null,
     anchor: derivedAnchor,
-    goneAdmins: new Set<string>(),
     signedFromEpoch: null,
     signedIssuers: new Set<string>(),
     enforceSigned: false,
@@ -338,6 +337,24 @@ describe('verifyGroupRoster', () => {
     expect(await verifyGroupRoster(unsigned, { ...base, envelopeSenderId: 'bob' })).toEqual({ ok: false, reason: 'not-admin' });
   });
 
+  it('stops a server that omits the admins from the member list from letting a restricted rotation drop them', async () => {
+    const previous = await signedPrevious();
+    const omitted = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob, carol], admins: [] });
+    const lying = context({
+      keyId: KEY_2,
+      epoch: 2,
+      envelopeSenderId: 'bob',
+      previous,
+      signedFromEpoch: 1,
+      currentMemberIds: new Set(['bob', 'carol']),
+      stallElapsed: true,
+    });
+
+    expect(await verifyGroupRoster(omitted, lying)).toEqual({ ok: false, reason: 'dropped-admins' });
+    const takeover = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob, carol], admins: ['bob'] });
+    expect(await verifyGroupRoster(takeover, lying)).toEqual({ ok: false, reason: 'escalation' });
+  });
+
   it('stops a restricted rotation from emptying the admin list to trigger the adminless takeover', async () => {
     const previous = await signedPrevious();
     const emptied = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [alice, bob], admins: [] });
@@ -356,7 +373,7 @@ describe('verifyGroupRoster', () => {
     expect(await verifyGroupRoster(kept, stalled)).toEqual({ ok: true, signed: true });
   });
 
-  it('only treats admins as gone when the room verified their departure or the rotation really stalled', async () => {
+  it('only opens the adminless takeover when every anchor admin has a verified later departure', async () => {
     const previous = await signedPrevious();
     const takeover = await signAs(bob, { keyId: KEY_2, epoch: 2, prevKeyId: KEY_1, members: [bob, carol], admins: ['bob'] });
     const away = context({
@@ -369,8 +386,9 @@ describe('verifyGroupRoster', () => {
     });
 
     expect(await verifyGroupRoster(takeover, away)).toEqual({ ok: false, reason: 'not-admin' });
-    expect(await verifyGroupRoster(takeover, { ...away, goneAdmins: new Set(['alice']) })).toEqual({ ok: true, signed: true });
-    expect(await verifyGroupRoster(takeover, { ...away, stallElapsed: true })).toEqual({ ok: true, signed: true });
+    expect(await verifyGroupRoster(takeover, { ...away, stallElapsed: true })).toEqual({ ok: false, reason: 'escalation' });
+    const departed = { ...away, anchor: { epoch: 1, roster: previous.roster as GroupRoster, admins: new Set<string>() } };
+    expect(await verifyGroupRoster(takeover, departed)).toEqual({ ok: true, signed: true });
   });
 
   it('lets a member take over when every previous admin is gone', async () => {
@@ -379,7 +397,15 @@ describe('verifyGroupRoster', () => {
 
     const verdict = await verifyGroupRoster(
       takeover,
-      context({ keyId: KEY_2, epoch: 2, envelopeSenderId: 'bob', previous, signedFromEpoch: 1, currentMemberIds: new Set(['bob', 'carol']), goneAdmins: new Set(['alice']) }),
+      context({
+        keyId: KEY_2,
+        epoch: 2,
+        envelopeSenderId: 'bob',
+        previous,
+        anchor: { epoch: 1, roster: previous.roster as GroupRoster, admins: new Set<string>() },
+        signedFromEpoch: 1,
+        currentMemberIds: new Set(['bob', 'carol']),
+      }),
     );
 
     expect(verdict).toEqual({ ok: true, signed: true });

@@ -189,7 +189,8 @@
       "encryptionUnavailable": "Não foi possível preparar a conversa criptografada. Tente enviar a mensagem novamente em instantes.",
       "replyFailed": "Não consegui responder agora. Tente novamente em instantes."
     },
-    "unverifiedSuffix": "não verificado"
+    "unverifiedSuffix": "não verificado",
+    "forgedEvent": "Um evento do grupo não pôde ser verificado e foi ocultado."
   },
   "auth": {
     "tagline": "Onde as conversas ganham energia",
