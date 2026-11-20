@@ -715,7 +715,7 @@
       "screen-degraded": "Screen sharing stopped to save data on this connection.",
       "screen-failed": "Could not share your screen.",
       "transferred": "Call moved to another device",
-      "transfer-failed": "Could not move the call to this device."
+      "transfer-failed": "Could not switch devices"
     },
     "callBack": "Call back",
     "close": "Close",

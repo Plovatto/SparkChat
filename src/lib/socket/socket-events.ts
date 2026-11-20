@@ -373,6 +373,7 @@ export interface ServerToClientEvents {
   'call:transferred': (payload: { callId: string }) => void;
   'call:peer-transfer': (payload: { callId: string; from: string; envelope: string }) => void;
   'call:transfer-accepted': (payload: { callId: string; envelope: string }) => void;
+  'call:transfer-failed': (payload: { callId: string }) => void;
   'call:ice-servers-result': (payload: CallIceServersResult) => void;
 }
 
