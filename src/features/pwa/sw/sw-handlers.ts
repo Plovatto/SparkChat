@@ -6,12 +6,13 @@ import {
   NOTIFICATION_ACTION_DECLINE,
   type WorkerToClientMessage,
 } from './protocol';
+import type { NotificationText, PushMessagePreview } from './message-preview';
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
   | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video' }
   | { t: 'call-end'; callId: string; reason: string }
-  | { t: 'msg'; roomId: string };
+  | { t: 'msg'; roomId: string; preview?: PushMessagePreview };
 
 export type NotificationData =
   | { kind: 'call'; callId: string; roomId: string }
@@ -59,6 +60,7 @@ export interface WorkerEnvironment {
   language: () => Promise<'pt' | 'en'>;
   saveLanguage: (language: 'pt' | 'en') => Promise<void>;
   now: () => number;
+  previewMessage?: (roomId: string, preview: PushMessagePreview | undefined, strings: WorkerStrings) => Promise<NotificationText | null>;
 }
 
 export interface WorkerState {
@@ -71,6 +73,24 @@ export const CALL_VIBRATION = [400, 200, 400, 200, 400, 200, 400];
 export const MISSED_CALL_REASONS: readonly string[] = ['missed', 'cancelled'];
 
 const HTML_LANG = { pt: 'pt-BR', en: 'en' } as const;
+const PREVIEW_KINDS: readonly string[] = ['text', 'image', 'audio', 'file'];
+const MAX_PREVIEW_FIELD_LENGTH = 4096;
+export const PREVIEW_TIMEOUT_MS = 4000;
+
+function parsePreview(raw: unknown): PushMessagePreview | undefined {
+  if (typeof raw !== 'object' || raw === null) {
+    return undefined;
+  }
+  const value = raw as Record<string, unknown>;
+  if (!isSafeId(value.id) || !isSafeId(value.s) || typeof value.k !== 'string' || !PREVIEW_KINDS.includes(value.k)) {
+    return undefined;
+  }
+  const preview: PushMessagePreview = { id: value.id, senderId: value.s, kind: value.k as PushMessagePreview['kind'] };
+  if (typeof value.c === 'string' && value.c.length <= MAX_PREVIEW_FIELD_LENGTH && value.c.startsWith('e2e:v2:')) {
+    preview.content = value.c;
+  }
+  return preview;
+}
 
 export function resolveWorkerLanguage(stored: string | null, navigatorLanguage: string | undefined): 'pt' | 'en' {
   if (stored === 'pt' || stored === 'en') {
@@ -107,8 +127,13 @@ export function parsePushMessage(raw: unknown): PushMessage | null {
         return { t: 'call-end', callId: value.callId, reason: value.reason };
       }
       return null;
-    case 'msg':
-      return isSafeId(value.roomId) ? { t: 'msg', roomId: value.roomId } : null;
+    case 'msg': {
+      if (!isSafeId(value.roomId)) {
+        return null;
+      }
+      const preview = parsePreview(value.m);
+      return preview ? { t: 'msg', roomId: value.roomId, preview } : { t: 'msg', roomId: value.roomId };
+    }
     default:
       return null;
   }
@@ -170,6 +195,20 @@ async function showCallEnd(env: WorkerEnvironment, strings: WorkerStrings, langu
   });
 }
 
+function previewWithin(env: WorkerEnvironment, strings: WorkerStrings, message: Extract<PushMessage, { t: 'msg' }>): Promise<NotificationText | null> {
+  if (!env.previewMessage || !message.preview) {
+    return Promise.resolve(null);
+  }
+  const pending = env.previewMessage(message.roomId, message.preview, strings).catch(() => null);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), PREVIEW_TIMEOUT_MS);
+    void pending.then((value) => {
+      clearTimeout(timer);
+      resolve(value);
+    });
+  });
+}
+
 async function isRoomVisible(env: WorkerEnvironment, state: WorkerState, roomId: string): Promise<boolean> {
   const clients = await env.windowClients();
   return clients.some((client) => client.visibilityState === 'visible' && state.activeRooms.get(client.id) === roomId);
@@ -182,10 +221,10 @@ async function showMessage(
   language: 'pt' | 'en',
   message: Extract<PushMessage, { t: 'msg' }>,
 ): Promise<void> {
-  const silent = await isRoomVisible(env, state, message.roomId).catch(() => false);
-  await env.showNotification(strings.newMessage, {
+  const [silent, text] = await Promise.all([isRoomVisible(env, state, message.roomId).catch(() => false), previewWithin(env, strings, message)]);
+  await env.showNotification(text?.title ?? strings.newMessage, {
     ...baseOptions(language, env),
-    body: strings.newMessageBody,
+    body: text?.body ?? strings.newMessageBody,
     tag: messageTag(message.roomId),
     renotify: !silent,
     silent,
