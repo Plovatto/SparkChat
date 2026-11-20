@@ -1,4 +1,9 @@
 import {
+  applyRoomParticipants,
+  applyRoomSummaries,
+  applyRoomSummary,
+  applySelfUser,
+  attachProfilePhotoSocket,
   decryptMessageView,
   decryptMessageViews,
   decryptRoomSummaries,
@@ -6,15 +11,20 @@ import {
   encryptOutgoingMessage,
   ensureRoomKeyForSending,
   ensureSigningKeyPublished,
+  forgetRoom,
   getCurrentIdentity,
+  handleBlockStatus,
   handleGroupUserJoined,
   handleKeyRequest,
+  handleProfileKeysUpdated,
+  handleRoomAvatarUpdated,
   handleRoomKeyPush,
   handleRoomInviteResetRejected,
   handleRoomInviteUpdated,
   handleRoomKeyRejected,
   handleRoomNameUpdated,
   handleRotationRequired,
+  handleUserAvatarUpdated,
   MissingRoomKeyError,
   recoverFromStaleRoomKey,
   subscribeCurrentIdentity,
@@ -24,6 +34,7 @@ import {
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket } from './socket-client';
 import type {
+  BlockStatusPayload,
   ClientToServerEvents,
   MessageView,
   RoomParticipant,
@@ -31,6 +42,7 @@ import type {
   SealedRoomKeyEntry,
   ServerToClientEvents,
   SocketErrorPayload,
+  SocketUser,
 } from './socket-events';
 
 type AnyHandler = (...args: never[]) => void;
@@ -269,29 +281,44 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     }
   });
 
-  originalOn('user:resumed', () => {
+  originalOn('user:resumed', (payload: { user?: SocketUser }) => {
     void ensureSigningKeyPublished(socket);
+    applySelfUser(payload?.user);
   });
+
+  const detachProfilePhotos = attachProfilePhotoSocket(socket);
 
   const closable = socket as unknown as { close: () => AppSocket };
   const originalClose = closable.close.bind(socket);
   closable.close = () => {
     unsubscribeIdentity();
+    detachProfilePhotos();
     deferredRoomEvents.clear();
     pendingGroupName = null;
     return originalClose();
   };
 
+  originalOn('user:registered', (payload: { user?: SocketUser }) => {
+    applySelfUser(payload?.user);
+  });
+  originalOn('user:profile-updated-success', (payload: { user?: SocketUser }) => {
+    applySelfUser(payload?.user);
+  });
+
   originalOn('room:created', (payload: { room: RoomSummary; messages: MessageView[] }) => {
+    applyRoomSummary(payload.room);
     maybeEstablishRoomKey(socket, payload.room, 'room:created', deferredRoomEvents, takeCreatedGroupName(payload.room));
   });
   originalOn('room:joined', (payload: { room: RoomSummary; messages: MessageView[] }) => {
+    applyRoomSummary(payload.room);
     maybeEstablishRoomKey(socket, payload.room, 'room:joined', deferredRoomEvents);
   });
   originalOn('room:new', (payload: { room: RoomSummary; messages: MessageView[] }) => {
+    applyRoomSummary(payload.room);
     maybeEstablishRoomKey(socket, payload.room, 'room:new', deferredRoomEvents);
   });
   originalOn('rooms:list', (payload: { rooms: RoomSummary[] }) => {
+    applyRoomSummaries(payload.rooms);
     for (const room of payload.rooms) {
       maybeEstablishRoomKey(socket, room, 'rooms:list', deferredRoomEvents);
     }
@@ -307,14 +334,45 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   originalOn('group:user-joined', (payload: { roomId: string; participants: RoomParticipant[] }) => {
     void handleGroupUserJoined(socket, payload);
+    applyRoomParticipants(payload.roomId, payload.participants);
   });
 
   originalOn('group:user-left', (payload: { roomId: string; participants: RoomParticipant[] }) => {
     updateRoomParticipants(payload.roomId, payload.participants);
+    applyRoomParticipants(payload.roomId, payload.participants);
   });
 
   originalOn('group:participants-updated', (payload: { roomId: string; participants: RoomParticipant[] }) => {
     updateRoomParticipants(payload.roomId, payload.participants);
+    applyRoomParticipants(payload.roomId, payload.participants);
+  });
+
+  originalOn('group:left', (payload: { roomId: string }) => {
+    forgetRoom(payload.roomId);
+  });
+
+  originalOn('room:deleted', (payload: { roomId: string }) => {
+    forgetRoom(payload.roomId);
+  });
+
+  originalOn('user:blocked', (payload: BlockStatusPayload) => {
+    handleBlockStatus(payload);
+  });
+
+  originalOn('user:unblocked', (payload: BlockStatusPayload) => {
+    handleBlockStatus(payload);
+  });
+
+  originalOn('user:avatar-updated', (payload: { userId: string; encryptedAvatar: string | null; profileKeyVersion: number }) => {
+    handleUserAvatarUpdated(payload);
+  });
+
+  originalOn('room:avatar-updated', (payload: { roomId: string; encryptedAvatar: string | null; keyId: string | null }) => {
+    handleRoomAvatarUpdated(payload);
+  });
+
+  originalOn('room:profile-keys-updated', (payload: { roomId: string; keyId: string; envelopes: Record<string, string> }) => {
+    handleProfileKeysUpdated(payload);
   });
 
   originalOn('e2e:key-request', (payload: { roomId: string; requesterId: string; proof?: string | null }) => {

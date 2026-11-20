@@ -5,7 +5,9 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Modal } from '@components/common/Modal';
 import { Switch } from '@components/common/Switch';
-import { AVATARS } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
+import { GroupPhotoEditor } from '@features/profile-photos/components/GroupPhotoEditor';
+import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -141,6 +143,8 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
+  const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
+  const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<{ roomId: string; participant: RoomParticipant } | null>(null);
   const removalTarget =
     pendingRemoval && pendingRemoval.roomId === room.id && room.participants.some((participant) => participant.id === pendingRemoval.participant.id)
@@ -149,9 +153,11 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   if (pendingRemoval && !removalTarget) {
     setPendingRemoval(null);
   }
+  if (!isOpen && viewerPhoto) {
+    setViewerPhoto(null);
+  }
 
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
-  const avatar = otherUser ? AVATARS[otherUser.avatar] : undefined;
   const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
   const isSelectedMediaVideo = selectedMedia?.type === 'file' && Boolean(selectedMedia.fileMeta?.mimeType.startsWith('video/'));
   const isSelectedMediaPdf = selectedMedia?.type === 'file' && selectedMedia.fileMeta?.mimeType === 'application/pdf';
@@ -200,6 +206,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
     }
   };
 
+  const panelCloseHandler = removalTarget
+    ? () => setPendingRemoval(null)
+    : isGroupPhotoConfirmOpen
+      ? () => {}
+      : viewerPhoto
+        ? () => setViewerPhoto(null)
+        : onClose;
+
   const avatarHaloStyle = {
     borderRadius: '50%',
     background: theme.accentSoft,
@@ -214,13 +228,20 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={removalTarget ? () => setPendingRemoval(null) : onClose} title={room.type === 'group' ? (room.name ?? t('common.group')) : otherUser?.nickname}>
+      <Modal isOpen={isOpen} onClose={panelCloseHandler} title={room.type === 'group' ? (room.name ?? t('common.group')) : otherUser?.nickname}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {room.type === 'private' && otherUser && (
             <>
               <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <div style={{ ...avatarHaloStyle, width: '100px', height: '100px' }}>
-                  {avatar && <avatar.icon size={50} color={theme.accentText} />}
+                <Avatar
+                  userId={otherUser.id}
+                  avatarIndex={otherUser.avatar}
+                  tone="soft"
+                  size={100}
+                  iconSize={50}
+                  style={avatarHaloStyle}
+                  onPhotoClick={setViewerPhoto}
+                >
                   {otherUser.status === 'online' && (
                     <span
                       style={{
@@ -236,7 +257,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                       }}
                     />
                   )}
-                </div>
+                </Avatar>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: '0 0 15px 0' }}>
                   <h3 style={{ margin: 0, lineHeight: 1, fontSize: '1.6rem', fontWeight: 700, color: theme.textPrimary }}>{otherUser.nickname}</h3>
@@ -310,9 +331,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
           {room.type === 'group' && (
             <>
               <div style={{ textAlign: 'center', paddingBottom: '15px', borderBottom: `1px solid ${theme.border}` }}>
-                <div style={{ ...avatarHaloStyle, width: '90px', height: '90px' }}>
-                  <FaUsers size={45} color={theme.accentText} />
-                </div>
+                <GroupPhotoEditor
+                  room={room}
+                  size={90}
+                  iconSize={45}
+                  avatarStyle={avatarHaloStyle}
+                  onView={setViewerPhoto}
+                  onConfirmChange={setIsGroupPhotoConfirmOpen}
+                />
 
                 <GroupNameEditor room={room} currentUserId={currentUserId} />
 
@@ -380,7 +406,6 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto', paddingRight: '6px' }}>
                   {room.participants.map((participant) => {
-                    const participantAvatar = AVATARS[participant.avatar];
                     const canManage = isCurrentUserAdmin && participant.id !== currentUserId;
 
                     return (
@@ -395,20 +420,14 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                           transition: 'border-color var(--sc-dur-fast) var(--sc-ease-standard), box-shadow var(--sc-dur-normal) var(--sc-ease-standard)',
                         }}
                       >
-                        <div
-                          style={{
-                            position: 'relative',
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '50%',
-                            background: theme.accentSoft,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                          }}
+                        <Avatar
+                          userId={participant.id}
+                          avatarIndex={participant.avatar}
+                          tone="soft"
+                          size={42}
+                          iconSize={20}
+                          onPhotoClick={setViewerPhoto}
                         >
-                          {participantAvatar && <participantAvatar.icon size={20} color={theme.accentText} />}
                           {participant.status === 'online' && (
                             <span
                               style={{
@@ -423,7 +442,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
                               }}
                             />
                           )}
-                        </div>
+                        </Avatar>
 
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -504,6 +523,7 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
         fileMetas={selectedMedia?.type === 'image' ? [selectedMedia.fileMeta] : []}
         onClose={() => setSelectedMedia(null)}
       />
+      <ProfilePhotoViewer photoUrl={viewerPhoto} onClose={() => setViewerPhoto(null)} />
       <VideoPreviewModal
         isOpen={isSelectedMediaVideo}
         onClose={() => setSelectedMedia(null)}
