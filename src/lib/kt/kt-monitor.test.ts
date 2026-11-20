@@ -149,10 +149,23 @@ describe('runSelfAudit', () => {
     expect(getActiveKtAlerts()[0]?.kind).toBe('logKeyChanged');
   });
 
-  it('detects a rolled back log during the audit', async () => {
+  it('tolerates an older but consistent head without raising an alert or moving the stored head back', async () => {
     const { socket, log, behavior } = await setup([noise('a'), noise('b'), own(1, signing)]);
     await runSelfAudit(socket.asSocket());
     behavior.headOverride = () => log.head(2);
+    expect(await runSelfAudit(socket.asSocket())).toBe('ok');
+    expect(getActiveKtAlerts()).toEqual([]);
+    expect(loadOwnerState(OWNER).head?.size).toBe(3);
+  });
+
+  it('alerts when an older head is not a prefix of the stored history', async () => {
+    const { socket, log, behavior } = await setup([noise('a'), noise('b'), own(1, signing)]);
+    await runSelfAudit(socket.asSocket());
+    const fork = log.clone();
+    fork.leaves.length = 2;
+    fork.leaves[0] = { userId: 'a', version: 1, identityKey: 'pub-evil', signingKey: '' };
+    behavior.headOverride = () => fork.head();
+    behavior.consistencyOverride = () => ['A'.repeat(43)];
     expect(await runSelfAudit(socket.asSocket())).toBe('alert');
     expect(getActiveKtAlerts()[0]?.kind).toBe('splitView');
   });

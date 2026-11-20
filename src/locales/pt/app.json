@@ -944,6 +944,10 @@
       "logUnavailable": {
         "title": "O registro de transparência não está respondendo",
         "text": "Algumas verificações do registro não respondem ao seu app, enquanto o resto responde. Isso pode indicar que o servidor está bloqueando a checagem das chaves. As chaves afetadas ficam pendentes até a verificação funcionar."
+      },
+      "gossipUnreadable": {
+        "title": "Mensagens de verificação de um contato não puderam ser abertas",
+        "text": "Várias mensagens de verificação de um contato cuja chave você aceitou não puderam ser abertas com essa chave. Isso pode indicar que a chave que você tem dele não é a real. Compare o número de segurança com ele."
       }
     }
   },

@@ -74,31 +74,28 @@ describe('ktRequestWithRetry', () => {
 });
 
 describe('request health', () => {
-  it('alerts only after enough consecutive failures of one event while others succeed', () => {
-    recordKtSuccess('kt:get-head', 1000);
+  it('alerts after enough consecutive failures of one event even when nothing else answers', () => {
     for (let i = 0; i < 3; i += 1) {
-      recordKtFailure('kt:get-proofs', 2000 + i);
+      recordKtFailure('kt:get-proofs');
     }
     expect(getActiveKtAlerts()).toEqual([]);
-    recordKtSuccess('kt:get-head', 3000);
-    recordKtFailure('kt:get-proofs', 3001);
+    recordKtFailure('kt:get-proofs');
     expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['logUnavailable']);
   });
 
   it('resets the run when the event answers again', () => {
-    recordKtSuccess('kt:get-head', 1000);
     for (let i = 0; i < 3; i += 1) {
-      recordKtFailure('kt:get-proofs', 2000);
+      recordKtFailure('kt:get-proofs');
     }
-    recordKtSuccess('kt:get-proofs', 2500);
-    recordKtFailure('kt:get-proofs', 3000);
+    recordKtSuccess('kt:get-proofs');
+    recordKtFailure('kt:get-proofs');
     expect(getActiveKtAlerts()).toEqual([]);
   });
 
-  it('does not count answers that came before the failures began', () => {
-    recordKtSuccess('kt:get-head', 100);
-    for (let i = 0; i < 6; i += 1) {
-      recordKtFailure('kt:get-proofs', 2000 + i);
+  it('counts every event separately', () => {
+    for (let i = 0; i < 3; i += 1) {
+      recordKtFailure('kt:get-proofs');
+      recordKtFailure('kt:get-head');
     }
     expect(getActiveKtAlerts()).toEqual([]);
   });

@@ -58,7 +58,7 @@ export async function runSelfAudit(socket: AppSocket): Promise<SelfAuditResult> 
       return 'alert';
     }
     const outcome = await acceptHead(socket, ownerId, resolution.logPublicKey, head);
-    if (outcome === 'fork' || outcome === 'rollback' || outcome === 'invalid') {
+    if (outcome === 'fork' || outcome === 'invalid') {
       return 'alert';
     }
 

@@ -311,56 +311,47 @@ describe('gossip between contacts', () => {
   });
 
   describe('audited version exchange', () => {
-    function accept(owner: string, sender: string, version: number, keys: { publicKey: string; signingKey: string }, at: number): void {
+    function accept(owner: string, sender: string, version: number, keys: { publicKey: string; signingKey: string }, at: number = Date.now()): void {
       const state = loadOwnerState(owner);
       saveOwnerState(owner, { ...state, contacts: { ...state.contacts, [sender]: { version, ...keys, leafHash: 'x', at } } });
     }
 
-    async function rigAudit(audit: { version: number; publicKey: string; signingPublicKey: string | null; at: number } | null) {
+    async function rigAudit(audit: { version: number; publicKey: string; signingPublicKey: string | null } | null) {
       const log = new FakeLog(logKeys, leaves(5));
       const alice = await party('alice', log);
       const bob = await party('bob', log.clone());
       remember(alice);
       remember(bob);
       if (audit) {
-        saveOwnerState('bob', { ...loadOwnerState('bob'), ownAudit: audit });
+        saveOwnerState('bob', { ...loadOwnerState('bob'), ownAudit: { ...audit, at: Date.now() } });
       }
       const message = (await send(bob, alice)) as { from: string; envelope: string };
       return { alice, message };
     }
 
     it('stays quiet when the audited keys match what the receiver accepted', async () => {
-      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b', at: Date.now() });
+      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b' });
       accept('alice', 'bob', 2, { publicKey: 'pub-b', signingKey: 'sign-b' }, Date.now());
       await deliver(message, alice);
       expect(getActiveKtAlerts()).toEqual([]);
     });
 
     it('warns when the sender audited other keys for the same version the receiver accepted', async () => {
-      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b', at: Date.now() });
+      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b' });
       accept('alice', 'bob', 2, { publicKey: 'pub-evil', signingKey: 'sign-evil' }, Date.now());
       await deliver(message, alice);
       expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['splitView']);
     });
 
-    it('warns when the receiver accepted a newer version that the sender audited later and never saw', async () => {
-      const now = Date.now();
-      const { alice, message } = await rigAudit({ version: 1, publicKey: 'pub-b', signingPublicKey: null, at: now });
-      accept('alice', 'bob', 2, { publicKey: 'pub-evil', signingKey: 'sign-evil' }, now - 60 * 60 * 1000);
-      await deliver(message, alice);
-      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['splitView']);
-    });
-
-    it('does not warn when the newer version was accepted after the sender audited', async () => {
-      const now = Date.now();
-      const { alice, message } = await rigAudit({ version: 1, publicKey: 'pub-b', signingPublicKey: null, at: now - 60 * 60 * 1000 });
-      accept('alice', 'bob', 2, { publicKey: 'pub-b', signingKey: 'sign-b' }, now);
+    it('never alerts from the age of an audit, even when the sender clock is far ahead and its audit is old', async () => {
+      const { alice, message } = await rigAudit({ version: 1, publicKey: 'pub-b', signingPublicKey: null });
+      accept('alice', 'bob', 2, { publicKey: 'pub-b', signingKey: 'sign-b' }, Date.now() - 24 * 60 * 60 * 1000);
       await deliver(message, alice);
       expect(getActiveKtAlerts()).toEqual([]);
     });
 
     it('does not warn when the receiver has not accepted anything from the sender or the sender has no audit', async () => {
-      const first = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: null, at: Date.now() });
+      const first = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: null });
       await deliver(first.message, first.alice);
       expect(getActiveKtAlerts()).toEqual([]);
     });
@@ -368,16 +359,64 @@ describe('gossip between contacts', () => {
     it('ignores malformed audits', () => {
       for (const audit of [
         null,
-        { version: 0, publicKey: 'x', signingPublicKey: null, at: 1 },
-        { version: 1.5, publicKey: 'x', signingPublicKey: null, at: 1 },
-        { version: 1, publicKey: '', signingPublicKey: null, at: 1 },
-        { version: 1, publicKey: 'x'.repeat(300), signingPublicKey: null, at: 1 },
-        { version: 1, publicKey: 'x', signingPublicKey: 5, at: 1 },
-        { version: 1, publicKey: 'x', signingPublicKey: null, at: 'now' },
+        { version: 0, publicKey: 'x', signingPublicKey: null },
+        { version: 1.5, publicKey: 'x', signingPublicKey: null },
+        { version: 1, publicKey: '', signingPublicKey: null },
+        { version: 1, publicKey: 'x'.repeat(300), signingPublicKey: null },
+        { version: 1, publicKey: 'x', signingPublicKey: 5 },
       ]) {
         expect(readAudit(audit)).toBeNull();
       }
-      expect(readAudit({ version: 1, publicKey: 'x', signingPublicKey: null, at: 1 })).toEqual({ version: 1, publicKey: 'x', signingPublicKey: null, at: 1 });
+      expect(readAudit({ version: 1, publicKey: 'x', signingPublicKey: null })).toEqual({ version: 1, publicKey: 'x', signingPublicKey: null });
+    });
+  });
+
+  describe('envelopes that cannot be opened with the pinned key', () => {
+    async function forgedEnvelope(alice: Party, bob: Party): Promise<{ from: string; envelope: string }> {
+      const sodium = await getSodium();
+      const impostor = sodium.crypto_box_keypair();
+      const nonce = sodium.randombytes_buf(24);
+      const box = sodium.crypto_box_easy(sodium.from_string('payload'), nonce, sodium.from_base64(alice.identity.publicKey), impostor.privateKey);
+      const bytes = new Uint8Array(nonce.length + box.length);
+      bytes.set(nonce, 0);
+      bytes.set(box, nonce.length);
+      return { from: bob.id, envelope: sodium.to_base64(bytes) };
+    }
+
+    it('raises one rate limited alert after repeated failures from an accepted contact', async () => {
+      const log = new FakeLog(logKeys, leaves(5));
+      const alice = await party('alice', log);
+      const bob = await party('bob', log.clone());
+      remember(alice);
+      actAs(alice);
+      const message = await forgedEnvelope(alice, bob);
+      const start = Date.now();
+
+      await handleGossip(alice.socket.asSocket(), message, start);
+      await handleGossip(alice.socket.asSocket(), message, start + 31_000);
+      expect(getActiveKtAlerts()).toEqual([]);
+      await handleGossip(alice.socket.asSocket(), message, start + 62_000);
+      await handleGossip(alice.socket.asSocket(), message, start + 93_000);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['gossipUnreadable']);
+    });
+
+    it('forgets earlier failures after a readable message', async () => {
+      const log = new FakeLog(logKeys, leaves(5));
+      const alice = await party('alice', log);
+      const bob = await party('bob', log.clone());
+      remember(alice);
+      remember(bob);
+      const bad = await forgedEnvelope(alice, bob);
+      const start = Date.now();
+      actAs(alice);
+      await handleGossip(alice.socket.asSocket(), bad, start);
+      await handleGossip(alice.socket.asSocket(), bad, start + 31_000);
+      const good = (await send(bob, alice)) as { from: string; envelope: string };
+      actAs(alice);
+      await handleGossip(alice.socket.asSocket(), good, start + 62_000);
+      await handleGossip(alice.socket.asSocket(), bad, start + 93_000);
+      await handleGossip(alice.socket.asSocket(), bad, start + 124_000);
+      expect(getActiveKtAlerts()).toEqual([]);
     });
   });
 

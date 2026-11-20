@@ -4,11 +4,15 @@ import { raiseKtAlert, selectOwnerForAlerts } from './kt-alerts';
 import { getKtBuildConfig, type KtSocketConfig } from './kt-config';
 import { decodeBase64Url, decodeProof, isSignedTreeHead, verifyConsistency, verifyHeadSignature, type SignedTreeHead } from './kt-crypto';
 import { KtUnavailableError, ktRequest, ktRequestWithRetry } from './kt-rpc';
-import { loadOwnerState, saveOwnerState, updateOwnerState } from './kt-store';
+import { loadOwnerState, saveOwnerState, updateOwnerState, type KtOwnerState } from './kt-store';
 
 export type LogKeyResolution = { ok: true; logPublicKey: string } | { ok: false };
 
-export type HeadOutcome = 'ok' | 'unreachable' | 'fork' | 'rollback' | 'invalid';
+export type HeadOutcome = 'ok' | 'unreachable' | 'fork' | 'invalid';
+
+function advanceHead(head: SignedTreeHead): (state: KtOwnerState) => KtOwnerState {
+  return (state) => (state.head && state.head.size >= head.size ? { ...state, candidate: null } : { ...state, head, candidate: null });
+}
 
 export function resolveLogKey(ownerId: string, config: KtSocketConfig): LogKeyResolution {
   const build = getKtBuildConfig();
@@ -55,7 +59,7 @@ export async function acceptHead(socket: AppSocket, ownerId: string, logPublicKe
 
   const stored = loadOwnerState(ownerId).head;
   if (!stored || stored.size === 0) {
-    updateOwnerState(ownerId, (state) => ({ ...state, head, candidate: null }));
+    updateOwnerState(ownerId, advanceHead(head));
     return 'ok';
   }
   if (head.size === stored.size) {
@@ -66,13 +70,17 @@ export async function acceptHead(socket: AppSocket, ownerId: string, logPublicKe
     return 'ok';
   }
   if (head.size < stored.size) {
-    raiseSplitView(ownerId, `rollback:${stored.size}>${head.size}`);
-    return 'rollback';
+    const older = await checkConsistency(socket, head, stored);
+    if (older === 'fork') {
+      raiseSplitView(ownerId, `inconsistent:${head.size}<-${stored.size}`);
+      return 'fork';
+    }
+    return older;
   }
 
   const outcome = await checkConsistency(socket, stored, head);
   if (outcome === 'ok') {
-    updateOwnerState(ownerId, (state) => ({ ...state, head, candidate: null }));
+    updateOwnerState(ownerId, advanceHead(head));
   } else if (outcome === 'fork') {
     raiseSplitView(ownerId, `inconsistent:${stored.size}->${head.size}`);
     updateOwnerState(ownerId, (state) => ({ ...state, candidate: null }));

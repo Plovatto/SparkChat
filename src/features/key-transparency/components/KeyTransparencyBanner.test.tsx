@@ -93,4 +93,13 @@ describe('KeyTransparencyBanner', () => {
     dismissKtAlert(alert?.id ?? '', 2000);
     expect(raiseKtAlert('me', 'splitView', 'split-view', undefined, 1000 + 25 * 60 * 60 * 1000)).not.toBeNull();
   });
+
+  it.each([
+    ['downgrade', 'O servidor deixou de oferecer o registro de transparência'],
+    ['logUnavailable', 'O registro de transparência não está respondendo'],
+    ['gossipUnreadable', 'Mensagens de verificação de um contato não puderam ser abertas'],
+  ] as const)('shows the Portuguese title for %s', (kind, title) => {
+    raiseKtAlert('me', kind, `${kind}:x`);
+    expect(renderToStaticMarkup(<KeyTransparencyBanner />)).toContain(title);
+  });
 });

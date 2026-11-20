@@ -226,14 +226,39 @@ describe('verifyPublicKeyEntries', () => {
       expect(socket.count('kt:get-consistency')).toBe(1);
     });
 
-    it('detects a rolled back log', async () => {
+    it('accepts an older head that is a prefix of the stored one without alerting or moving the stored head back', async () => {
       const { socket, log, behavior } = await setup(['alice', 'bob', 'carol']);
       await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
       resetKtVerificationCache();
       behavior.headOverride = () => log.head(2);
 
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice'), entry('carol')])).toEqual([entry('alice')]);
+      expect(getActiveKtAlerts().map((alert) => alert.dedupeKey)).toEqual(['key-rejected:carol']);
+      expect(loadOwnerState(OWNER).head?.size).toBe(3);
+    });
+
+    it('detects an older head that is not a prefix of the stored history', async () => {
+      const { socket, log, behavior } = await setup(['alice', 'bob', 'carol']);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      resetKtVerificationCache();
+      const fork = log.clone();
+      fork.leaves.length = 2;
+      fork.leaves[1] = { userId: 'bob', version: 1, identityKey: 'pub-evil', signingKey: 'sign-evil' };
+      behavior.headOverride = () => fork.head();
+      behavior.consistencyOverride = () => ['A'.repeat(43)];
+      behavior.log = log;
+
       expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([]);
       expect(getActiveKtAlerts()[0]).toMatchObject({ kind: 'splitView' });
+      expect(loadOwnerState(OWNER).head?.size).toBe(3);
+    });
+
+    it('never overwrites a larger stored head with a smaller one', async () => {
+      const { socket, log, keys } = await setup(['alice', 'bob', 'carol']);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      const { acceptHead } = await import('./kt-head');
+      const outcome = await acceptHead(socket.asSocket(), OWNER, keys.publicKey, log.head(2));
+      expect(outcome).toBe('ok');
       expect(loadOwnerState(OWNER).head?.size).toBe(3);
     });
 
@@ -387,13 +412,28 @@ describe('verifyPublicKeyEntries', () => {
       expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['logUnavailable']);
     });
 
-    it('does not raise that alert when nothing answers at all', async () => {
+    it('raises the alert when every event fails while the socket is connected', async () => {
       const { socket, behavior } = await setup();
       behavior.failEvents = new Set(['kt:get-proofs', 'kt:get-head']);
       for (const name of ['alice', 'bob', 'carol', 'alice', 'bob']) {
         await verifyPublicKeyEntries(socket.asSocket(), [entry(name)]);
       }
-      expect(getActiveKtAlerts()).toEqual([]);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['logUnavailable']);
+    });
+
+    it('caps the whole verification at 15 seconds, refuses the keys and raises an alert', async () => {
+      setKtRetryDelaysForTests([0, 0]);
+      const { socket } = await setup();
+      socket.server = () => undefined;
+      vi.useFakeTimers();
+      try {
+        const pending = verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+        await vi.advanceTimersByTimeAsync(15_100);
+        expect(await pending).toEqual([]);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(getActiveKtAlerts()[0]).toMatchObject({ kind: 'logUnavailable', detail: 'verify-timeout' });
     });
   });
 

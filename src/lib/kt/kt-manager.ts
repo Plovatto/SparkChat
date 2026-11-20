@@ -101,7 +101,16 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
     }
   };
 
+  const handleDisconnect = () => {
+    setKtSocketConfig(socket, null);
+    configured = false;
+    stop();
+  };
+
   const handleAuthenticated = () => {
+    setKtSocketConfig(socket, null);
+    configured = false;
+    stop();
     markKtAuthenticated(socket);
     if (deadlineTimer) {
       clearTimeout(deadlineTimer);
@@ -117,6 +126,7 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
   };
 
   socket.on('kt:config', handleConfig);
+  socket.on('disconnect', handleDisconnect);
   socket.on('user:resumed', handleAuthenticated);
   socket.on('user:registered', handleAuthenticated);
   socket.on('kt:gossip', handleGossipEvent);
@@ -145,6 +155,7 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
     }
     unsubscribeIdentity();
     socket.off('kt:config', handleConfig);
+    socket.off('disconnect', handleDisconnect);
     socket.off('user:resumed', handleAuthenticated);
     socket.off('user:registered', handleAuthenticated);
     socket.off('kt:gossip', handleGossipEvent);

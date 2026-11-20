@@ -9,11 +9,8 @@ interface FailureRun {
 }
 
 const failures = new Map<string, FailureRun>();
-const lastSuccess = new Map<string, number>();
-
-export function recordKtSuccess(event: string, now: number = Date.now()): void {
+export function recordKtSuccess(event: string): void {
   failures.delete(event);
-  lastSuccess.set(event, now);
 }
 
 export function recordKtFailure(event: string, now: number = Date.now()): void {
@@ -23,14 +20,12 @@ export function recordKtFailure(event: string, now: number = Date.now()): void {
   if (run.count < FAILURE_THRESHOLD) {
     return;
   }
-  const othersAnswer = Array.from(lastSuccess.entries()).some(([other, at]) => other !== event && at >= run.firstAt);
   const identity = getCurrentIdentity();
-  if (othersAnswer && identity) {
+  if (identity) {
     raiseKtAlert(identity.userId, 'logUnavailable', `unavailable:${event}`, event, now);
   }
 }
 
 export function resetKtHealth(): void {
   failures.clear();
-  lastSuccess.clear();
 }

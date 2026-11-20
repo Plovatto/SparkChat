@@ -7,7 +7,7 @@ import { getKtSocketConfig } from './kt-config';
 import { isSignedTreeHead, type SignedTreeHead } from './kt-crypto';
 import { compareWithOwnHead, resolveLogKey } from './kt-head';
 import { raiseKtAlert } from './kt-alerts';
-import { loadOwnerState, type OwnAudit } from './kt-store';
+import { loadOwnerState } from './kt-store';
 
 const GOSSIP_DOMAIN = 'sparkchat:kt:gossip:v1\n';
 const MAX_ENVELOPE_LENGTH = 2048;
@@ -19,10 +19,12 @@ const MIN_PROCESS_INTERVAL_MS = 30 * 1000;
 
 const lastSentAt = new Map<string, number>();
 const lastProcessedAt = new Map<string, number>();
+const unreadable = new Map<string, { count: number; firstAt: number }>();
 
 export function resetGossipState(): void {
   lastSentAt.clear();
   lastProcessedAt.clear();
+  unreadable.clear();
 }
 
 interface GossipMessage {
@@ -30,14 +32,21 @@ interface GossipMessage {
   from: string;
   to: string;
   head: SignedTreeHead;
-  audit?: OwnAudit;
+  audit?: GossipAudit;
 }
 
-const AUDIT_CLOCK_MARGIN_MS = 10 * 60 * 1000;
+export interface GossipAudit {
+  version: number;
+  publicKey: string;
+  signingPublicKey: string | null;
+}
+
+const UNREADABLE_WINDOW_MS = 60 * 60 * 1000;
+const UNREADABLE_THRESHOLD = 3;
 const MAX_KEY_LENGTH = 255;
 
-export function readAudit(value: unknown): OwnAudit | null {
-  const audit = value as Partial<OwnAudit> | null | undefined;
+export function readAudit(value: unknown): GossipAudit | null {
+  const audit = value as Partial<GossipAudit> | null | undefined;
   if (
     !audit ||
     typeof audit.version !== 'number' ||
@@ -46,31 +55,27 @@ export function readAudit(value: unknown): OwnAudit | null {
     typeof audit.publicKey !== 'string' ||
     audit.publicKey.length === 0 ||
     audit.publicKey.length > MAX_KEY_LENGTH ||
-    !(audit.signingPublicKey === null || (typeof audit.signingPublicKey === 'string' && audit.signingPublicKey.length <= MAX_KEY_LENGTH)) ||
-    typeof audit.at !== 'number' ||
-    !Number.isSafeInteger(audit.at)
+    !(audit.signingPublicKey === null || (typeof audit.signingPublicKey === 'string' && audit.signingPublicKey.length <= MAX_KEY_LENGTH))
   ) {
     return null;
   }
-  return { version: audit.version, publicKey: audit.publicKey, signingPublicKey: audit.signingPublicKey ?? null, at: audit.at };
+  return { version: audit.version, publicKey: audit.publicKey, signingPublicKey: audit.signingPublicKey ?? null };
 }
 
-export function compareAuditWithAccepted(ownerId: string, senderId: string, audit: OwnAudit): 'ok' | 'conflict' {
+export function compareAuditWithAccepted(ownerId: string, senderId: string, audit: GossipAudit): 'ok' | 'conflict' {
   const accepted = loadOwnerState(ownerId).contacts[senderId];
   if (!accepted) {
     return 'ok';
   }
   const sameKeys = accepted.publicKey === audit.publicKey && accepted.signingKey === (audit.signingPublicKey ?? '');
-  const conflict =
-    (audit.version === accepted.version && !sameKeys) || (audit.version < accepted.version && audit.at - accepted.at > AUDIT_CLOCK_MARGIN_MS);
-  if (conflict) {
+  if (audit.version === accepted.version && !sameKeys) {
     raiseKtAlert(ownerId, 'splitView', 'split-view', `audit:${senderId}`);
     return 'conflict';
   }
   return 'ok';
 }
 
-async function seal(from: string, to: string, head: SignedTreeHead, audit: OwnAudit | null, recipientPublicKey: string, privateKey: Uint8Array): Promise<string | null> {
+async function seal(from: string, to: string, head: SignedTreeHead, audit: GossipAudit | null, recipientPublicKey: string, privateKey: Uint8Array): Promise<string | null> {
   const sodium = await getSodium();
   const message: GossipMessage = { v: 1, from, to, head, ...(audit ? { audit } : {}) };
   const plain = sodium.from_string(GOSSIP_DOMAIN + JSON.stringify(message));
@@ -83,7 +88,7 @@ async function seal(from: string, to: string, head: SignedTreeHead, audit: OwnAu
   return encoded.length <= MAX_ENVELOPE_LENGTH ? encoded : null;
 }
 
-async function open(envelope: string, senderPublicKey: string, privateKey: Uint8Array): Promise<GossipMessage | null> {
+async function open(envelope: string, senderPublicKey: string, privateKey: Uint8Array): Promise<GossipMessage | 'unreadable' | null> {
   const sodium = await getSodium();
   if (envelope.length === 0 || envelope.length > MAX_ENVELOPE_LENGTH) {
     return null;
@@ -93,7 +98,12 @@ async function open(envelope: string, senderPublicKey: string, privateKey: Uint8
     if (bytes.length <= NONCE_BYTES + sodium.crypto_box_MACBYTES) {
       return null;
     }
-    const plain = sodium.crypto_box_open_easy(bytes.subarray(NONCE_BYTES), bytes.subarray(0, NONCE_BYTES), sodium.from_base64(senderPublicKey), privateKey);
+    let plain: Uint8Array;
+    try {
+      plain = sodium.crypto_box_open_easy(bytes.subarray(NONCE_BYTES), bytes.subarray(0, NONCE_BYTES), sodium.from_base64(senderPublicKey), privateKey);
+    } catch {
+      return 'unreadable';
+    }
     const text = sodium.to_string(plain);
     if (!text.startsWith(GOSSIP_DOMAIN)) {
       return null;
@@ -123,13 +133,26 @@ async function sendTo(socket: AppSocket, peerId: string, now: number): Promise<b
   if (!trust?.pin || !isKeyUsable(trust.status)) {
     return false;
   }
-  const envelope = await seal(identity.userId, peerId, head, loadOwnerState(identity.userId).ownAudit, trust.pin.publicKey, identity.privateKey);
+  const own = loadOwnerState(identity.userId).ownAudit;
+  const audit = own ? { version: own.version, publicKey: own.publicKey, signingPublicKey: own.signingPublicKey } : null;
+  const envelope = await seal(identity.userId, peerId, head, audit, trust.pin.publicKey, identity.privateKey);
   if (!envelope) {
     return false;
   }
   lastSentAt.set(`${identity.userId}|${peerId}`, now);
   socket.emit('kt:gossip', { to: peerId, envelope });
   return true;
+}
+
+function noteUnreadable(ownerId: string, senderId: string, now: number): void {
+  const key = `${ownerId}|${senderId}`;
+  const previous = unreadable.get(key);
+  const run = previous && now - previous.firstAt < UNREADABLE_WINDOW_MS ? previous : { count: 0, firstAt: now };
+  run.count += 1;
+  unreadable.set(key, run);
+  if (run.count >= UNREADABLE_THRESHOLD) {
+    raiseKtAlert(ownerId, 'gossipUnreadable', `gossip-unreadable:${senderId}`, senderId, now);
+  }
 }
 
 export async function gossipLatestHead(socket: AppSocket, now: number = Date.now()): Promise<number> {
@@ -171,6 +194,11 @@ export async function handleGossip(socket: AppSocket, payload: { from: string; e
     return;
   }
   const message = await open(payload.envelope, trust.pin.publicKey, identity.privateKey);
+  if (message === 'unreadable') {
+    noteUnreadable(identity.userId, payload.from, now);
+    return;
+  }
+  unreadable.delete(processedKey);
   if (!message || message.from !== payload.from || message.to !== identity.userId) {
     return;
   }

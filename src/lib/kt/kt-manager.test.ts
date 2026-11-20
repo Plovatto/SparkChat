@@ -171,6 +171,36 @@ describe('attachKeyTransparency', () => {
     expect(getActiveKtAlerts()).toEqual([]);
   });
 
+  it('drops the configuration when the socket disconnects or authenticates again', async () => {
+    const keys = await newLogKeys();
+    const socket = new FakeSocket();
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    socket.deliver('kt:config', { enabled: true, logPublicKey: keys.publicKey });
+    expect(getKtSocketConfig(socket.asSocket())).not.toBeNull();
+    socket.deliver('disconnect', 'transport close');
+    expect(getKtSocketConfig(socket.asSocket())).toBeNull();
+
+    socket.deliver('kt:config', { enabled: true, logPublicKey: keys.publicKey });
+    socket.deliver('user:resumed', { user: { id: OWNER }, authMethod: 'password' });
+    expect(getKtSocketConfig(socket.asSocket())).toBeNull();
+  });
+
+  it('alerts about a downgrade after a reconnect when the server no longer advertises the feature', async () => {
+    vi.useFakeTimers();
+    const keys = await newLogKeys();
+    const socket = new FakeSocket();
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    saveOwnerState(OWNER, { ...emptyOwnerState(), logPublicKey: keys.publicKey });
+    socket.deliver('kt:config', { enabled: true, logPublicKey: keys.publicKey });
+    socket.deliver('disconnect', 'transport close');
+
+    socket.deliver('user:resumed', { user: { id: OWNER }, authMethod: 'password' });
+    await vi.advanceTimersByTimeAsync(KT_CONFIG_DEADLINE_MS + 200);
+    expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+  });
+
   it('removes its listeners and configuration when detached', () => {
     const socket = new FakeSocket();
     const detach = attachKeyTransparency(socket.asSocket());
@@ -180,6 +210,7 @@ describe('attachKeyTransparency', () => {
     expect(socket.listeners_('kt:config')).toBe(0);
     expect(socket.listeners_('kt:gossip')).toBe(0);
     expect(socket.listeners_('user:resumed')).toBe(0);
+    expect(socket.listeners_('disconnect')).toBe(0);
     expect(getKtSocketConfig(socket.asSocket())).toBeNull();
   });
 });

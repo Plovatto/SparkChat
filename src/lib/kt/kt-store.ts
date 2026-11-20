@@ -30,7 +30,7 @@ export interface KtOwnerState {
   ownAudit: OwnAudit | null;
 }
 
-export type KtAlertKind = 'unknownOwnKey' | 'splitView' | 'keyRejected' | 'logKeyChanged' | 'downgrade' | 'logUnavailable';
+export type KtAlertKind = 'unknownOwnKey' | 'splitView' | 'keyRejected' | 'logKeyChanged' | 'downgrade' | 'logUnavailable' | 'gossipUnreadable';
 
 export interface KtAlert {
   id: string;

@@ -944,6 +944,10 @@
       "logUnavailable": {
         "title": "The transparency log is not responding",
         "text": "Some log checks are not answered to your app while the rest are. This may mean the server is blocking key verification. Affected keys stay pending until verification works."
+      },
+      "gossipUnreadable": {
+        "title": "A contact's verification messages could not be opened",
+        "text": "Several verification messages from a contact whose key you accepted could not be opened with that key. This may mean the key you hold for them is not the real one. Compare the safety number with them."
       }
     }
   },

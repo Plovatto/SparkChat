@@ -11,6 +11,7 @@ import { loadOwnerState, updateOwnerState } from './kt-store';
 const MAX_ITEMS_PER_REQUEST = 50;
 const VERIFIED_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFIED_CACHE = 2000;
+const TOTAL_VERIFY_CAP_MS = 15000;
 
 const verified = new Map<string, number>();
 
@@ -180,14 +181,23 @@ export async function verifyPublicKeyEntries(socket: AppSocket, entries: E2ePubl
     }
   }
 
-  try {
+  const work = (async () => {
     for (const chunk of chunked(pending, MAX_ITEMS_PER_REQUEST)) {
       for (const entry of await verifyChunk(socket, ownerId, resolution.logPublicKey, chunk, expected)) {
         trusted.add(entry);
       }
     }
-  } catch (error) {
+  })().catch((error: unknown) => {
     console.error('[kt] key verification failed unexpectedly, refusing the keys', error);
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const cap = new Promise<'cap'>((resolve) => {
+    timer = setTimeout(() => resolve('cap'), TOTAL_VERIFY_CAP_MS);
+  });
+  const finished = await Promise.race([work.then(() => 'done' as const), cap]);
+  clearTimeout(timer);
+  if (finished === 'cap') {
+    raiseKtAlert(ownerId, 'logUnavailable', 'unavailable:verify-timeout', 'verify-timeout');
   }
 
   return entries.filter((entry) => trusted.has(entry));
