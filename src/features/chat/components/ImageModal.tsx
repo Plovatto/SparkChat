@@ -4,6 +4,7 @@ import { FaChevronLeft, FaChevronRight, FaDownload, FaMinus, FaPlus, FaTimes } f
 import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { Spinner } from '@components/common/Spinner';
+import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
 import { decryptMediaContentIfNeeded, downloadMessageMedia } from '@lib/e2ee';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import type { MessageFileMeta } from '@lib/socket';
@@ -41,6 +42,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, messageIds, file
   const [resolvedSrc, setResolvedSrc] = useState<Record<string, string>>({});
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
   const lastImagesRef = useRef<string[]>([]);
+  const backdropDismissProps = useBackdropDismiss(onClose);
   const hasMultiple = images.length > 1;
 
   if (isOpen && images.length > 0) {
@@ -134,9 +136,10 @@ export function ImageModal({ isOpen, images, fileNames, roomId, messageIds, file
 
   return createPortal(
     <>
-      <div className={`sc-modal-backdrop${exitClassName}`} style={MEDIA_VIEWER_BACKDROP_STYLE} onClick={onClose} />
+      <div className={`sc-modal-backdrop${exitClassName}`} style={MEDIA_VIEWER_BACKDROP_STYLE} {...backdropDismissProps} />
 
       <div
+        {...backdropDismissProps}
         style={{
           position: 'fixed',
           top: 0,

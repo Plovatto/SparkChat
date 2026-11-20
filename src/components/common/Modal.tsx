@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
+import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 
@@ -28,6 +29,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
   const lastContentRef = useRef<ModalContent>({ children: null });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  const backdropDismissProps = useBackdropDismiss(onClose);
 
   if (isOpen) {
     lastContentRef.current = { title, children };
@@ -55,7 +57,7 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
           WebkitBackdropFilter: 'blur(8px)',
           zIndex: 9999,
         }}
-        onClick={onClose}
+        {...backdropDismissProps}
       />
 
       <div
