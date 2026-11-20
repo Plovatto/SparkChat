@@ -6,7 +6,7 @@ import {
   NOTIFICATION_ACTION_DECLINE,
   type WorkerToClientMessage,
 } from './protocol';
-import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '@features/profile-photos/lib/notification-icon-cache';
+import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '../../profile-photos/lib/notification-icon-cache';
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
