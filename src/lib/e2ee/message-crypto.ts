@@ -1,7 +1,8 @@
 import { translate } from '@lib/i18n/app-i18n';
 import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import { isStorageMediaUrl } from '@lib/media/media-origin';
-import { resolveSafeMediaType } from '@lib/media/media-type';
+import { unpadGif } from '@lib/media/gif-padding';
+import { isGifMimeType, resolveSafeMediaType } from '@lib/media/media-type';
 import type {
   AppSocket,
   MessageFileMeta,
@@ -12,7 +13,7 @@ import type {
   RoomSummary,
 } from '@lib/socket';
 import { openAttachment, type AttachmentBinding } from './attachment-crypto';
-import { resolveDecryptedMediaUrl } from './media-cache';
+import { markExpiredMediaUrl, resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
 import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
@@ -124,19 +125,36 @@ export interface EncryptedMediaSource {
   messageType: MessageType;
 }
 
-function decryptAttachmentUrl(content: string, binding: AttachmentBinding, key: string | undefined, mimeType: string): Promise<string> {
+const EXPIRED_MEDIA_STATUSES: ReadonlySet<number> = new Set([403, 404]);
+
+async function openPaddedGif(ciphertext: ArrayBuffer, key: string, binding: AttachmentBinding, mimeType: string): Promise<Blob | null> {
+  const padded = await openAttachment(ciphertext, key, binding, mimeType);
+  return padded ? unpadGif(new Uint8Array(await padded.arrayBuffer()), mimeType) : null;
+}
+
+function decryptAttachmentUrl(
+  content: string,
+  binding: AttachmentBinding,
+  key: string | undefined,
+  mimeType: string,
+  isGif = false,
+): Promise<string> {
   if (!key || !isEncryptedMediaUrl(content) || !isStorageMediaUrl(content)) {
     return Promise.resolve(content);
   }
 
-  const scope = [mimeType, binding.roomId, binding.messageId, binding.slot].join('\n');
+  const scope = [mimeType, binding.roomId, binding.messageId, binding.slot, isGif ? 'gif' : 'media'].join('\n');
   return resolveDecryptedMediaUrl(content, scope, async () => {
     try {
       const response = await fetch(content, { credentials: 'omit', referrerPolicy: 'no-referrer' });
       if (!response.ok) {
+        if (isGif && EXPIRED_MEDIA_STATUSES.has(response.status)) {
+          markExpiredMediaUrl(content);
+        }
         return null;
       }
-      const blob = await openAttachment(await response.arrayBuffer(), key, binding, mimeType);
+      const ciphertext = await response.arrayBuffer();
+      const blob = isGif ? await openPaddedGif(ciphertext, key, binding, mimeType) : await openAttachment(ciphertext, key, binding, mimeType);
       return blob ? URL.createObjectURL(blob) : null;
     } catch {
       return null;
@@ -146,7 +164,14 @@ function decryptAttachmentUrl(content: string, binding: AttachmentBinding, key: 
 
 export function decryptMediaContentIfNeeded(content: string, source: EncryptedMediaSource): Promise<string> {
   const mimeType = resolveSafeMediaType(source.messageType, source.fileMeta?.mimeType);
-  return decryptAttachmentUrl(content, { roomId: source.roomId, messageId: source.messageId, slot: 'content' }, source.fileMeta?.key, mimeType);
+  const isGif = source.messageType === 'image' && isGifMimeType(source.fileMeta?.mimeType);
+  return decryptAttachmentUrl(
+    content,
+    { roomId: source.roomId, messageId: source.messageId, slot: 'content' },
+    source.fileMeta?.key,
+    mimeType,
+    isGif,
+  );
 }
 
 async function resolveContent(
@@ -279,7 +304,7 @@ async function decryptReplySnapshot(
   const source = { messageId: reply.id, senderId: reply.sender.id };
   const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId, source);
   const [content, caption] = await Promise.all([
-    resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
+    isGifImage(reply.type, fileMeta) ? Promise.resolve(reply.content) : resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
     decryptCaptionIfNeeded(socket, reply.caption, roomId, source),
   ]);
   return { ...reply, content, caption, fileMeta };
@@ -313,11 +338,20 @@ export function hasUnencryptedFields(message: MessageView): boolean {
   return contentIsPlain || isPlaintextField(message.caption) || fileMetaIsPlain || linkPreviewIsPlain;
 }
 
-export async function decryptMessageView(socket: AppSocket, message: MessageView): Promise<MessageView> {
+export interface DecryptMessageViewOptions {
+  deferGifMedia?: boolean;
+}
+
+function isGifImage(type: MessageType, fileMeta: MessageFileMeta | null): boolean {
+  return type === 'image' && isGifMimeType(fileMeta?.mimeType);
+}
+
+export async function decryptMessageView(socket: AppSocket, message: MessageView, options: DecryptMessageViewOptions = {}): Promise<MessageView> {
   const unencrypted = hasUnencryptedFields(message);
   const source = { messageId: message.id, senderId: message.sender.id };
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
-  const deferOriginal = message.type === 'image' && Boolean(fileMeta?.thumbnailUrl);
+  const deferOriginal =
+    message.type === 'image' && (Boolean(fileMeta?.thumbnailUrl) || (options.deferGifMedia === true && isGifImage(message.type, fileMeta)));
   const [content, replyTo, caption, linkPreview] = await Promise.all([
     deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta, source),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
@@ -343,7 +377,7 @@ async function withDecryptedName(socket: AppSocket, room: RoomSummary): Promise<
 export async function decryptRoomSummary(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
   const [named, lastMessage] = await Promise.all([
     withDecryptedName(socket, room),
-    room.lastMessage ? decryptMessageView(socket, room.lastMessage) : Promise.resolve(null),
+    room.lastMessage ? decryptMessageView(socket, room.lastMessage, { deferGifMedia: true }) : Promise.resolve(null),
   ]);
   return { ...named, lastMessage };
 }

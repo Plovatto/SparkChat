@@ -2,6 +2,7 @@ import { FaPlay, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@features/theme';
 import { formatAudioTime } from '@lib/format';
+import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageView } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
@@ -26,7 +27,7 @@ export function ReplyPreviewBar({ message, currentUserId, isExiting = false, onC
       return imageSrc ? (
         <img
           src={imageSrc}
-          alt={t('chat.message.image')}
+          alt={isGifMimeType(message.fileMeta?.mimeType) ? t('chat.message.gif') : t('chat.message.image')}
           style={{ width: 56, height: 40, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
         />
       ) : (

@@ -1,3 +1,5 @@
+import { clearGifMediaCache } from '@features/gifs/utils/gif-media-cache';
+import { clearGifStatusCache } from '@features/gifs/utils/gif-status-cache';
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { clearStoredSession } from '../api/session-storage';
 
@@ -28,6 +30,8 @@ export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_
 
 export async function clearLocalAccountData(): Promise<void> {
   clearStoredSession();
+  clearGifMediaCache();
+  clearGifStatusCache();
   await Promise.allSettled([clearIdentity(), clearRoomKeys()]);
   await Promise.all(ACCOUNT_INDEXED_DB_NAMES.map((name) => deleteIndexedDatabase(name)));
 }

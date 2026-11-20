@@ -15,7 +15,8 @@ import { oppositeLanguage } from '@lib/i18n/language';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
-import { uploadChatAudio, uploadChatFile, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
+import { isGifMimeType } from '@lib/media/media-type';
+import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -122,7 +123,12 @@ function buildRenderItems(messages: ChatMessage[], previousGroups: Map<string, I
 
   for (const message of messages) {
     const isGroupable =
-      message.type === 'image' && !message.deletedForEveryone && !message.pending && !message.failed && !message.caption;
+      message.type === 'image' &&
+      !message.deletedForEveryone &&
+      !message.pending &&
+      !message.failed &&
+      !message.caption &&
+      !isGifMimeType(message.fileMeta?.mimeType);
     const bufferTail = buffer[buffer.length - 1];
 
     if (isGroupable && (!bufferTail || (bufferTail.sender.id === message.sender.id && isSameDay(new Date(bufferTail.timestamp), new Date(message.timestamp))))) {
@@ -388,7 +394,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
   const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
-  const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | null>(null);
+  const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | 'gif' | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const replyPresence = usePresence(repliedMessage !== null, MOTION_DURATION_MS.fast);
 
@@ -769,7 +775,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     triggered: suggestion.triggered,
   });
 
-  const beginUpload = (type: AttachmentMessageType | 'audio'): number => {
+  const beginUpload = (type: AttachmentMessageType | 'audio' | 'gif'): number => {
     uploadsInFlightRef.current += 1;
     setUploadingMediaType(type);
     return uploadGenerationRef.current;
@@ -853,6 +859,28 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
       window.alert(uploadErrorText(error, 'chat.upload.audioRetry'));
     } finally {
       endUpload(audioUploadGeneration);
+    }
+  };
+
+  const handleSendGif = async (blob: Blob) => {
+    const gifReplyTo = repliedMessage;
+    const gifUploadGeneration = beginUpload('gif');
+    try {
+      const messageId = crypto.randomUUID();
+      const uploaded = await uploadChatGif(blob, auth, { roomId: room.id, messageId });
+      sendMessage({
+        messageId,
+        content: uploaded.url,
+        type: 'image',
+        replyTo: gifReplyTo,
+        fileMeta: { name: uploaded.name, mimeType: uploaded.mimeType, size: uploaded.size, key: uploaded.key },
+      });
+      setRepliedMessage((current) => (current && gifReplyTo && current.id === gifReplyTo.id ? null : current));
+    } catch (error) {
+      console.error(error);
+      window.alert(uploadErrorText(error, 'chat.upload.gifFailed'));
+    } finally {
+      endUpload(gifUploadGeneration);
     }
   };
 
@@ -1309,6 +1337,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         ref={messageInputRef}
         onSend={handleSend}
         onSendAudio={(payload) => void handleSendAudio(payload)}
+        onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
         onTyping={handleComposerTyping}
         onRecordingStart={handleRecordingStart}
         onRecordingStop={handleRecordingStop}

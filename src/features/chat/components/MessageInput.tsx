@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -13,7 +14,10 @@ import {
 import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
+import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
+import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
 import { useLinkPreview, type LinkPreviewStatus } from '../hooks/useLinkPreview';
 import type { ComposerLinkPreview } from '../utils/composer-link-preview';
@@ -56,6 +60,7 @@ interface MentionCandidate {
 interface MessageInputProps {
   onSend: (payload: MessageInputSubmitPayload) => void;
   onSendAudio: (payload: AudioSendPayload) => void;
+  onSendGif?: (blob: Blob) => void;
   onTyping: () => void;
   onRecordingStart: () => void;
   onRecordingStop: () => void;
@@ -272,7 +277,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
+  { onSend, onSendAudio, onSendGif, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
   ref,
 ) {
   const { t } = useTranslation();
@@ -293,6 +298,29 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     useAudioRecorder();
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
+  const isGifStatusEnabled = useGifStatus(auth);
+  const isGifEnabled = isGifStatusEnabled && Boolean(onSendGif);
+  const [isGifPanelOpen, setIsGifPanelOpen] = useState(false);
+  const gifButtonRef = useRef<HTMLButtonElement>(null);
+  const gifPanelPresence = usePresence(isGifEnabled && isGifPanelOpen && !isBlockedBy && !userBlocked, MOTION_DURATION_MS.fast);
+  const { language } = useAppLanguage();
+
+  const closeGifPanel = useCallback(() => {
+    setIsGifPanelOpen(false);
+  }, []);
+
+  const dismissGifPanel = useCallback(() => {
+    setIsGifPanelOpen(false);
+    gifButtonRef.current?.focus();
+  }, []);
+
+  const handleGifPick = useCallback(
+    (blob: Blob) => {
+      onSendGif?.(blob);
+      setTimeout(() => inputRef.current?.focus(), 10);
+    },
+    [onSendGif],
+  );
 
   const filteredMentionCandidates = useMemo(() => {
     if (mentionQuery === null || !mentionCandidates || mentionCandidates.length === 0) {
@@ -495,6 +523,18 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   return (
     <>
+      {gifPanelPresence.isPresent && (
+        <GifPanel
+          auth={auth}
+          locale={gifLocaleFor(language)}
+          onPick={handleGifPick}
+          onClose={closeGifPanel}
+          onDismiss={dismissGifPanel}
+          ignoreOutsideRef={gifButtonRef}
+          autoFocusSearch={shouldAutoFocus}
+          isExiting={gifPanelPresence.isExiting}
+        />
+      )}
       {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
@@ -551,6 +591,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             >
               <FaMicrophone size={18} />
             </button>
+            <GifButton
+              ref={gifButtonRef}
+              enabled={isGifEnabled}
+              isOpen={isGifPanelOpen}
+              disabled={isBlocked}
+              onToggle={() => setIsGifPanelOpen((open) => !open)}
+            />
           </>
         )}
         <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
@@ -605,7 +652,9 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             type="text"
             value={message}
             onChange={(event) => {
-              setMessage(event.target.value);
+              const composerText = event.target.value;
+              setMessage(composerText);
+              setIsGifPanelOpen((open) => keepGifPanelOpen(open, composerText));
               onTyping();
               updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
             }}

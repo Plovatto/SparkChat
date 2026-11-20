@@ -66,4 +66,29 @@ describe('buildNotificationContent', () => {
     });
     expect(image).toEqual({ title: 'Team', body: 'Bob: notifications.sentImage', icon: 'icon-url', image: 'blob:https://app/decrypted' });
   });
+
+  it('says GIF for a marked gif and image for any other image', async () => {
+    const gif = await buildNotificationContent(
+      message({ type: 'image', content: 'blob:https://app/gif', fileMeta: { name: 'gif.webp', mimeType: 'image/webp; sparkchat-gif=1', size: 10 } }),
+      room(),
+      { hideContent: false },
+    );
+    expect(gif.body).toBe('notifications.sentGif');
+    expect(gif.image).toBeUndefined();
+
+    const plain = await buildNotificationContent(
+      message({ type: 'image', content: 'blob:https://app/img', fileMeta: { name: 'a.webp', mimeType: 'image/webp', size: 10 } }),
+      room(),
+      { hideContent: false },
+    );
+    expect(plain.body).toBe('notifications.sentImage');
+  });
+
+  it('keeps a gif hidden when content is hidden', async () => {
+    const gif = await buildNotificationContent(
+      message({ type: 'image', content: 'blob:https://app/gif', fileMeta: { name: 'gif.webp', mimeType: 'image/webp; sparkchat-gif=1', size: 10 } }),
+      room(),
+    );
+    expect(gif).toEqual({ title: 'Bob', body: 'notifications.newMessage', icon: 'icon-url' });
+  });
 });

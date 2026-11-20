@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  markPreviewOnlyHandler,
   useSocket,
   type BlockStatusPayload,
   type MessageView,
@@ -103,7 +104,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => patchParticipant(previous, userId, (participant) => ({ ...participant, nickname, avatar, statusText })));
     };
 
-    const handleMessageNew = (message: MessageView) => {
+    const handleMessageNew = markPreviewOnlyHandler((message: MessageView) => {
       setRooms((previous) =>
         patchRoom(previous, message.roomId, (room) => {
           const currentUserId = currentUserIdRef.current;
@@ -118,7 +119,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
           };
         }),
       );
-    };
+    });
 
     const handleMarkReadDone = ({
       roomId,
@@ -157,13 +158,13 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       );
     };
 
-    const handleMessageUpdated = (message: MessageView) => {
+    const handleMessageUpdated = markPreviewOnlyHandler((message: MessageView) => {
       setRooms((previous) =>
         previous.some((room) => room.lastMessage?.id === message.id)
           ? previous.map((room) => (room.lastMessage?.id === message.id ? { ...room, lastMessage: message } : room))
           : previous,
       );
-    };
+    });
 
     const handleMessageDeleted = ({ messageId, roomId }: { messageId: string; roomId: string }) => {
       setRooms((previous) =>

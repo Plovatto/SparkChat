@@ -79,7 +79,10 @@
       "invalidType": "Tipo de arquivo inválido.",
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
       "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
-      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos."
+      "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos.",
+      "invalidType_gif": "Tipo de GIF inválido. Escolha outro GIF da galeria.",
+      "invalidGifSize": "Este GIF é grande demais para ser enviado.",
+      "userQuotaExceeded_gif": "Você atingiu o limite de GIFs guardados. GIFs expiram em 30 dias; tente novamente mais tarde."
     },
     "linkPreview": {
       "invalidUrl": "URL inválida.",
@@ -98,7 +101,9 @@
       "resumeAttempts": "Muitas tentativas de reconexão. Aguarde um instante.",
       "roomJoin": "Muitas tentativas de entrar com código. Tente novamente mais tarde.",
       "roomCreate": "Você criou muitos grupos em pouco tempo. Tente novamente mais tarde.",
-      "socket": "Muitas ações em pouco tempo. Aguarde um instante."
+      "socket": "Muitas ações em pouco tempo. Aguarde um instante.",
+      "gifs": "Muitas buscas de GIF em pouco tempo. Aguarde um momento e tente novamente.",
+      "gifUpload": "Muitos GIFs enviados em pouco tempo. Aguarde um momento."
     },
     "internal": {
       "unexpected": "Erro inesperado.",
@@ -141,6 +146,12 @@
       "invalidState": "Esta ação não é possível agora na chamada.",
       "signalTooLarge": "Mensagem da chamada grande demais.",
       "relayUnavailable": "A retransmissão está indisponível."
+    },
+    "gifs": {
+      "unavailable": "A galeria de GIFs não está disponível agora.",
+      "providerFailed": "Não foi possível carregar os GIFs. Tente novamente.",
+      "invalidMediaUrl": "Este GIF não pode ser carregado.",
+      "invalidQuery": "Digite um termo de busca válido."
     }
   },
   "systemEvents": {
@@ -253,7 +264,8 @@
     "uploading": {
       "image": "Enviando imagem...",
       "audio": "Enviando áudio...",
-      "file": "Enviando arquivo..."
+      "file": "Enviando arquivo...",
+      "gif": "Enviando GIF..."
     },
     "upload": {
       "imageFailed": "Não foi possível enviar a imagem.",
@@ -261,7 +273,8 @@
       "fileFailed": "Não foi possível enviar o arquivo.",
       "someImageFailed": "Não foi possível enviar uma das imagens. Tente novamente.",
       "someFileFailed": "Não foi possível enviar um dos arquivos. Tente novamente.",
-      "audioRetry": "Não foi possível enviar o áudio. Tente novamente."
+      "audioRetry": "Não foi possível enviar o áudio. Tente novamente.",
+      "gifFailed": "Não foi possível enviar o GIF."
     },
     "header": {
       "inviteText": "Entre no grupo \"{{name}}\" no SparkChat!",
@@ -327,7 +340,11 @@
       "unsupportedFormat": "🔒 Mensagem criptografada em um formato antigo que não é mais suportado.",
       "notEncrypted": "Não criptografada",
       "notEncryptedHint": "Esta mensagem chegou sem criptografia de ponta a ponta. Mídias dela não são carregadas automaticamente.",
-      "mediaNotLoaded": "Não foi possível carregar esta mídia com segurança."
+      "mediaNotLoaded": "Não foi possível carregar esta mídia com segurança.",
+      "gif": "GIF",
+      "sentGif": "GIF enviado",
+      "gifExpired": "GIF expirado",
+      "gifExpiredHint": "GIFs ficam disponíveis por 30 dias."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -570,7 +587,8 @@
     "sentAudio": "Enviou um áudio",
     "sentFile": "Enviou um arquivo",
     "sentNamedFile": "Enviou um arquivo: {{name}}",
-    "newMessage": "Nova mensagem"
+    "newMessage": "Nova mensagem",
+    "sentGif": "Enviou um GIF"
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
@@ -735,5 +753,21 @@
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
     }
+  },
+  "gifs": {
+    "open": "Abrir galeria de GIFs",
+    "close": "Fechar galeria de GIFs",
+    "panelLabel": "Galeria de GIFs",
+    "searchLabel": "Buscar GIFs",
+    "trending": "GIFs populares",
+    "results": "Resultados da busca de GIFs",
+    "loading": "Carregando GIFs...",
+    "empty": "Nenhum GIF encontrado.",
+    "retry": "Tentar novamente",
+    "loadFailed": "Não foi possível carregar os GIFs.",
+    "loadMoreFailed": "Não foi possível carregar mais GIFs.",
+    "mediaFailed": "Não foi possível carregar este GIF.",
+    "untitled": "GIF sem título",
+    "notReady": "Aguarde o GIF aparecer para enviar."
   }
 }
