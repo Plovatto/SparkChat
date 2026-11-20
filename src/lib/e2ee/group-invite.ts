@@ -10,6 +10,7 @@ const PROOF_CONTEXT = 'sparkchat:invite-proof:v1';
 const AEAD_CONTEXT = 'sparkchat:invite:v1';
 const ROSTER_CONTEXT = 'sparkchat:roster:v1';
 const ROOM_NAME_CONTEXT = 'sparkchat:room-name:v1';
+const ROOM_AVATAR_CONTEXT = 'sparkchat:room-avatar:v1';
 export const ROOM_NAME_MAX_LENGTH = 64;
 const MAX_ROSTER_MEMBERS = 500;
 const FIELD_SEPARATOR = '|';
@@ -211,6 +212,14 @@ export async function openRoomName(encryptedName: string, roomKey: Uint8Array, r
   } catch {
     return null;
   }
+}
+
+export function sealRoomAvatar(pointer: Uint8Array, roomKey: Uint8Array, roomId: string, keyId: string): Promise<string> {
+  return sealGroupField(pointer, ROOM_AVATAR_CONTEXT, roomKey, roomId, keyId);
+}
+
+export function openRoomAvatar(encryptedAvatar: string, roomKey: Uint8Array, roomId: string, keyId: string): Promise<Uint8Array | null> {
+  return openGroupField(encryptedAvatar, ROOM_AVATAR_CONTEXT, roomKey, roomId, keyId);
 }
 
 function isRosterMember(value: unknown): value is RosterMember {
