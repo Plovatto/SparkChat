@@ -225,7 +225,7 @@ export function CallScreen({ videoRef, voiceRef }: CallScreenProps) {
 
   const remoteVideoStyle = stageActive
     ? { display: 'none' }
-    : { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'cover' as const, display: showRemoteVideo ? 'block' : 'none' };
+    : { position: 'absolute' as const, inset: 0, width: '100%', height: '100%', objectFit: 'contain' as const, background: '#0b0b10', display: showRemoteVideo ? 'block' : 'none' };
 
   const liveSurface = snapshot.screenSharing ? describeShareSurface(snapshot.localScreenStream) : null;
   const lastSurfaceRef = useRef(liveSurface);

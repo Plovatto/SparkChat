@@ -42,6 +42,7 @@ export interface CallApi {
   dismissNotice: () => void;
   dismissEnded: () => void;
   endOtherDeviceCall: () => void;
+  transferHere: () => void;
   changeAudioInput: (deviceId: string) => void;
   changeVideoInput: (deviceId: string) => void;
   changeAudioProcessing: (patch: Partial<AudioProcessing>) => void;

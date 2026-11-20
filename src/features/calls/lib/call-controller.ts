@@ -2,12 +2,16 @@ import {
   SignalChannel,
   createAcceptEnvelope,
   createInviteEnvelope,
+  createTransferAcceptEnvelope,
+  createTransferEnvelope,
   deriveSessionKeys,
   generateEphemeralKeyPair,
   newCallId,
   newDeviceId,
   openAcceptEnvelope,
   openInviteEnvelope,
+  openTransferAcceptEnvelope,
+  openTransferEnvelope,
   zeroEphemeralKeyPair,
   type CallKind,
   type EphemeralKeyPair,
@@ -55,6 +59,8 @@ export type CallNoticeKind =
   | 'interrupted'
   | 'server-error'
   | 'screen-degraded'
+  | 'transferred'
+  | 'transfer-failed'
   | 'screen-failed';
 
 export interface CallNotice {
@@ -94,7 +100,8 @@ export interface CallSnapshot {
   degrade: DegradeStep | null;
   notice: CallNotice | null;
   otherTab: TabCallInfo | null;
-  otherDevice: { callId: string; peerId: string; kind: CallKind } | null;
+  otherDevice: OtherDeviceCall | null;
+  transferring: boolean;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   durationSeconds: number | null;
@@ -173,6 +180,21 @@ export interface CallControllerDeps {
   now: () => number;
 }
 
+export interface OtherDeviceCall {
+  callId: string;
+  peerId: string;
+  kind: CallKind;
+  roomId: string;
+  role: 'caller' | 'callee';
+  answeredAt: string | null;
+}
+
+interface RawSignal {
+  callId: string;
+  from: string;
+  envelope: string;
+}
+
 interface Session {
   callId: string;
   role: 'caller' | 'callee';
@@ -199,6 +221,9 @@ interface Session {
   shareAudio: ShareAudio | null;
   screenInfo: ScreenInfo | null;
   instability: InstabilityState;
+  transferDeviceId: string | null;
+  rawSignals: RawSignal[];
+  seenTransfers: Set<string>;
 }
 
 interface PendingIce {
@@ -272,6 +297,7 @@ export function initialSnapshot(): CallSnapshot {
     notice: null,
     otherTab: null,
     otherDevice: null,
+    transferring: false,
     localStream: null,
     remoteStream: null,
     durationSeconds: null,
@@ -334,6 +360,9 @@ export class CallController {
       ['call:declined-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'declined-elsewhere', callId: payload.callId })],
       ['call:signal', (payload: { callId: string; from: string; envelope: string }) => this.onSignal(payload)],
       ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.onEnded(payload)],
+      ['call:transferred', (payload: { callId: string }) => this.onTransferred(payload)],
+      ['call:peer-transfer', (payload: { callId: string; from: string; envelope: string }) => void this.onPeerTransfer(payload)],
+      ['call:transfer-accepted', (payload: { callId: string; envelope: string }) => void this.onTransferAccepted(payload)],
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
@@ -435,6 +464,9 @@ export class CallController {
         shareAudio: null,
         screenInfo: null,
         instability: STABLE,
+        transferDeviceId: null,
+        rawSignals: [],
+        seenTransfers: new Set(),
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
     } catch {
@@ -526,6 +558,9 @@ export class CallController {
         shareAudio: null,
         screenInfo: null,
         instability: STABLE,
+        transferDeviceId: null,
+        rawSignals: [],
+        seenTransfers: new Set(),
       };
       const handedOver = media;
       media = null;
@@ -933,6 +968,12 @@ export class CallController {
 
   private onSignal(payload: { callId: string; from: string; envelope: string }): void {
     const session = this.session;
+    if (session && session.callId === payload.callId && !session.channel && session.transferDeviceId !== null) {
+      if (session.rawSignals.length < 64) {
+        session.rawSignals.push(payload);
+      }
+      return;
+    }
     if (!session || session.callId !== payload.callId || !session.channel) {
       return;
     }
@@ -1080,7 +1121,233 @@ export class CallController {
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
       return;
     }
-    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind } });
+    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null } });
+  }
+
+  async transferHere(): Promise<void> {
+    const other = this.snapshot.otherDevice;
+    const identity = this.deps.getIdentity();
+    if (!other || !identity || this.preparing || isCallLive(this.machine.getState())) {
+      return;
+    }
+    this.preparing = true;
+    this.update({ transferring: true, notice: null });
+    let owned = false;
+    let media: LocalMedia | null = null;
+    let ek: EphemeralKeyPair | null = null;
+    try {
+      owned = await this.deps.tabs.claimCall();
+      if (!owned) {
+        this.update({ notice: { kind: 'other-tab' } });
+        return;
+      }
+      const resolved = await this.deps.resolvePeer(other.peerId);
+      if ('error' in resolved) {
+        this.update({ notice: { kind: resolved.error } });
+        return;
+      }
+      try {
+        media = await this.deps.acquireMedia(other.kind);
+      } catch {
+        this.update({ notice: { kind: 'media-denied' } });
+        return;
+      }
+      ek = await generateEphemeralKeyPair();
+      const deviceId = await newDeviceId();
+      const envelope = await createTransferEnvelope({
+        identity,
+        peerPublicKey: resolved.peer.publicKey,
+        peerId: other.peerId,
+        callId: other.callId,
+        role: other.role,
+        deviceId,
+        ek: ek.publicKey,
+      });
+      if (this.snapshot.otherDevice?.callId !== other.callId) {
+        return;
+      }
+      this.session = {
+        callId: other.callId,
+        role: other.role,
+        kind: other.kind,
+        roomId: other.roomId,
+        peerId: other.peerId,
+        peer: resolved.peer,
+        ownEk: ek,
+        peerEk: null,
+        envelope: '',
+        channel: null,
+        media,
+        peerSession: null,
+        pendingSignals: [],
+        signalChain: Promise.resolve(),
+        sendChain: Promise.resolve(),
+        handledAccept: true,
+        acceptConfirmed: true,
+        acceptWaiters: [],
+        statsSample: null,
+        relay: RELAY_UNKNOWN,
+        screen: null,
+        screenPending: false,
+        shareAudio: null,
+        screenInfo: null,
+        instability: STABLE,
+        transferDeviceId: deviceId,
+        rawSignals: [],
+        seenTransfers: new Set(),
+      };
+      const handedOver = media;
+      media = null;
+      ek = null;
+      const answeredAt = other.answeredAt ? Date.parse(other.answeredAt) : Number.NaN;
+      this.machine.dispatch({
+        type: 'transfer-in',
+        callId: other.callId,
+        roomId: other.roomId,
+        peerId: other.peerId,
+        kind: other.kind,
+        role: other.role,
+        connectedAt: Number.isFinite(answeredAt) ? answeredAt : null,
+      });
+      this.update({ otherDevice: null, muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      this.startHeartbeat(other.callId);
+      this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
+    } catch {
+      this.update({ notice: { kind: 'transfer-failed' } });
+    } finally {
+      this.preparing = false;
+      this.update({ transferring: false });
+      if (media) {
+        this.deps.stopMedia(media.stream);
+      }
+      if (ek) {
+        zeroEphemeralKeyPair(ek);
+      }
+      if (this.session === null && owned) {
+        this.deps.tabs.releaseCall();
+      }
+    }
+  }
+
+  private async onTransferAccepted(payload: { callId: string; envelope: string }): Promise<void> {
+    const session = this.session;
+    const identity = this.deps.getIdentity();
+    if (!session || !identity || session.callId !== payload.callId || session.transferDeviceId === null || session.channel || !session.ownEk) {
+      return;
+    }
+    const content = await openTransferAcceptEnvelope({
+      identity,
+      sender: session.peer,
+      expectedCallId: session.callId,
+      expectedSenderId: session.peerId,
+      expectedDeviceId: session.transferDeviceId,
+      envelope: payload.envelope,
+    });
+    if (this.session !== session || !session.ownEk) {
+      return;
+    }
+    if (!content) {
+      this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'invalid-transfer' });
+      return;
+    }
+    const keys = await deriveSessionKeys({
+      role: session.role,
+      callId: session.callId,
+      callerPublicKey: session.role === 'caller' ? identity.publicKey : session.peer.publicKey,
+      calleePublicKey: session.role === 'caller' ? session.peer.publicKey : identity.publicKey,
+      ownEphemeral: session.ownEk,
+      peerEphemeralPublicKey: content.ek,
+    });
+    zeroEphemeralKeyPair(session.ownEk);
+    session.ownEk = null;
+    if (this.session !== session) {
+      keys.send.fill(0);
+      keys.receive.fill(0);
+      return;
+    }
+    session.channel = new SignalChannel({ callId: session.callId, selfId: identity.userId, peerId: session.peerId, keys });
+    session.transferDeviceId = null;
+    const buffered = session.rawSignals.splice(0);
+    for (const signal of buffered) {
+      this.onSignal(signal);
+    }
+    await this.createPeer(session);
+  }
+
+  private async onPeerTransfer(payload: { callId: string; from: string; envelope: string }): Promise<void> {
+    const session = this.session;
+    const identity = this.deps.getIdentity();
+    const phase = this.machine.getState().phase;
+    if (!session || !identity || session.callId !== payload.callId || payload.from !== session.peerId || !hasCallMedia(this.machine.getState()) || phase === 'connecting') {
+      return;
+    }
+    const content = await openTransferEnvelope({
+      identity,
+      sender: session.peer,
+      expectedCallId: session.callId,
+      expectedSenderId: session.peerId,
+      expectedSenderRole: session.role === 'caller' ? 'callee' : 'caller',
+      envelope: payload.envelope,
+    });
+    if (!content || this.session !== session || session.seenTransfers.has(content.deviceId)) {
+      return;
+    }
+    session.seenTransfers.add(content.deviceId);
+    const ek = await generateEphemeralKeyPair();
+    try {
+      const keys = await deriveSessionKeys({
+        role: session.role,
+        callId: session.callId,
+        callerPublicKey: session.role === 'caller' ? identity.publicKey : session.peer.publicKey,
+        calleePublicKey: session.role === 'caller' ? session.peer.publicKey : identity.publicKey,
+        ownEphemeral: ek,
+        peerEphemeralPublicKey: content.ek,
+      });
+      const reply = await createTransferAcceptEnvelope({
+        identity,
+        peerPublicKey: session.peer.publicKey,
+        peerId: session.peerId,
+        callId: session.callId,
+        deviceId: content.deviceId,
+        ek: ek.publicKey,
+      });
+      if (this.session !== session) {
+        keys.send.fill(0);
+        keys.receive.fill(0);
+        return;
+      }
+      session.peerSession?.close();
+      session.peerSession = null;
+      session.channel?.dispose();
+      session.channel = new SignalChannel({ callId: session.callId, selfId: identity.userId, peerId: session.peerId, keys });
+      session.pendingSignals = [];
+      session.rawSignals = [];
+      session.signalChain = Promise.resolve();
+      session.statsSample = null;
+      session.relay = RELAY_UNKNOWN;
+      session.instability = STABLE;
+      if (session.screen) {
+        this.releaseScreen(session);
+        this.update({ screenSharing: false, localScreenStream: null, shareAudio: false, notice: { kind: 'screen-failed' } });
+      }
+      this.machine.dispatch({ type: 'peer-transfer', callId: session.callId });
+      this.update({ remoteStream: null, remoteMuted: false, remoteCameraOn: false, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, remoteScreenAudio: false, remoteScreenMovie: false, canShareScreen: false });
+      this.deps.socket.emit('call:transfer-accept', { callId: session.callId, envelope: reply });
+      await this.createPeer(session);
+    } finally {
+      zeroEphemeralKeyPair(ek);
+    }
+  }
+
+  private onTransferred(payload: { callId: string }): void {
+    const session = this.session;
+    const state = this.machine.getState();
+    if (!session || session.callId !== payload.callId || !hasCallMedia(state)) {
+      return;
+    }
+    this.teardown(state);
+    this.machine.dispatch({ type: 'transferred-away', callId: payload.callId });
+    this.update({ notice: { kind: 'transferred' } });
   }
 
   endOtherDeviceCall(): void {

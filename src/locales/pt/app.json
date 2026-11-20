@@ -713,7 +713,9 @@
       "interrupted": "Uma chamada anterior foi interrompida.",
       "server-error": "Não foi possível completar a chamada.",
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
-      "screen-failed": "Não foi possível compartilhar a tela."
+      "screen-failed": "Não foi possível compartilhar a tela.",
+      "transferred": "Chamada transferida para outro aparelho",
+      "transfer-failed": "Não foi possível trazer a chamada para este aparelho."
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",
@@ -847,7 +849,8 @@
     },
     "otherDevice": "Em chamada em outro aparelho",
     "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
-    "otherDeviceEnd": "Encerrar"
+    "otherDeviceEnd": "Encerrar",
+    "transferHere": "Trocar para este aparelho"
   },
   "pwa": {
     "installApp": "Instalar app",
