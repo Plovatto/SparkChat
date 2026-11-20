@@ -8,7 +8,7 @@ interface UserAgentSource {
   userAgentData?: { brands?: Array<{ brand: string }> };
 }
 
-export function isChromium(source: UserAgentSource | undefined = typeof navigator === 'undefined' ? undefined : (navigator as UserAgentSource)): boolean {
+export function isChromium(source: UserAgentSource | undefined = typeof navigator === 'undefined' ? undefined : navigator): boolean {
   if (!source) {
     return false;
   }
