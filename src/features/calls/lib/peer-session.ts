@@ -13,6 +13,7 @@ export const FAILED_RELAY_AFTER_MS = 10_000;
 export const RESTART_RETRY_MS: readonly number[] = [3_000, 5_000, 8_000, 13_000, 15_000];
 export const RELAY_PROBE_INTERVAL_MS = 60_000;
 export const KEEPALIVE_INTERVAL_MS = 5_000;
+export const MAX_RELAY_PROBES = 3;
 
 export function isRelayUrl(url: string): boolean {
   return /^turns?:/i.test(url);
@@ -463,6 +464,8 @@ export class PeerSession {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private probeTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private probePending = false;
+  private probeFailures = 0;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -802,7 +805,9 @@ export class PeerSession {
       this.clearDisconnectTimer();
       this.options.onConnection('interrupted');
       this.failingSince ??= this.deps.now();
-      this.recover('failed');
+      if (this.retryTimer === null) {
+        this.recover('failed');
+      }
     }
   }
 
@@ -812,6 +817,9 @@ export class PeerSession {
   }
 
   recoverIfUnhealthy(reason: 'online' | 'resync'): void {
+    if (reason === 'online') {
+      this.probeFailures = 0;
+    }
     if (this.closed || !this.connected || this.isIceHealthy() || this.retryTimer !== null) {
       return;
     }
@@ -827,9 +835,10 @@ export class PeerSession {
     this.failingSince ??= now;
     const relay = hasRelay(this.allServers) && (forceRelay || this.relayEnabled || restartUsesRelay(this.attempt, this.failingSince, now));
     this.useServers(relay);
+    const first = this.attempt === 0;
     this.attempt += 1;
     this.options.onRestart?.(reason, relay);
-    this.restartIce(true);
+    this.restartIce(first);
     this.clearRetryTimer();
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
@@ -861,22 +870,51 @@ export class PeerSession {
       return;
     }
     if (!relayed) {
-      if (this.probeTimer !== null) {
-        clearInterval(this.probeTimer);
-        this.probeTimer = null;
-      }
+      this.probeFailures = 0;
+      this.probePending = false;
+      this.stopProbe();
+      return;
+    }
+    if (this.probeFailures >= MAX_RELAY_PROBES) {
+      this.stopProbe();
       return;
     }
     if (this.probeTimer !== null) {
       return;
     }
     this.probeTimer = setInterval(() => {
-      if (this.closed || !this.isIceHealthy() || this.retryTimer !== null || this.options.canProbeDirect?.() === false) {
+      void this.probeTick();
+    }, RELAY_PROBE_INTERVAL_MS);
+  }
+
+  private async probeTick(): Promise<void> {
+    if (this.probePending) {
+      this.probePending = false;
+      if (await this.isRelayed()) {
+        this.probeFailures += 1;
+      } else {
+        this.probeFailures = 0;
+        this.stopProbe();
         return;
       }
-      this.options.onRestart?.('probe', true);
-      this.restartIce(true);
-    }, RELAY_PROBE_INTERVAL_MS);
+      if (this.probeFailures >= MAX_RELAY_PROBES) {
+        this.stopProbe();
+        return;
+      }
+    }
+    if (this.closed || !this.isIceHealthy() || this.retryTimer !== null || this.options.canProbeDirect?.() === false) {
+      return;
+    }
+    this.probePending = true;
+    this.options.onRestart?.('probe', true);
+    this.restartIce(true);
+  }
+
+  private stopProbe(): void {
+    if (this.probeTimer !== null) {
+      clearInterval(this.probeTimer);
+      this.probeTimer = null;
+    }
   }
 
   private startKeepalive(): void {

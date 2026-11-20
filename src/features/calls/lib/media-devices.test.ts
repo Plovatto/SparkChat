@@ -157,3 +157,20 @@ describe('reliable device lists', () => {
     expect(merged.videoInputs.map((entry) => [entry.deviceId, entry.label])).toEqual([['cam', 'Camera']]);
   });
 });
+
+describe('known devices lifecycle', () => {
+  const device = (kind: MediaDeviceKind, deviceId: string) => ({ kind, deviceId, label: deviceId, groupId: '' }) as MediaDeviceInfo;
+
+  it('drops devices missing from a later non empty list and forgets everything after reset', async () => {
+    resetKnownDevices();
+    await listDevicesReliably({ enumerate: () => Promise.resolve([device('audioinput', 'old'), device('audioinput', 'mic')]), wait: () => Promise.resolve() });
+    const fresh = await listDevicesReliably({ enumerate: () => Promise.resolve([device('audioinput', 'mic')]), wait: () => Promise.resolve() });
+    expect(fresh.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+    const fallback = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
+    expect(fallback.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+
+    resetKnownDevices();
+    const empty = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
+    expect(empty.audioInputs).toEqual([]);
+  });
+});

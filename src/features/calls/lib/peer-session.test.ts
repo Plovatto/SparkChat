@@ -7,6 +7,7 @@ import {
   INITIAL_RELAY_FALLBACK_MS,
   KEEPALIVE_INTERVAL_MS,
   RELAY_PROBE_INTERVAL_MS,
+  MAX_RELAY_PROBES,
   directServers,
   hasRelay,
   restartUsesRelay,
@@ -1652,5 +1653,46 @@ describe('connection recovery', () => {
     h.session.close();
     await vi.advanceTimersByTimeAsync(120_000);
     expect(restarts).toHaveLength(1);
+  });
+});
+
+describe('recovery review hardening', () => {
+  async function verifiedCall(options: Partial<PeerSessionOptions> = {}) {
+    const restarts: Array<{ reason: string; relay: boolean }> = [];
+    const h = build('caller', { onRestart: (reason, relay) => restarts.push({ reason, relay }), ...options });
+    h.session.start();
+    await settle();
+    await verify(h);
+    return { h, restarts };
+  }
+
+  it('does not bypass the backoff when failed repeats while a retry is pending', async () => {
+    const { h, restarts } = await verifiedCall();
+    h.connection.setIce('failed');
+    h.connection.setIce('checking');
+    h.connection.setIce('failed');
+    h.connection.setIce('failed');
+    expect(restarts).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(retryDelay(1));
+    expect(restarts).toHaveLength(2);
+  });
+
+  it('stops probing for a direct route after three probes that stay relayed and resumes after a network change', async () => {
+    const { h, restarts } = await verifiedCall({ canProbeDirect: () => true });
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS + retryDelay(1) + retryDelay(2));
+    relayed(h.connection);
+    h.connection.setIce('connected');
+    await settle();
+    const base = restarts.length;
+
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS * 10);
+    expect(restarts.slice(base).filter((entry) => entry.reason === 'probe')).toHaveLength(MAX_RELAY_PROBES);
+
+    h.session.recoverIfUnhealthy('online');
+    h.connection.setIce('connected');
+    await settle();
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS);
+    expect(restarts.slice(base).filter((entry) => entry.reason === 'probe')).toHaveLength(MAX_RELAY_PROBES + 1);
   });
 });

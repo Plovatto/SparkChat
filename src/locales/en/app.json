@@ -836,7 +836,10 @@
       "streamVolume": "Stream volume",
       "streamVolumeHint": "Changes the volume only for you",
       "noStreamAudio": "This stream has no sound"
-    }
+    },
+    "otherDevice": "In a call on another device",
+    "otherDeviceHint": "Keep talking on the device where you answered.",
+    "otherDeviceEnd": "End call"
   },
   "pwa": {
     "installApp": "Install app",

@@ -50,6 +50,20 @@ export function CallNotices() {
     );
   }
 
+  if (call.snapshot.otherDevice && state.phase === 'idle') {
+    return (
+      <div role="status" style={{ ...bar, background: theme.surfaceElevated, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ minWidth: 0 }}>
+          <strong>{t('calls.otherDevice')}</strong>
+          <div style={{ color: theme.textSecondary }}>{t('calls.otherDeviceHint')}</div>
+        </div>
+        <button type="button" className="sc-btn sc-btn--text-danger" onClick={call.endOtherDeviceCall} style={{ flexShrink: 0 }}>
+          {t('calls.otherDeviceEnd')}
+        </button>
+      </div>
+    );
+  }
+
   if (otherTab && state.phase === 'idle') {
     return (
       <div role="status" style={{ ...bar, background: theme.surfaceElevated, color: theme.textPrimary }}>

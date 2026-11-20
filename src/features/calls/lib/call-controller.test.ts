@@ -791,17 +791,48 @@ describe('server events', () => {
     }
   });
 
-  it('hangs up an orphaned server call after a reload, but not when another tab owns it', async () => {
+  it('never hangs up a live call held by another device and shows a passive state instead', async () => {
     const w = await world();
-    w.a.socket.receive('call:state', { callId: 'orphan', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
+    w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
-    expect(w.a.socket.sent('call:hangup')).toEqual([{ callId: 'orphan' }]);
+    expect(w.a.socket.sent('call:hangup')).toEqual([]);
+    expect(w.a.controller.getSnapshot().otherDevice).toEqual({ callId: 'elsewhere', peerId: 'bob', kind: 'voice' });
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
+
+    w.a.socket.receive('call:ended', { callId: 'elsewhere', reason: 'completed', endedAt: 1 });
+    expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+  });
+
+  it('ends a call on another device only when the user asks, with an explicit force flag', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'accepted', roomId: 'room-1', kind: 'video', peerId: 'bob', role: 'callee' });
+    await settle();
+    w.a.controller.endOtherDeviceCall();
+    expect(w.a.socket.sent('call:hangup')).toEqual([{ callId: 'elsewhere', force: true }]);
+    expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+
+    w.a.socket.receive('call:state', { callId: 'second', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
+    await settle();
+    w.a.socket.receive('call:state', null);
+    expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+  });
+
+  it('leaves a ringing call placed from another device alone', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'outgoing', state: 'ringing', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
+    await settle();
+    expect(w.a.socket.sent('call:hangup')).toEqual([]);
+    expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+  });
+
+  it('does not show the other device state when another tab of this browser owns the call', async () => {
 
     const tabs = createTabOwnership({ locks: null, createChannel: () => null, tabId: 'y' });
     const busy = await world({ alice: { tabs: { ...tabs, isCallHeldByOtherTab: () => Promise.resolve(true) } } });
     busy.a.socket.receive('call:state', { callId: 'orphan', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
     expect(busy.a.socket.sent('call:hangup')).toHaveLength(0);
+    expect(busy.a.controller.getSnapshot().otherDevice).toBeNull();
   });
 
   it('keeps a server call that is still ringing for this user so opening the app from a push does not decline it', async () => {
@@ -812,7 +843,7 @@ describe('server events', () => {
 
     w.a.socket.receive('call:state', { callId: 'outgoing', state: 'ringing', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
-    expect(w.a.socket.sent('call:hangup')).toEqual([{ callId: 'outgoing' }]);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
   });
 
   it('ignores an accepted event with a forged or foreign envelope by ending the call', async () => {

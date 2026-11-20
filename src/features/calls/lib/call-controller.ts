@@ -93,6 +93,7 @@ export interface CallSnapshot {
   degrade: DegradeStep | null;
   notice: CallNotice | null;
   otherTab: TabCallInfo | null;
+  otherDevice: { callId: string; peerId: string; kind: CallKind } | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   durationSeconds: number | null;
@@ -268,6 +269,7 @@ export function initialSnapshot(): CallSnapshot {
     degrade: null,
     notice: null,
     otherTab: null,
+    otherDevice: null,
     localStream: null,
     remoteStream: null,
     durationSeconds: null,
@@ -328,7 +330,7 @@ export class CallController {
       ['call:answered-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'answered-elsewhere', callId: payload.callId })],
       ['call:declined-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'declined-elsewhere', callId: payload.callId })],
       ['call:signal', (payload: { callId: string; from: string; envelope: string }) => this.onSignal(payload)],
-      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: sanitizeEndReason(payload.reason) })],
+      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.onEnded(payload)],
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
@@ -348,6 +350,13 @@ export class CallController {
       window.addEventListener('online', online);
       this.detach.push(() => window.removeEventListener('online', online));
     }
+  }
+
+  private onEnded(payload: { callId: string; reason: CallEndReason }): void {
+    if (this.snapshot.otherDevice?.callId === payload.callId) {
+      this.update({ otherDevice: null });
+    }
+    this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: sanitizeEndReason(payload.reason) });
   }
 
   private requestSync(): void {
@@ -1021,6 +1030,9 @@ export class CallController {
   private async onServerState(payload: CallStatePayload | null): Promise<void> {
     const state = this.machine.getState();
     if (payload === null) {
+      if (this.snapshot.otherDevice) {
+        this.update({ otherDevice: null });
+      }
       if (state.callId && isCallLive(state) && !this.preparing) {
         this.machine.dispatch({ type: 'remote-ended', callId: state.callId, reason: hasCallMedia(state) ? 'connection-lost' : 'missed' });
       }
@@ -1033,11 +1045,22 @@ export class CallController {
     if (isCallLive(state) || this.preparing || isRingingForMe(payload)) {
       return;
     }
+    if (payload.state !== 'accepted' && payload.state !== 'active') {
+      return;
+    }
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
       return;
     }
-    this.deps.socket.emit('call:hangup', { callId: payload.callId });
-    this.update({ notice: { kind: 'interrupted' } });
+    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind } });
+  }
+
+  endOtherDeviceCall(): void {
+    const other = this.snapshot.otherDevice;
+    if (!other) {
+      return;
+    }
+    this.deps.socket.emit('call:hangup', { callId: other.callId, force: true });
+    this.update({ otherDevice: null });
   }
 
   private handleTabMessage(message: TabCallMessage): void {
