@@ -130,6 +130,13 @@ describe('GifButton', () => {
     expect(html).toContain('aria-label="gifs.open"');
     expect(html).toContain('aria-expanded="false"');
   });
+
+  it('shows a readable GIF badge as its icon', () => {
+    const html = renderToStaticMarkup(<GifButton enabled isOpen={false} onToggle={() => undefined} />);
+
+    expect(html).toContain('class="sc-gif-badge"');
+    expect(html).toContain('>GIF</span>');
+  });
 });
 
 describe('gifLocaleFor', () => {

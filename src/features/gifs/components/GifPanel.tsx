@@ -12,6 +12,8 @@ import { GIF_QUERY_MAX_LENGTH } from '../utils/gif-gallery-controller';
 import { gifColumnCount, isGridKey, layoutMasonry, moveInMasonry } from '../utils/masonry-layout';
 import { GifTile } from './GifTile';
 
+const GIF_SEARCH_HEIGHT = 42;
+
 export const KLIPY_SEARCH_PLACEHOLDER = 'Search KLIPY';
 export const KLIPY_ATTRIBUTION = 'Powered by KLIPY';
 
@@ -237,6 +239,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
         height: 'clamp(240px, 45vh, 380px)',
         background: theme.surface,
         borderTop: `1px solid ${theme.border}`,
+        paddingBottom: '18px',
         boxSizing: 'border-box',
         minWidth: 0,
       }}
@@ -264,7 +267,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
             enterKeyHint="search"
             autoComplete="off"
             className="sc-input sc-input--composer"
-            style={{ paddingLeft: '34px', width: '100%' }}
+            style={{ height: `${GIF_SEARCH_HEIGHT}px`, padding: '0 18px 0 34px', width: '100%', boxSizing: 'border-box' }}
           />
         </div>
         <button
@@ -273,10 +276,10 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
           title={t('gifs.close')}
           aria-label={t('gifs.close')}
           data-testid="gif-panel-close"
-          className="sc-icon-btn sc-icon-btn--ghost"
-          style={{ width: '36px', height: '36px', flexShrink: 0 }}
+          className="sc-icon-btn sc-icon-btn--muted"
+          style={{ width: `${GIF_SEARCH_HEIGHT}px`, height: `${GIF_SEARCH_HEIGHT}px`, borderRadius: '50%', flexShrink: 0 }}
         >
-          <FaTimes size={13} />
+          <FaTimes size={14} />
         </button>
       </div>
       <div
