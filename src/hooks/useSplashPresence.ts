@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-export const SPLASH_MIN_VISIBLE_MS = 900;
-export const SPLASH_EXIT_MS = 620;
+export const SPLASH_MIN_VISIBLE_MS = 2400;
+export const SPLASH_EXIT_MS = 880;
 
 type SplashPhase = 'visible' | 'leaving' | 'gone';
 

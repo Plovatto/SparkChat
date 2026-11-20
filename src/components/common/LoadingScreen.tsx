@@ -1,68 +1,22 @@
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaLock } from 'react-icons/fa';
 import Logo from '@/assets/Logo.svg';
-import { AVATARS } from '@features/auth/constants/avatars';
 import { buildTheme, withAlpha, type ThemeTokens } from '@features/theme';
 import './loading-screen.css';
 
 const DEFAULT_LOADING_THEME = buildTheme('dark', 'standard').tokens;
 const BRAND_NAME = 'SparkChat';
-
-type BubbleKind = 'incoming' | 'own' | 'typing';
-type BubbleTextKey = `splash.bubbles.${'coffee' | 'when' | 'time' | 'onMyWay' | 'arrived'}`;
-
-interface SplashBubble {
-  kind: BubbleKind;
-  textKey?: BubbleTextKey;
-  avatar?: number;
-}
-
-interface SplashCluster {
-  id: 'a' | 'b' | 'c' | 'd';
-  side: 'start' | 'end';
-  bubbles: SplashBubble[];
-}
-
-const CLUSTERS: SplashCluster[] = [
-  {
-    id: 'a',
-    side: 'start',
-    bubbles: [
-      { kind: 'incoming', textKey: 'splash.bubbles.coffee', avatar: 0 },
-      { kind: 'own', textKey: 'splash.bubbles.when' },
-    ],
-  },
-  {
-    id: 'b',
-    side: 'end',
-    bubbles: [{ kind: 'incoming', textKey: 'splash.bubbles.time', avatar: 3 }],
-  },
-  {
-    id: 'c',
-    side: 'end',
-    bubbles: [
-      { kind: 'own', textKey: 'splash.bubbles.onMyWay' },
-      { kind: 'typing', avatar: 2 },
-    ],
-  },
-  {
-    id: 'd',
-    side: 'start',
-    bubbles: [{ kind: 'incoming', textKey: 'splash.bubbles.arrived', avatar: 6 }],
-  },
-];
-
-const BUBBLE_ORDER: Record<string, number> = { 'a-0': 0, 'a-1': 1, 'b-0': 2, 'c-0': 3, 'd-0': 4, 'c-1': 5 };
+const GLOWS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
+const ORBITS = [1, 2, 3] as const;
 
 const SPARKLES = [
-  { top: '18%', left: '27%', size: 14, delay: 0 },
-  { top: '7%', left: '62%', size: 18, delay: 1.1 },
-  { top: '34%', left: '91%', size: 10, delay: 2.3 },
-  { top: '64%', left: '76%', size: 15, delay: 0.6 },
-  { top: '80%', left: '14%', size: 11, delay: 1.7 },
-  { top: '52%', left: '9%', size: 13, delay: 2.9 },
-  { top: '86%', left: '58%', size: 9, delay: 0.3 },
+  { top: '9%', left: '5%', size: 12, delay: 0 },
+  { top: '26%', left: '26%', size: 16, delay: 1.1 },
+  { top: '33%', left: '73%', size: 12, delay: 2.3 },
+  { top: '63%', left: '78%', size: 18, delay: 0.6 },
+  { top: '68%', left: '22%', size: 10, delay: 1.7 },
+  { top: '14%', left: '88%', size: 11, delay: 2.9 },
+  { top: '86%', left: '56%', size: 9, delay: 0.3 },
 ];
 
 interface LoadingScreenProps {
@@ -80,14 +34,14 @@ function themeVars(theme: ThemeTokens): CSSProperties {
     '--spl-ink-soft': withAlpha(ink, 0.72),
     '--spl-ink-faint': withAlpha(ink, 0.14),
     '--spl-ring': withAlpha(ink, isDark ? 0.12 : 0.18),
-    '--spl-glass': withAlpha(ink, isDark ? 0.09 : 0.14),
     '--spl-glass-strong': withAlpha(ink, isDark ? 0.14 : 0.2),
     '--spl-glass-border': withAlpha(ink, isDark ? 0.2 : 0.28),
-    '--spl-own': `linear-gradient(135deg, ${withAlpha(theme.accent, 0.62)} 0%, ${withAlpha(theme.accentSecondary, 0.62)} 100%)`,
-    '--spl-glow-a': withAlpha(theme.accent, isDark ? 0.55 : 0.35),
-    '--spl-glow-b': withAlpha(theme.accentSecondary, isDark ? 0.5 : 0.32),
-    '--spl-glow-c': withAlpha(ink, isDark ? 0.1 : 0.16),
-    '--spl-blend': isDark ? 'screen' : 'normal',
+    '--spl-shade': isDark ? 'rgba(8, 6, 24, 0.52)' : 'rgba(10, 8, 30, 0.34)',
+    '--spl-shade-edge': isDark ? 'rgba(4, 3, 14, 0.45)' : 'rgba(6, 5, 20, 0.3)',
+    '--spl-glow-a': withAlpha(theme.accent, 0.85),
+    '--spl-glow-b': withAlpha(theme.accentSecondary, 0.8),
+    '--spl-glow-c': withAlpha(ink, 0.2),
+    '--spl-blend': 'screen',
   } as CSSProperties;
 }
 
@@ -96,19 +50,6 @@ function Sparkle({ size }: { size: number }) {
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 0c.6 6.6 2.9 9.6 12 12-9.1 2.4-11.4 5.4-12 12-.6-6.6-2.9-9.6-12-12C9.1 9.6 11.4 6.6 12 0Z" />
     </svg>
-  );
-}
-
-function BubbleAvatar({ index }: { index: number }) {
-  const avatar = AVATARS[index] ?? AVATARS[0];
-  if (!avatar) {
-    return null;
-  }
-  const Icon = avatar.icon;
-  return (
-    <span className="sc-splash__avatar" style={{ background: avatar.bgGradient }}>
-      <Icon />
-    </span>
   );
 }
 
@@ -125,10 +66,11 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
       aria-busy={!leaving}
     >
       <div className="sc-splash__glows" aria-hidden="true">
-        <span className="sc-splash__glow sc-splash__glow--a" />
-        <span className="sc-splash__glow sc-splash__glow--b" />
-        <span className="sc-splash__glow sc-splash__glow--c" />
-        <span className="sc-splash__glow sc-splash__glow--d" />
+        {GLOWS.map((id) => (
+          <span key={id} className={`sc-splash__glow sc-splash__glow--${id}`}>
+            <span className="sc-splash__blob" />
+          </span>
+        ))}
       </div>
 
       <div className="sc-splash__sparkles" aria-hidden="true">
@@ -143,39 +85,6 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
         ))}
       </div>
 
-      <div className="sc-splash__stage" aria-hidden="true">
-        {CLUSTERS.map((cluster) => (
-          <div key={cluster.id} className={`sc-splash__cluster sc-splash__cluster--${cluster.id}`} data-side={cluster.side}>
-            <div className="sc-splash__float">
-              {cluster.bubbles.map((bubble, index) => {
-                const order = BUBBLE_ORDER[`${cluster.id}-${index}`] ?? 0;
-                return (
-                  <div
-                    key={index}
-                    className="sc-splash__row"
-                    data-kind={bubble.kind}
-                    style={{ '--spl-order': order } as CSSProperties}
-                  >
-                    {bubble.avatar !== undefined && <BubbleAvatar index={bubble.avatar} />}
-                    <span className="sc-splash__bubble">
-                      {bubble.kind === 'typing' || !bubble.textKey ? (
-                        <span className="sc-splash__typing">
-                          <i />
-                          <i />
-                          <i />
-                        </span>
-                      ) : (
-                        t(bubble.textKey)
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
       <div className="sc-splash__core">
         <div className="sc-splash__emblem" aria-hidden="true">
           <div className="sc-splash__rings">
@@ -184,6 +93,11 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
             <span className="sc-splash__ring sc-splash__ring--3" />
             <span className="sc-splash__ripple" />
             <span className="sc-splash__ripple sc-splash__ripple--late" />
+            {ORBITS.map((id) => (
+              <span key={id} className={`sc-splash__orbit sc-splash__orbit--${id}`}>
+                <span className="sc-splash__orbiter" />
+              </span>
+            ))}
           </div>
           <span className="sc-splash__halo" />
           <svg className="sc-splash__progress" viewBox="0 0 140 140">
@@ -222,11 +136,6 @@ export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }
             <i>.</i>
           </span>
         </p>
-
-        <span className="sc-splash__pill">
-          <FaLock aria-hidden="true" />
-          {t('splash.encrypted')}
-        </span>
       </div>
     </div>
   );
