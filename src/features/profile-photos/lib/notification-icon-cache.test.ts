@@ -5,11 +5,13 @@ import type * as SyncNamespace from './notification-icon-sync';
 const store = vi.hoisted(() => ({
   photos: new Map<string, string | null>(),
   privateRooms: new Map<string, string[]>(),
+  blocked: new Set<string>(),
   listeners: new Set<(change: { kind: string; id?: string }) => void>(),
 }));
 
 vi.mock('@lib/e2ee', () => ({
   getRoomPhotoUrl: (roomId: string) => store.photos.get(roomId) ?? null,
+  isRoomBlocked: (roomId: string) => store.blocked.has(roomId),
   privateRoomsWith: (userId: string) => store.privateRooms.get(userId) ?? [],
   subscribeProfilePhotos: (listener: (change: { kind: string; id?: string }) => void) => {
     store.listeners.add(listener);
@@ -62,6 +64,7 @@ beforeEach(async () => {
   vi.resetModules();
   store.photos.clear();
   store.privateRooms.clear();
+  store.blocked.clear();
   store.listeners.clear();
   storage = new FakeCacheStorage();
   vi.stubGlobal('caches', storage);
@@ -127,6 +130,24 @@ describe('notification icon sync', () => {
     await syncModule.settleNotificationIconSync();
     expect(iconCache()?.entries.has('/app/__notification-icon/dm-1')).toBe(false);
     expect(iconCache()?.entries.has('/app/__notification-icon/group-1')).toBe(true);
+  });
+
+  it('deletes the icon of a private room as soon as it is blocked and restores it after unblocking', async () => {
+    syncModule.startNotificationIconSync(() => Promise.resolve(new Blob(['png'], { type: 'image/png' })));
+    store.photos.set('dm-1', 'blob:alice');
+    emit({ kind: 'room', id: 'dm-1' });
+    await syncModule.settleNotificationIconSync();
+    expect(iconCache()?.entries.has('/app/__notification-icon/dm-1')).toBe(true);
+
+    store.blocked.add('dm-1');
+    emit({ kind: 'room', id: 'dm-1' });
+    await syncModule.settleNotificationIconSync();
+    expect(iconCache()?.entries.has('/app/__notification-icon/dm-1')).toBe(false);
+
+    store.blocked.delete('dm-1');
+    emit({ kind: 'room', id: 'dm-1' });
+    await syncModule.settleNotificationIconSync();
+    expect(iconCache()?.entries.has('/app/__notification-icon/dm-1')).toBe(true);
   });
 
   it('wipes every icon when the photo store is reset on logout', async () => {

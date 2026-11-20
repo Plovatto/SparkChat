@@ -1,4 +1,4 @@
-import { getRoomPhotoUrl, privateRoomsWith, subscribeProfilePhotos, type ProfilePhotoChange } from '@lib/e2ee';
+import { getRoomPhotoUrl, isRoomBlocked, privateRoomsWith, subscribeProfilePhotos, type ProfilePhotoChange } from '@lib/e2ee';
 import { clearNotificationIcons, deleteNotificationIcon, NOTIFICATION_ICON_SIZE, writeNotificationIcon } from './notification-icon-cache';
 import { renderCircularPhotoBlob } from './photo-icon';
 
@@ -10,7 +10,7 @@ let stopSync: (() => void) | null = null;
 let renderIcon: RenderIcon = renderCircularPhotoBlob;
 
 async function syncRoomIcon(roomId: string): Promise<void> {
-  const photoUrl = getRoomPhotoUrl(roomId);
+  const photoUrl = isRoomBlocked(roomId) ? null : getRoomPhotoUrl(roomId);
   const previous = writtenIcons.get(roomId);
   if (previous === photoUrl) {
     return;
