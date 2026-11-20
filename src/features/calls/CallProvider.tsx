@@ -220,6 +220,11 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),
     endOtherDeviceCall: () => controller?.endOtherDeviceCall(),
+    transferHere: () => {
+      primePlayback();
+      setMinimized(false);
+      void controller?.transferHere();
+    },
     changeAudioInput: (deviceId) => {
       preferredAudioRef.current = deviceId || undefined;
       replaceTrackFromDevice({ audio: audioConstraints(deviceId || undefined, getAudioProcessing()) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());

@@ -285,6 +285,7 @@ export interface CallStatePayload {
   kind: CallKindWire;
   peerId: string;
   role: 'caller' | 'callee';
+  answeredAt?: string | null;
 }
 
 export interface ServerToClientEvents {
@@ -369,6 +370,9 @@ export interface ServerToClientEvents {
   'call:signal': (payload: { callId: string; from: string; envelope: string }) => void;
   'call:ended': (payload: { callId: string; reason: CallEndReasonWire; endedAt: string }) => void;
   'call:state': (payload: CallStatePayload | null) => void;
+  'call:transferred': (payload: { callId: string }) => void;
+  'call:peer-transfer': (payload: { callId: string; from: string; envelope: string }) => void;
+  'call:transfer-accepted': (payload: { callId: string; envelope: string }) => void;
   'call:ice-servers-result': (payload: CallIceServersResult) => void;
 }
 
@@ -462,4 +466,6 @@ export interface ClientToServerEvents {
   'call:heartbeat': (payload: { callId: string }) => void;
   'call:sync': (payload: Record<string, never>) => void;
   'call:ice-servers': (payload: { callId: string; protectIp: boolean }) => void;
+  'call:transfer': (payload: { callId: string; envelope: string }) => void;
+  'call:transfer-accept': (payload: { callId: string; envelope: string }) => void;
 }

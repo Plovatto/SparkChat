@@ -713,7 +713,9 @@
       "interrupted": "A previous call was interrupted.",
       "server-error": "The call could not be completed.",
       "screen-degraded": "Screen sharing stopped to save data on this connection.",
-      "screen-failed": "Could not share your screen."
+      "screen-failed": "Could not share your screen.",
+      "transferred": "Call moved to another device",
+      "transfer-failed": "Could not move the call to this device."
     },
     "callBack": "Call back",
     "close": "Close",
@@ -839,7 +841,8 @@
     },
     "otherDevice": "In a call on another device",
     "otherDeviceHint": "Keep talking on the device where you answered.",
-    "otherDeviceEnd": "End call"
+    "otherDeviceEnd": "End call",
+    "transferHere": "Switch to this device"
   },
   "pwa": {
     "installApp": "Install app",

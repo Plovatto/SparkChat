@@ -493,3 +493,160 @@ export class SignalChannel {
     this.keys.receive.fill(0);
   }
 }
+
+const TRANSFER_CONTEXT = 'sparkchat:call-transfer:v1';
+const TRANSFER_ACCEPT_CONTEXT = 'sparkchat:call-transfer-accept:v1';
+
+export interface TransferContent {
+  callId: string;
+  senderId: string;
+  recipientId: string;
+  senderRole: CallRole;
+  deviceId: string;
+  ek: string;
+  ts: number;
+}
+
+export interface TransferAcceptContent {
+  callId: string;
+  senderId: string;
+  recipientId: string;
+  deviceId: string;
+  ek: string;
+  ts: number;
+}
+
+function transferFields(body: Record<string, unknown>): string[] | null {
+  const { callId, senderId, recipientId, senderRole, deviceId, ek, ts } = body;
+  if (!isCallId(callId) || !isId(senderId) || !isId(recipientId) || (senderRole !== 'caller' && senderRole !== 'callee')) {
+    return null;
+  }
+  if (!isDeviceId(deviceId) || !isEphemeralKey(ek) || !isTimestamp(ts)) {
+    return null;
+  }
+  return [callId, senderId, recipientId, senderRole, deviceId, ek, String(ts)];
+}
+
+function transferAcceptFields(body: Record<string, unknown>): string[] | null {
+  const { callId, senderId, recipientId, deviceId, ek, ts } = body;
+  if (!isCallId(callId) || !isId(senderId) || !isId(recipientId) || !isDeviceId(deviceId) || !isEphemeralKey(ek) || !isTimestamp(ts)) {
+    return null;
+  }
+  return [callId, senderId, recipientId, deviceId, ek, String(ts)];
+}
+
+export interface CreateTransferInput {
+  identity: CurrentIdentity;
+  peerPublicKey: string;
+  peerId: string;
+  callId: string;
+  role: CallRole;
+  deviceId: string;
+  ek: Uint8Array;
+  now?: number;
+}
+
+export async function createTransferEnvelope(input: CreateTransferInput): Promise<string> {
+  const sodium = await getSodium();
+  const body = {
+    v: 1,
+    callId: input.callId,
+    senderId: input.identity.userId,
+    recipientId: input.peerId,
+    senderRole: input.role,
+    deviceId: input.deviceId,
+    ek: sodium.to_base64(input.ek),
+    ts: input.now ?? Date.now(),
+  };
+  const fields = transferFields(body);
+  if (!fields) {
+    throw new Error('Invalid call transfer.');
+  }
+  return sealSigned(TRANSFER_CONTEXT, fields, body, input.identity, input.peerPublicKey);
+}
+
+export interface OpenTransferInput {
+  identity: CurrentIdentity;
+  sender: PinnedPeer;
+  expectedCallId: string;
+  expectedSenderId: string;
+  expectedSenderRole: CallRole;
+  envelope: unknown;
+  now?: number;
+}
+
+export async function openTransferEnvelope(input: OpenTransferInput): Promise<TransferContent | null> {
+  const body = await openSigned(TRANSFER_CONTEXT, transferFields, input.envelope, input.sender, input.identity);
+  if (!body) {
+    return null;
+  }
+  const content = body as unknown as TransferContent;
+  if (
+    content.callId !== input.expectedCallId ||
+    content.senderId !== input.expectedSenderId ||
+    content.senderId === input.identity.userId ||
+    content.recipientId !== input.identity.userId ||
+    content.senderRole !== input.expectedSenderRole ||
+    !withinSkew(content.ts, input.now ?? Date.now())
+  ) {
+    return null;
+  }
+  return { callId: content.callId, senderId: content.senderId, recipientId: content.recipientId, senderRole: content.senderRole, deviceId: content.deviceId, ek: content.ek, ts: content.ts };
+}
+
+export interface CreateTransferAcceptInput {
+  identity: CurrentIdentity;
+  peerPublicKey: string;
+  peerId: string;
+  callId: string;
+  deviceId: string;
+  ek: Uint8Array;
+  now?: number;
+}
+
+export async function createTransferAcceptEnvelope(input: CreateTransferAcceptInput): Promise<string> {
+  const sodium = await getSodium();
+  const body = {
+    v: 1,
+    callId: input.callId,
+    senderId: input.identity.userId,
+    recipientId: input.peerId,
+    deviceId: input.deviceId,
+    ek: sodium.to_base64(input.ek),
+    ts: input.now ?? Date.now(),
+  };
+  const fields = transferAcceptFields(body);
+  if (!fields) {
+    throw new Error('Invalid call transfer accept.');
+  }
+  return sealSigned(TRANSFER_ACCEPT_CONTEXT, fields, body, input.identity, input.peerPublicKey);
+}
+
+export interface OpenTransferAcceptInput {
+  identity: CurrentIdentity;
+  sender: PinnedPeer;
+  expectedCallId: string;
+  expectedSenderId: string;
+  expectedDeviceId: string;
+  envelope: unknown;
+  now?: number;
+}
+
+export async function openTransferAcceptEnvelope(input: OpenTransferAcceptInput): Promise<TransferAcceptContent | null> {
+  const body = await openSigned(TRANSFER_ACCEPT_CONTEXT, transferAcceptFields, input.envelope, input.sender, input.identity);
+  if (!body) {
+    return null;
+  }
+  const content = body as unknown as TransferAcceptContent;
+  if (
+    content.callId !== input.expectedCallId ||
+    content.senderId !== input.expectedSenderId ||
+    content.senderId === input.identity.userId ||
+    content.recipientId !== input.identity.userId ||
+    content.deviceId !== input.expectedDeviceId ||
+    !withinSkew(content.ts, input.now ?? Date.now())
+  ) {
+    return null;
+  }
+  return { callId: content.callId, senderId: content.senderId, recipientId: content.recipientId, deviceId: content.deviceId, ek: content.ek, ts: content.ts };
+}

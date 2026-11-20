@@ -796,7 +796,7 @@ describe('server events', () => {
     w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
     expect(w.a.socket.sent('call:hangup')).toEqual([]);
-    expect(w.a.controller.getSnapshot().otherDevice).toEqual({ callId: 'elsewhere', peerId: 'bob', kind: 'voice' });
+    expect(w.a.controller.getSnapshot().otherDevice).toEqual({ callId: 'elsewhere', peerId: 'bob', kind: 'voice', roomId: 'room-1', role: 'caller', answeredAt: null });
     expect(w.a.controller.getSnapshot().notice).toBeNull();
 
     w.a.socket.receive('call:ended', { callId: 'elsewhere', reason: 'completed', endedAt: 1 });
@@ -1518,5 +1518,121 @@ describe('socket takeover after reconnect', () => {
     expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
     expect(w.a.controller.getSnapshot().notice).toBeNull();
     expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+});
+
+describe('call transfer between devices', () => {
+  async function transferWorld() {
+    const w = await world();
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    const callId = w.a.controller.getSnapshot().state.callId!;
+    const connectedAt = w.b.controller.getSnapshot().state.connectedAt;
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }));
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.onEmit = (event, payload) => {
+      if (event === 'call:ice-servers') {
+        a2.socket.receive('call:ice-servers-result', { callId: payload.callId, ...SERVER_ICE });
+      }
+    };
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: new Date(1_000).toISOString() });
+    await settle();
+    return { w, a2, callId, connectedAt };
+  }
+
+  it('shows the passive state with everything needed to switch, then sends a signed transfer from the new device', async () => {
+    const { a2, callId } = await transferWorld();
+    expect(a2.controller.getSnapshot().otherDevice).toMatchObject({ callId, role: 'caller', roomId: 'room-1', answeredAt: new Date(1_000).toISOString() });
+
+    await a2.controller.transferHere();
+    await settle();
+
+    const sent = a2.socket.sent('call:transfer');
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ callId });
+    expect(typeof sent[0]!.envelope).toBe('string');
+    expect(a2.controller.getSnapshot()).toMatchObject({ otherDevice: null, state: { phase: 'reconnecting', callId, connectedAt: 1_000 } });
+    expect(a2.peers).toHaveLength(0);
+  });
+
+  it('runs a fresh authenticated handshake: the peer replaces its session and old device signals are ignored', async () => {
+    const { w, a2, callId, connectedAt } = await transferWorld();
+    const oldPeerOfBob = w.b.peers[0]!;
+    const oldAliceSend = w.a.peers[0]!.options.sendSignal;
+    await a2.controller.transferHere();
+    await settle();
+    const envelope = a2.socket.sent('call:transfer')[0]!.envelope as string;
+
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope });
+    await settle();
+    expect(oldPeerOfBob.closed).toBe(true);
+    expect(w.b.peers).toHaveLength(2);
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'reconnecting', connectedAt });
+    const accept = w.b.socket.sent('call:transfer-accept');
+    expect(accept).toHaveLength(1);
+
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope });
+    await settle();
+    expect(w.b.peers).toHaveLength(2);
+
+    a2.socket.receive('call:transfer-accepted', { callId, envelope: accept[0]!.envelope });
+    await settle();
+    expect(a2.peers).toHaveLength(1);
+    expect(a2.peers[0]!.options.role).toBe('caller');
+
+    const relayed: string[] = [];
+    a2.socket.onEmit = (event, payload) => {
+      if (event === 'call:signal') relayed.push(payload.envelope as string);
+      if (event === 'call:ice-servers') a2.socket.receive('call:ice-servers-result', { callId: payload.callId, ...SERVER_ICE });
+    };
+    a2.peers[0]!.options.sendSignal('offer', { description: { type: 'offer', sdp: 'v=0' } });
+    await settle();
+    w.b.socket.receive('call:signal', { callId, from: 'alice', envelope: relayed[0] });
+    await settle();
+    expect(w.b.peers[1]!.received.map((entry) => entry.type)).toEqual(['offer']);
+
+    const stale: string[] = [];
+    w.a.socket.onEmit = (event, payload) => {
+      if (event === 'call:signal') stale.push(payload.envelope as string);
+    };
+    oldAliceSend('offer', { description: { type: 'offer', sdp: 'old' } });
+    await settle();
+    w.b.socket.receive('call:signal', { callId, from: 'alice', envelope: stale[0] });
+    await settle();
+    expect(w.b.peers[1]!.received).toHaveLength(1);
+
+    w.b.peers[1]!.options.onConnection('connected');
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'active', connectedAt });
+  });
+
+  it('rejects a transfer that is not signed by the pinned peer key', async () => {
+    const { w, callId } = await transferWorld();
+    const mallory = await makeParty('alice');
+    const fake = makeNode(mallory, () => Promise.resolve({ peer: w.bob.pinned }));
+    fake.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    fake.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null });
+    await settle();
+    await fake.controller.transferHere();
+    await settle();
+    const envelope = fake.socket.sent('call:transfer')[0]!.envelope as string;
+
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope });
+    await settle();
+    expect(w.b.peers).toHaveLength(1);
+    expect(w.b.peers[0]!.closed).toBe(false);
+    expect(w.b.socket.sent('call:transfer-accept')).toHaveLength(0);
+  });
+
+  it('tears the old device down quietly without hanging up and tells the user', async () => {
+    const { w, callId } = await transferWorld();
+    const stoppedBefore = w.a.stopped;
+    w.a.socket.receive('call:transferred', { callId });
+    await settle();
+    expect(w.a.peers[0]!.closed).toBe(true);
+    expect(w.a.stopped).toBeGreaterThan(stoppedBefore);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ state: { phase: 'idle' }, notice: { kind: 'transferred' }, localStream: null, remoteStream: null });
+    expect(w.b.controller.getSnapshot().state.phase).toBe('active');
   });
 });
