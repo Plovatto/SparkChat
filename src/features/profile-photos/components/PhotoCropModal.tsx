@@ -15,6 +15,30 @@ export const CROP_MIN_ZOOM = 1;
 export const CROP_MAX_ZOOM = 4;
 const CROP_ZOOM_STEP = 0.25;
 const INITIAL_CROP: Point = { x: 0, y: 0 };
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function trapFocus(event: KeyboardEvent, container: HTMLElement | null): void {
+  if (!container) {
+    return;
+  }
+  const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+  if (focusable.length === 0) {
+    event.preventDefault();
+    container.focus({ preventScroll: true });
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const inside = active instanceof Node && container.contains(active);
+  if (event.shiftKey && (!inside || active === first)) {
+    event.preventDefault();
+    last?.focus({ preventScroll: true });
+  } else if (!event.shiftKey && (!inside || active === last)) {
+    event.preventDefault();
+    first?.focus({ preventScroll: true });
+  }
+}
 
 interface PhotoCropModalProps {
   isOpen: boolean;
@@ -45,7 +69,20 @@ export function PhotoCropModal({ isOpen, imageUrl, onCancel, onConfirm }: PhotoC
   const areaRef = useRef<Area | null>(null);
   const lastImageRef = useRef<string | null>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus({ preventScroll: true });
+      }
+    };
+  }, [isOpen]);
 
   if (isOpen && imageUrl) {
     lastImageRef.current = imageUrl;
@@ -58,15 +95,24 @@ export function PhotoCropModal({ isOpen, imageUrl, onCancel, onConfirm }: PhotoC
       setIsSaving(false);
       setErrorKey('');
       areaRef.current = null;
-      confirmRef.current?.focus({ preventScroll: true });
     }
   }, [isOpen, imageUrl]);
+
+  useEffect(() => {
+    if (isOpen && isPresent) {
+      confirmRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOpen, isPresent, imageUrl]);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        trapFocus(event, panelRef.current);
+        return;
+      }
       if (event.key === 'Escape') {
         event.stopPropagation();
         if (!isSaving) {
@@ -117,9 +163,11 @@ export function PhotoCropModal({ isOpen, imageUrl, onCancel, onConfirm }: PhotoC
         onClick={isSaving ? undefined : onCancel}
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         className={`sc-modal-panel${exitClassName}`}
         style={{
           position: 'fixed',
