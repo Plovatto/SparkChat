@@ -6,6 +6,7 @@ import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
 import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
 import { useAudioProcessing, useCallVolume, useMicVolume, type AudioProcessing } from '../lib/call-settings';
+import { supportsAdvancedNoise } from '../lib/denoiser';
 import { MIC_VOLUME_MAX, MIC_VOLUME_MIN } from '../lib/voice-leveler';
 import { CALL_VOLUME_MAX, CALL_VOLUME_MIN } from '../lib/voice-playback';
 import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
@@ -186,6 +187,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
   const [micLevel, setMicLevel] = useMicVolume();
   const [callLevel, setCallLevel] = useCallVolume();
   const voiceIsolation = supportsVoiceIsolation();
+  const advancedNoise = supportsAdvancedNoise();
   const [selectedTab, setTab] = useState<PanelTab>('devices');
   const [devices, setDevices] = useState<DeviceLists>({ audioInputs: [], videoInputs: [], audioOutputs: [] });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -343,7 +345,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
             onChange={setCallLevel}
           />
           <span className="sc-call-panel-section">{t('calls.audio.processingSection')}</span>
-          <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
+          <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={advancedNoise ? t('calls.audio.noiseAdvancedHint') : t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
           <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
           <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
           {voiceIsolation && (

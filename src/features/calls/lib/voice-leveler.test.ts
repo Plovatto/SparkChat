@@ -245,12 +245,120 @@ describe('primeVoiceContext', () => {
       return fake.context;
     };
 
-    primeVoiceContext(create);
-    primeVoiceContext(create);
+    const prepared: unknown[] = [];
+    const prepare = (context: VoiceContextLike) => {
+      prepared.push(context);
+      return Promise.resolve(null);
+    };
+    primeVoiceContext({ create, prepare });
+    primeVoiceContext({ create, prepare, denoise: true });
 
     expect(created).toBe(1);
+    expect(prepared).toEqual([fake.context]);
     expect(fake.calls.resumed).toBe(2);
     expect(takeVoiceContext(() => null)).toBe(fake.context);
     expect(takeVoiceContext(() => null)).toBeNull();
+  });
+});
+
+describe('ML noise suppression in the leveler', () => {
+  function denoiseNode() {
+    const posted: unknown[] = [];
+    const created = {
+      name: 'denoise',
+      targets: [] as string[],
+      disconnected: 0,
+      posted,
+      connect(target: { name: string }) {
+        created.targets.push(target.name);
+      },
+      disconnect() {
+        created.disconnected += 1;
+      },
+      port: { postMessage: (message: unknown) => void posted.push(message), onmessage: null as ((event: MessageEvent<{ type?: string }>) => void) | null },
+    };
+    return created;
+  }
+
+  function micTrack(id: string) {
+    const applied: MediaTrackConstraints[] = [];
+    const track = {
+      kind: 'audio',
+      id,
+      applied,
+      getConstraints: () => ({ echoCancellation: true, noiseSuppression: false }),
+      applyConstraints: (constraints: MediaTrackConstraints) => {
+        applied.push(constraints);
+        return Promise.resolve();
+      },
+    };
+    return track;
+  }
+
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('inserts the denoiser between the microphone and the high-pass once it is ready', async () => {
+    const fake = fakeContext();
+    const node = denoiseNode();
+    createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(() => node as never) });
+
+    expect(fake.find('source0').targets.map((target) => target.name)).toEqual(['highpass']);
+    await flush();
+
+    expect(node.targets).toEqual(['highpass']);
+    expect(fake.find('source0').targets.at(-1)?.name).toBe('denoise');
+  });
+
+  it('removes the denoiser and switches the browser suppression back on when the worklet fails', async () => {
+    const fake = fakeContext();
+    const node = denoiseNode();
+    const raw = micTrack('raw');
+    createVoiceLeveler(raw as unknown as MediaStreamTrack, 1, { createContext: () => fake.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(() => node as never) });
+    await flush();
+
+    node.port.onmessage?.({ data: { type: 'failed' } } as MessageEvent<{ type?: string }>);
+
+    expect(node.posted).toEqual([{ type: 'stop' }]);
+    expect(fake.find('source0').targets.at(-1)?.name).toBe('highpass');
+    expect(raw.applied).toEqual([{ echoCancellation: true, noiseSuppression: true }]);
+  });
+
+  it('uses the browser suppression when the model cannot be loaded', async () => {
+    const fake = fakeContext();
+    const raw = micTrack('raw');
+    createVoiceLeveler(raw as unknown as MediaStreamTrack, 1, { createContext: () => fake.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(null) });
+    await flush();
+
+    expect(raw.applied).toEqual([{ echoCancellation: true, noiseSuppression: true }]);
+    expect(fake.find('source0').targets.map((target) => target.name)).toEqual(['highpass']);
+  });
+
+  it('follows the switch when the microphone is reopened and stops the denoiser on close', async () => {
+    const fake = fakeContext();
+    const node = denoiseNode();
+    let wanted = true;
+    const leveler = createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => wanted, prepareDenoiser: () => Promise.resolve(() => node as never) });
+    await flush();
+
+    wanted = false;
+    leveler.setInput({ kind: 'audio', id: 'plain' } as unknown as MediaStreamTrack);
+    expect(node.posted).toEqual([{ type: 'stop' }]);
+    expect(fake.find('source1').targets.map((target) => target.name)).toEqual(['highpass']);
+
+    const second = denoiseNode();
+    const other = fakeContext();
+    const closing = createVoiceLeveler(mic, 1, { createContext: () => other.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(() => second as never) });
+    await flush();
+    closing.close();
+    expect(second.posted).toEqual([{ type: 'stop' }]);
+    expect(second.disconnected).toBe(1);
+  });
+
+  it('switches the browser suppression back on when WebAudio cannot run', () => {
+    const raw = micTrack('raw');
+    const leveler = createVoiceLeveler(raw as unknown as MediaStreamTrack, 1, { createContext: () => null, createStream, denoise: () => true });
+
+    expect(leveler.processed).toBe(false);
+    expect(raw.applied).toEqual([{ echoCancellation: true, noiseSuppression: true }]);
   });
 });

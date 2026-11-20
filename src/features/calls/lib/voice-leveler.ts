@@ -1,3 +1,6 @@
+import { DENOISE_SAMPLE_RATE } from './denoise-frames';
+import { prepareDenoiser, type DenoiseContextLike, type DenoiseFactory, type DenoiseNodeLike } from './denoiser';
+
 export const MAKEUP_GAIN_DB = 6;
 export const MIC_VOLUME_MIN = 0.5;
 export const MIC_VOLUME_MAX = 2;
@@ -40,7 +43,7 @@ export interface DestinationLike extends VoiceNodeLike {
   stream: MediaStream;
 }
 
-export interface VoiceContextLike {
+export interface VoiceContextLike extends DenoiseContextLike {
   state?: string;
   currentTime?: number;
   createMediaStreamSource: (stream: MediaStream) => VoiceNodeLike;
@@ -67,6 +70,8 @@ export interface VoiceLeveler {
 export interface VoiceLevelerDeps {
   createContext: () => VoiceContextLike | null;
   createStream: (tracks: MediaStreamTrack[]) => MediaStream;
+  denoise: () => boolean;
+  prepareDenoiser: (context: VoiceContextLike) => Promise<DenoiseFactory | null>;
 }
 
 export function dbToGain(db: number): number {
@@ -87,20 +92,33 @@ function browserContext(): VoiceContextLike | null {
     return null;
   }
   try {
-    return new Context({ latencyHint: 'interactive' }) as unknown as VoiceContextLike;
+    return new Context({ latencyHint: 'interactive', sampleRate: DENOISE_SAMPLE_RATE }) as unknown as VoiceContextLike;
   } catch {
-    return null;
+    try {
+      return new Context({ latencyHint: 'interactive' }) as unknown as VoiceContextLike;
+    } catch {
+      return null;
+    }
   }
 }
 
 let primed: VoiceContextLike | null = null;
 
-export function primeVoiceContext(create: () => VoiceContextLike | null = browserContext): void {
+export interface PrimeOptions {
+  denoise?: boolean;
+  create?: () => VoiceContextLike | null;
+  prepare?: (context: VoiceContextLike) => Promise<DenoiseFactory | null>;
+}
+
+export function primeVoiceContext({ denoise = false, create = browserContext, prepare = prepareDenoiser }: PrimeOptions = {}): void {
   if (!primed || primed.state === 'closed') {
     primed = create();
   }
   if (primed && primed.state !== 'running') {
     void primed.resume?.().catch(() => undefined);
+  }
+  if (primed && denoise) {
+    void prepare(primed);
   }
 }
 
@@ -113,7 +131,19 @@ export function takeVoiceContext(create: () => VoiceContextLike | null = browser
 const defaultDeps: VoiceLevelerDeps = {
   createContext: () => takeVoiceContext(),
   createStream: (tracks) => new MediaStream(tracks),
+  denoise: () => false,
+  prepareDenoiser: (context) => prepareDenoiser(context),
 };
+
+export function enableBrowserNoiseSuppression(track: MediaStreamTrack): void {
+  try {
+    void track
+      .applyConstraints({ ...track.getConstraints(), noiseSuppression: true })
+      .catch(() => undefined);
+  } catch {
+    return;
+  }
+}
 
 function setParam(param: ParamLike, value: number): void {
   param.value = value;
@@ -135,8 +165,11 @@ function disconnect(node: VoiceNodeLike): void {
   }
 }
 
-function passthrough(input: MediaStreamTrack): VoiceLeveler {
+function passthrough(input: MediaStreamTrack, denoise: () => boolean): VoiceLeveler {
   let current = input;
+  if (denoise()) {
+    enableBrowserNoiseSuppression(input);
+  }
   return {
     get track() {
       return current;
@@ -145,6 +178,9 @@ function passthrough(input: MediaStreamTrack): VoiceLeveler {
     sendStream: (base) => base,
     setInput: (track) => {
       current = track;
+      if (denoise()) {
+        enableBrowserNoiseSuppression(track);
+      }
       return track;
     },
     setVolume: () => undefined,
@@ -157,11 +193,11 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
   const resolved = { ...defaultDeps, ...deps };
   const context = resolved.createContext();
   if (!context) {
-    return passthrough(input);
+    return passthrough(input, resolved.denoise);
   }
   if (context.state !== 'running') {
     void context.close().catch(() => undefined);
-    return passthrough(input);
+    return passthrough(input, resolved.denoise);
   }
   try {
     const highpass = context.createBiquadFilter();
@@ -186,9 +222,68 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     makeup.connect(limiter);
     limiter.connect(trim);
     trim.connect(destination);
+    let current = input;
     let source = context.createMediaStreamSource(resolved.createStream([input]));
-    source.connect(highpass);
+    let denoiser: DenoiseNodeLike | null = null;
+    let loading = false;
     let closed = false;
+    let routed: unknown = null;
+    const route = () => {
+      const target = denoiser ?? highpass;
+      if (routed === target) {
+        return;
+      }
+      if (routed) {
+        disconnect(source);
+      }
+      source.connect(target as VoiceNodeLike);
+      routed = target;
+    };
+    const dropDenoiser = () => {
+      if (!denoiser) {
+        return;
+      }
+      denoiser.port.onmessage = null;
+      denoiser.port.postMessage({ type: 'stop' });
+      disconnect(denoiser as unknown as VoiceNodeLike);
+      denoiser = null;
+    };
+    const attachDenoiser = (factory: DenoiseFactory | null) => {
+      loading = false;
+      if (closed || !resolved.denoise() || denoiser) {
+        return;
+      }
+      let node: DenoiseNodeLike;
+      try {
+        if (!factory) {
+          throw new Error('denoiser unavailable');
+        }
+        node = factory();
+        node.connect(highpass as never);
+      } catch {
+        enableBrowserNoiseSuppression(current);
+        return;
+      }
+      denoiser = node;
+      node.port.onmessage = (event) => {
+        if (event.data.type === 'failed' && denoiser === node) {
+          dropDenoiser();
+          route();
+          enableBrowserNoiseSuppression(current);
+        }
+      };
+      route();
+    };
+    const syncDenoise = () => {
+      if (!resolved.denoise()) {
+        dropDenoiser();
+      } else if (!denoiser && !loading) {
+        loading = true;
+        void resolved.prepareDenoiser(context).then(attachDenoiser, () => attachDenoiser(null));
+      }
+      route();
+    };
+    syncDenoise();
     const onState = () => {
       if (!closed && (context.state === 'suspended' || context.state === 'interrupted')) {
         void context.resume?.().catch(() => undefined);
@@ -204,8 +299,10 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
           return output;
         }
         disconnect(source);
+        current = track;
         source = context.createMediaStreamSource(resolved.createStream([track]));
-        source.connect(highpass);
+        routed = null;
+        syncDenoise();
         return output;
       },
       setVolume: (next) => {
@@ -228,6 +325,7 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
         }
         closed = true;
         context.removeEventListener?.('statechange', onState);
+        dropDenoiser();
         for (const node of [source, highpass, compressor, makeup, limiter, trim, destination]) {
           disconnect(node);
         }
@@ -237,6 +335,6 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     };
   } catch {
     void context.close().catch(() => undefined);
-    return passthrough(input);
+    return passthrough(input, resolved.denoise);
   }
 }

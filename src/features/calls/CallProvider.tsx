@@ -12,7 +12,7 @@ import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints, resetKnownDevices } from './lib/media-devices';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, usesAdvancedNoise, videoConstraints, resetKnownDevices } from './lib/media-devices';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
@@ -73,7 +73,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
       applyShareConstraints,
       stopMedia: stopStream,
       createPeerSession: (options) => new PeerSession(options),
-      createVoiceLeveler: (track) => createVoiceLeveler(track, micVolume.get()),
+      createVoiceLeveler: (track) => createVoiceLeveler(track, micVolume.get(), { denoise: () => usesAdvancedNoise(getAudioProcessing()) }),
       isMobile: isMobileDevice,
       startRingtone,
       stopRingtone,
@@ -125,7 +125,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
 
   const primeCallAudio = useCallback(() => {
     primePlayback();
-    primeVoiceContext();
+    primeVoiceContext({ denoise: usesAdvancedNoise(getAudioProcessing()) });
   }, [primePlayback]);
 
   const startCallInRoom = useCallback(

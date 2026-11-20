@@ -762,6 +762,7 @@
       "title": "Qualidade do áudio",
       "noise": "Redução de ruído",
       "noiseHint": "Reduz ruídos de fundo, como teclado e ventilador.",
+      "noiseAdvancedHint": "Remove teclado, cliques e ruídos de fundo com IA no seu aparelho.",
       "echo": "Cancelamento de eco",
       "echoHint": "Evita que a voz da outra pessoa volte pelo seu microfone. Pode desligar com fones de ouvido.",
       "gain": "Volume automático",

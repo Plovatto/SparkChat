@@ -762,6 +762,7 @@
       "title": "Audio quality",
       "noise": "Noise reduction",
       "noiseHint": "Reduces background noise such as typing and fans.",
+      "noiseAdvancedHint": "Removes typing, clicks and background noise with on-device AI.",
       "echo": "Echo cancellation",
       "echoHint": "Stops the other person's voice from coming back through your microphone. You can turn it off with headphones.",
       "gain": "Automatic volume",
