@@ -84,6 +84,7 @@ describe('screen share', () => {
 
   it('asks for a tab, window or screen with audio and excludes the app tab itself', () => {
     expect((screenShareOptions().audio as Record<string, unknown>).restrictOwnAudio).toBe(true);
+    expect(screenShareOptions().audio).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true, restrictOwnAudio: true });
     expect(screenShareOptions()).toMatchObject({
       selfBrowserSurface: 'exclude',
       surfaceSwitching: 'include',
@@ -115,7 +116,7 @@ describe('share constraints', () => {
     await applyShareConstraints(stream, true);
     expect(applied[0]).toEqual({ kind: 'video', constraints: { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } });
     expect(applied[1]).toEqual({ kind: 'audio', constraints: SHARE_AUDIO_CONSTRAINTS });
-    expect(SHARE_AUDIO_CONSTRAINTS).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+    expect(SHARE_AUDIO_CONSTRAINTS).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true });
     expect(shareVideoConstraints(false)).toEqual({ frameRate: { ideal: 15, max: 30 } });
   });
 

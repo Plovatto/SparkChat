@@ -7,6 +7,7 @@ const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
 const SHARE_VOLUME_KEY = 'chatCallShareVolume';
 const MOVIE_MODE_KEY = 'chatCallMovieMode';
+const SHARE_MONITOR_VOLUME_KEY = 'chatCallShareMonitorVolume';
 const MIC_VOLUME_KEY = 'chatCallMicVolume';
 const CALL_VOLUME_KEY = 'chatCallVolume';
 
@@ -111,6 +112,34 @@ export function getMovieMode(): boolean {
 export function setMovieMode(value: boolean): boolean {
   setItem(MOVIE_MODE_KEY, value);
   return value;
+}
+
+const monitorListeners = new Set<Listener>();
+
+export function getShareMonitorVolume(): number {
+  const stored = getItem<unknown>(SHARE_MONITOR_VOLUME_KEY);
+  return typeof stored === 'number' && Number.isFinite(stored) ? Math.min(1, Math.max(0, stored)) : 1;
+}
+
+export function setShareMonitorVolume(value: number): number {
+  const next = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 1;
+  setItem(SHARE_MONITOR_VOLUME_KEY, next);
+  for (const listener of Array.from(monitorListeners)) {
+    listener();
+  }
+  return next;
+}
+
+export function subscribeShareMonitorVolume(listener: Listener): () => void {
+  monitorListeners.add(listener);
+  return () => {
+    monitorListeners.delete(listener);
+  };
+}
+
+export function useShareMonitorVolume(): [number, (value: number) => void] {
+  const value = useSyncExternalStore(subscribeShareMonitorVolume, getShareMonitorVolume, () => 1);
+  return [value, (next) => void setShareMonitorVolume(next)];
 }
 
 export interface VolumeSetting {

@@ -1314,6 +1314,10 @@
   box-shadow: none;
 }
 
+.sc-call-reveal {
+  animation: scCallFadeRise 220ms var(--sc-ease-enter);
+}
+
 .sc-call-tab-content {
   animation: scCallFadeRise 200ms var(--sc-ease-enter);
 }
@@ -1558,6 +1562,7 @@
   .sc-call-panel,
   .sc-call-panel[data-state='exiting'],
   .sc-call-tab-content,
+  .sc-call-reveal,
   .sc-call-icon-swap,
   .sc-call-share-banner[data-state],
   .sc-call-share-volume,

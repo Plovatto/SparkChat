@@ -11,6 +11,7 @@ import { MIC_VOLUME_MAX, MIC_VOLUME_MIN } from '../lib/voice-leveler';
 import { CALL_VOLUME_MAX, CALL_VOLUME_MIN } from '../lib/voice-playback';
 import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
+import type { ShareMonitorSupport } from '../lib/share-monitor';
 import { isOutside } from './call-hooks';
 import { panelTabs, rangeFill, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
 
@@ -22,6 +23,9 @@ export interface SharerSettings {
   onVolume: (volume: number) => void;
   previewHidden: boolean;
   onPreviewHidden: (hidden: boolean) => void;
+  monitor?: ShareMonitorSupport;
+  monitorVolume?: number;
+  onMonitorVolume?: (volume: number) => void;
 }
 
 export interface ReceiverSettings {
@@ -292,6 +296,16 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
         <VolumeOption id="call-share-volume" label={t('calls.broadcast.shareVolume')} description={t('calls.broadcast.shareVolumeHint')} value={sharer.volume} onChange={sharer.onVolume} />
       ) : (
         <PanelNote>{t('calls.broadcast.noShareAudio')}</PanelNote>
+      )}
+      {sharer.monitor === 'local' && sharer.onMonitorVolume && (
+        <div className="sc-call-reveal">
+          <VolumeOption id="call-share-monitor" label={t('calls.broadcast.monitorVolume')} description={t('calls.broadcast.monitorVolumeHint')} value={sharer.monitorVolume ?? 1} onChange={sharer.onMonitorVolume} />
+        </div>
+      )}
+      {sharer.monitor === 'unsupported' && (
+        <div className="sc-call-reveal">
+          <PanelNote>{t('calls.broadcast.monitorUnsupported')}</PanelNote>
+        </div>
       )}
       <AudioOption id="call-share-preview" label={t('calls.broadcast.hidePreview')} description={t('calls.broadcast.hidePreviewHint')} checked={sharer.previewHidden} onChange={() => sharer.onPreviewHidden(!sharer.previewHidden)} />
     </>

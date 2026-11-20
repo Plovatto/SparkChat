@@ -149,7 +149,7 @@ export function supportsScreenShare(host: DisplayMediaHost | undefined = display
 export function screenShareOptions(): DisplayMediaStreamOptions {
   return {
     video: { frameRate: { ideal: 15, max: 30 } },
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true } as MediaTrackConstraints,
+    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true, restrictOwnAudio: true } as MediaTrackConstraints,
     selfBrowserSurface: 'exclude',
     surfaceSwitching: 'include',
     systemAudio: 'include',
@@ -177,7 +177,7 @@ export function shareVideoConstraints(movie: boolean): MediaTrackConstraints {
   return movie ? { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } : { frameRate: { ideal: 15, max: 30 } };
 }
 
-export const SHARE_AUDIO_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+export const SHARE_AUDIO_CONSTRAINTS: MediaTrackConstraints = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true } as MediaTrackConstraints;
 
 export async function applyShareConstraints(stream: MediaStream, movie: boolean): Promise<void> {
   for (const track of stream.getVideoTracks()) {
