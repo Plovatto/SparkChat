@@ -19,6 +19,8 @@ vi.mock('./key-store', () => ({
 
 import { getActiveKtAlerts, resetKtAlerts } from '@lib/kt/kt-alerts';
 import { setKtBuildConfigForTests, setKtSocketConfig } from '@lib/kt/kt-config';
+import { resetKtHealth } from '@lib/kt/kt-health';
+import { setKtRetryDelaysForTests } from '@lib/kt/kt-rpc';
 import { resetKtVerificationCache } from '@lib/kt/kt-verify';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys, type ServerBehavior } from '@lib/kt/kt-test-support';
 import { resetContactTrustState } from './contact-trust';
@@ -80,6 +82,8 @@ beforeEach(async () => {
   setKtBuildConfigForTests({ pinnedLogPublicKey: null, witnessUrl: null });
   resetKtAlerts();
   resetKtVerificationCache();
+  resetKtHealth();
+  setKtRetryDelaysForTests([]);
   resetContactTrustState();
   const me = await generateIdentity();
   setCurrentIdentity({ userId: 'ana', publicKey: me.publicKey, privateKey: me.privateKey });
@@ -87,6 +91,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  setKtRetryDelaysForTests(null);
   setCurrentIdentity(null);
   setKtBuildConfigForTests(null);
   vi.unstubAllGlobals();
@@ -126,13 +131,17 @@ describe('contact key lookups with key transparency', () => {
     expect(pins.size).toBe(0);
   });
 
-  it('keeps working when the log is unreachable', async () => {
+  it('does not pin a key while the log answers with errors, and pins it once the log answers again', async () => {
     const { socket, bob, behavior } = await rig({ transparency: true });
     behavior.failEvents = new Set(['kt:get-proofs']);
 
+    expect(await lookupContactKey(socket.asSocket(), 'bob')).toBeNull();
+    expect(pins.size).toBe(0);
+    expect(getActiveKtAlerts()).toEqual([]);
+
+    behavior.failEvents = undefined;
     const trust = await lookupContactKey(socket.asSocket(), 'bob');
     expect(trust?.pin?.publicKey).toBe(bob.publicKey);
-    expect(getActiveKtAlerts()).toEqual([]);
   });
 
   it('does not touch contacts whose keys are not served at all', async () => {

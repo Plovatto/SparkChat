@@ -1,4 +1,5 @@
 import type { AppSocket } from '@lib/socket';
+import { recordKtFailure, recordKtSuccess } from './kt-health';
 import type { ClientToServerEvents, ServerToClientEvents } from '@lib/socket/socket-events';
 
 export class KtUnavailableError extends Error {
@@ -6,6 +7,26 @@ export class KtUnavailableError extends Error {
     super(message);
     this.name = 'KtUnavailableError';
   }
+}
+
+export class KtOfflineError extends KtUnavailableError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KtOfflineError';
+  }
+}
+
+export class KtServerError extends KtUnavailableError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KtServerError';
+  }
+}
+
+let retryDelaysMs: readonly number[] = [300, 900];
+
+export function setKtRetryDelaysForTests(delays: readonly number[] | null): void {
+  retryDelaysMs = delays ?? [300, 900];
 }
 
 const DEFAULT_TIMEOUT_MS = 8000;
@@ -52,6 +73,7 @@ export function ktRequest<Q extends RequestEvent, R extends ReplyEvent>(
         return;
       }
       cleanup();
+      recordKtSuccess(event);
       resolve(data as ReplyPayload<R>);
     };
 
@@ -60,7 +82,8 @@ export function ktRequest<Q extends RequestEvent, R extends ReplyEvent>(
         return;
       }
       cleanup();
-      reject(new KtUnavailableError(`${event} failed`));
+      recordKtFailure(event);
+      reject(new KtServerError(`${event} failed`));
     };
 
     loose.on(reply, onReply);
@@ -68,15 +91,35 @@ export function ktRequest<Q extends RequestEvent, R extends ReplyEvent>(
     const timer = setTimeout(() => {
       if (!settled) {
         cleanup();
-        reject(new KtUnavailableError(`${event} timed out`));
+        recordKtFailure(event);
+        reject(new KtServerError(`${event} timed out`));
       }
     }, timeoutMs);
 
     if (!loose.connected) {
       cleanup();
-      reject(new KtUnavailableError('socket disconnected'));
+      reject(new KtOfflineError('socket disconnected'));
       return;
     }
     loose.emit(event, { ...payload, requestId });
   });
+}
+
+export async function ktRequestWithRetry<Q extends RequestEvent, R extends ReplyEvent>(
+  socket: AppSocket,
+  event: Q,
+  reply: R,
+  payload: Omit<RequestPayload<Q>, 'requestId'>,
+): Promise<ReplyPayload<R>> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await ktRequest(socket, event, reply, payload);
+    } catch (error) {
+      const delay = retryDelaysMs[attempt];
+      if (!(error instanceof KtServerError) || delay === undefined) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
 }

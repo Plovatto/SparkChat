@@ -3,8 +3,10 @@ import { setCurrentIdentity } from '@lib/e2ee/current-identity';
 import { generateIdentity } from '@lib/e2ee/identity';
 import type { E2ePublicKeyEntry } from '@lib/socket';
 import { getActiveKtAlerts, resetKtAlerts } from './kt-alerts';
-import { setKtBuildConfigForTests, setKtSocketConfig } from './kt-config';
-import { acceptNewLogKey } from './kt-head';
+import { KT_CONFIG_DEADLINE_MS, markKtAuthenticated, setKtBuildConfigForTests, setKtSocketConfig } from './kt-config';
+import { acceptNewLogKey, retryCandidateHead } from './kt-head';
+import { resetKtHealth } from './kt-health';
+import { setKtRetryDelaysForTests } from './kt-rpc';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys, type FakeLogKeys, type ServerBehavior } from './kt-test-support';
 import { loadOwnerState } from './kt-store';
 import { resetKtVerificationCache, verifyPublicKeyEntries } from './kt-verify';
@@ -45,11 +47,14 @@ beforeEach(async () => {
   setKtBuildConfigForTests({ pinnedLogPublicKey: null, witnessUrl: null });
   resetKtVerificationCache();
   resetKtAlerts();
+  resetKtHealth();
+  setKtRetryDelaysForTests([]);
   const identity = await generateIdentity();
   setCurrentIdentity({ userId: OWNER, publicKey: identity.publicKey, privateKey: identity.privateKey });
 });
 
 afterEach(() => {
+  setKtRetryDelaysForTests(null);
   setCurrentIdentity(null);
   setKtBuildConfigForTests(null);
 });
@@ -270,58 +275,230 @@ describe('verifyPublicKeyEntries', () => {
       expect(getActiveKtAlerts()[0]).toMatchObject({ kind: 'splitView' });
     });
 
-    it('keeps the old head and still accepts proven keys when consistency cannot be fetched', async () => {
+    it('refuses the keys of a response whose consistency cannot be checked, keeps the candidate and recovers later', async () => {
+      const { socket, log, behavior, keys } = await setup(['alice', 'bob']);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      resetKtVerificationCache();
+      log.append({ userId: 'carol', version: 1, identityKey: 'pub-carol', signingKey: 'sign-carol' });
+      behavior.failEvents = new Set(['kt:get-consistency']);
+
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')])).toEqual([]);
+      expect(loadOwnerState(OWNER).head?.size).toBe(2);
+      expect(loadOwnerState(OWNER).candidate?.size).toBe(3);
+
+      behavior.failEvents = undefined;
+      expect(await retryCandidateHead(socket.asSocket(), OWNER, keys.publicKey)).toBe('ok');
+      expect(loadOwnerState(OWNER).head?.size).toBe(3);
+      expect(loadOwnerState(OWNER).candidate).toBeNull();
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')])).toEqual([entry('carol')]);
+    });
+
+    it('raises an alert when consistency stays unavailable while other events answer', async () => {
       const { socket, log, behavior } = await setup(['alice', 'bob']);
       await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
       resetKtVerificationCache();
       log.append({ userId: 'carol', version: 1, identityKey: 'pub-carol', signingKey: 'sign-carol' });
       behavior.failEvents = new Set(['kt:get-consistency']);
 
-      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')])).toEqual([entry('carol')]);
-      expect(loadOwnerState(OWNER).head?.size).toBe(2);
-      expect(getActiveKtAlerts()).toEqual([]);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')]);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')]);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')]);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('carol')]);
+
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['logUnavailable']);
     });
   });
 
-  describe('when the log is unreachable', () => {
-    it('accepts the keys without any alert when the server answers with an error', async () => {
+  describe('when the log does not answer', () => {
+    it('refuses the keys instead of trusting them when the server answers with an error', async () => {
       const { socket, behavior } = await setup();
       behavior.failEvents = new Set(['kt:get-proofs']);
       const entries = [entry('alice'), entry('mallory-unlogged')];
 
-      expect(await verifyPublicKeyEntries(socket.asSocket(), entries)).toEqual(entries);
+      expect(await verifyPublicKeyEntries(socket.asSocket(), entries)).toEqual([]);
       expect(getActiveKtAlerts()).toEqual([]);
     });
 
-    it('stops waiting for an unresponsive log for a while after the first failure', async () => {
+    it('keeps refusing for an account that already uses the log and verifies them once the log answers', async () => {
       const { socket, behavior } = await setup();
-      behavior.failEvents = new Set(['kt:get-proofs']);
       await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      resetKtVerificationCache();
+      behavior.failEvents = new Set(['kt:get-proofs']);
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')])).toEqual([]);
+
       behavior.failEvents = undefined;
-
       expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')])).toEqual([entry('bob')]);
-      expect(socket.count('kt:get-proofs')).toBe(1);
     });
 
-    it('accepts the keys when the socket is disconnected', async () => {
-      const { socket } = await setup();
-      socket.connected = false;
+    it('retries a failing request before giving up', async () => {
+      setKtRetryDelaysForTests([0, 0]);
+      const { socket, log } = await setup();
+      let failures = 2;
+      socket.server = (event, payload, target) => {
+        if (event === 'kt:get-proofs' && failures > 0) {
+          failures -= 1;
+          target.deliver('error', { event, code: 'rateLimit.socket', message: 'x' });
+          return;
+        }
+        logServer({ log })(event, payload, target);
+      };
+
       expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([entry('alice')]);
-      expect(socket.sent).toEqual([]);
+      expect(socket.count('kt:get-proofs')).toBe(3);
     });
 
-    it('accepts the keys after a timeout without alerts', async () => {
+    it('refuses the keys after a timeout', async () => {
       const { socket } = await setup();
       socket.server = () => undefined;
       vi.useFakeTimers();
       try {
         const pending = verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
         await vi.advanceTimersByTimeAsync(8100);
-        expect(await pending).toEqual([entry('alice')]);
+        expect(await pending).toEqual([]);
       } finally {
         vi.useRealTimers();
       }
       expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('only trusts the keys while disconnected when the account never used the log', async () => {
+      const { socket } = await setup();
+      socket.connected = false;
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([entry('alice')]);
+      expect(socket.sent).toEqual([]);
+
+      socket.connected = true;
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')]);
+      resetKtVerificationCache();
+      socket.connected = false;
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([]);
+    });
+
+    it('raises one alert when a single request keeps failing while the others answer', async () => {
+      const { socket, behavior } = await setup();
+      const { ktRequest } = await import('./kt-rpc');
+      await ktRequest(socket.asSocket(), 'kt:get-head', 'kt:head', {});
+      behavior.failEvents = new Set(['kt:get-proofs']);
+
+      for (const name of ['alice', 'bob', 'carol', 'alice', 'bob']) {
+        await verifyPublicKeyEntries(socket.asSocket(), [entry(name)]);
+      }
+
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['logUnavailable']);
+    });
+
+    it('does not raise that alert when nothing answers at all', async () => {
+      const { socket, behavior } = await setup();
+      behavior.failEvents = new Set(['kt:get-proofs', 'kt:get-head']);
+      for (const name of ['alice', 'bob', 'carol', 'alice', 'bob']) {
+        await verifyPublicKeyEntries(socket.asSocket(), [entry(name)]);
+      }
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+  });
+
+  describe('downgrade', () => {
+    async function pinned(): Promise<Setup> {
+      const rig = await setup();
+      await verifyPublicKeyEntries(rig.socket.asSocket(), [entry('alice')]);
+      resetKtVerificationCache();
+      setKtSocketConfig(rig.socket.asSocket(), null);
+      return rig;
+    }
+
+    it('alerts when a pinned account no longer gets the configuration, and keeps working without a build pin', async () => {
+      const { socket } = await pinned();
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')])).toEqual([entry('bob')]);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+    });
+
+    it('refuses new or changed keys when the build pins the log and the configuration is gone', async () => {
+      const { socket, keys } = await pinned();
+      setKtBuildConfigForTests({ pinnedLogPublicKey: keys.publicKey, witnessUrl: null });
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice'), entry('bob'), entry('alice', 'pub-mallory')])).toEqual([entry('alice')]);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+    });
+
+    it('stays quiet for an account that never used the log', async () => {
+      const socket = new FakeSocket();
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([entry('alice')]);
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('waits for a configuration that is about to arrive instead of alerting', async () => {
+      const { socket, keys } = await pinned();
+      markKtAuthenticated(socket.asSocket());
+      setTimeout(() => setKtSocketConfig(socket.asSocket(), { logPublicKey: keys.publicKey }), 40);
+
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')])).toEqual([entry('bob')]);
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('alerts once the deadline passes without a configuration', async () => {
+      const { socket } = await pinned();
+      markKtAuthenticated(socket.asSocket(), Date.now() - KT_CONFIG_DEADLINE_MS - 1);
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('bob')])).toEqual([entry('bob')]);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+    });
+  });
+
+  describe('contact version tracking', () => {
+    function twoVersions(keys: FakeLogKeys): FakeLog {
+      const log = new FakeLog(keys);
+      log.append({ userId: 'alice', version: 1, identityKey: 'pub-alice', signingKey: '' });
+      log.append({ userId: 'alice', version: 2, identityKey: 'pub-alice', signingKey: 'sign-alice' });
+      return log;
+    }
+
+    function rig(log: FakeLog, keys: FakeLogKeys): FakeSocket {
+      const socket = new FakeSocket();
+      socket.server = logServer({ log });
+      setKtSocketConfig(socket.asSocket(), { logPublicKey: keys.publicKey });
+      return socket;
+    }
+
+    it('stores the highest accepted version of every contact', async () => {
+      const keys = await newLogKeys();
+      const socket = rig(twoVersions(keys), keys);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      expect(loadOwnerState(OWNER).contacts.alice).toMatchObject({ version: 2, publicKey: 'pub-alice', signingKey: 'sign-alice' });
+    });
+
+    it('rejects an older version once a newer one was accepted', async () => {
+      const keys = await newLogKeys();
+      const socket = rig(twoVersions(keys), keys);
+      await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')]);
+      resetKtVerificationCache();
+
+      const older: E2ePublicKeyEntry = { userId: 'alice', publicKey: 'pub-alice' };
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [older])).toEqual([]);
+      expect(getActiveKtAlerts()[0]).toMatchObject({ kind: 'keyRejected', detail: 'version-regression' });
+      expect(loadOwnerState(OWNER).contacts.alice?.version).toBe(2);
+    });
+
+    it('rejects a repeated version carrying different keys', async () => {
+      const keys = await newLogKeys();
+      const log = twoVersions(keys);
+      log.append({ userId: 'alice', version: 2, identityKey: 'pub-evil', signingKey: 'sign-evil' });
+      const socket = rig(log, keys);
+
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([entry('alice')]);
+      resetKtVerificationCache();
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice', 'pub-evil', 'sign-evil')])).toEqual([]);
+      expect(getActiveKtAlerts()[0]).toMatchObject({ kind: 'keyRejected', detail: 'version-conflict' });
+    });
+
+    it('accepts a newer version and moves the record forward', async () => {
+      const keys = await newLogKeys();
+      const log = new FakeLog(keys);
+      log.append({ userId: 'alice', version: 1, identityKey: 'pub-alice', signingKey: '' });
+      const socket = rig(log, keys);
+      await verifyPublicKeyEntries(socket.asSocket(), [{ userId: 'alice', publicKey: 'pub-alice' }]);
+      log.append({ userId: 'alice', version: 2, identityKey: 'pub-alice', signingKey: 'sign-alice' });
+      resetKtVerificationCache();
+
+      expect(await verifyPublicKeyEntries(socket.asSocket(), [entry('alice')])).toEqual([entry('alice')]);
+      expect(loadOwnerState(OWNER).contacts.alice?.version).toBe(2);
     });
   });
 

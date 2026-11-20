@@ -48,6 +48,12 @@ describe('runSelfAudit', () => {
     expect(loadOwnerState(OWNER).head?.size).toBe(4);
   });
 
+  it('remembers the highest audited version and keys for the gossip', async () => {
+    const { socket } = await setup([own(1, ''), noise('a'), own(2, signing)]);
+    await runSelfAudit(socket.asSocket());
+    expect(loadOwnerState(OWNER).ownAudit).toMatchObject({ version: 2, publicKey: identity.publicKey, signingPublicKey: signing });
+  });
+
   it('does nothing without transparency or without an identity', async () => {
     const socket = new FakeSocket();
     expect(await runSelfAudit(socket.asSocket())).toBe('skipped');

@@ -936,6 +936,14 @@
       "logKeyChanged": {
         "title": "The transparency log signature changed",
         "text": "The server started signing the log with a different key. If you did not expect this change, do not trust it."
+      },
+      "downgrade": {
+        "title": "The server stopped offering the transparency log",
+        "text": "This app used to verify your contacts' keys against a signed log, and the server no longer offers it. If you did not expect this, do not trust new or changed keys."
+      },
+      "logUnavailable": {
+        "title": "The transparency log is not responding",
+        "text": "Some log checks are not answered to your app while the rest are. This may mean the server is blocking key verification. Affected keys stay pending until verification works."
       }
     }
   },

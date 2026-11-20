@@ -7,7 +7,7 @@ import { getKtSocketConfig } from './kt-config';
 import { decodeBase64Url, decodeProof, isSignedTreeHead, leafHash, verifyHeadSignature, verifyInclusion } from './kt-crypto';
 import { acceptHead, resolveLogKey } from './kt-head';
 import { KtUnavailableError, ktRequest } from './kt-rpc';
-import { loadOwnerState, rememberOwnKeys, type KnownOwnKeys } from './kt-store';
+import { loadOwnerState, rememberOwnKeys, updateOwnerState, type KnownOwnKeys, type OwnAudit } from './kt-store';
 
 const MAX_AUDIT_PAGES = 10;
 
@@ -39,6 +39,7 @@ export async function runSelfAudit(socket: AppSocket): Promise<SelfAuditResult> 
   let result: SelfAuditResult = 'ok';
   let fromVersion = 1;
   let expectedVersion = 1;
+  let latest: OwnAudit | null = null;
 
   for (let page = 0; page < MAX_AUDIT_PAGES; page += 1) {
     let reply;
@@ -77,6 +78,7 @@ export async function runSelfAudit(socket: AppSocket): Promise<SelfAuditResult> 
         return 'alert';
       }
       expectedVersion += 1;
+      latest = { version: entry.version, publicKey: entry.publicKey, signingPublicKey: entry.signingPublicKey, at: Date.now() };
       if (!matchesKnownKeys(known, entry)) {
         raiseKtAlert(ownerId, 'unknownOwnKey', `own-key:${entry.publicKey}:${entry.signingPublicKey ?? ''}`, `v${entry.version}`);
         result = 'alert';
@@ -84,6 +86,10 @@ export async function runSelfAudit(socket: AppSocket): Promise<SelfAuditResult> 
     }
 
     if (!reply.truncated || entries.length === 0) {
+      if (latest) {
+        const completed = latest;
+        updateOwnerState(ownerId, (state) => ({ ...state, ownAudit: { ...completed, at: Date.now() } }));
+      }
       return result;
     }
     fromVersion = expectedVersion;

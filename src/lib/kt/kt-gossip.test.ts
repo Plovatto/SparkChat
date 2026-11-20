@@ -23,8 +23,8 @@ vi.mock('@lib/e2ee/contact-trust', () => ({
 
 import { getActiveKtAlerts, resetKtAlerts } from './kt-alerts';
 import { setKtBuildConfigForTests, setKtSocketConfig } from './kt-config';
-import { gossipLatestHead, handleGossip, resetGossipState } from './kt-gossip';
-import { loadOwnerState, saveOwnerState } from './kt-store';
+import { gossipLatestHead, handleGossip, readAudit, resetGossipState } from './kt-gossip';
+import { emptyOwnerState, loadOwnerState, saveOwnerState } from './kt-store';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys, type FakeLogKeys } from './kt-test-support';
 
 interface Party {
@@ -54,7 +54,7 @@ function actAs(who: Party): void {
 }
 
 function remember(who: Party, size: number = who.log.leaves.length, keys: FakeLogKeys = logKeys): void {
-  saveOwnerState(who.id, { logPublicKey: keys.publicKey, head: who.log.head(size), ownKeys: [] });
+  saveOwnerState(who.id, { ...emptyOwnerState(), logPublicKey: keys.publicKey, head: who.log.head(size) });
 }
 
 async function send(from: Party, to: Party): Promise<{ from: string; envelope: string } | null> {
@@ -308,6 +308,77 @@ describe('gossip between contacts', () => {
     await handleGossip(alice.socket.asSocket(), message, start + 29_000);
     expect(alice.socket.sent.length).toBe(before);
     expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['splitView']);
+  });
+
+  describe('audited version exchange', () => {
+    function accept(owner: string, sender: string, version: number, keys: { publicKey: string; signingKey: string }, at: number): void {
+      const state = loadOwnerState(owner);
+      saveOwnerState(owner, { ...state, contacts: { ...state.contacts, [sender]: { version, ...keys, leafHash: 'x', at } } });
+    }
+
+    async function rigAudit(audit: { version: number; publicKey: string; signingPublicKey: string | null; at: number } | null) {
+      const log = new FakeLog(logKeys, leaves(5));
+      const alice = await party('alice', log);
+      const bob = await party('bob', log.clone());
+      remember(alice);
+      remember(bob);
+      if (audit) {
+        saveOwnerState('bob', { ...loadOwnerState('bob'), ownAudit: audit });
+      }
+      const message = (await send(bob, alice)) as { from: string; envelope: string };
+      return { alice, message };
+    }
+
+    it('stays quiet when the audited keys match what the receiver accepted', async () => {
+      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b', at: Date.now() });
+      accept('alice', 'bob', 2, { publicKey: 'pub-b', signingKey: 'sign-b' }, Date.now());
+      await deliver(message, alice);
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('warns when the sender audited other keys for the same version the receiver accepted', async () => {
+      const { alice, message } = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: 'sign-b', at: Date.now() });
+      accept('alice', 'bob', 2, { publicKey: 'pub-evil', signingKey: 'sign-evil' }, Date.now());
+      await deliver(message, alice);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['splitView']);
+    });
+
+    it('warns when the receiver accepted a newer version that the sender audited later and never saw', async () => {
+      const now = Date.now();
+      const { alice, message } = await rigAudit({ version: 1, publicKey: 'pub-b', signingPublicKey: null, at: now });
+      accept('alice', 'bob', 2, { publicKey: 'pub-evil', signingKey: 'sign-evil' }, now - 60 * 60 * 1000);
+      await deliver(message, alice);
+      expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['splitView']);
+    });
+
+    it('does not warn when the newer version was accepted after the sender audited', async () => {
+      const now = Date.now();
+      const { alice, message } = await rigAudit({ version: 1, publicKey: 'pub-b', signingPublicKey: null, at: now - 60 * 60 * 1000 });
+      accept('alice', 'bob', 2, { publicKey: 'pub-b', signingKey: 'sign-b' }, now);
+      await deliver(message, alice);
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('does not warn when the receiver has not accepted anything from the sender or the sender has no audit', async () => {
+      const first = await rigAudit({ version: 2, publicKey: 'pub-b', signingPublicKey: null, at: Date.now() });
+      await deliver(first.message, first.alice);
+      expect(getActiveKtAlerts()).toEqual([]);
+    });
+
+    it('ignores malformed audits', () => {
+      for (const audit of [
+        null,
+        { version: 0, publicKey: 'x', signingPublicKey: null, at: 1 },
+        { version: 1.5, publicKey: 'x', signingPublicKey: null, at: 1 },
+        { version: 1, publicKey: '', signingPublicKey: null, at: 1 },
+        { version: 1, publicKey: 'x'.repeat(300), signingPublicKey: null, at: 1 },
+        { version: 1, publicKey: 'x', signingPublicKey: 5, at: 1 },
+        { version: 1, publicKey: 'x', signingPublicKey: null, at: 'now' },
+      ]) {
+        expect(readAudit(audit)).toBeNull();
+      }
+      expect(readAudit({ version: 1, publicKey: 'x', signingPublicKey: null, at: 1 })).toEqual({ version: 1, publicKey: 'x', signingPublicKey: null, at: 1 });
+    });
   });
 
   it('keeps the envelope within the server limit', async () => {

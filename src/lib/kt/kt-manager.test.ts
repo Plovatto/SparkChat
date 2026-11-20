@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setCurrentIdentity } from '@lib/e2ee/current-identity';
 import { generateIdentity } from '@lib/e2ee/identity';
 import { getActiveKtAlerts, resetKtAlerts } from './kt-alerts';
-import { getKtSocketConfig, setKtBuildConfigForTests } from './kt-config';
+import { KT_CONFIG_DEADLINE_MS, getKtSocketConfig, setKtBuildConfigForTests } from './kt-config';
+import { emptyOwnerState, saveOwnerState } from './kt-store';
 import { attachKeyTransparency as attach } from './kt-manager';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys } from './kt-test-support';
 
@@ -118,6 +119,58 @@ describe('attachKeyTransparency', () => {
     expect(getKtSocketConfig(socket.asSocket())).toBeNull();
   });
 
+  it('raises a downgrade alert when a pinned account is told the feature is disabled', async () => {
+    vi.useFakeTimers();
+    const keys = await newLogKeys();
+    const socket = new FakeSocket();
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    saveOwnerState(OWNER, { ...emptyOwnerState(), logPublicKey: keys.publicKey });
+
+    socket.deliver('kt:config', { enabled: false, logPublicKey: keys.publicKey });
+
+    expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+    expect(getKtSocketConfig(socket.asSocket())).toBeNull();
+  });
+
+  it('does not alert when an account that never used the log is told the feature is disabled', async () => {
+    const socket = new FakeSocket();
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    socket.deliver('kt:config', { enabled: false, logPublicKey: 'A'.repeat(43) });
+    expect(getActiveKtAlerts()).toEqual([]);
+  });
+
+  it('raises a downgrade alert when no configuration arrives before the deadline', async () => {
+    vi.useFakeTimers();
+    const keys = await newLogKeys();
+    const socket = new FakeSocket();
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    saveOwnerState(OWNER, { ...emptyOwnerState(), logPublicKey: keys.publicKey });
+
+    socket.deliver('user:resumed', { user: { id: OWNER }, authMethod: 'password' });
+    await vi.advanceTimersByTimeAsync(KT_CONFIG_DEADLINE_MS - 100);
+    expect(getActiveKtAlerts()).toEqual([]);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getActiveKtAlerts().map((alert) => alert.kind)).toEqual(['downgrade']);
+  });
+
+  it('does not raise the downgrade alert when the configuration arrives in time', async () => {
+    vi.useFakeTimers();
+    const keys = await newLogKeys();
+    const socket = new FakeSocket();
+    socket.server = logServer({ log: new FakeLog(keys, []), auditUser: OWNER });
+    attachKeyTransparency(socket.asSocket());
+    await login();
+    saveOwnerState(OWNER, { ...emptyOwnerState(), logPublicKey: keys.publicKey });
+
+    socket.deliver('user:resumed', { user: { id: OWNER }, authMethod: 'password' });
+    socket.deliver('kt:config', { enabled: true, logPublicKey: keys.publicKey });
+    await vi.advanceTimersByTimeAsync(KT_CONFIG_DEADLINE_MS + 500);
+    expect(getActiveKtAlerts()).toEqual([]);
+  });
+
   it('removes its listeners and configuration when detached', () => {
     const socket = new FakeSocket();
     const detach = attachKeyTransparency(socket.asSocket());
@@ -126,6 +179,7 @@ describe('attachKeyTransparency', () => {
     detach();
     expect(socket.listeners_('kt:config')).toBe(0);
     expect(socket.listeners_('kt:gossip')).toBe(0);
+    expect(socket.listeners_('user:resumed')).toBe(0);
     expect(getKtSocketConfig(socket.asSocket())).toBeNull();
   });
 });

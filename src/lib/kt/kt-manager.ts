@@ -1,9 +1,10 @@
 import { getCurrentIdentity, subscribeCurrentIdentity } from '@lib/e2ee/current-identity';
 import type { AppSocket, KtConfigPayload } from '@lib/socket';
-import { resetKtAlerts, selectOwnerForAlerts } from './kt-alerts';
-import { getKtSocketConfig, isValidLogPublicKey, setKtSocketConfig } from './kt-config';
+import { raiseKtAlert, resetKtAlerts, selectOwnerForAlerts } from './kt-alerts';
+import { KT_CONFIG_DEADLINE_MS, getKtSocketConfig, isValidLogPublicKey, ktAuthenticatedAt, markKtAuthenticated, markKtDisabled, setKtSocketConfig } from './kt-config';
 import { gossipLatestHead, handleGossip, resetGossipState } from './kt-gossip';
-import { refreshHead, resolveLogKey } from './kt-head';
+import { expectsKt, refreshHead, resolveLogKey, retryCandidateHead } from './kt-head';
+import { resetKtHealth } from './kt-health';
 import { runSelfAudit } from './kt-monitor';
 import { resetKtVerificationCache } from './kt-verify';
 import { checkWitness } from './kt-witness';
@@ -21,10 +22,25 @@ export async function runTransparencyRound(socket: AppSocket): Promise<void> {
   if (!resolution.ok) {
     return;
   }
+  await retryCandidateHead(socket, identity.userId, resolution.logPublicKey);
   await refreshHead(socket, identity.userId, resolution.logPublicKey);
   await runSelfAudit(socket);
   await checkWitness(socket);
   await gossipLatestHead(socket);
+}
+
+export function checkDowngrade(socket: AppSocket, now: number = Date.now()): boolean {
+  const identity = getCurrentIdentity();
+  if (!identity || getKtSocketConfig(socket) || !expectsKt(identity.userId)) {
+    return false;
+  }
+  const since = ktAuthenticatedAt(socket);
+  if (since === null || now - since < KT_CONFIG_DEADLINE_MS) {
+    return false;
+  }
+  selectOwnerForAlerts(identity.userId);
+  raiseKtAlert(identity.userId, 'downgrade', 'downgrade');
+  return true;
 }
 
 export function attachKeyTransparency(socket: AppSocket): () => void {
@@ -32,6 +48,7 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
   let interval: ReturnType<typeof setInterval> | null = null;
   let running = false;
   let configured = false;
+  let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
 
   const stop = () => {
     if (timer) {
@@ -73,10 +90,26 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
       configured = true;
       start();
     } else {
-      setKtSocketConfig(socket, null);
+      markKtDisabled(socket);
       configured = false;
       stop();
+      const identity = getCurrentIdentity();
+      if (identity && expectsKt(identity.userId)) {
+        selectOwnerForAlerts(identity.userId);
+        raiseKtAlert(identity.userId, 'downgrade', 'downgrade');
+      }
     }
+  };
+
+  const handleAuthenticated = () => {
+    markKtAuthenticated(socket);
+    if (deadlineTimer) {
+      clearTimeout(deadlineTimer);
+    }
+    deadlineTimer = setTimeout(() => {
+      deadlineTimer = null;
+      checkDowngrade(socket);
+    }, KT_CONFIG_DEADLINE_MS + 50);
   };
 
   const handleGossipEvent = (payload: { from: string; envelope: string }) => {
@@ -84,6 +117,8 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
   };
 
   socket.on('kt:config', handleConfig);
+  socket.on('user:resumed', handleAuthenticated);
+  socket.on('user:registered', handleAuthenticated);
   socket.on('kt:gossip', handleGossipEvent);
 
   const unsubscribeIdentity = subscribeCurrentIdentity((identity) => {
@@ -91,9 +126,12 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
       if (configured) {
         selectOwnerForAlerts(identity.userId);
         start();
+      } else {
+        checkDowngrade(socket);
       }
     } else {
       stop();
+      resetKtHealth();
       resetKtVerificationCache();
       resetGossipState();
       resetKtAlerts();
@@ -102,8 +140,13 @@ export function attachKeyTransparency(socket: AppSocket): () => void {
 
   return () => {
     stop();
+    if (deadlineTimer) {
+      clearTimeout(deadlineTimer);
+    }
     unsubscribeIdentity();
     socket.off('kt:config', handleConfig);
+    socket.off('user:resumed', handleAuthenticated);
+    socket.off('user:registered', handleAuthenticated);
     socket.off('kt:gossip', handleGossipEvent);
     setKtSocketConfig(socket, null);
   };

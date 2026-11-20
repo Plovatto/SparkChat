@@ -6,7 +6,8 @@ import type { AppSocket } from '@lib/socket';
 import { getKtSocketConfig } from './kt-config';
 import { isSignedTreeHead, type SignedTreeHead } from './kt-crypto';
 import { compareWithOwnHead, resolveLogKey } from './kt-head';
-import { loadOwnerState } from './kt-store';
+import { raiseKtAlert } from './kt-alerts';
+import { loadOwnerState, type OwnAudit } from './kt-store';
 
 const GOSSIP_DOMAIN = 'sparkchat:kt:gossip:v1\n';
 const MAX_ENVELOPE_LENGTH = 2048;
@@ -29,11 +30,49 @@ interface GossipMessage {
   from: string;
   to: string;
   head: SignedTreeHead;
+  audit?: OwnAudit;
 }
 
-async function seal(from: string, to: string, head: SignedTreeHead, recipientPublicKey: string, privateKey: Uint8Array): Promise<string | null> {
+const AUDIT_CLOCK_MARGIN_MS = 10 * 60 * 1000;
+const MAX_KEY_LENGTH = 255;
+
+export function readAudit(value: unknown): OwnAudit | null {
+  const audit = value as Partial<OwnAudit> | null | undefined;
+  if (
+    !audit ||
+    typeof audit.version !== 'number' ||
+    !Number.isInteger(audit.version) ||
+    audit.version < 1 ||
+    typeof audit.publicKey !== 'string' ||
+    audit.publicKey.length === 0 ||
+    audit.publicKey.length > MAX_KEY_LENGTH ||
+    !(audit.signingPublicKey === null || (typeof audit.signingPublicKey === 'string' && audit.signingPublicKey.length <= MAX_KEY_LENGTH)) ||
+    typeof audit.at !== 'number' ||
+    !Number.isSafeInteger(audit.at)
+  ) {
+    return null;
+  }
+  return { version: audit.version, publicKey: audit.publicKey, signingPublicKey: audit.signingPublicKey ?? null, at: audit.at };
+}
+
+export function compareAuditWithAccepted(ownerId: string, senderId: string, audit: OwnAudit): 'ok' | 'conflict' {
+  const accepted = loadOwnerState(ownerId).contacts[senderId];
+  if (!accepted) {
+    return 'ok';
+  }
+  const sameKeys = accepted.publicKey === audit.publicKey && accepted.signingKey === (audit.signingPublicKey ?? '');
+  const conflict =
+    (audit.version === accepted.version && !sameKeys) || (audit.version < accepted.version && audit.at - accepted.at > AUDIT_CLOCK_MARGIN_MS);
+  if (conflict) {
+    raiseKtAlert(ownerId, 'splitView', 'split-view', `audit:${senderId}`);
+    return 'conflict';
+  }
+  return 'ok';
+}
+
+async function seal(from: string, to: string, head: SignedTreeHead, audit: OwnAudit | null, recipientPublicKey: string, privateKey: Uint8Array): Promise<string | null> {
   const sodium = await getSodium();
-  const message: GossipMessage = { v: 1, from, to, head };
+  const message: GossipMessage = { v: 1, from, to, head, ...(audit ? { audit } : {}) };
   const plain = sodium.from_string(GOSSIP_DOMAIN + JSON.stringify(message));
   const nonce = sodium.randombytes_buf(NONCE_BYTES);
   const box = sodium.crypto_box_easy(plain, nonce, sodium.from_base64(recipientPublicKey), privateKey);
@@ -63,7 +102,8 @@ async function open(envelope: string, senderPublicKey: string, privateKey: Uint8
     if (parsed.v !== 1 || typeof parsed.from !== 'string' || typeof parsed.to !== 'string' || !isSignedTreeHead(parsed.head)) {
       return null;
     }
-    return { v: 1, from: parsed.from, to: parsed.to, head: parsed.head };
+    const audit = readAudit(parsed.audit);
+    return { v: 1, from: parsed.from, to: parsed.to, head: parsed.head, ...(audit ? { audit } : {}) };
   } catch {
     return null;
   }
@@ -83,7 +123,7 @@ async function sendTo(socket: AppSocket, peerId: string, now: number): Promise<b
   if (!trust?.pin || !isKeyUsable(trust.status)) {
     return false;
   }
-  const envelope = await seal(identity.userId, peerId, head, trust.pin.publicKey, identity.privateKey);
+  const envelope = await seal(identity.userId, peerId, head, loadOwnerState(identity.userId).ownAudit, trust.pin.publicKey, identity.privateKey);
   if (!envelope) {
     return false;
   }
@@ -133,6 +173,9 @@ export async function handleGossip(socket: AppSocket, payload: { from: string; e
   const message = await open(payload.envelope, trust.pin.publicKey, identity.privateKey);
   if (!message || message.from !== payload.from || message.to !== identity.userId) {
     return;
+  }
+  if (message.audit) {
+    compareAuditWithAccepted(identity.userId, payload.from, message.audit);
   }
   await compareWithOwnHead(socket, identity.userId, resolution.logPublicKey, message.head, 'gossip');
   await sendTo(socket, payload.from, now);

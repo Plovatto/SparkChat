@@ -3,7 +3,7 @@ import { getSodium } from '@lib/e2ee/sodium';
 import { raiseKtAlert, selectOwnerForAlerts } from './kt-alerts';
 import { getKtBuildConfig, type KtSocketConfig } from './kt-config';
 import { decodeBase64Url, decodeProof, isSignedTreeHead, verifyConsistency, verifyHeadSignature, type SignedTreeHead } from './kt-crypto';
-import { KtUnavailableError, ktRequest } from './kt-rpc';
+import { KtUnavailableError, ktRequest, ktRequestWithRetry } from './kt-rpc';
 import { loadOwnerState, saveOwnerState, updateOwnerState } from './kt-store';
 
 export type LogKeyResolution = { ok: true; logPublicKey: string } | { ok: false };
@@ -28,8 +28,13 @@ export function resolveLogKey(ownerId: string, config: KtSocketConfig): LogKeyRe
   return { ok: true, logPublicKey: state.logPublicKey };
 }
 
+export function expectsKt(ownerId: string): boolean {
+  const state = loadOwnerState(ownerId);
+  return Boolean(getKtBuildConfig().pinnedLogPublicKey) || state.logPublicKey !== null || state.head !== null;
+}
+
 export function acceptNewLogKey(ownerId: string): void {
-  updateOwnerState(ownerId, (state) => ({ ...state, logPublicKey: null, head: null }));
+  updateOwnerState(ownerId, (state) => ({ ...state, logPublicKey: null, head: null, candidate: null, contacts: {} }));
 }
 
 function raiseSplitView(ownerId: string, detail: string): void {
@@ -50,7 +55,7 @@ export async function acceptHead(socket: AppSocket, ownerId: string, logPublicKe
 
   const stored = loadOwnerState(ownerId).head;
   if (!stored || stored.size === 0) {
-    updateOwnerState(ownerId, (state) => ({ ...state, head }));
+    updateOwnerState(ownerId, (state) => ({ ...state, head, candidate: null }));
     return 'ok';
   }
   if (head.size === stored.size) {
@@ -67,9 +72,12 @@ export async function acceptHead(socket: AppSocket, ownerId: string, logPublicKe
 
   const outcome = await checkConsistency(socket, stored, head);
   if (outcome === 'ok') {
-    updateOwnerState(ownerId, (state) => ({ ...state, head }));
+    updateOwnerState(ownerId, (state) => ({ ...state, head, candidate: null }));
   } else if (outcome === 'fork') {
     raiseSplitView(ownerId, `inconsistent:${stored.size}->${head.size}`);
+    updateOwnerState(ownerId, (state) => ({ ...state, candidate: null }));
+  } else {
+    updateOwnerState(ownerId, (state) => ({ ...state, candidate: head }));
   }
   return outcome;
 }
@@ -79,7 +87,7 @@ export async function checkConsistency(socket: AppSocket, older: SignedTreeHead,
     return older.size === newer.size && older.root === newer.root ? 'ok' : 'fork';
   }
   try {
-    const reply = await ktRequest(socket, 'kt:get-consistency', 'kt:consistency', { first: older.size, second: newer.size });
+    const reply = await ktRequestWithRetry(socket, 'kt:get-consistency', 'kt:consistency', { first: older.size, second: newer.size });
     if (reply.proof === null) {
       return 'fork';
     }
@@ -132,4 +140,12 @@ export async function compareWithOwnHead(
     raiseSplitView(ownerId, `${source}:${Math.min(own.size, theirs.size)}`);
   }
   return outcome;
+}
+
+export async function retryCandidateHead(socket: AppSocket, ownerId: string, logPublicKey: string): Promise<HeadOutcome | 'none'> {
+  const candidate = loadOwnerState(ownerId).candidate;
+  if (!candidate) {
+    return 'none';
+  }
+  return acceptHead(socket, ownerId, logPublicKey, candidate);
 }

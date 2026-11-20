@@ -936,6 +936,14 @@
       "logKeyChanged": {
         "title": "A assinatura do registro de transparência mudou",
         "text": "O servidor passou a assinar o registro com outra chave. Se você não esperava essa mudança, não confie nele."
+      },
+      "downgrade": {
+        "title": "O servidor deixou de oferecer o registro de transparência",
+        "text": "Antes, este app verificava as chaves dos seus contatos em um registro assinado, e agora o servidor não o oferece mais. Se você não esperava isso, não confie nas chaves novas ou alteradas."
+      },
+      "logUnavailable": {
+        "title": "O registro de transparência não está respondendo",
+        "text": "Algumas verificações do registro não respondem ao seu app, enquanto o resto responde. Isso pode indicar que o servidor está bloqueando a checagem das chaves. As chaves afetadas ficam pendentes até a verificação funcionar."
       }
     }
   },

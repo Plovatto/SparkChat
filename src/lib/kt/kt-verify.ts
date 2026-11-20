@@ -2,19 +2,17 @@ import { getCurrentIdentity } from '@lib/e2ee/current-identity';
 import { getSodium } from '@lib/e2ee/sodium';
 import type { AppSocket, E2ePublicKeyEntry } from '@lib/socket';
 import { raiseKtAlert, selectOwnerForAlerts } from './kt-alerts';
-import { getKtSocketConfig } from './kt-config';
-import { decodeBase64Url, decodeProof, isSignedTreeHead, leafHash, verifyHeadSignature, verifyInclusion } from './kt-crypto';
-import { acceptHead, resolveLogKey } from './kt-head';
-import { KtUnavailableError, ktRequest } from './kt-rpc';
+import { awaitKtConfig, getKtBuildConfig, getKtSocketConfig } from './kt-config';
+import { decodeBase64Url, decodeProof, isSignedTreeHead, leafHash, verifyHeadSignature, verifyInclusion, type Sodium } from './kt-crypto';
+import { acceptHead, expectsKt, resolveLogKey } from './kt-head';
+import { KtOfflineError, KtServerError, ktRequestWithRetry } from './kt-rpc';
+import { loadOwnerState, updateOwnerState } from './kt-store';
 
 const MAX_ITEMS_PER_REQUEST = 50;
 const VERIFIED_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFIED_CACHE = 2000;
 
-const UNREACHABLE_BACKOFF_MS = 30 * 1000;
-
 const verified = new Map<string, number>();
-let unreachableUntil = 0;
 
 function cacheKey(ownerId: string, entry: E2ePublicKeyEntry): string {
   return JSON.stringify([ownerId, entry.userId, entry.publicKey, entry.signingPublicKey ?? '']);
@@ -22,7 +20,6 @@ function cacheKey(ownerId: string, entry: E2ePublicKeyEntry): string {
 
 export function resetKtVerificationCache(): void {
   verified.clear();
-  unreachableUntil = 0;
 }
 
 function remember(key: string, now: number): void {
@@ -47,15 +44,39 @@ function reject(ownerId: string, entry: E2ePublicKeyEntry, reason: string): void
   raiseKtAlert(ownerId, 'keyRejected', `key-rejected:${entry.userId}`, reason);
 }
 
+function acceptContactVersion(sodium: Sodium, ownerId: string, entry: E2ePublicKeyEntry, version: number, leaf: Uint8Array, now: number): boolean {
+  const encodedLeaf = sodium.to_base64(leaf);
+  const known = loadOwnerState(ownerId).contacts[entry.userId];
+  if (known && version < known.version) {
+    reject(ownerId, entry, 'version-regression');
+    return false;
+  }
+  if (known && version === known.version && known.leafHash !== encodedLeaf) {
+    reject(ownerId, entry, 'version-conflict');
+    return false;
+  }
+  if (!known || version > known.version) {
+    updateOwnerState(ownerId, (state) => ({
+      ...state,
+      contacts: {
+        ...state.contacts,
+        [entry.userId]: { version, publicKey: entry.publicKey, signingKey: entry.signingPublicKey ?? '', leafHash: encodedLeaf, at: now },
+      },
+    }));
+  }
+  return true;
+}
+
 async function verifyChunk(
   socket: AppSocket,
   ownerId: string,
   logPublicKey: string,
   chunk: E2ePublicKeyEntry[],
+  expected: boolean,
 ): Promise<E2ePublicKeyEntry[]> {
   let reply;
   try {
-    reply = await ktRequest(socket, 'kt:get-proofs', 'kt:proofs', {
+    reply = await ktRequestWithRetry(socket, 'kt:get-proofs', 'kt:proofs', {
       items: chunk.map((entry) => ({
         userId: entry.userId,
         publicKey: entry.publicKey,
@@ -63,9 +84,11 @@ async function verifyChunk(
       })),
     });
   } catch (error) {
-    if (error instanceof KtUnavailableError) {
-      unreachableUntil = Date.now() + UNREACHABLE_BACKOFF_MS;
-      return chunk;
+    if (error instanceof KtOfflineError) {
+      return expected ? [] : chunk;
+    }
+    if (error instanceof KtServerError) {
+      return [];
     }
     throw error;
   }
@@ -77,7 +100,7 @@ async function verifyChunk(
     return [];
   }
   const outcome = await acceptHead(socket, ownerId, logPublicKey, head);
-  if (outcome === 'fork' || outcome === 'rollback' || outcome === 'invalid') {
+  if (outcome !== 'ok') {
     return [];
   }
 
@@ -102,20 +125,43 @@ async function verifyChunk(
       reject(ownerId, entry, 'bad-proof');
       continue;
     }
+    if (!acceptContactVersion(sodium, ownerId, entry, result.version, leaf, now)) {
+      continue;
+    }
     remember(cacheKey(ownerId, entry), now);
     accepted.push(entry);
   }
   return accepted;
 }
 
+function previouslyAccepted(ownerId: string, entries: E2ePublicKeyEntry[]): E2ePublicKeyEntry[] {
+  const contacts = loadOwnerState(ownerId).contacts;
+  return entries.filter((entry) => {
+    const known = contacts[entry.userId];
+    return known !== undefined && known.publicKey === entry.publicKey && known.signingKey === (entry.signingPublicKey ?? '');
+  });
+}
+
 export async function verifyPublicKeyEntries(socket: AppSocket, entries: E2ePublicKeyEntry[]): Promise<E2ePublicKeyEntry[]> {
-  const config = getKtSocketConfig(socket);
   const identity = getCurrentIdentity();
-  if (!config || !identity || entries.length === 0) {
+  if (!identity || entries.length === 0) {
     return entries;
   }
   const ownerId = identity.userId;
   selectOwnerForAlerts(ownerId);
+  const expected = expectsKt(ownerId);
+
+  let config = getKtSocketConfig(socket);
+  if (!config) {
+    if (!expected) {
+      return entries;
+    }
+    config = await awaitKtConfig(socket);
+    if (!config) {
+      raiseKtAlert(ownerId, 'downgrade', 'downgrade');
+      return getKtBuildConfig().pinnedLogPublicKey ? previouslyAccepted(ownerId, entries) : entries;
+    }
+  }
 
   const resolution = resolveLogKey(ownerId, config);
   if (!resolution.ok) {
@@ -123,9 +169,6 @@ export async function verifyPublicKeyEntries(socket: AppSocket, entries: E2ePubl
   }
 
   const now = Date.now();
-  if (now < unreachableUntil) {
-    return entries;
-  }
   const trusted = new Set<E2ePublicKeyEntry>();
   const pending: E2ePublicKeyEntry[] = [];
   for (const entry of entries) {
@@ -139,13 +182,12 @@ export async function verifyPublicKeyEntries(socket: AppSocket, entries: E2ePubl
 
   try {
     for (const chunk of chunked(pending, MAX_ITEMS_PER_REQUEST)) {
-      for (const entry of await verifyChunk(socket, ownerId, resolution.logPublicKey, chunk)) {
+      for (const entry of await verifyChunk(socket, ownerId, resolution.logPublicKey, chunk, expected)) {
         trusted.add(entry);
       }
     }
   } catch (error) {
     console.error('[kt] key verification failed unexpectedly, refusing the keys', error);
-    return entries.filter((entry) => trusted.has(entry));
   }
 
   return entries.filter((entry) => trusted.has(entry));
