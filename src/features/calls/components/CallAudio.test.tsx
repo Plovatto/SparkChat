@@ -52,15 +52,16 @@ describe('CallAudio', () => {
   function mount(call: CallSnapshot, minimized: boolean) {
     const voiceRef = createRef<HTMLAudioElement>();
     const shareRef = createRef<HTMLAudioElement>();
+    const monitorRef = createRef<HTMLAudioElement>();
     const view = render(
       <CallContext value={api(call, minimized)}>
-        <CallAudio voiceRef={voiceRef} shareRef={shareRef} />
+        <CallAudio voiceRef={voiceRef} shareRef={shareRef} monitorRef={monitorRef} />
       </CallContext>,
     );
     const rerender = (next: CallSnapshot, nextMinimized: boolean) =>
       view.rerender(
         <CallContext value={api(next, nextMinimized)}>
-          <CallAudio voiceRef={voiceRef} shareRef={shareRef} />
+          <CallAudio voiceRef={voiceRef} shareRef={shareRef} monitorRef={monitorRef} />
         </CallContext>,
       );
     return { voiceRef, shareRef, rerender, view };

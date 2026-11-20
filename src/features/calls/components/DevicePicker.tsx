@@ -1,15 +1,19 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaInfoCircle, FaMicrophone, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaExclamationTriangle, FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { useTheme } from '@features/theme';
 import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
 import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
-import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
+import { useAudioProcessing, useCallVolume, useMicVolume, type AudioProcessing } from '../lib/call-settings';
+import { supportsAdvancedNoise } from '../lib/denoiser';
+import { MIC_VOLUME_MAX, MIC_VOLUME_MIN } from '../lib/voice-leveler';
+import { CALL_VOLUME_MAX, CALL_VOLUME_MIN } from '../lib/voice-playback';
 import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
+import type { ShareMonitorSupport } from '../lib/share-monitor';
 import { isOutside } from './call-hooks';
-import { panelTabs, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
+import { panelTabs, rangeFill, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
 
 export interface SharerSettings {
   movieMode: boolean;
@@ -19,6 +23,9 @@ export interface SharerSettings {
   onVolume: (volume: number) => void;
   previewHidden: boolean;
   onPreviewHidden: (hidden: boolean) => void;
+  monitor?: ShareMonitorSupport;
+  monitorVolume?: number;
+  onMonitorVolume?: (volume: number) => void;
 }
 
 export interface ReceiverSettings {
@@ -86,11 +93,12 @@ interface AudioOptionProps {
   id: string;
   label: string;
   description: string;
+  warning?: string | undefined;
   checked: boolean;
   onChange: () => void;
 }
 
-function AudioOption({ id, label, description, checked, onChange }: AudioOptionProps) {
+function AudioOption({ id, label, description, warning, checked, onChange }: AudioOptionProps) {
   const { theme } = useTheme();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -100,6 +108,12 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
         </span>
         <span id={id + '-hint'} style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.3 }}>
           {description}
+          {warning && (
+            <span className="sc-call-option-warning" data-active={checked}>
+              <FaExclamationTriangle size={11} aria-hidden="true" />
+              <span>{warning}</span>
+            </span>
+          )}
         </span>
       </div>
       <Switch checked={checked} onChange={onChange} aria-labelledby={id} aria-describedby={id + '-hint'} />
@@ -113,11 +127,16 @@ interface VolumeOptionProps {
   description: string;
   value: number;
   onChange: (volume: number) => void;
+  min?: number;
+  max?: number;
+  icon?: ReactNode;
 }
 
-function VolumeOption({ id, label, description, value, onChange }: VolumeOptionProps) {
+function VolumeOption({ id, label, description, value, onChange, min = 0, max = 1, icon }: VolumeOptionProps) {
   const { theme } = useTheme();
-  const percent = toPercent(value);
+  const percent = toPercent(value, min, max);
+  const minPercent = Math.round(min * 100);
+  const maxPercent = Math.round(max * 100);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
@@ -135,19 +154,19 @@ function VolumeOption({ id, label, description, value, onChange }: VolumeOptionP
       </div>
       <span className="sc-call-range-row">
         <span className="sc-call-range-row__icon" aria-hidden="true">
-          {percent === 0 ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />}
+          {icon ?? (percent === 0 ? <FaVolumeMute size={14} /> : <FaVolumeUp size={14} />)}
         </span>
         <input
           type="range"
           className="sc-call-range"
-          min={0}
-          max={100}
+          min={minPercent}
+          max={maxPercent}
           step={1}
           value={percent}
           aria-labelledby={id}
           aria-describedby={id + '-hint'}
           aria-valuetext={`${percent}%`}
-          style={{ '--fill': `${percent}%` } as CSSProperties}
+          style={{ '--fill': `${rangeFill(percent, minPercent, maxPercent)}%` } as CSSProperties}
           onChange={(event) => onChange(Number(event.target.value) / 100)}
         />
       </span>
@@ -169,7 +188,10 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
   const { theme } = useTheme();
   const call = useCall();
   const [processing] = useAudioProcessing();
+  const [micLevel, setMicLevel] = useMicVolume();
+  const [callLevel, setCallLevel] = useCallVolume();
   const voiceIsolation = supportsVoiceIsolation();
+  const advancedNoise = supportsAdvancedNoise();
   const [selectedTab, setTab] = useState<PanelTab>('devices');
   const [devices, setDevices] = useState<DeviceLists>({ audioInputs: [], videoInputs: [], audioOutputs: [] });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -275,6 +297,16 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
       ) : (
         <PanelNote>{t('calls.broadcast.noShareAudio')}</PanelNote>
       )}
+      {sharer.monitor === 'local' && sharer.onMonitorVolume && (
+        <div className="sc-call-reveal">
+          <VolumeOption id="call-share-monitor" label={t('calls.broadcast.monitorVolume')} description={t('calls.broadcast.monitorVolumeHint')} value={sharer.monitorVolume ?? 1} onChange={sharer.onMonitorVolume} />
+        </div>
+      )}
+      {sharer.monitor === 'unsupported' && (
+        <div className="sc-call-reveal">
+          <PanelNote>{t('calls.broadcast.monitorUnsupported')}</PanelNote>
+        </div>
+      )}
       <AudioOption id="call-share-preview" label={t('calls.broadcast.hidePreview')} description={t('calls.broadcast.hidePreviewHint')} checked={sharer.previewHidden} onChange={() => sharer.onPreviewHidden(!sharer.previewHidden)} />
     </>
   );
@@ -306,11 +338,32 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
     if (tab === 'audio') {
       return (
         <div key="audio" className="sc-call-tab-content" style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '2px' }}>
-          <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
+          <span className="sc-call-panel-section">{t('calls.audio.volumeSection')}</span>
+          <VolumeOption
+            id="call-mic-volume"
+            label={t('calls.audio.micVolume')}
+            description={t('calls.audio.micVolumeHint')}
+            value={micLevel}
+            min={MIC_VOLUME_MIN}
+            max={MIC_VOLUME_MAX}
+            icon={<FaMicrophoneAlt size={14} />}
+            onChange={setMicLevel}
+          />
+          <VolumeOption
+            id="call-voice-volume"
+            label={t('calls.audio.callVolume')}
+            description={t('calls.audio.callVolumeHint')}
+            value={callLevel}
+            min={CALL_VOLUME_MIN}
+            max={CALL_VOLUME_MAX}
+            onChange={setCallLevel}
+          />
+          <span className="sc-call-panel-section">{t('calls.audio.processingSection')}</span>
+          <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={advancedNoise ? t('calls.audio.noiseAdvancedHint') : t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
           <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
           <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
           {voiceIsolation && (
-            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} warning={t('calls.audio.isolationWarning')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
           )}
         </div>
       );

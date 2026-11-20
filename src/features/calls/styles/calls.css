@@ -1314,6 +1314,10 @@
   box-shadow: none;
 }
 
+.sc-call-reveal {
+  animation: scCallFadeRise 220ms var(--sc-ease-enter);
+}
+
 .sc-call-tab-content {
   animation: scCallFadeRise 200ms var(--sc-ease-enter);
 }
@@ -1367,6 +1371,10 @@
 
 .sc-call-bar > * {
   animation: scCallFadeIn 200ms ease-out 60ms both;
+}
+
+.sc-call-bar__mute {
+  transition: box-shadow 220ms ease;
 }
 
 .sc-call-pip {
@@ -1554,6 +1562,7 @@
   .sc-call-panel,
   .sc-call-panel[data-state='exiting'],
   .sc-call-tab-content,
+  .sc-call-reveal,
   .sc-call-icon-swap,
   .sc-call-share-banner[data-state],
   .sc-call-share-volume,
@@ -2075,5 +2084,36 @@
 @media (prefers-reduced-motion: reduce) {
   .sc-stage-paused {
     animation: none;
+.sc-call-option-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sc-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  transition: background-color 200ms var(--sc-ease-enter), color 200ms var(--sc-ease-enter);
+}
+
+.sc-call-option-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--sc-warning-text, var(--sc-warning));
+}
+
+.sc-call-option-warning[data-active='true'] {
+  background: var(--sc-warning-soft);
+  color: var(--sc-warning-text, var(--sc-text-primary));
+  animation: scCallFadeRise 200ms var(--sc-ease-enter);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-option-warning,
+  .sc-call-option-warning[data-active='true'] {
+    animation: none;
+    transition: none;
   }
 }

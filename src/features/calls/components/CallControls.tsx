@@ -4,6 +4,7 @@ import { FaCog, FaDesktop, FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlas
 import { MdCallEnd } from 'react-icons/md';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useCall } from '../call-context';
+import { speakingClass } from '../lib/self-speaking';
 import { isMounted } from '../lib/presence';
 import { usePresence } from './use-presence';
 import { DevicePicker, type BroadcastSettings, type DeviceSelection } from './DevicePicker';
@@ -33,6 +34,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
+  const muteTitle = call.localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
   const shareBlocked = !snapshot.canShareScreen || snapshot.degrade === 'audio-only-relay';
   const shareLabel = snapshot.screenSharing ? t('calls.share.stop') : shareBlocked ? t('calls.share.unavailable') : t('calls.share.start');
@@ -66,7 +68,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
 
   return (
     <div className="sc-call-controls" role="toolbar" aria-label={t('calls.settings')}>
-      <button type="button" className="sc-call-round" onClick={call.toggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={snapshot.muted}>
+      <button type="button" className={speakingClass('sc-call-round', call.localSpeaking)} onClick={call.toggleMute} title={muteTitle} aria-label={muteLabel} aria-pressed={snapshot.muted}>
         <span key={snapshot.muted ? 'muted' : 'live'} className="sc-call-icon-swap">
           {snapshot.muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
         </span>

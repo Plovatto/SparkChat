@@ -38,6 +38,7 @@ import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, Restart
 import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
+import type { VoiceLeveler } from './voice-leveler';
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
@@ -175,6 +176,7 @@ export interface CallControllerDeps {
   applyShareConstraints: (stream: MediaStream, movie: boolean) => Promise<void>;
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
+  createVoiceLeveler?: (track: MediaStreamTrack) => VoiceLeveler;
   isMobile: () => boolean;
   startRingtone: (pattern: 'incoming' | 'outgoing') => void;
   stopRingtone: () => void;
@@ -326,6 +328,7 @@ export class CallController {
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private disposed = false;
+  private voice: VoiceLeveler | null = null;
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
@@ -367,8 +370,9 @@ export class CallController {
       ['call:signal', (payload: { callId: string; from: string; envelope: string }) => this.onSignal(payload)],
       ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.onEnded(payload)],
       ['call:transferred', (payload: { callId: string }) => this.onTransferred(payload)],
-      ['call:peer-transfer', (payload: { callId: string; from: string; envelope: string }) => void this.onPeerTransfer(payload)],
+      ['call:peer-transfer', (payload: { callId: string; from: string; envelope: string }) => this.onPeerTransfer(payload)],
       ['call:transfer-accepted', (payload: { callId: string; envelope: string }) => void this.onTransferAccepted(payload)],
+      ['call:transfer-failed', (payload: { callId: string }) => this.onTransferFailed(payload)],
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
@@ -701,8 +705,34 @@ export class CallController {
         track.enabled = !next;
       }
     }
+    this.voice?.setMuted(next);
     peer?.setMuted(next);
     this.update({ muted: next });
+  }
+
+  setMicVolume(volume: number): void {
+    this.voice?.setVolume(volume);
+  }
+
+  private levelVoice(stream: MediaStream | null): MediaStream | null {
+    this.releaseVoice();
+    const mic = stream?.getAudioTracks()[0];
+    if (!stream || !mic || !this.deps.createVoiceLeveler) {
+      return stream;
+    }
+    const voice = this.deps.createVoiceLeveler(mic);
+    if (!voice.processed) {
+      voice.close();
+      return stream;
+    }
+    voice.setMuted(this.snapshot.muted);
+    this.voice = voice;
+    return voice.sendStream(stream);
+  }
+
+  private releaseVoice(): void {
+    this.voice?.close();
+    this.voice = null;
   }
 
   async toggleCamera(): Promise<void> {
@@ -916,7 +946,7 @@ export class CallController {
     }
     track.enabled = !this.snapshot.muted;
     stream.addTrack(track);
-    await session.peerSession.setAudioTrack(track);
+    await session.peerSession.setAudioTrack(this.voice ? this.voice.setInput(track) : track);
     this.update({ localStream: stream });
   }
 
@@ -1102,6 +1132,15 @@ export class CallController {
     if (event === 'call:hangup' || event === 'call:decline') {
       return;
     }
+    if (event === 'call:transfer') {
+      if (session && session.transferDeviceId !== null) {
+        this.onTransferFailed({ callId: session.callId });
+      }
+      return;
+    }
+    if (event === 'call:transfer-accept') {
+      return;
+    }
     if (event === 'call:heartbeat' || event === 'call:signal') {
       if (session) {
         this.requestSync();
@@ -1226,7 +1265,6 @@ export class CallController {
         connectedAt: Number.isFinite(answeredAt) ? answeredAt : null,
       });
       this.update({ otherDevice: null, muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
-      this.startHeartbeat(other.callId);
       this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
     } catch {
       this.update({ notice: { kind: 'transfer-failed' } });
@@ -1263,7 +1301,6 @@ export class CallController {
       return;
     }
     if (!content) {
-      this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'invalid-transfer' });
       return;
     }
     const keys = await deriveSessionKeys({
@@ -1283,6 +1320,7 @@ export class CallController {
     }
     session.channel = new SignalChannel({ callId: session.callId, selfId: identity.userId, peerId: session.peerId, keys });
     session.transferDeviceId = null;
+    this.startHeartbeat(session.callId);
     const buffered = session.rawSignals.splice(0);
     for (const signal of buffered) {
       this.onSignal(signal);
@@ -1290,8 +1328,19 @@ export class CallController {
     await this.createPeer(session);
   }
 
-  private async onPeerTransfer(payload: { callId: string; from: string; envelope: string }): Promise<void> {
+  private onPeerTransfer(payload: { callId: string; from: string; envelope: string }): void {
     const session = this.session;
+    if (!session || session.callId !== payload.callId) {
+      return;
+    }
+    session.signalChain = session.signalChain.then(() => this.handlePeerTransfer(session, payload)).catch(() => undefined);
+  }
+
+  private async handlePeerTransfer(expected: Session, payload: { callId: string; from: string; envelope: string }): Promise<void> {
+    const session = this.session;
+    if (session !== expected) {
+      return;
+    }
     const identity = this.deps.getIdentity();
     const phase = this.machine.getState().phase;
     if (!session || !identity || session.callId !== payload.callId || payload.from !== session.peerId || !hasCallMedia(this.machine.getState()) || phase === 'connecting') {
@@ -1338,7 +1387,6 @@ export class CallController {
       session.channel = new SignalChannel({ callId: session.callId, selfId: identity.userId, peerId: session.peerId, keys });
       session.pendingSignals = [];
       session.rawSignals = [];
-      session.signalChain = Promise.resolve();
       session.statsSample = null;
       session.relay = RELAY_UNKNOWN;
       session.instability = STABLE;
@@ -1349,10 +1397,22 @@ export class CallController {
       this.machine.dispatch({ type: 'peer-transfer', callId: session.callId });
       this.update({ remoteStream: null, remoteMuted: false, remoteCameraOn: false, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, remoteScreenAudio: false, remoteScreenMovie: false, remoteScreenPaused: false, canShareScreen: false });
       this.deps.socket.emit('call:transfer-accept', { callId: session.callId, envelope: reply });
-      await this.createPeer(session);
+      void this.createPeer(session);
     } finally {
       zeroEphemeralKeyPair(ek);
     }
+  }
+
+  private onTransferFailed(payload: { callId: string }): void {
+    const session = this.session;
+    const state = this.machine.getState();
+    if (!session || session.callId !== payload.callId || session.transferDeviceId === null) {
+      return;
+    }
+    this.teardown(state);
+    this.machine.dispatch({ type: 'transferred-away', callId: payload.callId });
+    this.update({ notice: { kind: 'transfer-failed' } });
+    this.requestSync();
   }
 
   private onTransferred(payload: { callId: string }): void {
@@ -1506,7 +1566,7 @@ export class CallController {
       mobile: this.deps.isMobile(),
       iceServers,
       degrade,
-      localStream: session.media?.stream ?? null,
+      localStream: this.levelVoice(session.media?.stream ?? null),
       sendSignal: (type, payload) => this.sendSignal(session, type, payload),
       refreshIceServers: async () => {
         try {
@@ -1730,6 +1790,7 @@ export class CallController {
         zeroEphemeralKeyPair(session.ownEk);
       }
       this.deps.stopMedia(session.media?.stream ?? null);
+      this.releaseVoice();
       this.releaseScreen(session);
       this.deps.tabs.announceReleased(session.callId);
     }
@@ -1759,6 +1820,7 @@ export class CallController {
       zeroEphemeralKeyPair(this.session.ownEk);
     }
     this.deps.stopMedia(this.session?.media?.stream ?? null);
+    this.releaseVoice();
     if (this.session) {
       this.releaseScreen(this.session);
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
+import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, audioProcessingConstraints, usesAdvancedNoise, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -84,6 +84,7 @@ describe('screen share', () => {
 
   it('asks for a tab, window or screen with audio and excludes the app tab itself', () => {
     expect((screenShareOptions().audio as Record<string, unknown>).restrictOwnAudio).toBe(true);
+    expect(screenShareOptions().audio).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true, restrictOwnAudio: true });
     expect(screenShareOptions()).toMatchObject({
       selfBrowserSurface: 'exclude',
       surfaceSwitching: 'include',
@@ -115,7 +116,7 @@ describe('share constraints', () => {
     await applyShareConstraints(stream, true);
     expect(applied[0]).toEqual({ kind: 'video', constraints: { frameRate: { ideal: 30, max: 30 }, width: { max: 3840 }, height: { max: 2160 } } });
     expect(applied[1]).toEqual({ kind: 'audio', constraints: SHARE_AUDIO_CONSTRAINTS });
-    expect(SHARE_AUDIO_CONSTRAINTS).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false });
+    expect(SHARE_AUDIO_CONSTRAINTS).toEqual({ echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: true });
     expect(shareVideoConstraints(false)).toEqual({ frameRate: { ideal: 15, max: 30 } });
   });
 
@@ -172,5 +173,21 @@ describe('known devices lifecycle', () => {
     resetKnownDevices();
     const empty = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
     expect(empty.audioInputs).toEqual([]);
+  });
+});
+
+describe('advanced noise suppression constraints', () => {
+  const all = { noiseSuppression: true, echoCancellation: true, autoGainControl: true, voiceIsolation: false };
+
+  it('turns the browser suppression off when the on-device model replaces it', () => {
+    expect(audioProcessingConstraints(all, true)).toMatchObject({ noiseSuppression: false, echoCancellation: true, autoGainControl: true });
+    expect(usesAdvancedNoise(all, true)).toBe(true);
+  });
+
+  it('keeps the browser suppression when the model is unavailable or the switch is off', () => {
+    expect(audioProcessingConstraints(all, false)).toMatchObject({ noiseSuppression: true });
+    expect(usesAdvancedNoise(all, false)).toBe(false);
+    expect(usesAdvancedNoise({ ...all, noiseSuppression: false }, true)).toBe(false);
+    expect(audioProcessingConstraints({ ...all, noiseSuppression: false, echoCancellation: false }, true)).toMatchObject({ noiseSuppression: false, echoCancellation: false });
   });
 });

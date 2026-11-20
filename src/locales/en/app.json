@@ -720,7 +720,7 @@
       "screen-degraded": "Screen sharing stopped to save data on this connection.",
       "screen-failed": "Could not share your screen.",
       "transferred": "Call moved to another device",
-      "transfer-failed": "Could not move the call to this device."
+      "transfer-failed": "Could not switch devices"
     },
     "callBack": "Call back",
     "close": "Close",
@@ -769,12 +769,20 @@
       "title": "Audio quality",
       "noise": "Noise reduction",
       "noiseHint": "Reduces background noise such as typing and fans.",
+      "noiseAdvancedHint": "Removes typing, clicks and background noise right on your device.",
       "echo": "Echo cancellation",
       "echoHint": "Stops the other person's voice from coming back through your microphone. You can turn it off with headphones.",
       "gain": "Automatic volume",
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
-      "isolationHint": "Keeps only your voice and removes other voices and sounds."
+      "isolationHint": "Keeps only your voice and removes other voices and sounds.",
+      "isolationWarning": "May make your voice quieter for the listener",
+      "volumeSection": "Volume",
+      "processingSection": "Processing",
+      "micVolume": "Microphone volume",
+      "micVolumeHint": "How loud your voice reaches the listener.",
+      "callVolume": "Call volume",
+      "callVolumeHint": "How loud you hear the other person."
     },
     "share": {
       "start": "Share screen",
@@ -827,6 +835,7 @@
       "video": "Video call"
     },
     "mutedBadge": "Microphone off",
+    "micPickingUp": "Your microphone is picking up your voice",
     "speaking": "Speaking",
     "route": {
       "direct": "Direct connection",
@@ -840,6 +849,9 @@
       "shareVolume": "Shared audio volume",
       "shareVolumeHint": "How loud the screen sound is for the other person",
       "noShareAudio": "To send sound, check Share audio when choosing the screen",
+      "monitorVolume": "Series volume for me",
+      "monitorVolumeHint": "How loud the shared sound is for you",
+      "monitorUnsupported": "Your browser does not let us lower the tab sound for you — share a Chrome/Edge tab with sound",
       "hidePreview": "Hide preview",
       "hidePreviewHint": "Shows a notice instead of your screen",
       "streamVolume": "Stream volume",

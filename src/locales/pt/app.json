@@ -720,7 +720,7 @@
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
       "screen-failed": "Não foi possível compartilhar a tela.",
       "transferred": "Chamada transferida para outro aparelho",
-      "transfer-failed": "Não foi possível trazer a chamada para este aparelho."
+      "transfer-failed": "Não foi possível trocar de aparelho"
     },
     "callBack": "Ligar de volta",
     "close": "Fechar",
@@ -769,12 +769,20 @@
       "title": "Qualidade do áudio",
       "noise": "Redução de ruído",
       "noiseHint": "Reduz ruídos de fundo, como teclado e ventilador.",
+      "noiseAdvancedHint": "Remove teclado, cliques e ruídos de fundo com IA no seu aparelho.",
       "echo": "Cancelamento de eco",
       "echoHint": "Evita que a voz da outra pessoa volte pelo seu microfone. Pode desligar com fones de ouvido.",
       "gain": "Volume automático",
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
-      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
+      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons.",
+      "isolationWarning": "Pode deixar sua voz mais baixa para quem ouve",
+      "volumeSection": "Volume",
+      "processingSection": "Processamento",
+      "micVolume": "Volume do microfone",
+      "micVolumeHint": "Quão alto sua voz chega para quem ouve.",
+      "callVolume": "Volume da chamada",
+      "callVolumeHint": "Quão alto você ouve a outra pessoa."
     },
     "share": {
       "start": "Compartilhar tela",
@@ -827,6 +835,7 @@
       "video": "Chamada de vídeo"
     },
     "mutedBadge": "Microfone desligado",
+    "micPickingUp": "Seu microfone está captando sua voz",
     "speaking": "Falando",
     "route": {
       "direct": "Conexão direta",
@@ -840,6 +849,9 @@
       "shareVolume": "Volume do áudio compartilhado",
       "shareVolumeHint": "Quanto do som da tela a outra pessoa ouve",
       "noShareAudio": "Para enviar o som, marque Compartilhar áudio ao escolher a tela",
+      "monitorVolume": "Volume da série para mim",
+      "monitorVolumeHint": "Quanto do som compartilhado você ouve",
+      "monitorUnsupported": "Seu navegador não permite abaixar o som da aba para você — compartilhe uma aba do Chrome/Edge com som",
       "hidePreview": "Ocultar prévia",
       "hidePreviewHint": "Mostra só um aviso no lugar da sua tela",
       "streamVolume": "Volume da transmissão",
