@@ -1,10 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import { getItem, setItem } from '@lib/storage';
+import { clampMicVolume } from './voice-leveler';
+import { clampCallVolume } from './voice-playback';
 
 const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
 const SHARE_VOLUME_KEY = 'chatCallShareVolume';
 const MOVIE_MODE_KEY = 'chatCallMovieMode';
+const MIC_VOLUME_KEY = 'chatCallMicVolume';
+const CALL_VOLUME_KEY = 'chatCallVolume';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -107,4 +111,55 @@ export function getMovieMode(): boolean {
 export function setMovieMode(value: boolean): boolean {
   setItem(MOVIE_MODE_KEY, value);
   return value;
+}
+
+export interface VolumeSetting {
+  get: () => number;
+  set: (value: number) => number;
+  subscribe: (listener: Listener) => () => void;
+}
+
+function volumeSetting(key: string, clamp: (value: unknown) => number): VolumeSetting {
+  const volumeListeners = new Set<Listener>();
+  const get = () => clamp(getItem<unknown>(key) ?? 1);
+  return {
+    get,
+    set: (value) => {
+      const next = clamp(value);
+      setItem(key, next);
+      for (const listener of Array.from(volumeListeners)) {
+        listener();
+      }
+      return next;
+    },
+    subscribe: (listener) => {
+      volumeListeners.add(listener);
+      const onStorage = (event: StorageEvent) => {
+        if (event.key === key) {
+          listener();
+        }
+      };
+      window.addEventListener('storage', onStorage);
+      return () => {
+        volumeListeners.delete(listener);
+        window.removeEventListener('storage', onStorage);
+      };
+    },
+  };
+}
+
+export const micVolume = volumeSetting(MIC_VOLUME_KEY, clampMicVolume);
+export const callVolume = volumeSetting(CALL_VOLUME_KEY, clampCallVolume);
+
+function useVolumeSetting(setting: VolumeSetting): [number, (value: number) => number] {
+  const value = useSyncExternalStore(setting.subscribe, setting.get, () => 1);
+  return [value, setting.set];
+}
+
+export function useMicVolume(): [number, (value: number) => number] {
+  return useVolumeSetting(micVolume);
+}
+
+export function useCallVolume(): [number, (value: number) => number] {
+  return useVolumeSetting(callVolume);
 }

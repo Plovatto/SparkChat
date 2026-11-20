@@ -20,6 +20,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@jitsi/rnnoise-wasm": "0.2.1",
     "@mkljczk/bergamot-translator": "0.4.16",
     "bootstrap": "^5.3.9",
     "date-fns": "^4.1.0",
