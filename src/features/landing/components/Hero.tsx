@@ -1,7 +1,8 @@
 import { Fragment, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { COLOR_THEMES } from '@features/theme/constants/color-themes';
-import { APP_URL } from '../constants/content';
+import { FaDownload } from 'react-icons/fa';
+import { APP_INSTALL_URL, APP_URL } from '../constants/content';
 import { useHeroTilt } from '../hooks/useHeroTilt';
 import { AppWindowPreview } from './AppWindowPreview';
 
@@ -39,6 +40,9 @@ export function Hero({ wallpaper }: HeroProps) {
             </a>
             <a className="sc-btn sc-btn--header lp-hero__cta" href="#temas">
               {t('hero.tryThemes')}
+            </a>
+            <a className="sc-btn sc-btn--header sc-btn--lift lp-hero__cta lp-hero__install" href={APP_INSTALL_URL}>
+              <FaDownload size={14} aria-hidden="true" /> {t('hero.install')}
             </a>
           </div>
           <p className="lp-hero__note lp-hero__enter">{t('hero.note')}</p>

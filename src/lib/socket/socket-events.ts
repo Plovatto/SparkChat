@@ -9,6 +9,17 @@ export interface SocketErrorPayload {
   event?: string;
 }
 
+export interface PushConfigPayload {
+  enabled: boolean;
+  publicKey: string | null;
+}
+
+export interface PushSubscriptionWire {
+  endpoint: string;
+  expirationTime: number | null;
+  keys: { p256dh: string; auth: string };
+}
+
 export interface SocketUserTheme {
   baseTheme: string;
   colorTheme: string;
@@ -261,6 +272,9 @@ export interface CallStatePayload {
 }
 
 export interface ServerToClientEvents {
+  'push:config': (payload: PushConfigPayload) => void;
+  'push:subscribed': (payload: { endpoint: string }) => void;
+  'push:unsubscribed': (payload: { endpoint: string }) => void;
   'user:registered': (payload: {
     user: SocketUser;
     sessionToken: string;
@@ -340,6 +354,9 @@ export interface ServerToClientEvents {
 }
 
 export interface ClientToServerEvents {
+  'push:config': () => void;
+  'push:subscribe': (payload: { subscription: PushSubscriptionWire }) => void;
+  'push:unsubscribe': (payload: { endpoint: string }) => void;
   'user:join': (payload: JoinPayload) => void;
   'user:update-profile': (payload: { nickname: string; avatar: number; currentPassword?: string }) => void;
   'user:update-status-text': (payload: { statusText: string }) => void;

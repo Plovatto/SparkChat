@@ -2,6 +2,7 @@ import type { IconType } from 'react-icons';
 import { FaBell, FaBolt, FaLock, FaPalette, FaPaperclip, FaRobot } from 'react-icons/fa';
 
 export const APP_URL = '/app/';
+export const APP_INSTALL_URL = '/app/?install=1';
 
 export type FeatureId = 'realtime' | 'encryption' | 'media' | 'assistant' | 'themes' | 'notifications';
 
