@@ -1373,6 +1373,10 @@
   animation: scCallFadeIn 200ms ease-out 60ms both;
 }
 
+.sc-call-bar__mute {
+  transition: box-shadow 220ms ease;
+}
+
 .sc-call-pip {
   animation: scCallFadeIn 200ms ease-out;
 }
