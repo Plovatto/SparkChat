@@ -244,7 +244,13 @@ function AuthGate({
   return (
     <AppBackground theme={user ? theme : loginTheme.theme}>
       {isRestoring ? null : !user ? (
-        <LoginScreen loginTheme={loginTheme} onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
+        <LoginScreen
+          loginTheme={loginTheme}
+          onRegister={onRegisterStart}
+          onLogin={onLogin}
+          registerError={registerError}
+          entranceReady={!splash.mounted || splash.leaving}
+        />
       ) : !isSocketReady ? null : (
         <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={handleUserLogout} />
       )}

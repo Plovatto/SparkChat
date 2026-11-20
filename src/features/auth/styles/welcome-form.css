@@ -1,0 +1,549 @@
+.welcome-card--register {
+  width: min(100%, 480px);
+}
+
+.welcome-card--login {
+  width: min(100%, 440px);
+}
+
+.welcome-card--form {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(var(--app-height, 100dvh) - 32px);
+}
+
+.welcome-hero--form {
+  flex: none;
+  padding: 24px 76px 26px;
+}
+
+.welcome-hero--with-logo {
+  padding-top: 20px;
+}
+
+.welcome-back {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  animation: welcomePop 520ms var(--welcome-ease-spring) 560ms both;
+}
+
+.welcome-back svg {
+  transition: transform 260ms var(--welcome-ease-spring);
+}
+
+.welcome-back:hover svg {
+  transform: translateX(-3px);
+}
+
+.welcome-mini-emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 6px;
+}
+
+.welcome-mini-emblem::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.1) 42%, transparent 70%);
+  animation:
+    welcomeGlowIn 900ms var(--welcome-ease-out) 260ms both,
+    welcomePulse 2.8s ease-in-out 1.4s infinite;
+}
+
+.welcome-mini-emblem img {
+  position: relative;
+  width: 58px;
+  height: auto;
+  margin-top: 4px;
+  filter: drop-shadow(0 6px 14px rgba(20, 10, 70, 0.25));
+  animation:
+    welcomeLogoIn 820ms var(--welcome-ease-spring) 320ms both,
+    welcomeZap 5.6s linear 2.4s infinite;
+}
+
+.welcome-form-title {
+  margin: 0;
+  font-size: clamp(1.45rem, 5vw, 1.7rem);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  color: var(--sc-on-gradient);
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+  animation: welcomeRise 700ms var(--welcome-ease-out) 380ms both;
+}
+
+.welcome-form-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--sc-on-gradient-muted);
+  animation: welcomeRise 700ms var(--welcome-ease-out) 480ms both;
+}
+
+.welcome-body--form {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 28px 26px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--sc-border-focus) 40%, transparent) transparent;
+}
+
+.welcome-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.welcome-field-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+  animation: welcomeRise 640ms var(--welcome-ease-out) calc(520ms + var(--welcome-i, 0) * 90ms) both;
+}
+
+.welcome-field-group--last {
+  margin-bottom: 22px;
+}
+
+.welcome-field-group--reveal {
+  animation: welcomeRise 520ms var(--welcome-ease-out) both;
+}
+
+.welcome-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--sc-text-primary);
+}
+
+.welcome-label svg {
+  color: var(--sc-text-secondary);
+  transition:
+    color 200ms ease,
+    transform 300ms var(--welcome-ease-spring);
+}
+
+.welcome-field-group:focus-within .welcome-label svg {
+  color: var(--sc-border-focus);
+  transform: scale(1.12) rotate(-6deg);
+}
+
+.welcome-input-wrap {
+  position: relative;
+}
+
+.welcome-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1.5px solid color-mix(in srgb, var(--sc-text-primary) 9%, transparent);
+  background: var(--sc-input);
+  color: var(--sc-text-primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  outline: none;
+  transition:
+    border-color 200ms ease,
+    box-shadow 240ms ease,
+    background-color 200ms ease;
+}
+
+.welcome-input::placeholder {
+  color: var(--sc-placeholder);
+  font-weight: 400;
+}
+
+.welcome-input:hover {
+  border-color: color-mix(in srgb, var(--sc-border-focus) 35%, transparent);
+}
+
+.welcome-input:focus {
+  border-color: var(--sc-border-focus);
+  box-shadow: 0 0 0 3px var(--sc-focus-ring);
+}
+
+.welcome-input[data-valid='true'] {
+  border-color: color-mix(in srgb, var(--sc-success) 70%, transparent);
+}
+
+.welcome-input[data-invalid='true'] {
+  border-color: color-mix(in srgb, var(--sc-danger) 75%, transparent);
+}
+
+.welcome-input--file {
+  height: auto;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--sc-text-secondary);
+}
+
+.welcome-input--file::file-selector-button {
+  margin-right: 12px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--sc-accent) 92%, #2f5bd8), var(--sc-accent-secondary));
+  color: var(--sc-on-gradient);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 180ms ease;
+}
+
+.welcome-input--file::file-selector-button:hover {
+  filter: brightness(1.1);
+}
+
+.welcome-input-adornment {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  translate: 0 -50%;
+  animation: welcomePop 380ms var(--welcome-ease-spring) both;
+}
+
+.welcome-eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sc-text-secondary);
+  translate: 0 -50%;
+  cursor: pointer;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    transform 240ms var(--welcome-ease-spring);
+}
+
+.welcome-eye:hover {
+  color: var(--sc-text-primary);
+  background: color-mix(in srgb, var(--sc-text-primary) 8%, transparent);
+}
+
+.welcome-eye:active {
+  transform: scale(0.88);
+}
+
+.welcome-eye:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 1px;
+}
+
+.welcome-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 18px;
+  margin-top: 5px;
+  padding: 0 2px;
+  font-size: 0.72rem;
+}
+
+.welcome-hint__status {
+  font-weight: 600;
+  animation: welcomeTextIn 320ms var(--welcome-ease-out) both;
+}
+
+.welcome-hint__status[data-status='match'] {
+  color: var(--sc-success-text);
+}
+
+.welcome-hint__status[data-status='mismatch'] {
+  color: var(--sc-danger-text);
+}
+
+.welcome-hint__count {
+  margin-left: auto;
+  color: var(--sc-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome-field-error {
+  display: block;
+  margin-top: 8px;
+  color: var(--sc-danger-text);
+  font-weight: 600;
+  font-size: 0.78rem;
+}
+
+.welcome-avatar-panel {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  justify-items: center;
+  gap: 16px 12px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 18px 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 7%, transparent);
+  background: color-mix(in srgb, var(--sc-surface-sunken) 72%, #000000);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--sc-border-focus) 40%, transparent) transparent;
+}
+
+.welcome-root[data-kind='light'] .welcome-avatar-panel {
+  background: color-mix(in srgb, var(--sc-surface-sunken) 92%, var(--sc-accent));
+}
+
+.welcome-avatar-tile {
+  animation: welcomePop 460ms var(--welcome-ease-spring) calc(640ms + var(--welcome-i, 0) * 32ms) both;
+}
+
+.welcome-avatar-option {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--sc-text-primary) 9%, transparent);
+  background: var(--sc-input);
+  color: color-mix(in srgb, var(--sc-text-primary) 92%, var(--sc-border-focus));
+  cursor: pointer;
+  transition:
+    transform 260ms var(--welcome-ease-spring),
+    background-color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 240ms ease;
+}
+
+.welcome-avatar-option svg {
+  transition: transform 300ms var(--welcome-ease-spring);
+}
+
+.welcome-avatar-option:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--sc-border-focus) 60%, transparent);
+  background: color-mix(in srgb, var(--sc-border-focus) 16%, var(--sc-input));
+  box-shadow: 0 10px 20px -12px color-mix(in srgb, var(--sc-border-focus) 80%, transparent);
+}
+
+.welcome-avatar-option:hover svg {
+  transform: scale(1.12) rotate(-6deg);
+}
+
+.welcome-avatar-option:active {
+  transform: scale(0.92);
+  transition-duration: 90ms;
+}
+
+.welcome-avatar-option:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.welcome-avatar-option[data-selected='true'] {
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--sc-border-focus) 85%, #ffffff), color-mix(in srgb, var(--sc-border-focus) 60%, var(--sc-accent-secondary)));
+  box-shadow:
+    0 10px 22px -8px color-mix(in srgb, var(--sc-border-focus) 85%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--sc-border-focus) 22%, transparent);
+  transform: scale(1.04);
+}
+
+.welcome-avatar-option[data-selected='true'] svg {
+  animation: welcomeSelect 460ms var(--welcome-ease-spring) both;
+}
+
+.welcome-photo-tile .sc-photo-tile__button {
+  border: 1.5px dashed color-mix(in srgb, var(--sc-border-focus) 75%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--sc-border-focus) 70%, var(--sc-text-primary));
+}
+
+.welcome-photo-tile .sc-photo-tile__button:hover {
+  background: color-mix(in srgb, var(--sc-border-focus) 14%, transparent);
+  border-color: var(--sc-border-focus);
+}
+
+.welcome-photo-tile .sc-photo-tile__button[data-selected='true'] {
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc-border-focus) 30%, transparent);
+}
+
+.welcome-photo-tile .sc-photo-tile__badge {
+  border-color: var(--sc-surface-sunken);
+  background: linear-gradient(140deg, color-mix(in srgb, var(--sc-border-focus) 80%, var(--sc-accent)), var(--sc-accent-secondary));
+}
+
+.welcome-photo-tile .sc-photo-tile__badge[data-static='true'] {
+  animation: welcomeBadgeNudge 3.6s ease-in-out 2.2s infinite;
+}
+
+.welcome-card--form .welcome-cta {
+  animation-delay: calc(620ms + var(--welcome-i, 0) * 90ms);
+}
+
+.welcome-cta--submit {
+  margin-top: 4px;
+  min-height: 52px;
+}
+
+.welcome-cta--submit:disabled {
+  filter: saturate(0.8) brightness(0.92);
+}
+
+.welcome-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  font-size: 0.75rem;
+  color: var(--sc-text-muted);
+  animation: welcomeFade 600ms ease-out calc(700ms + var(--welcome-i, 0) * 90ms) both;
+}
+
+.welcome-divider::before,
+.welcome-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  animation: welcomeLineDraw 800ms var(--welcome-ease-out) calc(760ms + var(--welcome-i, 0) * 90ms) both;
+}
+
+.welcome-divider::before {
+  transform-origin: 100% 50%;
+}
+
+.welcome-divider::after {
+  transform-origin: 0% 50%;
+}
+
+.welcome-cta--ghost {
+  min-height: 46px;
+  padding: 10px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--sc-text-secondary);
+  background: var(--sc-input);
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 9%, transparent);
+}
+
+.welcome-cta--ghost:hover {
+  transform: translateY(-2px);
+  color: var(--sc-text-primary);
+  border-color: color-mix(in srgb, var(--sc-border-focus) 55%, transparent);
+  background: color-mix(in srgb, var(--sc-border-focus) 12%, var(--sc-input));
+}
+
+.welcome-cta--ghost:hover .welcome-cta__key {
+  animation: welcomeKeyTurn 620ms var(--welcome-ease-spring);
+}
+
+.welcome-cta--ghost:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 3px;
+}
+
+@media (max-width: 479.98px) {
+  .welcome-hero--form {
+    padding: 64px 20px 22px;
+  }
+
+  .welcome-hero--with-logo {
+    padding-top: 58px;
+  }
+
+  .welcome-body--form {
+    padding: 22px 18px 22px;
+  }
+
+  .welcome-avatar-panel {
+    gap: 12px 8px;
+    padding: 14px 10px;
+  }
+}
+
+@keyframes welcomeSelect {
+  0% {
+    scale: 0.6;
+    rotate: -14deg;
+  }
+  60% {
+    scale: 1.18;
+    rotate: 6deg;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes welcomeBadgeNudge {
+  0%,
+  86%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  90% {
+    transform: scale(1.22) rotate(90deg);
+  }
+  95% {
+    transform: scale(0.95) rotate(90deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-back,
+  .welcome-form-title,
+  .welcome-form-subtitle,
+  .welcome-field-group,
+  .welcome-field-group--reveal,
+  .welcome-avatar-tile,
+  .welcome-avatar-option[data-selected='true'] svg,
+  .welcome-input-adornment,
+  .welcome-hint__status,
+  .welcome-divider,
+  .welcome-divider::before,
+  .welcome-divider::after,
+  .welcome-mini-emblem::before,
+  .welcome-mini-emblem img {
+    animation: welcomeFade 320ms ease-out both;
+  }
+
+  .welcome-photo-tile .sc-photo-tile__badge[data-static='true'],
+  .welcome-cta--ghost:hover .welcome-cta__key {
+    animation: none;
+  }
+
+  .welcome-avatar-option,
+  .welcome-avatar-option svg,
+  .welcome-label svg,
+  .welcome-back svg {
+    transition-property: background-color, border-color, color, box-shadow;
+  }
+
+  .welcome-avatar-option:hover,
+  .welcome-cta--ghost:hover {
+    transform: none;
+  }
+
+  .welcome-avatar-option:hover svg,
+  .welcome-field-group:focus-within .welcome-label svg,
+  .welcome-back:hover svg {
+    transform: none;
+  }
+}

@@ -219,7 +219,7 @@
       "passwordPlaceholder": "Your password",
       "keyfile": "Recovery file",
       "switchToPassword": "Sign in with username and password",
-      "switchToKeyfile": "Use your recovery file instead?",
+      "switchToKeyfile": "Sign in with your recovery file",
       "submitting": "Signing in...",
       "submit": "Sign in",
       "fillFields": "Enter your username and password!",
@@ -247,7 +247,89 @@
       "passwordTooShort": "Your password must be at least {{minLength}} characters long!",
       "passwordsMismatch": "The passwords don't match!"
     },
-    "logoAlt": "SparkChat logo"
+    "logoAlt": "SparkChat logo",
+    "welcome": {
+      "e2ee": "End-to-end encrypted",
+      "featuresLabel": "SparkChat features",
+      "features": {
+        "media": "Photos & files",
+        "calls": "Calls",
+        "themes": "Themes"
+      },
+      "bubbles": {
+        "coffee": {
+          "0": "Coffee later?",
+          "1": "Did you see my photo?",
+          "2": "Live stream at 8pm!"
+        },
+        "reserved": {
+          "0": "Done, table booked!",
+          "1": "Deal, see you soon!",
+          "2": "Just sent the voice note"
+        },
+        "when": {
+          "0": "Sure! What time?",
+          "1": "Saw it, looks great!",
+          "2": "I'm in!"
+        },
+        "location": {
+          "0": "Send me the location?",
+          "1": "Road trip time!",
+          "2": "Call in 5 min?"
+        },
+        "arrived": {
+          "0": "We're here! Love the room",
+          "1": "What a view!",
+          "2": "Dinner time?"
+        },
+        "onMyWay": {
+          "0": "On my way",
+          "1": "Two minutes!",
+          "2": "At the door now"
+        },
+        "pickAvatar": {
+          "0": "Pick an avatar!",
+          "1": "What will your name be?",
+          "2": "Choose a great photo!"
+        },
+        "goCat": {
+          "0": "Going with the cat",
+          "1": "Already picked mine!",
+          "2": "Rocket for me"
+        },
+        "letsTalk": {
+          "0": "Let's chat!",
+          "1": "I'll message you soon",
+          "2": "Sign up and I'll add you"
+        },
+        "arrivedHappy": {
+          "0": "Look who's here",
+          "1": "Welcome aboard!",
+          "2": "Now the gang's all here"
+        },
+        "backSoFast": {
+          "0": "Hi! Back so soon",
+          "1": "We missed you!",
+          "2": "Right on time!"
+        },
+        "imBack": {
+          "0": "I'm back!",
+          "1": "Hey everyone!",
+          "2": "Missed you all"
+        },
+        "goodToSee": {
+          "0": "Good to see you!",
+          "1": "Shall we catch up?",
+          "2": "Saved the news for you"
+        },
+        "longTime": {
+          "0": "Long time no see!",
+          "1": "There's news!",
+          "2": "Sent you a voice note"
+        }
+      },
+      "or": "or"
+    }
   },
   "dates": {
     "today": "Today",
@@ -543,7 +625,19 @@
     "deleteTitle": "Delete Conversations",
     "deleteConfirm_one": "Are you sure you want to delete {{count}} conversation?",
     "deleteConfirm_other": "Are you sure you want to delete {{count}} conversations?",
-    "emptyHint": "Click \"New Chat\" to get started"
+    "emptyHint": "Click \"New Chat\" to get started",
+    "searchPlaceholder": "Search conversations",
+    "clearSearch": "Clear search",
+    "noResults": "No conversations found",
+    "noResultsHint": "Try another name or filter",
+    "filters": {
+      "label": "Filter conversations",
+      "all": "All",
+      "unread": "Unread",
+      "groups": "Groups",
+      "unreadCount_one": "{{count}} unread conversation",
+      "unreadCount_other": "{{count}} unread conversations"
+    }
   },
   "newChat": {
     "title": "New Chat",

@@ -219,7 +219,7 @@
       "passwordPlaceholder": "Sua senha",
       "keyfile": "Arquivo de recuperação",
       "switchToPassword": "Entrar com username e senha",
-      "switchToKeyfile": "Entrar com o arquivo de recuperação?",
+      "switchToKeyfile": "Entrar com o arquivo de recuperação",
       "submitting": "Entrando...",
       "submit": "Entrar",
       "fillFields": "Preencha o username e a senha!",
@@ -247,7 +247,89 @@
       "passwordTooShort": "A senha deve ter pelo menos {{minLength}} caracteres!",
       "passwordsMismatch": "As senhas não coincidem!"
     },
-    "logoAlt": "Logo do SparkChat"
+    "logoAlt": "Logo do SparkChat",
+    "welcome": {
+      "e2ee": "Cifrado de ponta a ponta",
+      "featuresLabel": "Recursos do SparkChat",
+      "features": {
+        "media": "Fotos e arquivos",
+        "calls": "Chamadas",
+        "themes": "Temas"
+      },
+      "bubbles": {
+        "coffee": {
+          "0": "Bora marcar o café?",
+          "1": "Viu a foto que mandei?",
+          "2": "Hoje tem live às 20h!"
+        },
+        "reserved": {
+          "0": "Fechado, reserva feita!",
+          "1": "Combinado, até já!",
+          "2": "Mandei o áudio agora"
+        },
+        "when": {
+          "0": "Bora! Que horas?",
+          "1": "Vi sim, ficou linda!",
+          "2": "Tô dentro!"
+        },
+        "location": {
+          "0": "Manda a localização?",
+          "1": "Partiu viagem!",
+          "2": "Chamada em 5 min?"
+        },
+        "arrived": {
+          "0": "Chegamos! Já vi o quarto",
+          "1": "Que vista incrível!",
+          "2": "Partiu jantar?"
+        },
+        "onMyWay": {
+          "0": "Tô chegando",
+          "1": "Dois minutinhos!",
+          "2": "Já estou na porta"
+        },
+        "pickAvatar": {
+          "0": "Escolhe um avatar!",
+          "1": "Qual vai ser seu nome?",
+          "2": "Capricha na foto!"
+        },
+        "goCat": {
+          "0": "Vou de gato",
+          "1": "Já escolhi o meu!",
+          "2": "Fechou, vou de foguete"
+        },
+        "letsTalk": {
+          "0": "Bora conversar!",
+          "1": "Te chamo já já",
+          "2": "Cria lá que eu te add"
+        },
+        "arrivedHappy": {
+          "0": "Chegou animada",
+          "1": "Boas-vindas!",
+          "2": "Agora sim, completo!"
+        },
+        "backSoFast": {
+          "0": "Oi! Voltou rápido",
+          "1": "Sentimos sua falta!",
+          "2": "Bem na hora!"
+        },
+        "imBack": {
+          "0": "Voltei!",
+          "1": "Cheguei, gente!",
+          "2": "Saudade de vocês"
+        },
+        "goodToSee": {
+          "0": "Que bom te ver!",
+          "1": "Bora pôr o papo em dia?",
+          "2": "Guardei as novidades"
+        },
+        "longTime": {
+          "0": "Quanto tempo!",
+          "1": "Tem fofoca nova!",
+          "2": "Te mandei um áudio"
+        }
+      },
+      "or": "ou"
+    }
   },
   "dates": {
     "today": "Hoje",
@@ -543,7 +625,19 @@
     "deleteTitle": "Excluir Conversas",
     "deleteConfirm_one": "Tem certeza que quer excluir {{count}} conversa?",
     "deleteConfirm_other": "Tem certeza que quer excluir {{count}} conversas?",
-    "emptyHint": "Clique em \"Novo Chat\" para começar"
+    "emptyHint": "Clique em \"Novo Chat\" para começar",
+    "searchPlaceholder": "Buscar conversas",
+    "clearSearch": "Limpar busca",
+    "noResults": "Nenhuma conversa encontrada",
+    "noResultsHint": "Tente outro nome ou filtro",
+    "filters": {
+      "label": "Filtrar conversas",
+      "all": "Todas",
+      "unread": "Não lidas",
+      "groups": "Grupos",
+      "unreadCount_one": "{{count}} conversa não lida",
+      "unreadCount_other": "{{count}} conversas não lidas"
+    }
   },
   "newChat": {
     "title": "Novo Chat",
