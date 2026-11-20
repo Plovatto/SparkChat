@@ -117,11 +117,40 @@
 
 .sc-photo-tile__icon {
   display: inline-flex;
+  width: 44%;
+  height: 44%;
   transition: transform var(--sc-dur-slow) var(--sc-ease-spring);
 }
 
 .sc-photo-tile__button:hover .sc-photo-tile__icon {
   transform: translateY(-1px) scale(1.06);
+}
+
+.sc-photo-tile__icon svg,
+.sc-photo-tile__badge svg,
+.sc-photo-tile__remove svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sc-photo-tile__badge {
+  width: 36%;
+  min-width: 14px;
+  aspect-ratio: 1 / 1;
+  right: -4%;
+  bottom: -4%;
+  padding: 7.5%;
+  border-width: 2px;
+}
+
+.sc-photo-tile__remove {
+  width: 30%;
+  min-width: 14px;
+  aspect-ratio: 1 / 1;
+  top: -6%;
+  right: -6%;
+  padding: 7%;
+  border-width: 1.5px;
 }
 
 .sc-photo-tile__image {

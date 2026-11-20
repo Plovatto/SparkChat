@@ -21,7 +21,6 @@ interface PhotoPickerTileProps {
 export function PhotoPickerTile({ size, iconSize, photoUrl, isSelected, isBusy = false, onChoose, onSelect, onRemove, onView, style, className }: PhotoPickerTileProps) {
   const { t } = useTranslation();
   const hasPhoto = photoUrl !== null;
-  const badgeSize = Math.max(20, Math.round(size * 0.34));
   const isViewable = hasPhoto && isSelected && Boolean(onView);
 
   const label = !hasPhoto ? t('profilePhotos.choose') : isViewable ? t('profilePhotos.viewMine') : isSelected ? t('profilePhotos.change') : t('profilePhotos.useMine');
@@ -59,12 +58,12 @@ export function PhotoPickerTile({ size, iconSize, photoUrl, isSelected, isBusy =
           <img key={photoUrl} src={photoUrl} alt="" draggable={false} className="sc-photo-tile__image" />
         ) : (
           <span className="sc-photo-tile__icon" aria-hidden="true">
-            <FaCamera size={Math.round(iconSize * 0.72)} />
+            <FaCamera />
           </span>
         )}
         {isBusy && (
           <span className="sc-photo-edit-overlay" aria-hidden="true">
-            <Spinner size={Math.round(iconSize * 0.6)} />
+            <Spinner size={Math.max(12, Math.round(iconSize * 0.5))} />
           </span>
         )}
       </button>
@@ -72,37 +71,34 @@ export function PhotoPickerTile({ size, iconSize, photoUrl, isSelected, isBusy =
       {hasPhoto ? (
         <button
           type="button"
-          className="sc-photo-badge"
+          className="sc-photo-badge sc-photo-tile__badge"
           onClick={onChoose}
           disabled={isBusy}
           title={t('profilePhotos.change')}
           aria-label={t('profilePhotos.change')}
-          style={{ width: `${badgeSize}px`, height: `${badgeSize}px`, right: '-3px', bottom: '-3px' }}
         >
-          <FaCamera size={Math.round(badgeSize * 0.46)} />
+          <FaCamera />
         </button>
       ) : (
         <span
-          className="sc-photo-badge"
+          className="sc-photo-badge sc-photo-tile__badge"
           data-static="true"
           aria-hidden="true"
-          style={{ width: `${badgeSize}px`, height: `${badgeSize}px`, right: '-3px', bottom: '-3px' }}
         >
-          <FaPlus size={Math.round(badgeSize * 0.46)} />
+          <FaPlus />
         </span>
       )}
 
       {hasPhoto && (
         <button
           type="button"
-          className="sc-photo-badge sc-photo-badge--remove"
+          className="sc-photo-badge sc-photo-badge--remove sc-photo-tile__remove"
           onClick={onRemove}
           disabled={isBusy}
           title={t('profilePhotos.remove')}
           aria-label={t('profilePhotos.remove')}
-          style={{ width: '22px', height: '22px', top: '-4px', right: '-4px' }}
         >
-          <FaTimes size={10} />
+          <FaTimes />
         </button>
       )}
     </div>
