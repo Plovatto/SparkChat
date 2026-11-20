@@ -5,7 +5,7 @@ import { useTheme } from '@features/theme';
 import { Switch } from '@components/common/Switch';
 import { useCall } from '../call-context';
 import { useAudioProcessing, type AudioProcessing } from '../lib/call-settings';
-import { listDevices, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
+import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
 import { isOutside } from './call-hooks';
 import { panelTabs, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
@@ -235,10 +235,13 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
     tablistRef.current?.querySelector<HTMLButtonElement>(`[data-tab='${next}']`)?.focus();
   };
 
+  const activeTracksRef = useRef<MediaStreamTrack[]>([]);
+  activeTracksRef.current = call.snapshot.localStream?.getTracks() ?? [];
+
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
-      void listDevices().then((result) => {
+      void listDevicesReliably({ activeTracks: activeTracksRef.current }).then((result) => {
         if (!cancelled) {
           setDevices(result);
         }
