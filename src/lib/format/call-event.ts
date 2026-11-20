@@ -53,3 +53,55 @@ export function describeCallEvent(event: CallEventParams, selfUserId: string | n
   const subtitle = [who, outcome, duration].filter((part): part is string => Boolean(part)).join(' · ');
   return { kind, direction, tone: answered ? 'answered' : 'unanswered', title, who, outcome, duration, subtitle };
 }
+
+export type CallPreviewGlyph = 'voice-outgoing' | 'voice-incoming' | 'voice-missed' | 'video' | 'video-off';
+export type CallPreviewTone = 'success' | 'danger' | 'muted';
+
+export interface CallPreview {
+  glyph: CallPreviewGlyph;
+  tone: CallPreviewTone;
+  label: string;
+  detail: string | null;
+  missed: boolean;
+  fullText: string;
+}
+
+const MISSED_INCOMING_REASONS: ReadonlySet<string> = new Set(['missed', 'cancelled', 'busy']);
+const MUTED_OUTGOING_REASONS: ReadonlySet<string> = new Set(['missed', 'cancelled', 'busy']);
+
+function readReason(params: CallEventParams['params']): string {
+  const raw = typeof params.reason === 'string' ? params.reason : 'missed';
+  return KNOWN_REASONS.has(raw) ? raw : 'missed';
+}
+
+export function describeCallPreview(event: CallEventParams, selfUserId: string | null | undefined = getCurrentIdentity()?.userId): CallPreview {
+  const described = describeCallEvent(event, selfUserId);
+  const fullText = `${described.title} · ${described.subtitle}`;
+  const answered = described.tone === 'answered';
+  const reason = readReason(event.params);
+  const missedIncoming = !answered && described.direction === 'incoming' && MISSED_INCOMING_REASONS.has(reason);
+
+  const tone: CallPreviewTone = answered
+    ? 'success'
+    : described.direction === 'outgoing' && MUTED_OUTGOING_REASONS.has(reason)
+      ? 'muted'
+      : 'danger';
+
+  const glyph: CallPreviewGlyph =
+    described.kind === 'video'
+      ? answered || described.direction === 'outgoing'
+        ? 'video'
+        : 'video-off'
+      : answered
+        ? described.direction === 'outgoing'
+          ? 'voice-outgoing'
+          : 'voice-incoming'
+        : described.direction === 'outgoing'
+          ? 'voice-outgoing'
+          : 'voice-missed';
+
+  const label = missedIncoming ? translate(`calls.event.missedTitle.${described.kind}`) : described.title;
+  const detail = answered ? described.duration : missedIncoming ? null : described.outcome;
+
+  return { glyph, tone, label, detail, missed: missedIncoming, fullText };
+}
