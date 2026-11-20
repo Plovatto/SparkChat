@@ -8,24 +8,24 @@ export function useRoomPhoto(roomId: string | null | undefined): string | null {
   return null;
 }
 
-export async function uploadMyPhoto(image: Blob): Promise<void> {
+export function uploadMyPhoto(image: Blob): Promise<void> {
   void image;
-  throw new Error('profile photos are not available yet');
+  return Promise.reject(new Error('profile photos are not available yet'));
 }
 
-export async function removeMyPhoto(): Promise<void> {
-  throw new Error('profile photos are not available yet');
+export function removeMyPhoto(): Promise<void> {
+  return Promise.reject(new Error('profile photos are not available yet'));
 }
 
-export async function uploadRoomPhoto(roomId: string, image: Blob): Promise<void> {
+export function uploadRoomPhoto(roomId: string, image: Blob): Promise<void> {
   void roomId;
   void image;
-  throw new Error('profile photos are not available yet');
+  return Promise.reject(new Error('profile photos are not available yet'));
 }
 
-export async function removeRoomPhoto(roomId: string): Promise<void> {
+export function removeRoomPhoto(roomId: string): Promise<void> {
   void roomId;
-  throw new Error('profile photos are not available yet');
+  return Promise.reject(new Error('profile photos are not available yet'));
 }
 
 export function queuePendingMyPhoto(image: Blob): void {
