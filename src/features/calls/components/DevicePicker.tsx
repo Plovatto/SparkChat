@@ -228,7 +228,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented) {
+      if (event.key === 'Escape' && !event.defaultPrevented && !(event.target instanceof Element && event.target.closest('[data-sc-dropdown]'))) {
         event.stopPropagation();
         onClose(true);
       }

@@ -141,6 +141,12 @@ export function Dropdown({ value, options, onChange, icon, disabled = false, emp
     if (inactive) {
       return;
     }
+    if (event.key === 'Escape' && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       openMenu(event.key === 'ArrowUp' ? Math.max(0, selectedIndex < 0 ? options.length - 1 : selectedIndex) : undefined);

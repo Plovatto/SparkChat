@@ -45,6 +45,17 @@ describe('Dropdown', () => {
     expect(screen.getByRole('option', { name: 'Padrão' })?.getAttribute('aria-selected')).toBe('true');
   });
 
+  it('closes only the list when Escape is pressed on the open trigger', () => {
+    const outer = vi.fn();
+    document.addEventListener('keydown', outer);
+    render(<Harness />);
+    fireEvent.click(trigger());
+    fireEvent.keyDown(trigger(), { key: 'Escape' });
+    document.removeEventListener('keydown', outer);
+    expect(trigger()?.getAttribute('aria-expanded')).toBe('false');
+    expect(outer).not.toHaveBeenCalled();
+  });
+
   it('selects an option with the mouse and returns focus to the trigger', () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
