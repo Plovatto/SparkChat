@@ -1,4 +1,4 @@
-const STORAGE_PATH_PATTERN = /^\/uploads\/(images|audio|files)\/[^/]+$/;
+const STORAGE_PATH_PATTERN = /^\/uploads\/(images|audio|files|gifs)\/[^/]+$/;
 
 export function configuredMediaOrigin(): string | null {
   const configured = import.meta.env.VITE_MEDIA_ORIGIN;

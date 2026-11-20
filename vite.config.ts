@@ -1,4 +1,5 @@
-import { build, defineConfig, type Plugin } from 'vite';
+import { build, type Plugin } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { createHash } from 'node:crypto';
 import react from '@vitejs/plugin-react';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -252,5 +253,11 @@ export default defineConfig(({ isSsrBuild }) => ({
   },
   server: {
     port: 5173,
+  },
+  test: {
+    projects: [
+      { extends: true, test: { name: 'node', include: ['**/*.test.{ts,mjs}'], environment: 'node' } },
+      { extends: true, test: { name: 'dom', include: ['src/**/*.test.tsx'], environment: 'jsdom', setupFiles: ['src/test/setup-dom.ts'] } },
+    ],
   },
 }));

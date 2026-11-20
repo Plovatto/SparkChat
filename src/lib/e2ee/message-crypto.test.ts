@@ -5,11 +5,12 @@ import { translate } from '@lib/i18n/app-i18n';
 import { sealAttachment, type AttachmentBinding } from './attachment-crypto';
 import { sealAuthenticatedField } from './authenticated-field';
 import { setCurrentIdentity } from './current-identity';
-import { clearDecryptedMediaCache } from './media-cache';
-import { decryptMediaContentIfNeeded, decryptMessageView, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
+import { clearDecryptedMediaCache, isExpiredMediaUrl } from './media-cache';
+import { decryptMediaContentIfNeeded, decryptMessageView, decryptRoomSummary, encryptOutgoingMessage, hasUnencryptedFields } from './message-crypto';
 import { MissingRoomKeyError } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
+import { padGif } from '@lib/media/gif-padding';
 
 const roomKeys = vi.hoisted(() => new Map<string, { keyId: string; epoch: number; key: Uint8Array }[]>());
 const contactSigningKeys = vi.hoisted(() => new Map<string, string>());
@@ -727,5 +728,166 @@ describe('per-attachment keys in messages', () => {
     });
 
     expect(resolved).toBe(MEDIA_URL);
+  });
+});
+
+describe('decryptMediaContentIfNeeded for gifs', () => {
+  const GIF_URL = 'https://cdn.test/uploads/gifs/payload.bin?e2e=1';
+  const createdBlobs: Blob[] = [];
+  const fetchMock = vi.fn<typeof fetch>();
+  const original = new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50, 9, 9]);
+  let ciphertext: ArrayBuffer;
+  let contentKey: string;
+
+  const gifSource = (mimeType: string, messageType: MessageView['type'] = 'image') => ({
+    roomId: ROOM_ID,
+    messageId: MESSAGE_ID,
+    fileMeta: { name: 'gif.webp', mimeType, size: original.byteLength, key: contentKey },
+    messageType,
+  });
+
+  beforeEach(async () => {
+    createdBlobs.length = 0;
+    const padded = await padGif(new Blob([original], { type: 'image/webp' }));
+    const sealed = await sealAttachment(padded, { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'content' });
+    ciphertext = await sealed.ciphertext.arrayBuffer();
+    contentKey = sealed.key;
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(ciphertext.slice(0))));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+      createdBlobs.push(blob as Blob);
+      return `blob:https://app.test/${createdBlobs.length}`;
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    clearDecryptedMediaCache();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('removes the padding of a marked gif and keeps only the raster essence as type', async () => {
+    const resolved = await decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp; sparkchat-gif=1'));
+
+    expect(resolved).toBe('blob:https://app.test/1');
+    expect(createdBlobs[0]?.type).toBe('image/webp');
+    expect(new Uint8Array(await (createdBlobs[0] as Blob).arrayBuffer())).toEqual(original);
+  });
+
+  it('keeps the padded bytes for an unmarked image so older clients still display it', async () => {
+    await decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp'));
+
+    expect(createdBlobs[0]?.type).toBe('image/webp');
+    expect(createdBlobs[0]?.size).toBe(256 * 1024);
+  });
+
+  it('does not create media when the padding is invalid', async () => {
+    const unpadded = await sealAttachment(new Blob([original]), { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'content' });
+    contentKey = unpadded.key;
+    const unpaddedCiphertext = await unpadded.ciphertext.arrayBuffer();
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(unpaddedCiphertext.slice(0))));
+
+    await expect(decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp; sparkchat-gif=1'))).resolves.toBe(GIF_URL);
+    expect(createdBlobs).toHaveLength(0);
+  });
+
+  it.each([404, 403])('marks a gif whose download returns %i as expired', async (status) => {
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status })));
+
+    await expect(decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp; sparkchat-gif=1'))).resolves.toBe(GIF_URL);
+    expect(isExpiredMediaUrl(GIF_URL)).toBe(true);
+
+    clearDecryptedMediaCache();
+    expect(isExpiredMediaUrl(GIF_URL)).toBe(false);
+  });
+
+  it('does not mark other failures or non gif media as expired', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status: 500 })));
+    await decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp; sparkchat-gif=1'));
+    expect(isExpiredMediaUrl(GIF_URL)).toBe(false);
+
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(null, { status: 404 })));
+    await decryptMediaContentIfNeeded(GIF_URL, gifSource('image/webp'));
+    expect(isExpiredMediaUrl(GIF_URL)).toBe(false);
+  });
+});
+
+describe('gif label previews without media downloads', () => {
+  const GIF_URL = 'https://cdn.test/uploads/gifs/payload.bin?e2e=1';
+  const fetchMock = vi.fn<typeof fetch>();
+
+  beforeEach(async () => {
+    roomKeys.clear();
+    addGeneration(ROOM_ID);
+    const padded = await padGif(new Blob([new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])], { type: 'image/gif' }));
+    const sealed = await sealAttachment(padded, { roomId: ROOM_ID, messageId: MESSAGE_ID, slot: 'content' });
+    const ciphertext = await sealed.ciphertext.arrayBuffer();
+    gifKey = sealed.key;
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(() => Promise.resolve(new Response(ciphertext.slice(0))));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:https://app.test/gif');
+  });
+
+  afterEach(() => {
+    clearDecryptedMediaCache();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  let gifKey = '';
+
+  async function encryptedGifView(): Promise<MessageView> {
+    const encrypted = await encryptOutgoingMessage({
+      roomId: ROOM_ID,
+      type: 'image',
+      content: GIF_URL,
+      messageId: MESSAGE_ID,
+      fileMeta: { name: 'gif.gif', mimeType: 'image/gif; sparkchat-gif=1', size: 262144, key: gifKey },
+    });
+    return toMessageView({ id: MESSAGE_ID, type: 'image', content: encrypted.content, fileMeta: encrypted.fileMeta ?? null });
+  }
+
+  it('still decrypts the full gif for the message bubble', async () => {
+    const decrypted = await decryptMessageView(socket, await encryptedGifView());
+
+    expect(decrypted.content).toBe('blob:https://app.test/gif');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the gif marker but skips the download when only a label is needed', async () => {
+    const decrypted = await decryptMessageView(socket, await encryptedGifView(), { deferGifMedia: true });
+
+    expect(decrypted.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(decrypted.content).toBe(GIF_URL);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not download a gif that is the last message of a room', async () => {
+    const lastMessage = await encryptedGifView();
+    const room = { id: ROOM_ID, type: 'private', participants: [], lastMessage } as unknown as Parameters<typeof decryptRoomSummary>[1];
+
+    const decrypted = await decryptRoomSummary(socket, room);
+
+    expect(decrypted.lastMessage?.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not download a gif quoted in a reply', async () => {
+    const quoted = await encryptedGifView();
+    const reply = await encryptOutgoingMessage({ roomId: ROOM_ID, type: 'text', content: 'haha', messageId: OTHER_MESSAGE_ID });
+    const view = toMessageView({
+      id: OTHER_MESSAGE_ID,
+      content: reply.content,
+      replyTo: { id: MESSAGE_ID, sender: quoted.sender, content: quoted.content, type: 'image', fileMeta: quoted.fileMeta, caption: null, duration: null },
+    });
+
+    const decrypted = await decryptMessageView(socket, view);
+
+    expect(decrypted.content).toBe('haha');
+    expect(decrypted.replyTo?.fileMeta?.mimeType).toBe('image/gif; sparkchat-gif=1');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

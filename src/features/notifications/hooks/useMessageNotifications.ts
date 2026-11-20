@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useSocket, type MessageView, type RoomSummary } from '@lib/socket';
+import { markPreviewOnlyHandler, useSocket, type MessageView, type RoomSummary } from '@lib/socket';
 import { buildNotificationContent } from '../utils/build-notification-content';
 import { playNotificationSound } from '../utils/play-notification-sound';
 import { showPageNotification } from '../utils/show-page-notification';
@@ -29,7 +29,7 @@ export function useMessageNotifications(
       return;
     }
 
-    const handleMessageNew = (message: MessageView) => {
+    const handleMessageNew = markPreviewOnlyHandler((message: MessageView) => {
       if (message.sender.id === currentUserId || message.type === 'system') {
         return;
       }
@@ -64,7 +64,7 @@ export function useMessageNotifications(
         };
         showPageNotification(title, options, message.roomId, () => onNotificationClick(message.roomId));
       });
-    };
+    });
 
     socket.on('message:new', handleMessageNew);
     return () => {

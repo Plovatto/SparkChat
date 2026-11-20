@@ -10,6 +10,7 @@ describe('isStorageMediaUrl', () => {
     expect(isStorageMediaUrl('https://cdn.test/uploads/images/a.png?e2e=1', null)).toBe(true);
     expect(isStorageMediaUrl('https://cdn.test/uploads/audio/a.webm', null)).toBe(true);
     expect(isStorageMediaUrl('https://cdn.test/uploads/files/a.pdf?e2e=1', null)).toBe(true);
+    expect(isStorageMediaUrl('https://cdn.test/uploads/gifs/a.bin?e2e=1', null)).toBe(true);
   });
 
   it('rejects insecure, foreign-path and credentialed urls', () => {
@@ -17,6 +18,8 @@ describe('isStorageMediaUrl', () => {
     expect(isStorageMediaUrl('https://cdn.test/other/a.png', null)).toBe(false);
     expect(isStorageMediaUrl('https://cdn.test/uploads/images/nested/a.png', null)).toBe(false);
     expect(isStorageMediaUrl('https://cdn.test/uploads/avatars/a.png', null)).toBe(false);
+    expect(isStorageMediaUrl('https://cdn.test/uploads/gifs/nested/a.bin', null)).toBe(false);
+    expect(isStorageMediaUrl('https://static.klipy.com/ii/abc/a.webp', null)).toBe(false);
     expect(isStorageMediaUrl('https://user:pass@cdn.test/uploads/images/a.png', null)).toBe(false);
     expect(isStorageMediaUrl('blob:https://app.test/1', null)).toBe(false);
     expect(isStorageMediaUrl('not a url', null)).toBe(false);

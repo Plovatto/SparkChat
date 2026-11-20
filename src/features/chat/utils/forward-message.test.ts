@@ -194,6 +194,28 @@ describe('forwardMessage', () => {
     expect(sent[0]).toMatchObject({ type: 'audio', duration: 4, fileMeta: { name: 'audio-1', mimeType: 'audio/ogg;codecs=opus' } });
   });
 
+  it('re-uploads a forwarded gif padded to the gif endpoint without recompressing it', async () => {
+    const message = buildMessage({
+      type: 'image',
+      content: 'https://cdn.test/uploads/gifs/cat.bin?e2e=1',
+      fileMeta: { name: 'gif.webp', mimeType: 'image/webp; sparkchat-gif=1', size: 262144 },
+    });
+
+    await forwardMessage(createSocket(), { userId: 'u', sessionToken: 't' }, message, 'target-room');
+
+    expectOnlyNeutralUploads();
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]?.url).toBe('https://api.test/api/messages/upload/gif');
+    expect(uploads[0]?.file.size).toBe(262144 + 40);
+    const payload = sent[0] as { messageId: string; content: string; fileMeta: MessageFileMeta };
+    expect(payload).toMatchObject({ type: 'image', fileMeta: { name: 'gif.webp', mimeType: 'image/webp; sparkchat-gif=1', size: 262144 } });
+    expect(payload.fileMeta.thumbnailUrl).toBeUndefined();
+    const opened = await openUploaded(payload.content, payload.fileMeta.key, 'target-room', payload.messageId, 'content');
+    const padded = new Uint8Array(await (opened as Blob).arrayBuffer());
+    expect(padded.byteLength).toBe(262144);
+    expect(new TextDecoder().decode(padded.subarray(0, 31))).toBe('plain blob:uploads/gifs/cat.bin');
+  });
+
   it('forwards text without uploading anything', async () => {
     await forwardMessage(createSocket(), { userId: 'u', sessionToken: 't' }, buildMessage({ type: 'text', content: 'oi' }), 'target-room');
 
