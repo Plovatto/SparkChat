@@ -24,6 +24,7 @@ interface AvatarPickerProps {
   tileSize?: number;
   iconSize?: number;
   entranceDelayMs?: number;
+  panelMaxHeight?: number;
 }
 
 export function AvatarPicker({
@@ -41,6 +42,7 @@ export function AvatarPicker({
   tileSize = DEFAULT_TILE_SIZE,
   iconSize = DEFAULT_ICON_SIZE,
   entranceDelayMs = 0,
+  panelMaxHeight,
 }: AvatarPickerProps) {
   return (
     <div
@@ -48,7 +50,7 @@ export function AvatarPicker({
       data-kind={kind}
       role="group"
       aria-labelledby={labelledBy}
-      style={{ '--sc-avatar-picker-delay': `${entranceDelayMs}ms` } as CSSProperties}
+      style={{ '--sc-avatar-picker-delay': `${entranceDelayMs}ms`, maxHeight: panelMaxHeight ? `${panelMaxHeight}px` : undefined } as CSSProperties}
     >
       <PhotoPickerTile
         size={tileSize}

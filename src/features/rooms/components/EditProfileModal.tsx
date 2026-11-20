@@ -24,6 +24,7 @@ import { Switch } from '@components/common/Switch';
 import type { User } from '@features/auth';
 import { PasswordField, PasswordFieldHint } from '@features/auth/components/PasswordField';
 import { AvatarPicker } from '@features/auth/components/AvatarPicker';
+import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
 import { removeMyPhoto, uploadMyPhoto, useUserPhoto } from '@features/profile-photos';
@@ -130,6 +131,7 @@ export function EditProfileModal({
   onToggleNotificationContent,
 }: EditProfileModalProps) {
   const avatarLabelId = useId();
+  const { avatarSize } = useResponsiveAvatarSize();
   const soundsLabelId = useId();
   const notificationContentLabelId = useId();
   const { t } = useTranslation();
@@ -529,6 +531,9 @@ export function EditProfileModal({
               onViewPhoto={setViewerPhoto}
               labelledBy={avatarLabelId}
               kind={theme.kind}
+              tileSize={avatarSize}
+              iconSize={Math.round(avatarSize * 0.37)}
+              panelMaxHeight={220}
             />
             {photoPicker.error && (
               <small key={photoPicker.error} role="alert" className="sc-anim-shake" style={{ display: 'block', marginTop: '10px', color: theme.dangerText, fontWeight: 600 }}>
