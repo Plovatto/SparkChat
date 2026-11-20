@@ -851,7 +851,7 @@
       "installText": "Abra direto da tela inicial ou da área de trabalho e receba chamadas e mensagens mesmo com o app fechado.",
       "iosInstallAction": "Ver como instalar",
       "notificationsTitle": "Ativar notificações",
-      "notificationsText": "Saiba na hora quando chegar uma mensagem ou alguém te ligar, mesmo com o app fechado. Nada do conteúdo aparece no aviso.",
+      "notificationsText": "Saiba na hora quando chegar uma mensagem ou alguém te ligar, mesmo com o app fechado. Para esconder o texto das mensagens, ative Ocultar conteúdo nas notificações.",
       "enable": "Ativar",
       "dismiss": "Dispensar"
     },
@@ -870,13 +870,18 @@
     },
     "push": {
       "label": "Notificações",
-      "description": "Chamadas e mensagens mesmo com o app fechado, sem mostrar o conteúdo.",
+      "description": "Chamadas e mensagens mesmo com o app fechado.",
       "blocked": "As notificações estão bloqueadas neste navegador. Para liberar, toque no cadeado ou no ícone de ajustes ao lado do endereço, permita Notificações e recarregue a página. No app instalado, libere em Ajustes do sistema > Notificações > SparkChat.",
       "unsupported": "Este navegador não aceita notificações com o app fechado.",
       "iosNeedsInstall": "No iPhone e no iPad, instale o app na Tela de Início para receber notificações.",
       "serverDisabled": "As notificações com o app fechado ainda não estão disponíveis neste servidor.",
       "checking": "Verificando…",
-      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes."
+      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes.",
+      "desktopHelpTitle": "Não está chegando no computador?",
+      "desktopHelpBrowser": "Deixe o Chrome ou o Edge rodando em segundo plano: em Configurações > Sistema, ative \"Continuar executando apps em segundo plano quando o navegador estiver fechado\". Com o navegador totalmente fechado, nenhum aviso chega.",
+      "desktopHelpSystem": "Permita os avisos no sistema: no Windows, em Configurações > Sistema > Notificações, ative o Chrome ou o Edge e o SparkChat; no Mac, em Ajustes do Sistema > Notificações.",
+      "desktopHelpFocus": "Desligue o Não Perturbar ou o Assistente de Foco, que escondem os avisos.",
+      "desktopHelpOpen": "Se o SparkChat estiver aberto e visível em alguma janela, o aviso aparece dentro do app em vez de no sistema."
     },
     "update": {
       "message": "Nova versão disponível",
@@ -915,6 +920,11 @@
       "encodeFailed": "Não foi possível preparar essa foto. Tente outra.",
       "uploadFailed": "Não foi possível salvar sua foto. Verifique sua conexão e tente de novo.",
       "removeFailed": "Não foi possível remover sua foto. Tente de novo."
+    },
+    "signupFailed": {
+      "message": "Não foi possível salvar sua foto de perfil.",
+      "retry": "Tentar de novo",
+      "dismiss": "Agora não"
     }
   },
   "gifs": {

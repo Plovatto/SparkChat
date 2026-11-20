@@ -188,6 +188,15 @@ function serviceWorkerVersion(fileNames: readonly string[]): string {
   return createHash('sha256').update([...fileNames].sort().join('|')).digest('hex').slice(0, 16);
 }
 
+function workerImportMetaUrl(): Plugin {
+  return {
+    name: 'sparkchat:worker-import-meta-url',
+    resolveImportMeta(property) {
+      return property === 'url' ? 'self.location.href' : null;
+    },
+  };
+}
+
 function buildServiceWorker(): Plugin {
   let root = process.cwd();
   let outDir = path.resolve(root, 'dist');
@@ -210,6 +219,7 @@ function buildServiceWorker(): Plugin {
         logLevel: 'warn',
         publicDir: false,
         define: { __SW_VERSION__: JSON.stringify(version) },
+        plugins: [workerImportMetaUrl()],
         build: {
           outDir: path.join(outDir, SERVICE_WORKER_OUT_DIR),
           emptyOutDir: false,

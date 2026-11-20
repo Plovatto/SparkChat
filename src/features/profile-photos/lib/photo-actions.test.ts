@@ -220,3 +220,107 @@ describe('queuePendingMyPhoto', () => {
     expect(state.sealed.at(-1)?.size).toBe(30);
   });
 });
+
+function useFetch(status: number): void {
+  fetchMock = vi.fn(() => Promise.resolve(new Response(status === 201 ? JSON.stringify({ url: UPLOADED_URL }) : '{}', { status })));
+  vi.stubGlobal('fetch', fetchMock);
+}
+
+describe('failed sign-up photo', () => {
+  it('retries the upload before giving up, then lets the user retry or dismiss', async () => {
+    vi.useFakeTimers();
+    try {
+      useFetch(500);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      const listener = vi.fn();
+      actions.subscribeFailedPendingPhoto(listener);
+
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(fetchMock).toHaveBeenCalledTimes(actions.PENDING_PHOTO_RETRY_DELAYS_MS.length + 1);
+      expect(actions.hasFailedPendingPhoto()).toBe(true);
+      expect(listener).toHaveBeenCalled();
+
+      useFetch(201);
+      actions.retryFailedPendingPhoto();
+      expect(actions.hasFailedPendingPhoto()).toBe(false);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(state.published).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('forgets the failed photo on dismiss and on logout', async () => {
+    vi.useFakeTimers();
+    try {
+      useFetch(500);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(actions.hasFailedPendingPhoto()).toBe(true);
+
+      actions.dismissFailedPendingPhoto();
+      expect(actions.hasFailedPendingPhoto()).toBe(false);
+
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(actions.hasFailedPendingPhoto()).toBe(true);
+      setIdentity(null);
+      expect(actions.hasFailedPendingPhoto()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never moves the photo to another account that signs in while it retries', async () => {
+    vi.useFakeTimers();
+    try {
+      useFetch(500);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(100);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      useFetch(201);
+      setIdentity(null);
+      state.session = { id: 'u2', sessionToken: 'token-2' };
+      setIdentity('u2');
+      await vi.advanceTimersByTimeAsync(10000);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(state.published).toHaveLength(0);
+      expect(actions.hasFailedPendingPhoto()).toBe(false);
+      actions.retryFailedPendingPhoto();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(state.published).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up right away on errors that a retry cannot fix', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ code: 'upload.tooLarge', params: { kind: 'avatar' } }), { status: 400 })));
+      vi.stubGlobal('fetch', fetchMock);
+      state.session = { id: 'u1', sessionToken: 'token' };
+      setIdentity('u1');
+      markReady();
+      actions.queuePendingMyPhoto(webp());
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(actions.hasFailedPendingPhoto()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

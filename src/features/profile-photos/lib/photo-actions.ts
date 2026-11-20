@@ -96,15 +96,106 @@ function flushPendingPhoto(): void {
     return;
   }
   const image = pendingPhoto;
+  const owner = getCurrentIdentity()?.userId;
   pendingPhoto = null;
   stopWatchingPending();
-  pendingFlush = uploadMyPhoto(image)
+  if (!owner) {
+    return;
+  }
+  pendingFlush = uploadWithRetries(image, owner)
     .catch((error: unknown) => {
       console.error('[profile-photos] uploading the sign-up photo failed', error);
+      if (isCurrentOwner(owner)) {
+        setFailedPendingPhoto({ image, owner });
+      }
     })
     .finally(() => {
       pendingFlush = null;
     });
+}
+
+export const PENDING_PHOTO_RETRY_DELAYS_MS = [2000, 5000];
+
+const NON_RETRYABLE_CODES = new Set(['upload.invalidType', 'upload.tooLarge', 'upload.userQuotaExceeded', 'upload.quotaExceeded', PROFILE_PHOTO_UNAVAILABLE_CODE]);
+
+function isCurrentOwner(owner: string): boolean {
+  return getCurrentIdentity()?.userId === owner;
+}
+
+function isRetryable(error: unknown): boolean {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  return typeof code !== 'string' || !NON_RETRYABLE_CODES.has(code);
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function uploadWithRetries(image: Blob, owner: string): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    if (!isCurrentOwner(owner)) {
+      throw createProfilePhotoError(PROFILE_PHOTO_UNAVAILABLE_CODE);
+    }
+    try {
+      await uploadMyPhoto(image);
+      return;
+    } catch (error) {
+      const delay = PENDING_PHOTO_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isRetryable(error) || !isCurrentOwner(owner)) {
+        throw error;
+      }
+      await wait(delay);
+    }
+  }
+}
+
+interface FailedPendingPhoto {
+  image: Blob;
+  owner: string;
+}
+
+let failedPendingPhoto: FailedPendingPhoto | null = null;
+const failedPendingListeners = new Set<() => void>();
+
+let stopWatchingFailed: (() => void) | null = null;
+
+function setFailedPendingPhoto(failed: FailedPendingPhoto | null): void {
+  failedPendingPhoto = failed;
+  stopWatchingFailed?.();
+  stopWatchingFailed = failed
+    ? subscribeCurrentIdentity((identity) => {
+        if (identity?.userId !== failed.owner) {
+          setFailedPendingPhoto(null);
+        }
+      })
+    : null;
+  for (const listener of failedPendingListeners) {
+    listener();
+  }
+}
+
+export function hasFailedPendingPhoto(): boolean {
+  return failedPendingPhoto !== null && isCurrentOwner(failedPendingPhoto.owner);
+}
+
+export function subscribeFailedPendingPhoto(listener: () => void): () => void {
+  failedPendingListeners.add(listener);
+  return () => {
+    failedPendingListeners.delete(listener);
+  };
+}
+
+export function dismissFailedPendingPhoto(): void {
+  setFailedPendingPhoto(null);
+}
+
+export function retryFailedPendingPhoto(): void {
+  const failed = failedPendingPhoto;
+  setFailedPendingPhoto(null);
+  if (!failed || !isCurrentOwner(failed.owner)) {
+    return;
+  }
+  queuePendingMyPhoto(failed.image);
 }
 
 function watchPending(): void {
@@ -115,6 +206,7 @@ function watchPending(): void {
     subscribeCurrentIdentity((identity) => {
       if (!identity) {
         pendingPhoto = null;
+        setFailedPendingPhoto(null);
         stopWatchingPending();
         return;
       }

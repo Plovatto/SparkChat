@@ -851,7 +851,7 @@
       "installText": "Open it straight from your home screen or desktop and get calls and messages even when the app is closed.",
       "iosInstallAction": "See how to install",
       "notificationsTitle": "Turn on notifications",
-      "notificationsText": "Know right away when a message arrives or someone calls you, even with the app closed. No content is shown in the alert.",
+      "notificationsText": "Know right away when a message arrives or someone calls you, even with the app closed. To hide message text, turn on Hide message content in notifications.",
       "enable": "Turn on",
       "dismiss": "Dismiss"
     },
@@ -870,13 +870,18 @@
     },
     "push": {
       "label": "Notifications",
-      "description": "Calls and messages even when the app is closed, without showing content.",
+      "description": "Calls and messages even when the app is closed.",
       "blocked": "Notifications are blocked in this browser. To allow them, tap the lock or settings icon next to the address, allow Notifications and reload the page. In the installed app, allow them in System Settings > Notifications > SparkChat.",
       "unsupported": "This browser does not support notifications while the app is closed.",
       "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
       "serverDisabled": "Notifications with the app closed are not available on this server yet.",
       "checking": "Checking…",
-      "error": "Could not turn on notifications right now. Try again in a moment."
+      "error": "Could not turn on notifications right now. Try again in a moment.",
+      "desktopHelpTitle": "Not arriving on your computer?",
+      "desktopHelpBrowser": "Keep Chrome or Edge running in the background: in Settings > System, turn on \"Continue running background apps when the browser is closed\". With the browser fully closed, no notification can arrive.",
+      "desktopHelpSystem": "Allow notifications in your system: on Windows, in Settings > System > Notifications, turn on Chrome or Edge and SparkChat; on a Mac, in System Settings > Notifications.",
+      "desktopHelpFocus": "Turn off Do Not Disturb or Focus Assist, which hide notifications.",
+      "desktopHelpOpen": "If SparkChat is open and visible in a window, the alert shows inside the app instead of in the system."
     },
     "update": {
       "message": "A new version is available",
@@ -915,6 +920,11 @@
       "encodeFailed": "Couldn't prepare that photo. Try another one.",
       "uploadFailed": "Couldn't save your photo. Check your connection and try again.",
       "removeFailed": "Couldn't remove your photo. Try again."
+    },
+    "signupFailed": {
+      "message": "Couldn't save your profile photo.",
+      "retry": "Try again",
+      "dismiss": "Not now"
     }
   },
   "gifs": {

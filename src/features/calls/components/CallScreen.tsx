@@ -4,6 +4,7 @@ import { FaCompressAlt, FaMicrophoneSlash, FaVolumeMute, FaVolumeUp, FaWifi } fr
 import { MdScreenShare } from 'react-icons/md';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { Avatar } from '@features/profile-photos/components/Avatar';
+import { useUserPhoto } from '@features/profile-photos';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
@@ -74,6 +75,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const peer = call.peerDisplay(state.peerId);
   const peerName = peer?.name ?? '';
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
+  const peerPhoto = useUserPhoto(peer ? state.peerId : null);
   const running = state.phase === 'active' || state.phase === 'reconnecting';
   const elapsed = useElapsed(state.connectedAt, running);
   const remoteSharing = running && snapshot.remoteScreenOn && snapshot.remoteScreenStream !== null;
@@ -296,7 +298,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           local={localStage}
           title={localStage ? t('calls.share.yourScreen') : t('calls.share.peerTitle', { name: peerName })}
           detail={localStage ? ownSurfaceText : peerSurfaceText}
-          remote={{ name: peerName, avatar, stream: remoteCamera ? snapshot.remoteStream : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
+          remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? snapshot.remoteStream : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
           self={snapshot.cameraOn ? { name: t('calls.you'), avatar: undefined, stream: snapshot.localStream, speaking: localSpeaking, muted: snapshot.muted } : null}
           myScreen={layout.localScreenTile ? snapshot.localScreenStream : null}
           stageRef={stageRef}
@@ -369,6 +371,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
           target={pip.window}
           peerName={peerName}
           avatar={avatar}
+          photo={peerPhoto}
           stream={stageActive ? stageStream : remoteCamera ? snapshot.remoteStream : null}
           speaking={remoteSpeaking}
           muted={snapshot.muted}

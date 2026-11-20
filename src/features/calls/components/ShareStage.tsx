@@ -24,6 +24,7 @@ function StreamVideo({ stream, mirror = false, fit = 'cover', videoRef, label }:
 interface Person {
   name: string;
   avatar: (typeof AVATARS)[number] | undefined;
+  photo?: string | null;
   stream: MediaStream | null;
   speaking: boolean;
   muted: boolean;
@@ -48,8 +49,8 @@ export interface ShareStageProps {
 
 function Avatar({ person, size }: { person: Person; size: number }) {
   return (
-    <div className="sc-stage-avatar" style={{ width: `${size}px`, height: `${size}px`, background: person.avatar?.bgGradient }}>
-      {person.avatar ? <person.avatar.icon size={Math.round(size / 2)} color={AVATAR_ICON_COLOR} /> : null}
+    <div className="sc-stage-avatar" style={{ width: `${size}px`, height: `${size}px`, background: person.avatar?.bgGradient, overflow: 'hidden' }}>
+      {person.photo ? <img src={person.photo} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }} /> : person.avatar ? <person.avatar.icon size={Math.round(size / 2)} color={AVATAR_ICON_COLOR} /> : null}
     </div>
   );
 }
