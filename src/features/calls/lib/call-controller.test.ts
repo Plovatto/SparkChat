@@ -1472,3 +1472,20 @@ describe('movie mode', () => {
     expect(w.a.controller.getSnapshot().remoteScreenMovie).toBe(false);
   });
 });
+
+describe('socket takeover after reconnect', () => {
+  it('silently resyncs instead of showing an error when a heartbeat or signal is refused on a new socket', async () => {
+    const w = await world();
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    const before = w.a.socket.sent('call:sync').length;
+    const callId = w.a.controller.getSnapshot().state.callId;
+
+    w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:heartbeat', params: { callId } });
+    w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:signal', params: { callId } });
+
+    expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
+    expect(w.a.controller.getSnapshot().notice).toBeNull();
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+});

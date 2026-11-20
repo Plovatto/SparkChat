@@ -1009,6 +1009,12 @@ export class CallController {
     if (event === 'call:hangup' || event === 'call:decline') {
       return;
     }
+    if (event === 'call:heartbeat' || event === 'call:signal') {
+      if (session) {
+        this.requestSync();
+      }
+      return;
+    }
     this.update({ notice: { kind: 'server-error', code } });
   }
 
