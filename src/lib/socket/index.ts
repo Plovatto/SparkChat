@@ -13,6 +13,8 @@ export type {
   MessageStatus,
   MessageType,
   MessageView,
+  ProfileKeyEnvelopeSummary,
+  RoomEncryptedAvatar,
   RoomKeyBatch,
   RoomParticipant,
   RoomSummary,

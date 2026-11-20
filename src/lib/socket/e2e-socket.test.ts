@@ -22,6 +22,18 @@ const roomKeyHandlers = vi.hoisted(() => ({
   encryptOutgoingMessage: vi.fn(),
 }));
 
+const profilePhotoHandlers = vi.hoisted(() => ({
+  applyRoomParticipants: vi.fn(),
+  applyRoomSummary: vi.fn(),
+  applySelfUser: vi.fn(),
+  attachProfilePhotoSocket: vi.fn(() => () => undefined),
+  forgetRoom: vi.fn(),
+  handleBlockStatus: vi.fn(),
+  handleProfileKeysUpdated: vi.fn(),
+  handleRoomAvatarUpdated: vi.fn(),
+  handleUserAvatarUpdated: vi.fn(),
+}));
+
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 
 vi.mock('@lib/e2ee', () => ({
@@ -30,6 +42,7 @@ vi.mock('@lib/e2ee', () => ({
   decryptRoomSummaries: (rooms: unknown) => Promise.resolve(rooms),
   decryptRoomSummary: (room: unknown) => Promise.resolve(room),
   ...roomKeyHandlers,
+  ...profilePhotoHandlers,
   ensureSigningKeyPublished,
   trackRoom,
   getCurrentIdentity: () => identityState.current,
@@ -377,5 +390,50 @@ describe('wrapSocketWithE2e group names', () => {
     receive('room:name-updated', payload);
 
     expect(roomKeyHandlers.handleRoomNameUpdated).toHaveBeenCalledWith(socket, payload);
+  });
+});
+
+describe('wrapSocketWithE2e profile photos', () => {
+  beforeEach(() => {
+    identityState.current = null;
+    identityState.listeners.clear();
+    for (const handler of Object.values(profilePhotoHandlers)) {
+      handler.mockClear();
+    }
+  });
+
+  it('registers the socket and detaches it when the socket closes', () => {
+    const detach = vi.fn();
+    profilePhotoHandlers.attachProfilePhotoSocket.mockReturnValueOnce(detach);
+    const { socket } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+
+    expect(profilePhotoHandlers.attachProfilePhotoSocket).toHaveBeenCalledWith(socket);
+    socket.close();
+    expect(detach).toHaveBeenCalledOnce();
+  });
+
+  it('feeds room summaries, participants and photo events into the profile photo store even without an identity', () => {
+    const { socket, receive } = createFakeSocket();
+    wrapSocketWithE2e(socket);
+
+    receive('rooms:list', { rooms: [privateRoom] });
+    receive('room:new', { room: privateRoom, messages: [] });
+    receive('group:participants-updated', { roomId: 'room-1', participants: [] });
+    receive('group:left', { roomId: 'room-1' });
+    receive('user:avatar-updated', { userId: 'u2', encryptedAvatar: null, profileKeyVersion: 2 });
+    receive('room:avatar-updated', { roomId: 'room-1', encryptedAvatar: null, keyId: null });
+    receive('room:profile-keys-updated', { roomId: 'room-1', keyId: 'k', envelopes: {} });
+    receive('user:blocked', { roomId: 'room-1', blockedBy: { me: 'u2' }, isBlocking: true });
+    receive('user:resumed', { user: { id: 'me', profileKeyVersion: 3 }, authMethod: 'password' });
+
+    expect(profilePhotoHandlers.applyRoomSummary).toHaveBeenCalledTimes(2);
+    expect(profilePhotoHandlers.applyRoomParticipants).toHaveBeenCalledWith('room-1', []);
+    expect(profilePhotoHandlers.forgetRoom).toHaveBeenCalledWith('room-1');
+    expect(profilePhotoHandlers.handleUserAvatarUpdated).toHaveBeenCalledWith({ userId: 'u2', encryptedAvatar: null, profileKeyVersion: 2 });
+    expect(profilePhotoHandlers.handleRoomAvatarUpdated).toHaveBeenCalledOnce();
+    expect(profilePhotoHandlers.handleProfileKeysUpdated).toHaveBeenCalledOnce();
+    expect(profilePhotoHandlers.handleBlockStatus).toHaveBeenCalledOnce();
+    expect(profilePhotoHandlers.applySelfUser).toHaveBeenCalledWith({ id: 'me', profileKeyVersion: 3 });
   });
 });
