@@ -61,6 +61,10 @@ export interface CallNotice {
   code?: string;
 }
 
+function isRingingForMe(payload: CallStatePayload): boolean {
+  return payload.state === 'ringing' && payload.role === 'callee';
+}
+
 export interface CallSnapshot {
   state: CallState;
   enabled: boolean;
@@ -1013,7 +1017,7 @@ export class CallController {
       this.session?.peerSession?.restartIce();
       return;
     }
-    if (isCallLive(state) || this.preparing) {
+    if (isCallLive(state) || this.preparing || isRingingForMe(payload)) {
       return;
     }
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
