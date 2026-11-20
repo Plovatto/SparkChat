@@ -9,6 +9,7 @@ import {
   type WorkerNotification,
   type WorkerNotificationOptions,
   type WorkerWindowClient,
+  resolveWorkerLanguage,
 } from './sw-handlers';
 
 declare const __SW_VERSION__: string;
@@ -78,11 +79,8 @@ function maxActions(): number {
 async function readLanguage(): Promise<'pt' | 'en'> {
   const cache = await worker.caches.open(PREFERENCES_CACHE);
   const stored = await cache.match(languageUrl);
-  const value = stored ? await stored.text() : '';
-  if (value === 'pt' || value === 'en') {
-    return value;
-  }
-  return (worker.navigator.language ?? '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
+  const value = stored ? await stored.text() : null;
+  return resolveWorkerLanguage(value, worker.navigator.language);
 }
 
 async function saveLanguage(language: 'pt' | 'en'): Promise<void> {

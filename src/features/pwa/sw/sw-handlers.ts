@@ -72,6 +72,13 @@ export const MISSED_CALL_REASONS: readonly string[] = ['missed', 'cancelled'];
 
 const HTML_LANG = { pt: 'pt-BR', en: 'en' } as const;
 
+export function resolveWorkerLanguage(stored: string | null, navigatorLanguage: string | undefined): 'pt' | 'en' {
+  if (stored === 'pt' || stored === 'en') {
+    return stored;
+  }
+  return (navigatorLanguage ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt';
+}
+
 export function createWorkerState(): WorkerState {
   return { activeRooms: new Map() };
 }
@@ -196,7 +203,7 @@ async function showGeneric(env: WorkerEnvironment, strings: WorkerStrings, langu
 }
 
 export async function handlePush(env: WorkerEnvironment, state: WorkerState, raw: unknown): Promise<void> {
-  const language = await env.language().catch(() => 'en' as const);
+  const language = await env.language().catch(() => 'pt' as const);
   const strings = WORKER_STRINGS[language];
   const message = parsePushMessage(raw);
   try {

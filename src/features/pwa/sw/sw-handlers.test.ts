@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildLaunchUrl, isClientToWorkerMessage, isWorkerToClientMessage } from './protocol';
 import {
+  resolveWorkerLanguage,
   CALL_VIBRATION,
   callTag,
   createWorkerState,
@@ -85,6 +86,20 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
   };
   return { env, shown, opened, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
 }
+
+describe('resolveWorkerLanguage', () => {
+  it('prefers the language the app stored', () => {
+    expect(resolveWorkerLanguage('en', 'pt-BR')).toBe('en');
+    expect(resolveWorkerLanguage('pt', 'en-US')).toBe('pt');
+  });
+
+  it('falls back to English only for an English browser and to Portuguese otherwise', () => {
+    expect(resolveWorkerLanguage(null, 'en-GB')).toBe('en');
+    expect(resolveWorkerLanguage(null, 'pt-PT')).toBe('pt');
+    expect(resolveWorkerLanguage('xx', 'es-ES')).toBe('pt');
+    expect(resolveWorkerLanguage(null, undefined)).toBe('pt');
+  });
+});
 
 describe('parsePushMessage', () => {
   it('accepts the three content-free payloads', () => {

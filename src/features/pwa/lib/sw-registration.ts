@@ -35,11 +35,21 @@ export function onWorkerMessage(listener: (message: WorkerToClientMessage) => vo
   };
 }
 
-export function postToWorker(message: ClientToWorkerMessage): void {
-  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+type WorkerContainer = Pick<ServiceWorkerContainer, 'controller' | 'ready'>;
+
+export function postToWorker(message: ClientToWorkerMessage, container: WorkerContainer | null = defaultContainer()): void {
+  if (!container) {
     return;
   }
-  navigator.serviceWorker.controller?.postMessage(message);
+  if (container.controller) {
+    container.controller.postMessage(message);
+    return;
+  }
+  void container.ready.then((registration) => registration.active?.postMessage(message)).catch(() => undefined);
+}
+
+function defaultContainer(): WorkerContainer | null {
+  return typeof navigator !== 'undefined' && 'serviceWorker' in navigator ? navigator.serviceWorker : null;
 }
 
 export interface RegisterOptions {
