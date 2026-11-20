@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
+import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -122,5 +122,55 @@ describe('share constraints', () => {
   it('ignores tracks that reject the constraints', async () => {
     const stream = { getVideoTracks: () => [{ applyConstraints: () => Promise.reject(new Error('x')) }], getAudioTracks: () => [] } as unknown as MediaStream;
     await expect(applyShareConstraints(stream, true)).resolves.toBeUndefined();
+  });
+});
+
+describe('reliable device lists', () => {
+  const device = (kind: MediaDeviceKind, deviceId: string) => ({ kind, deviceId, label: deviceId, groupId: '' }) as MediaDeviceInfo;
+  const liveTrack = (kind: string, deviceId: string, label = 'Live') => ({ kind, label, readyState: 'live', getSettings: () => ({ deviceId }) }) as unknown as MediaStreamTrack;
+
+  it('retries once when the browser returns no devices and keeps the devices in use', async () => {
+    resetKnownDevices();
+    const answers = [[], [device('audioinput', 'mic'), device('audiooutput', 'spk')]];
+    const waits: number[] = [];
+    const lists = await listDevicesReliably({ enumerate: () => Promise.resolve(answers.shift() ?? []), wait: (ms) => { waits.push(ms); return Promise.resolve(); }, activeTracks: [liveTrack('video', 'cam')] });
+    expect(waits).toEqual([600]);
+    expect(lists.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+    expect(lists.audioOutputs.map((entry) => entry.deviceId)).toEqual(['spk']);
+    expect(lists.videoInputs.map((entry) => entry.deviceId)).toEqual(['cam']);
+  });
+
+  it('never replaces known devices with an empty list during a call', async () => {
+    resetKnownDevices();
+    await listDevicesReliably({ enumerate: () => Promise.resolve([device('audioinput', 'mic')]), wait: () => Promise.resolve() });
+    const lists = await listDevicesReliably({ enumerate: () => Promise.reject(new Error('busy')), wait: () => Promise.resolve() });
+    expect(lists.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+  });
+
+  it('adds live tracks missing from the list but ignores ended tracks and duplicates', () => {
+    const merged = mergeActiveDevices({ audioInputs: [device('audioinput', 'mic')], videoInputs: [], audioOutputs: [] }, [
+      liveTrack('audio', 'mic'),
+      { ...liveTrack('video', 'old'), readyState: 'ended' } as unknown as MediaStreamTrack,
+      liveTrack('video', 'cam', 'Camera'),
+    ]);
+    expect(merged.audioInputs).toHaveLength(1);
+    expect(merged.videoInputs.map((entry) => [entry.deviceId, entry.label])).toEqual([['cam', 'Camera']]);
+  });
+});
+
+describe('known devices lifecycle', () => {
+  const device = (kind: MediaDeviceKind, deviceId: string) => ({ kind, deviceId, label: deviceId, groupId: '' }) as MediaDeviceInfo;
+
+  it('drops devices missing from a later non empty list and forgets everything after reset', async () => {
+    resetKnownDevices();
+    await listDevicesReliably({ enumerate: () => Promise.resolve([device('audioinput', 'old'), device('audioinput', 'mic')]), wait: () => Promise.resolve() });
+    const fresh = await listDevicesReliably({ enumerate: () => Promise.resolve([device('audioinput', 'mic')]), wait: () => Promise.resolve() });
+    expect(fresh.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+    const fallback = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
+    expect(fallback.audioInputs.map((entry) => entry.deviceId)).toEqual(['mic']);
+
+    resetKnownDevices();
+    const empty = await listDevicesReliably({ enumerate: () => Promise.resolve([]), wait: () => Promise.resolve() });
+    expect(empty.audioInputs).toEqual([]);
   });
 });

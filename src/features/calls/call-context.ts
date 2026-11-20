@@ -41,6 +41,7 @@ export interface CallApi {
   canShareScreen: boolean;
   dismissNotice: () => void;
   dismissEnded: () => void;
+  endOtherDeviceCall: () => void;
   changeAudioInput: (deviceId: string) => void;
   changeVideoInput: (deviceId: string) => void;
   changeAudioProcessing: (patch: Partial<AudioProcessing>) => void;

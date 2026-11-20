@@ -836,7 +836,10 @@
       "streamVolume": "Volume da transmissão",
       "streamVolumeHint": "Muda o volume só para você",
       "noStreamAudio": "Esta transmissão não tem som"
-    }
+    },
+    "otherDevice": "Em chamada em outro aparelho",
+    "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
+    "otherDeviceEnd": "Encerrar"
   },
   "pwa": {
     "installApp": "Instalar app",

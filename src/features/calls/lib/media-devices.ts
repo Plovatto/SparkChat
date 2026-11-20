@@ -112,9 +112,13 @@ export function stopStream(stream: MediaStream | null): void {
   }
 }
 
-export async function listDevices(): Promise<DeviceLists> {
+type Enumerate = () => Promise<MediaDeviceInfo[]>;
+
+const browserEnumerate: Enumerate = () => navigator.mediaDevices.enumerateDevices();
+
+export async function listDevices(enumerate: Enumerate = browserEnumerate): Promise<DeviceLists> {
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    const devices = await enumerate();
     return {
       audioInputs: devices.filter((device) => device.kind === 'audioinput'),
       videoInputs: devices.filter((device) => device.kind === 'videoinput'),
@@ -177,4 +181,54 @@ export async function applyShareConstraints(stream: MediaStream, movie: boolean)
   for (const track of stream.getAudioTracks()) {
     await track.applyConstraints(SHARE_AUDIO_CONSTRAINTS).catch(() => undefined);
   }
+}
+
+let lastKnownDevices: DeviceLists | null = null;
+
+function totalDevices(lists: DeviceLists): number {
+  return lists.audioInputs.length + lists.videoInputs.length + lists.audioOutputs.length;
+}
+
+export function mergeActiveDevices(lists: DeviceLists, tracks: readonly MediaStreamTrack[]): DeviceLists {
+  const merged: DeviceLists = { audioInputs: [...lists.audioInputs], videoInputs: [...lists.videoInputs], audioOutputs: [...lists.audioOutputs] };
+  for (const track of tracks) {
+    if (track.readyState === 'ended' || (track.kind !== 'audio' && track.kind !== 'video')) {
+      continue;
+    }
+    const deviceId = track.getSettings?.().deviceId ?? '';
+    const target = track.kind === 'audio' ? merged.audioInputs : merged.videoInputs;
+    if (deviceId === '' || target.some((device) => device.deviceId === deviceId)) {
+      continue;
+    }
+    target.push({ deviceId, groupId: '', kind: track.kind === 'audio' ? 'audioinput' : 'videoinput', label: track.label, toJSON: () => ({}) });
+  }
+  return merged;
+}
+
+export interface ReliableListOptions {
+  activeTracks?: readonly MediaStreamTrack[];
+  enumerate?: Enumerate;
+  wait?: (ms: number) => Promise<void>;
+}
+
+export const DEVICE_RETRY_MS = 600;
+
+export async function listDevicesReliably({ activeTracks = [], enumerate = browserEnumerate, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }: ReliableListOptions = {}): Promise<DeviceLists> {
+  let lists = await listDevices(enumerate);
+  if (totalDevices(lists) === 0) {
+    await wait(DEVICE_RETRY_MS);
+    lists = await listDevices(enumerate);
+  }
+  const merged = mergeActiveDevices(lists, activeTracks);
+  if (totalDevices(merged) === 0 && lastKnownDevices) {
+    return lastKnownDevices;
+  }
+  if (totalDevices(merged) > 0) {
+    lastKnownDevices = merged;
+  }
+  return merged;
+}
+
+export function resetKnownDevices(): void {
+  lastKnownDevices = null;
 }

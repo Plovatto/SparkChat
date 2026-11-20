@@ -12,7 +12,7 @@ import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
 import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints } from './lib/media-devices';
+import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, videoConstraints, resetKnownDevices } from './lib/media-devices';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
@@ -88,6 +88,12 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
 
   const snapshot = useSyncExternalStore(controller ? controller.subscribe : noopSubscribe, controller ? controller.getSnapshot : emptySnapshot);
   const phase = snapshot.state.phase;
+
+  useEffect(() => {
+    if (phase === 'idle' || phase === 'ended') {
+      resetKnownDevices();
+    }
+  }, [phase]);
 
   useEffect(() => {
     if (phase === 'idle') {
@@ -212,6 +218,7 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
     canShareScreen: screenShareSupported,
     dismissNotice: () => controller?.dismissNotice(),
     dismissEnded: () => controller?.dismissEnded(),
+    endOtherDeviceCall: () => controller?.endOtherDeviceCall(),
     changeAudioInput: (deviceId) => {
       preferredAudioRef.current = deviceId || undefined;
       replaceTrackFromDevice({ audio: audioConstraints(deviceId || undefined, getAudioProcessing()) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());

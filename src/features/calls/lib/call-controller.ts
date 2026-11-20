@@ -29,7 +29,7 @@ import {
 } from '../state/call-machine';
 import { nextInstability, nextRelay, readQuality, RELAY_UNKNOWN, selectedPairRelayed, STABLE, type RelayState, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
-import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, ScreenInfo } from './peer-session';
+import type { ConnectionStatus, ControlMessage, DegradeStep, IceRefresh, RestartReason, ScreenInfo } from './peer-session';
 import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
@@ -88,9 +88,12 @@ export interface CallSnapshot {
   unstable: boolean;
   quality: QualityBars | null;
   relayed: boolean | null;
+  restartCount: number;
+  lastRestartReason: RestartReason | null;
   degrade: DegradeStep | null;
   notice: CallNotice | null;
   otherTab: TabCallInfo | null;
+  otherDevice: { callId: string; peerId: string; kind: CallKind } | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
   durationSeconds: number | null;
@@ -100,6 +103,7 @@ export interface PeerSessionLike {
   start: () => void;
   receiveSignal: (type: SignalType, payload: Record<string, unknown>) => Promise<void>;
   restartIce: () => void;
+  recoverIfUnhealthy: (reason: 'online' | 'resync') => void;
   sendControl: (message: ControlMessage) => boolean;
   setMuted: (muted: boolean) => void;
   setVideoTrack: (track: MediaStreamTrack | null) => Promise<void>;
@@ -129,6 +133,8 @@ export interface PeerSessionFactoryOptions {
   onRemoteScreen: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade: (step: DegradeStep | null) => void;
+  onRestart: (reason: RestartReason, relay: boolean) => void;
+  canProbeDirect: () => boolean;
 }
 
 export type ResolvedPeer = { peer: PinnedPeer } | { error: 'key-changed' | 'unverifiable' };
@@ -258,9 +264,12 @@ export function initialSnapshot(): CallSnapshot {
     unstable: false,
     quality: null,
     relayed: null,
+    restartCount: 0,
+    lastRestartReason: null,
     degrade: null,
     notice: null,
     otherTab: null,
+    otherDevice: null,
     localStream: null,
     remoteStream: null,
     durationSeconds: null,
@@ -321,7 +330,7 @@ export class CallController {
       ['call:answered-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'answered-elsewhere', callId: payload.callId })],
       ['call:declined-elsewhere', (payload: { callId: string }) => this.machine.dispatch({ type: 'declined-elsewhere', callId: payload.callId })],
       ['call:signal', (payload: { callId: string; from: string; envelope: string }) => this.onSignal(payload)],
-      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: sanitizeEndReason(payload.reason) })],
+      ['call:ended', (payload: { callId: string; reason: CallEndReason }) => this.onEnded(payload)],
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
@@ -337,10 +346,17 @@ export class CallController {
       this.requestSync();
     }
     if (typeof window !== 'undefined') {
-      const online = () => this.session?.peerSession?.restartIce();
+      const online = () => this.session?.peerSession?.recoverIfUnhealthy('online');
       window.addEventListener('online', online);
       this.detach.push(() => window.removeEventListener('online', online));
     }
+  }
+
+  private onEnded(payload: { callId: string; reason: CallEndReason }): void {
+    if (this.snapshot.otherDevice?.callId === payload.callId) {
+      this.update({ otherDevice: null });
+    }
+    this.machine.dispatch({ type: 'remote-ended', callId: payload.callId, reason: sanitizeEndReason(payload.reason) });
   }
 
   private requestSync(): void {
@@ -1002,29 +1018,49 @@ export class CallController {
     if (event === 'call:hangup' || event === 'call:decline') {
       return;
     }
+    if (event === 'call:heartbeat' || event === 'call:signal') {
+      if (session) {
+        this.requestSync();
+      }
+      return;
+    }
     this.update({ notice: { kind: 'server-error', code } });
   }
 
   private async onServerState(payload: CallStatePayload | null): Promise<void> {
     const state = this.machine.getState();
     if (payload === null) {
+      if (this.snapshot.otherDevice) {
+        this.update({ otherDevice: null });
+      }
       if (state.callId && isCallLive(state) && !this.preparing) {
         this.machine.dispatch({ type: 'remote-ended', callId: state.callId, reason: hasCallMedia(state) ? 'connection-lost' : 'missed' });
       }
       return;
     }
     if (state.callId === payload.callId) {
-      this.session?.peerSession?.restartIce();
+      this.session?.peerSession?.recoverIfUnhealthy('resync');
       return;
     }
     if (isCallLive(state) || this.preparing || isRingingForMe(payload)) {
       return;
     }
+    if (payload.state !== 'accepted' && payload.state !== 'active') {
+      return;
+    }
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
       return;
     }
-    this.deps.socket.emit('call:hangup', { callId: payload.callId });
-    this.update({ notice: { kind: 'interrupted' } });
+    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind } });
+  }
+
+  endOtherDeviceCall(): void {
+    const other = this.snapshot.otherDevice;
+    if (!other) {
+      return;
+    }
+    this.deps.socket.emit('call:hangup', { callId: other.callId, force: true });
+    this.update({ otherDevice: null });
   }
 
   private handleTabMessage(message: TabCallMessage): void {
@@ -1187,6 +1223,12 @@ export class CallController {
       },
       onControl: (message) => this.handleControl(session, message),
       onDegrade: (step) => this.handleDegrade(session, step),
+      onRestart: (reason) => {
+        if (this.session === session) {
+          this.update({ restartCount: this.snapshot.restartCount + 1, lastRestartReason: reason });
+        }
+      },
+      canProbeDirect: () => this.session === session && this.machine.getState().phase === 'active' && this.snapshot.quality === 3 && !this.snapshot.unstable,
     });
     session.peerSession = peerSession;
     peerSession.start();
@@ -1212,7 +1254,7 @@ export class CallController {
       this.update({ remoteScreenMovie: message.on && message.movie === true, remoteScreenAudio: message.on && message.audio === true, remoteScreenOn: message.on, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
     } else if (message.t === 'caps') {
       this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
-    } else {
+    } else if (message.t === 'camera') {
       this.update({ remoteCameraOn: message.on });
     }
   }
@@ -1306,6 +1348,8 @@ export class CallController {
         unstable: false,
         quality: null,
         relayed: null,
+        restartCount: 0,
+        lastRestartReason: null,
         degrade: null,
         localStream: null,
         remoteStream: null,

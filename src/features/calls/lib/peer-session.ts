@@ -3,7 +3,44 @@ import type { ShareSurfaceKind } from './share-surface';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'ping' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean };
+
+export type RestartReason = 'connect-timeout' | 'disconnected' | 'failed' | 'retry' | 'online' | 'resync' | 'probe';
+
+export const INITIAL_RELAY_FALLBACK_MS = 8_000;
+export const DIRECT_RESTART_ATTEMPTS = 2;
+export const FAILED_RELAY_AFTER_MS = 10_000;
+export const RESTART_RETRY_MS: readonly number[] = [3_000, 5_000, 8_000, 13_000, 15_000];
+export const RELAY_PROBE_INTERVAL_MS = 60_000;
+export const KEEPALIVE_INTERVAL_MS = 5_000;
+export const MAX_RELAY_PROBES = 3;
+
+export function isRelayUrl(url: string): boolean {
+  return /^turns?:/i.test(url);
+}
+
+export function directServers(servers: readonly RTCIceServer[]): RTCIceServer[] {
+  const result: RTCIceServer[] = [];
+  for (const server of servers) {
+    const urls = (Array.isArray(server.urls) ? server.urls : [server.urls]).filter((url) => !isRelayUrl(url));
+    if (urls.length > 0) {
+      result.push({ ...server, urls });
+    }
+  }
+  return result;
+}
+
+export function hasRelay(servers: readonly RTCIceServer[]): boolean {
+  return servers.some((server) => (Array.isArray(server.urls) ? server.urls : [server.urls]).some(isRelayUrl));
+}
+
+export function restartUsesRelay(attempt: number, failingSince: number | null, now: number): boolean {
+  return attempt >= DIRECT_RESTART_ATTEMPTS || (failingSince !== null && now - failingSince >= FAILED_RELAY_AFTER_MS);
+}
+
+export function retryDelay(attempt: number): number {
+  return RESTART_RETRY_MS[Math.min(Math.max(attempt - 1, 0), RESTART_RETRY_MS.length - 1)] ?? 15_000;
+}
 
 export interface ScreenInfo {
   surface: ShareSurfaceKind;
@@ -204,6 +241,8 @@ export interface PeerSessionOptions {
   onRemoteScreen?: (stream: MediaStream) => void;
   onControl: (message: ControlMessage) => void;
   onDegrade?: (step: DegradeStep | null) => void;
+  onRestart?: (reason: RestartReason, relay: boolean) => void;
+  canProbeDirect?: () => boolean;
   deps?: Partial<PeerSessionDeps>;
 }
 
@@ -297,6 +336,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     const message = parsed as Record<string, unknown>;
     if (message.t === 'hangup') {
       return { t: 'hangup' };
+    }
+    if (message.t === 'ping') {
+      return { t: 'ping' };
     }
     if (message.t === 'caps' && typeof message.screen === 'boolean') {
       return { t: 'caps', screen: message.screen };
@@ -415,14 +457,24 @@ export class PeerSession {
   private unstable = false;
   private movie = false;
   private peerScreenCaps = false;
+  private allServers: RTCIceServer[];
+  private relayEnabled = false;
+  private attempt = 0;
+  private failingSince: number | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private probeTimer: ReturnType<typeof setInterval> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private probePending = false;
+  private probeFailures = 0;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
     this.deps = { ...defaultDeps(), ...options.deps };
     this.polite = options.role === 'callee';
     this.degrade = options.degrade ?? null;
+    this.allServers = [...options.iceServers];
     this.connection = this.deps.createConnection({
-      iceServers: options.iceServers,
+      iceServers: directServers(options.iceServers),
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
       iceCandidatePoolSize: 1,
@@ -450,9 +502,9 @@ export class PeerSession {
     this.connectTimer = setTimeout(() => {
       this.connectTimer = null;
       if (!this.connected) {
-        this.restartIce();
+        this.recover('connect-timeout', hasRelay(this.allServers));
       }
-    }, CONNECT_RESTART_DELAY_MS);
+    }, INITIAL_RELAY_FALLBACK_MS);
     this.scheduleCredentialRefresh();
     if (this.polite) {
       return;
@@ -710,6 +762,9 @@ export class PeerSession {
     const state = this.connection.iceConnectionState;
     if (state === 'connected' || state === 'completed') {
       this.clearDisconnectTimer();
+      this.clearRetryTimer();
+      this.attempt = 0;
+      this.failingSince = null;
       const first = !this.connected;
       this.connected = true;
       if (this.connectTimer !== null) {
@@ -731,15 +786,17 @@ export class PeerSession {
         this.verifyDtls();
       }
       void this.applyCaps();
+      void this.updateRelayProbe();
       return;
     }
     if (state === 'disconnected') {
       this.options.onConnection('interrupted');
+      this.failingSince ??= this.deps.now();
       this.clearDisconnectTimer();
       this.disconnectTimer = setTimeout(() => {
         this.disconnectTimer = null;
-        if (this.connection.iceConnectionState === 'disconnected') {
-          this.restartIce();
+        if (this.connection.iceConnectionState === 'disconnected' && this.retryTimer === null) {
+          this.recover('disconnected');
         }
       }, DISCONNECTED_RESTART_DELAY_MS);
       return;
@@ -747,8 +804,128 @@ export class PeerSession {
     if (state === 'failed') {
       this.clearDisconnectTimer();
       this.options.onConnection('interrupted');
-      this.restartIce();
+      this.failingSince ??= this.deps.now();
+      if (this.retryTimer === null) {
+        this.recover('failed');
+      }
     }
+  }
+
+  isIceHealthy(): boolean {
+    const state = this.connection.iceConnectionState;
+    return state === 'connected' || state === 'completed';
+  }
+
+  recoverIfUnhealthy(reason: 'online' | 'resync'): void {
+    if (reason === 'online') {
+      this.probeFailures = 0;
+    }
+    if (this.closed || !this.connected || this.isIceHealthy() || this.retryTimer !== null) {
+      return;
+    }
+    this.failingSince ??= this.deps.now();
+    this.recover(reason);
+  }
+
+  private recover(reason: RestartReason, forceRelay = false): void {
+    if (this.closed) {
+      return;
+    }
+    const now = this.deps.now();
+    this.failingSince ??= now;
+    const relay = hasRelay(this.allServers) && (forceRelay || this.relayEnabled || restartUsesRelay(this.attempt, this.failingSince, now));
+    this.useServers(relay);
+    const first = this.attempt === 0;
+    this.attempt += 1;
+    this.options.onRestart?.(reason, relay);
+    this.restartIce(first);
+    this.clearRetryTimer();
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (!this.closed && !this.isIceHealthy()) {
+        this.recover('retry');
+      }
+    }, retryDelay(this.attempt));
+  }
+
+  private useServers(relay: boolean): void {
+    this.relayEnabled = relay;
+    try {
+      this.connection.setConfiguration({ ...this.connection.getConfiguration(), iceServers: relay ? this.allServers : directServers(this.allServers) });
+    } catch {
+      return;
+    }
+  }
+
+  private clearRetryTimer(): void {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private async updateRelayProbe(): Promise<void> {
+    const relayed = this.relayEnabled && (await this.isRelayed());
+    if (this.closed) {
+      return;
+    }
+    if (!relayed) {
+      this.probeFailures = 0;
+      this.probePending = false;
+      this.stopProbe();
+      return;
+    }
+    if (this.probeFailures >= MAX_RELAY_PROBES) {
+      this.stopProbe();
+      return;
+    }
+    if (this.probeTimer !== null) {
+      return;
+    }
+    this.probeTimer = setInterval(() => {
+      void this.probeTick();
+    }, RELAY_PROBE_INTERVAL_MS);
+  }
+
+  private async probeTick(): Promise<void> {
+    if (this.probePending) {
+      this.probePending = false;
+      if (await this.isRelayed()) {
+        this.probeFailures += 1;
+      } else {
+        this.probeFailures = 0;
+        this.stopProbe();
+        return;
+      }
+      if (this.probeFailures >= MAX_RELAY_PROBES) {
+        this.stopProbe();
+        return;
+      }
+    }
+    if (this.closed || !this.isIceHealthy() || this.retryTimer !== null || this.options.canProbeDirect?.() === false) {
+      return;
+    }
+    this.probePending = true;
+    this.options.onRestart?.('probe', true);
+    this.restartIce(true);
+  }
+
+  private stopProbe(): void {
+    if (this.probeTimer !== null) {
+      clearInterval(this.probeTimer);
+      this.probeTimer = null;
+    }
+  }
+
+  private startKeepalive(): void {
+    if (this.keepaliveTimer !== null) {
+      return;
+    }
+    this.keepaliveTimer = setInterval(() => {
+      if (!this.closed) {
+        this.sendControl({ t: 'ping' });
+      }
+    }, KEEPALIVE_INTERVAL_MS);
   }
 
   private clearDisconnectTimer(): void {
@@ -758,12 +935,12 @@ export class PeerSession {
     }
   }
 
-  restartIce(): void {
+  restartIce(force = false): void {
     if (this.closed) {
       return;
     }
     const now = this.deps.now();
-    if (now - this.lastRestartAt < MIN_RESTART_GAP_MS) {
+    if (!force && now - this.lastRestartAt < MIN_RESTART_GAP_MS) {
       return;
     }
     this.lastRestartAt = now;
@@ -856,6 +1033,7 @@ export class PeerSession {
       return;
     }
     this.verified = true;
+    this.startKeepalive();
     if (this.dtlsTimer !== null) {
       clearTimeout(this.dtlsTimer);
       this.dtlsTimer = null;
@@ -884,6 +1062,9 @@ export class PeerSession {
       }
       const message = parseControlMessage(event.data);
       if (!message) {
+        return;
+      }
+      if (message.t === 'ping') {
         return;
       }
       if (message.t === 'caps') {
@@ -1127,7 +1308,8 @@ export class PeerSession {
       void refresh()
         .then((result) => {
           if (result && !this.closed) {
-            this.connection.setConfiguration({ ...this.connection.getConfiguration(), iceServers: result.iceServers });
+            this.allServers = [...result.iceServers];
+            this.useServers(this.relayEnabled);
             if (result.degrade !== undefined) {
               void this.applyDegrade(result.degrade);
             }
@@ -1155,6 +1337,14 @@ export class PeerSession {
     }
     this.closed = true;
     this.clearDisconnectTimer();
+    this.clearRetryTimer();
+    for (const interval of [this.probeTimer, this.keepaliveTimer]) {
+      if (interval !== null) {
+        clearInterval(interval);
+      }
+    }
+    this.probeTimer = null;
+    this.keepaliveTimer = null;
     for (const timer of [this.connectTimer, this.refreshTimer, this.dtlsTimer]) {
       if (timer !== null) {
         clearTimeout(timer);
