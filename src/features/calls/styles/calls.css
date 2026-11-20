@@ -1975,3 +1975,68 @@
     transition: none;
   }
 }
+
+.sc-call-screen::before {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(closest-side at 24% 28%, color-mix(in srgb, var(--sc-accent-secondary) 85%, transparent), transparent),
+    radial-gradient(closest-side at 76% 70%, color-mix(in srgb, var(--sc-accent) 80%, transparent), transparent),
+    radial-gradient(closest-side at 62% 18%, color-mix(in srgb, color-mix(in srgb, var(--sc-accent) 55%, #ffffff) 45%, transparent), transparent);
+  background-size: 70% 70%, 75% 75%, 55% 55%;
+  background-repeat: no-repeat;
+  background-position: 10% 15%, 90% 85%, 65% 5%;
+  filter: blur(40px);
+  opacity: 0.85;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  animation: scCallAurora 18s ease-in-out infinite alternate;
+}
+
+@keyframes scCallAurora {
+  0% {
+    transform: translate3d(-9%, -6%, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(7%, 5%, 0) rotate(14deg) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-4%, 8%, 0) rotate(-10deg) scale(1.04);
+  }
+}
+
+@media (max-width: 599.98px) {
+  .sc-incoming {
+    overflow: hidden;
+  }
+
+  .sc-incoming::before {
+    content: '';
+    position: absolute;
+    inset: -25%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(closest-side at 24% 28%, color-mix(in srgb, var(--sc-accent-secondary) 85%, transparent), transparent),
+      radial-gradient(closest-side at 76% 70%, color-mix(in srgb, var(--sc-accent) 80%, transparent), transparent),
+      radial-gradient(closest-side at 62% 18%, color-mix(in srgb, color-mix(in srgb, var(--sc-accent) 55%, #ffffff) 45%, transparent), transparent);
+    background-size: 70% 70%, 75% 75%, 55% 55%;
+    background-repeat: no-repeat;
+    background-position: 10% 15%, 90% 85%, 65% 5%;
+    filter: blur(40px);
+    opacity: 0.85;
+    will-change: transform;
+    animation: scCallAurora 18s ease-in-out infinite alternate;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-screen::before,
+  .sc-incoming::before {
+    animation: none;
+    will-change: auto;
+  }
+}
