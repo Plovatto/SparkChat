@@ -98,13 +98,79 @@ function flushPendingPhoto(): void {
   const image = pendingPhoto;
   pendingPhoto = null;
   stopWatchingPending();
-  pendingFlush = uploadMyPhoto(image)
+  pendingFlush = uploadWithRetries(image)
     .catch((error: unknown) => {
       console.error('[profile-photos] uploading the sign-up photo failed', error);
+      setFailedPendingPhoto(image);
     })
     .finally(() => {
       pendingFlush = null;
     });
+}
+
+export const PENDING_PHOTO_RETRY_DELAYS_MS = [2000, 5000];
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function uploadWithRetries(image: Blob): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await uploadMyPhoto(image);
+      return;
+    } catch (error) {
+      const delay = PENDING_PHOTO_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !getCurrentIdentity()) {
+        throw error;
+      }
+      await wait(delay);
+    }
+  }
+}
+
+let failedPendingPhoto: Blob | null = null;
+const failedPendingListeners = new Set<() => void>();
+
+let stopWatchingFailed: (() => void) | null = null;
+
+function setFailedPendingPhoto(image: Blob | null): void {
+  failedPendingPhoto = image;
+  stopWatchingFailed?.();
+  stopWatchingFailed = image
+    ? subscribeCurrentIdentity((identity) => {
+        if (!identity) {
+          setFailedPendingPhoto(null);
+        }
+      })
+    : null;
+  for (const listener of failedPendingListeners) {
+    listener();
+  }
+}
+
+export function hasFailedPendingPhoto(): boolean {
+  return failedPendingPhoto !== null;
+}
+
+export function subscribeFailedPendingPhoto(listener: () => void): () => void {
+  failedPendingListeners.add(listener);
+  return () => {
+    failedPendingListeners.delete(listener);
+  };
+}
+
+export function dismissFailedPendingPhoto(): void {
+  setFailedPendingPhoto(null);
+}
+
+export function retryFailedPendingPhoto(): void {
+  const image = failedPendingPhoto;
+  if (!image) {
+    return;
+  }
+  setFailedPendingPhoto(null);
+  queuePendingMyPhoto(image);
 }
 
 function watchPending(): void {
@@ -115,6 +181,7 @@ function watchPending(): void {
     subscribeCurrentIdentity((identity) => {
       if (!identity) {
         pendingPhoto = null;
+        setFailedPendingPhoto(null);
         stopWatchingPending();
         return;
       }

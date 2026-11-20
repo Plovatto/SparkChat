@@ -29,7 +29,7 @@ import {
   useUnreadBadge,
 } from '@features/notifications';
 import { CallProvider } from '@features/calls';
-import { queuePendingMyPhoto } from '@features/profile-photos';
+import { PendingPhotoFailedToast, queuePendingMyPhoto } from '@features/profile-photos';
 import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, usePwaChatShell } from '@features/pwa';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
@@ -259,6 +259,7 @@ function AuthGate({
       />
       <InstallSheet />
       <UpdateToast />
+      <PendingPhotoFailedToast />
     </AppBackground>
   );
 }
