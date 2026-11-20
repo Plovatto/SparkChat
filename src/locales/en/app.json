@@ -860,7 +860,12 @@
       "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
       "serverDisabled": "Notifications with the app closed are not available on this server yet.",
       "checking": "Checking…",
-      "error": "Could not turn on notifications right now. Try again in a moment."
+      "error": "Could not turn on notifications right now. Try again in a moment.",
+      "desktopHelpTitle": "Not arriving on your computer?",
+      "desktopHelpBrowser": "Keep Chrome or Edge running in the background: in Settings > System, turn on \"Continue running background apps when the browser is closed\". With the browser fully closed, no notification can arrive.",
+      "desktopHelpSystem": "Allow notifications in your system: on Windows, in Settings > System > Notifications, turn on Chrome or Edge and SparkChat; on a Mac, in System Settings > Notifications.",
+      "desktopHelpFocus": "Turn off Do Not Disturb or Focus Assist, which hide notifications.",
+      "desktopHelpOpen": "If SparkChat is open and visible in a window, the alert shows inside the app instead of in the system."
     },
     "update": {
       "message": "A new version is available",
