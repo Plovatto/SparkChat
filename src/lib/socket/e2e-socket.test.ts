@@ -455,6 +455,9 @@ describe('wrapSocketWithE2e preview only handlers', () => {
     await vi.waitFor(() => expect(preview).toHaveBeenCalled());
 
     expect(decryptMessageViewSpy).toHaveBeenCalledTimes(2);
-    expect(decryptMessageViewSpy.mock.calls.map((call) => (call as unknown[])[2])).toEqual([{ deferGifMedia: false }, { deferGifMedia: true }]);
+    expect(decryptMessageViewSpy.mock.calls.map((call) => (call as unknown[])[2])).toEqual([
+      { deferGifMedia: false, live: true },
+      { deferGifMedia: true, live: true },
+    ]);
   });
 });

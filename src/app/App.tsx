@@ -14,6 +14,7 @@ import {
 import { LoginScreen, rememberAuthParams, revokeServerSession, useAuthSession, useLoginTheme, useSocketAuthSync } from '@features/auth';
 import type { PendingE2eCredential, PendingRegistration, User } from '@features/auth';
 import {
+  attestGroupAction,
   completeRegistration,
   ensureIdentityAfterPasswordLoginV2,
   ensureIdentityAfterRecoveryLogin,
@@ -427,7 +428,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
             window.alert(t('app.deepLink.inviteUnavailable'));
             return;
           }
-          socket.emit('room:join-by-invite', request);
+          void attestGroupAction(request.roomId, 'group.memberJoined').then((attestation) => {
+            socket.emit('room:join-by-invite', attestation ? { ...request, attestation } : request);
+          });
         });
       }
       dismissDeepLink();

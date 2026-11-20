@@ -3,6 +3,7 @@ import { getSodium } from './sodium';
 
 export const SIGNED_ROSTER_VERSION = 2;
 export const ROTATION_STALL_MS = 120_000;
+export const ENFORCE_SIGNED_ROSTERS = false;
 const ROSTER_SIGN_CONTEXT = 'sparkchat:group-roster:v1';
 const SIGNATURE_BYTES = 64;
 const MAX_CLOCK_SKEW_MS = 24 * 60 * 60 * 1000;
@@ -29,7 +30,8 @@ export type RosterRejection =
   | 'bad-signature'
   | 'not-admin'
   | 'escalation'
-  | 'dropped-members';
+  | 'dropped-members'
+  | 'added-members';
 
 export type RosterVerdict = { ok: true; signed: boolean } | { ok: false; reason: RosterRejection };
 
@@ -46,7 +48,11 @@ export interface RosterVerificationContext {
   envelopeSenderId: string;
   previous: PreviousGeneration | null;
   signedFromEpoch: number | null;
+  signedIssuers: ReadonlySet<string>;
+  enforceSigned: boolean;
   currentMemberIds: ReadonlySet<string>;
+  promotedAdmins: ReadonlySet<string>;
+  serverAdmins: ReadonlySet<string>;
   stallElapsed: boolean;
   resolveSigningKey: (userId: string) => Promise<string | null>;
   now: number;
@@ -144,18 +150,18 @@ function authorityRejection(roster: Required<GroupRoster>, context: RosterVerifi
     return null;
   }
   const previousMembers = new Set(previous.roster.members.map((member) => member.userId));
-  if (!previousMembers.has(roster.issuedBy)) {
+  if (!previousMembers.has(roster.issuedBy) && !context.currentMemberIds.has(roster.issuedBy)) {
     return 'not-admin';
   }
   if (!previous.signed || !previous.roster.admins) {
     return null;
   }
-  const previousAdmins = new Set(previous.roster.admins);
+  const previousAdmins = new Set([...previous.roster.admins, ...context.promotedAdmins]);
   if (previousAdmins.has(roster.issuedBy)) {
     return null;
   }
   const adminless = ![...previousAdmins].some((id) => context.currentMemberIds.has(id));
-  if (!adminless && !context.stallElapsed) {
+  if (!adminless && !context.stallElapsed && !context.serverAdmins.has(roster.issuedBy)) {
     return 'not-admin';
   }
   const allowedAdmins = new Set(previousAdmins);
@@ -165,9 +171,13 @@ function authorityRejection(roster: Required<GroupRoster>, context: RosterVerifi
   if (!isSubset(roster.admins, allowedAdmins)) {
     return 'escalation';
   }
+  const allowedMembers = new Set([...previousMembers, ...context.currentMemberIds]);
+  if (!roster.members.every((member) => allowedMembers.has(member.userId))) {
+    return 'added-members';
+  }
   const kept = new Set(roster.members.map((member) => member.userId));
   for (const id of context.currentMemberIds) {
-    if (previousMembers.has(id) && !kept.has(id)) {
+    if (!kept.has(id)) {
       return 'dropped-members';
     }
   }
@@ -175,7 +185,10 @@ function authorityRejection(roster: Required<GroupRoster>, context: RosterVerifi
 }
 
 export async function verifyGroupRoster(roster: GroupRoster | null, context: RosterVerificationContext): Promise<RosterVerdict> {
-  const signedRequired = context.signedFromEpoch !== null && context.epoch > context.signedFromEpoch;
+  const signedRequired =
+    context.signedFromEpoch !== null &&
+    context.epoch > context.signedFromEpoch &&
+    (context.enforceSigned || context.signedIssuers.has(context.envelopeSenderId));
   if (!roster) {
     return signedRequired ? { ok: false, reason: 'missing' } : { ok: true, signed: false };
   }

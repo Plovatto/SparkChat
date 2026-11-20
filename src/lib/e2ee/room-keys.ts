@@ -31,6 +31,16 @@ import {
 } from './room-key-envelope';
 import { safeAsync } from './safe-async';
 import { deriveSigningKeyPair } from './signing';
+import { forgetVerifiedPromotions, getVerifiedPromotions } from './group-admins';
+import {
+  ENFORCE_SIGNED_ROSTERS,
+  isSignedRoster,
+  ROTATION_STALL_MS,
+  signRoster,
+  verifyGroupRoster,
+  type PreviousGeneration,
+  type SenderGeneration,
+} from './group-roster';
 import { getSodium } from './sodium';
 
 export interface RoomKeyGeneration {
@@ -44,6 +54,7 @@ interface RoomView {
   type: RoomType | null;
   creatorId: string | null;
   members: Set<string>;
+  admins: Set<string>;
   pinnedMembers: Set<string> | null;
   currentEpoch: number;
   rotationRequiredEpoch: number | null;
@@ -152,6 +163,28 @@ const ownRotationListeners = new Set<OwnRotationListener>();
 export type RoomNameListener = (roomId: string) => void;
 export type OwnRotationListener = (roomId: string, generation: RoomKeyGeneration) => void;
 export type RotationBlockListener = (roomId: string) => void;
+
+interface VerifiedRoster {
+  roster: GroupRoster;
+  signed: boolean;
+  blob: string;
+  acceptedAt: number;
+}
+
+interface RotationClock {
+  epoch: number;
+  startedAt: number;
+}
+
+const verifiedRosters = new Map<string, Map<string, VerifiedRoster>>();
+const rotationClocks = new Map<string, RotationClock>();
+const rotationTimers = new Map<string, number>();
+const reportedBadKeys = new Set<string>();
+const ROTATION_WATCHDOG_MS = 20_000;
+const ROTATION_RANK_SPACING_MS = 4000;
+const MIN_ROTATION_RETRY_MS = 1000;
+const MAX_ROTATION_RETRY_MS = ROTATION_STALL_MS + 5000;
+const POISON_REASONS: ReadonlySet<string> = new Set(['bad-box', 'bad-signature', 'malformed', 'key-mismatch']);
 
 function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<RoomKeyResponse> {
   const run = () =>
@@ -765,6 +798,265 @@ async function verifiedGroupRecipients(
   return members;
 }
 
+
+function rememberVerifiedRoster(roomId: string, keyId: string, entry: VerifiedRoster): void {
+  let rosters = verifiedRosters.get(roomId);
+  if (!rosters) {
+    rosters = new Map();
+    verifiedRosters.set(roomId, rosters);
+  }
+  rosters.set(keyId, entry);
+}
+
+function noteRotationStarted(roomId: string, epoch: number): void {
+  const clock = rotationClocks.get(roomId);
+  if (!clock || clock.epoch !== epoch) {
+    rotationClocks.set(roomId, { epoch, startedAt: Date.now() });
+  }
+}
+
+function rotationStalled(roomId: string, epoch: number, lenient: boolean): boolean {
+  const clock = rotationClocks.get(roomId);
+  if (!clock || clock.epoch !== epoch) {
+    return lenient;
+  }
+  return Date.now() - clock.startedAt >= ROTATION_STALL_MS;
+}
+
+function clearRotationTimer(roomId: string): void {
+  const timer = rotationTimers.get(roomId);
+  if (timer !== undefined) {
+    window.clearTimeout(timer);
+    rotationTimers.delete(roomId);
+  }
+}
+
+function scheduleRotationRetry(socket: AppSocket, roomId: string, epoch: number, delayMs: number): void {
+  clearRotationTimer(roomId);
+  const delay = Math.max(MIN_ROTATION_RETRY_MS, Math.min(delayMs, MAX_ROTATION_RETRY_MS));
+  rotationTimers.set(
+    roomId,
+    window.setTimeout(() => {
+      rotationTimers.delete(roomId);
+      if (publishTarget(roomId) === epoch) {
+        void safeRetryPublish(socket, roomId, epoch);
+      }
+    }, delay),
+  );
+}
+
+function groupAdminSet(roomId: string, view: RoomView, selfId: string): Set<string> {
+  const latest = latestGeneration(roomId);
+  const entry = latest ? verifiedRosters.get(roomId)?.get(latest.keyId) : undefined;
+  const claimed = entry?.signed && entry.roster.admins ? new Set([...entry.roster.admins, ...getVerifiedPromotions(selfId, roomId)]) : view.admins;
+  return new Set(Array.from(claimed).filter((userId) => view.members.has(userId)));
+}
+
+function mayLeadRotation(roomId: string, view: RoomView, selfId: string, epoch: number): boolean {
+  noteRotationStarted(roomId, epoch);
+  const admins = groupAdminSet(roomId, view, selfId);
+  return admins.has(selfId) || admins.size === 0 || rotationStalled(roomId, epoch, false);
+}
+
+function rotationRetryDelay(roomId: string, view: RoomView, selfId: string, epoch: number): number {
+  const admins = groupAdminSet(roomId, view, selfId);
+  if (admins.has(selfId)) {
+    const rank = Array.from(admins).sort().indexOf(selfId);
+    return ROTATION_WATCHDOG_MS + Math.max(0, rank) * ROTATION_RANK_SPACING_MS;
+  }
+  const clock = rotationClocks.get(roomId);
+  const remaining = clock && clock.epoch === epoch ? clock.startedAt + ROTATION_STALL_MS - Date.now() : ROTATION_STALL_MS;
+  return remaining + 500;
+}
+
+function signedFromEpoch(roomId: string): number | null {
+  let earliest: number | null = null;
+  for (const [keyId, entry] of verifiedRosters.get(roomId) ?? []) {
+    const epoch = generationsByRoom.get(roomId)?.get(keyId)?.epoch;
+    if (entry.signed && epoch !== undefined && (earliest === null || epoch < earliest)) {
+      earliest = epoch;
+    }
+  }
+  return earliest;
+}
+
+function signedIssuersOf(roomId: string): Set<string> {
+  const issuers = new Set<string>();
+  for (const entry of verifiedRosters.get(roomId)?.values() ?? []) {
+    if (entry.signed && entry.roster.issuedBy) {
+      issuers.add(entry.roster.issuedBy);
+    }
+  }
+  return issuers;
+}
+
+async function previousGenerationContext(roomId: string, epoch: number): Promise<PreviousGeneration | null> {
+  const previous = generationAtEpoch(roomId, epoch - 1);
+  if (!previous) {
+    return null;
+  }
+  const verified = verifiedRosters.get(roomId)?.get(previous.keyId);
+  if (verified) {
+    return { keyId: previous.keyId, roster: verified.roster, signed: verified.signed };
+  }
+  const blob = generationRosters.get(roomId)?.get(previous.keyId);
+  const roster = blob ? await openRoster(blob, previous.key, roomId, previous.keyId, previous.epoch) : null;
+  return { keyId: previous.keyId, roster, signed: false };
+}
+
+type IncomingRosterVerdict = { ok: true; verified: VerifiedRoster | null } | { ok: false; reason: string };
+
+async function verifyIncomingRoster(
+  socket: AppSocket,
+  identity: CurrentIdentity,
+  view: RoomView,
+  entry: SealedRoomKeyEntry,
+  opened: { keyId: string; epoch: number; senderId: string; roomKey: Uint8Array },
+): Promise<IncomingRosterVerdict> {
+  const roomId = entry.roomId;
+  const roster =
+    typeof entry.roster === 'string' ? await openRoster(entry.roster, opened.roomKey, roomId, opened.keyId, opened.epoch) : null;
+  const verdict = await verifyGroupRoster(roster, {
+    roomId,
+    keyId: opened.keyId,
+    epoch: opened.epoch,
+    envelopeSenderId: opened.senderId,
+    previous: await previousGenerationContext(roomId, opened.epoch),
+    signedFromEpoch: signedFromEpoch(roomId),
+    signedIssuers: signedIssuersOf(roomId),
+    enforceSigned: ENFORCE_SIGNED_ROSTERS,
+    currentMemberIds: view.members,
+    promotedAdmins: getVerifiedPromotions(identity.userId, roomId),
+    serverAdmins: view.admins,
+    stallElapsed: rotationStalled(roomId, opened.epoch, true),
+    resolveSigningKey: (userId) => resolveSigningPublicKey(socket, userId),
+    now: Date.now(),
+  });
+  if (!verdict.ok) {
+    return verdict;
+  }
+  if (!roster || typeof entry.roster !== 'string') {
+    return { ok: true, verified: null };
+  }
+  return { ok: true, verified: { roster, signed: verdict.signed, blob: entry.roster, acceptedAt: Date.now() } };
+}
+
+function reportUnusableKey(socket: AppSocket, roomId: string, keyId: string, epoch: number): void {
+  const view = roomViews.get(roomId);
+  const marker = missingKey(roomId, keyId);
+  if (!view || epoch < view.currentEpoch || reportedBadKeys.has(marker)) {
+    return;
+  }
+  reportedBadKeys.add(marker);
+  socket.emit('e2e:report-bad-key', { roomId, keyId });
+}
+
+function nextRosterAdmins(roomId: string, view: RoomView, selfId: string, memberIds: string[]): string[] {
+  const members = new Set(memberIds);
+  const latest = latestGeneration(roomId);
+  const previous = latest ? verifiedRosters.get(roomId)?.get(latest.keyId) : undefined;
+  const promoted = getVerifiedPromotions(selfId, roomId);
+  let admins: Set<string>;
+  if (previous?.signed && previous.roster.admins) {
+    const selfIsAdmin = previous.roster.admins.includes(selfId) || promoted.has(selfId);
+    admins = new Set(previous.roster.admins.filter((userId) => members.has(userId)));
+    if (selfIsAdmin) {
+      for (const userId of promoted) {
+        if (members.has(userId)) {
+          admins.add(userId);
+        }
+      }
+    }
+  } else {
+    admins = new Set(Array.from(view.admins).filter((userId) => members.has(userId)));
+  }
+  if (admins.size === 0) {
+    admins.add(selfId);
+  }
+  return Array.from(admins);
+}
+
+async function buildSignedRoster(
+  socket: AppSocket,
+  identity: CurrentIdentity,
+  view: RoomView,
+  roomId: string,
+  generation: RoomKeyGeneration,
+  memberIds: string[],
+): Promise<GroupRoster | null> {
+  const base = await buildRoster(socket, identity, generation.epoch, memberIds);
+  if (!base) {
+    return null;
+  }
+  const signing = await deriveSigningKeyPair(identity.privateKey);
+  try {
+    return await signRoster(
+      {
+        roomId,
+        keyId: generation.keyId,
+        epoch: generation.epoch,
+        prevKeyId: generationAtEpoch(roomId, generation.epoch - 1)?.keyId ?? null,
+        members: base.members,
+        admins: nextRosterAdmins(roomId, view, identity.userId, memberIds),
+        issuedBy: identity.userId,
+        issuedAt: Date.now(),
+      },
+      signing.privateKey,
+    );
+  } finally {
+    signing.privateKey.fill(0);
+  }
+}
+
+async function restoreVerifiedRoster(roomId: string, entry: { keyId: string; epoch: number; key: Uint8Array; verifiedRoster?: string }): Promise<void> {
+  if (typeof entry.verifiedRoster !== 'string' || entry.key.length !== ROOM_KEY_BYTES) {
+    return;
+  }
+  const roster = await openRoster(entry.verifiedRoster, entry.key, roomId, entry.keyId, entry.epoch);
+  if (roster) {
+    rememberVerifiedRoster(roomId, entry.keyId, { roster, signed: isSignedRoster(roster), blob: entry.verifiedRoster, acceptedAt: Date.now() });
+  }
+}
+
+export interface GroupSenderContext {
+  generations: SenderGeneration[];
+  isMember: (userId: string) => boolean;
+}
+
+export async function getGroupSenderContext(roomId: string): Promise<GroupSenderContext | null> {
+  if (!knownGroups.has(roomId)) {
+    return null;
+  }
+  await loadPersistedGenerations(roomId);
+  const view = roomViews.get(roomId);
+  const rosters = verifiedRosters.get(roomId);
+  const generations: SenderGeneration[] = Array.from(generationsByRoom.get(roomId)?.values() ?? []).map((generation) => {
+    const entry = rosters?.get(generation.keyId);
+    return {
+      epoch: generation.epoch,
+      keyId: generation.keyId,
+      roster: entry?.roster ?? null,
+      signed: entry?.signed ?? false,
+      ...(entry ? { acceptedAt: entry.acceptedAt } : {}),
+    };
+  });
+  return { generations, isMember: (userId) => view?.members.has(userId) === true };
+}
+
+export function getVerifiedGroupAdmins(roomId: string, epoch: number): Set<string> | null {
+  const generation = generationAtEpoch(roomId, epoch);
+  const entry = generation ? verifiedRosters.get(roomId)?.get(generation.keyId) : undefined;
+  const identity = getCurrentIdentity();
+  if (!entry?.signed || !entry.roster.admins || !identity) {
+    return null;
+  }
+  return new Set([...entry.roster.admins, ...getVerifiedPromotions(identity.userId, roomId)]);
+}
+
+export function currentGroupEpoch(roomId: string): number {
+  return Math.max(roomViews.get(roomId)?.currentEpoch ?? 0, latestGeneration(roomId)?.epoch ?? 0);
+}
+
 async function buildRoster(socket: AppSocket, identity: CurrentIdentity, epoch: number, memberIds: string[]): Promise<GroupRoster | null> {
   const members = await Promise.all(
     memberIds.map(async (userId) => {
@@ -937,6 +1229,7 @@ function persistGeneration(roomId: string, generation: RoomKeyGeneration): void 
     key: generation.key,
     ...(knownGroups.has(roomId) ? { roomType: 'group' as const } : {}),
     ...(encryptedRoster ? { encryptedRoster } : {}),
+    ...(verifiedRosters.get(roomId)?.get(generation.keyId)?.blob ? { verifiedRoster: verifiedRosters.get(roomId)?.get(generation.keyId)?.blob } : {}),
     ...(generation.historyOnly ? { historyOnly: true } : {}),
   });
 }
@@ -1168,6 +1461,10 @@ function adoptGeneration(roomId: string, generation: RoomKeyGeneration, persist:
   if (pending && generation.epoch >= pending.epoch) {
     pendingPublishes.delete(roomId);
   }
+  if (rotationClocks.get(roomId)?.epoch !== undefined && generation.epoch >= (rotationClocks.get(roomId)?.epoch ?? 0)) {
+    clearRotationTimer(roomId);
+    rotationClocks.delete(roomId);
+  }
   adoptPublishedInvite(roomId, generation);
   const invite = roomInvites.get(roomId);
   if (invite && invite.keyId === generation.keyId) {
@@ -1220,12 +1517,13 @@ function applyRoomType(view: RoomView, roomId: string, type: RoomType): void {
 function loadPersistedGenerations(roomId: string): Promise<void> {
   let load = persistedLoads.get(roomId);
   if (!load) {
-    load = loadRoomKeyGenerations(roomId).then((stored) => {
+    load = loadRoomKeyGenerations(roomId).then(async (stored) => {
       if (stored.some((entry) => entry.roomType === 'group')) {
         markGroup(roomId);
       }
       for (const entry of stored) {
         rememberGenerationRoster(roomId, entry.keyId, entry.encryptedRoster);
+        await restoreVerifiedRoster(roomId, entry);
         if (entry.key.length === ROOM_KEY_BYTES) {
           adoptGeneration(roomId, { keyId: entry.keyId, epoch: entry.epoch, key: entry.key, ...(entry.historyOnly ? { historyOnly: true } : {}) }, false);
         }
@@ -1306,14 +1604,35 @@ async function acceptEnvelope(socket: AppSocket, entry: SealedRoomKeyEntry): Pro
       opened.roomKey.fill(0);
       throw new RoomKeyEnvelopeError('unattested-sender');
     }
+    let verified: VerifiedRoster | null = null;
+    if (!historyOnly && (knownGroups.has(entry.roomId) || view.type === 'group')) {
+      const verdict = await verifyIncomingRoster(socket, identity, view, entry, opened);
+      if (!verdict.ok) {
+        opened.roomKey.fill(0);
+        console.warn('[e2e] discarded a room key whose roster failed verification', {
+          roomId: entry.roomId,
+          senderId: entry.senderId,
+          reason: verdict.reason,
+        });
+        reportUnusableKey(socket, entry.roomId, entry.keyId, opened.epoch);
+        return false;
+      }
+      verified = verdict.verified;
+    }
     if (getCurrentIdentity() !== identity) {
       return false;
     }
     rememberGenerationRoster(entry.roomId, entry.keyId, entry.roster);
+    if (verified) {
+      rememberVerifiedRoster(entry.roomId, entry.keyId, verified);
+    }
     return adoptGeneration(entry.roomId, generation, true);
   } catch (error) {
     if (error instanceof RoomKeyEnvelopeError) {
       console.warn('[e2e] discarded room key envelope', { roomId: entry.roomId, senderId: entry.senderId, reason: error.reason });
+      if (POISON_REASONS.has(error.reason)) {
+        reportUnusableKey(socket, entry.roomId, entry.keyId, entry.epoch);
+      }
       return false;
     }
     throw error;
@@ -1501,6 +1820,10 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
   if (!identity || !view?.members.has(identity.userId) || isPublishInFlight(roomId, epoch)) {
     return;
   }
+  if (view.type === 'group' && epoch > 1 && !mayLeadRotation(roomId, view, identity.userId, epoch)) {
+    scheduleRotationRetry(socket, roomId, epoch, rotationRetryDelay(roomId, view, identity.userId, epoch));
+    return;
+  }
   pendingPublishes.set(roomId, { epoch, startedAt: Date.now() });
 
   const sodium = await getSodium();
@@ -1526,7 +1849,7 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
       pendingPublishes.delete(roomId);
       return;
     }
-    const roster = isGroup ? await buildRoster(socket, identity, epoch, recipients) : null;
+    const roster = isGroup ? await buildSignedRoster(socket, identity, view, roomId, generation, recipients) : null;
     if (isGroup && !roster) {
       pendingPublishes.delete(roomId);
       return;
@@ -1564,6 +1887,9 @@ async function publishGeneration(socket: AppSocket, roomId: string, epoch: numbe
     }
     if (epoch > 1) {
       ownRotations.set(roomId, generation.keyId);
+      if (isGroup) {
+        scheduleRotationRetry(socket, roomId, epoch, rotationRetryDelay(roomId, view, identity.userId, epoch));
+      }
     }
   } finally {
     generation.key.fill(0);
@@ -1629,6 +1955,7 @@ function viewFor(roomId: string): RoomView {
       type: null,
       creatorId: null,
       members: new Set(),
+      admins: new Set(),
       pinnedMembers: null,
       currentEpoch: 0,
       rotationRequiredEpoch: null,
@@ -1640,12 +1967,13 @@ function viewFor(roomId: string): RoomView {
   return view;
 }
 
-function applyParticipants(view: RoomView, participants: Pick<RoomParticipant, 'id'>[]): string[] {
+function applyParticipants(view: RoomView, participants: (Pick<RoomParticipant, 'id'> & Partial<Pick<RoomParticipant, 'isAdmin'>>)[]): string[] {
   if (view.type === 'private') {
     return applyPrivateParticipants(view, participants);
   }
   const added = participants.filter((participant) => !view.members.has(participant.id)).map((participant) => participant.id);
   view.members = new Set(participants.map((participant) => participant.id));
+  view.admins = new Set(participants.filter((participant) => participant.isAdmin === true).map((participant) => participant.id));
   return added;
 }
 
@@ -1673,6 +2001,7 @@ function applyRotationRequired(view: RoomView, roomId: string, epoch: number | n
   const latestEpoch = latestGeneration(roomId)?.epoch ?? 0;
   if (typeof epoch === 'number' && epoch > latestEpoch && epoch > (view.rotationRequiredEpoch ?? 0)) {
     view.rotationRequiredEpoch = epoch;
+    noteRotationStarted(roomId, epoch);
   }
 }
 
@@ -1781,6 +2110,7 @@ export interface RoomKeyRejection {
   currentEpoch?: number;
   currentKeyId?: string | null;
   rotationRequiredEpoch?: number | null;
+  retryAfterMs?: number;
 }
 
 const INCOMPLETE_BATCH_CODE = 'e2e.roomKeyIncomplete';
@@ -1796,6 +2126,13 @@ async function handleRoomKeyRejectedImpl(socket: AppSocket, payload: RoomKeyReje
   }
   if (view) {
     applyRotationRequired(view, payload.roomId, payload.rotationRequiredEpoch);
+  }
+  if (payload.code === 'e2e.rotationNotAuthorized') {
+    const target = payload.epoch ?? publishTarget(payload.roomId);
+    if (typeof target === 'number') {
+      scheduleRotationRetry(socket, payload.roomId, target, (payload.retryAfterMs ?? ROTATION_STALL_MS) + 500);
+    }
+    return;
   }
   await syncRoomKeys(socket, payload.roomId);
 
@@ -1895,6 +2232,13 @@ async function clearRoomKeysImpl(): Promise<void> {
   roomInvites.clear();
   roomRosters.clear();
   generationRosters.clear();
+  verifiedRosters.clear();
+  rotationClocks.clear();
+  for (const roomId of Array.from(rotationTimers.keys())) {
+    clearRotationTimer(roomId);
+  }
+  reportedBadKeys.clear();
+  forgetVerifiedPromotions();
   missingHistoryContext.clear();
   ownRotations.clear();
   roomNameBlobs.clear();

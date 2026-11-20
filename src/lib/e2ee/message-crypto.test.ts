@@ -26,6 +26,10 @@ vi.mock('./room-keys', () => {
       }
       return current;
     },
+    getGroupSenderContext: () => Promise.resolve(null),
+    getVerifiedGroupAdmins: () => null,
+    currentGroupEpoch: () => 0,
+    resolveSigningPublicKey: () => Promise.resolve(null),
     ensureRoomKeyGeneration: (_socket: unknown, roomId: string, keyId: string) =>
       Promise.resolve(roomKeys.get(roomId)?.find((generation) => generation.keyId === keyId)?.key ?? null),
     lookupContactKey: (_socket: unknown, userId: string) => {

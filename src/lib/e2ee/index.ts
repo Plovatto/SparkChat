@@ -69,6 +69,7 @@ export {
   type RoomKeyRejection,
 } from './room-keys';
 export { hasInviteFragment, parseInviteFragment, type InviteLinkTarget } from './group-invite';
+export { attestGroupAction, type EventTrust } from './group-event-trust';
 export {
   decryptMediaContentIfNeeded,
   decryptMessageView,

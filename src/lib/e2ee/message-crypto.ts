@@ -16,6 +16,7 @@ import { openAttachment, type AttachmentBinding } from './attachment-crypto';
 import { markExpiredMediaUrl, resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
+import { assessSystemEvent, assessSystemEvents, checkGroupSender } from './group-event-trust';
 import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
 import { deriveSigningKeyPair } from './signing';
 import { getSodium } from './sodium';
@@ -25,6 +26,9 @@ const ENCRYPTED_FIELD_PREFIX = 'e2e:';
 interface FieldSource {
   messageId: string;
   senderId: string;
+  timestamp?: string;
+  live?: boolean;
+  checkSender?: boolean;
 }
 
 const FIELD_LABELS = {
@@ -94,6 +98,9 @@ async function decryptTextContentIfNeeded(
   }
 
   try {
+    if (source.checkSender !== false && (await checkGroupSender(roomId, parsed.keyId, source)) !== 'ok') {
+      return translate('chat.message.fromRemovedMember');
+    }
     const signingKey = await resolveSenderSigningKey(socket, source.senderId);
     if (!signingKey) {
       return translate('chat.message.encryptedUnavailable');
@@ -301,7 +308,7 @@ async function decryptReplySnapshot(
   if (!reply || reply.deleted) {
     return reply;
   }
-  const source = { messageId: reply.id, senderId: reply.sender.id };
+  const source = { messageId: reply.id, senderId: reply.sender.id, checkSender: false };
   const fileMeta = await decryptFileMetaIfNeeded(socket, reply.fileMeta, roomId, source);
   const [content, caption] = await Promise.all([
     isGifImage(reply.type, fileMeta) ? Promise.resolve(reply.content) : resolveContent(socket, reply.content, roomId, reply.type, fileMeta, source),
@@ -340,6 +347,7 @@ export function hasUnencryptedFields(message: MessageView): boolean {
 
 export interface DecryptMessageViewOptions {
   deferGifMedia?: boolean;
+  live?: boolean;
 }
 
 function isGifImage(type: MessageType, fileMeta: MessageFileMeta | null): boolean {
@@ -348,7 +356,11 @@ function isGifImage(type: MessageType, fileMeta: MessageFileMeta | null): boolea
 
 export async function decryptMessageView(socket: AppSocket, message: MessageView, options: DecryptMessageViewOptions = {}): Promise<MessageView> {
   const unencrypted = hasUnencryptedFields(message);
-  const source = { messageId: message.id, senderId: message.sender.id };
+  const source = { messageId: message.id, senderId: message.sender.id, timestamp: message.timestamp, live: options.live === true };
+  const eventTrust = await assessSystemEvent(socket, message);
+  if (eventTrust === 'forged') {
+    return { ...message, systemEvent: null, content: translate('systemEvents.forgedEvent'), eventTrust, unencrypted };
+  }
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal =
     message.type === 'image' && (Boolean(fileMeta?.thumbnailUrl) || (options.deferGifMedia === true && isGifImage(message.type, fileMeta)));
@@ -358,10 +370,11 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     decryptCaptionIfNeeded(socket, message.caption, message.roomId, source),
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId, source, fileMeta?.previewKey),
   ]);
-  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted };
+  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted, ...(eventTrust ? { eventTrust } : {}) };
 }
 
-export function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {
+export async function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {
+  await assessSystemEvents(socket, messages);
   return Promise.all(messages.map((message) => decryptMessageView(socket, message)));
 }
 

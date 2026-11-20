@@ -11,7 +11,7 @@ import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfileP
 import { getOtherParticipant } from '@features/rooms';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
-import { downloadMessageMedia } from '@lib/e2ee';
+import { attestGroupAction, downloadMessageMedia } from '@lib/e2ee';
 import { formatTimeAgo, getDisplayName } from '@lib/format';
 import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
@@ -192,17 +192,25 @@ export function RoomInfoPanel({ isOpen, onClose, room, currentUserId, messages, 
   };
 
   const handleLeaveGroup = () => {
-    socket?.emit('group:leave', { roomId: room.id });
+    void attestGroupAction(room.id, 'group.memberLeft').then((attestation) => {
+      socket?.emit('group:leave', { roomId: room.id, ...(attestation ? { attestation } : {}) });
+    });
     onLeftGroup();
   };
 
   const handlePromoteAdmin = (userId: string) => {
-    socket?.emit('group:promote-admin', { roomId: room.id, userId });
+    void attestGroupAction(room.id, 'group.adminPromoted', userId).then((attestation) => {
+      socket?.emit('group:promote-admin', { roomId: room.id, userId, ...(attestation ? { attestation } : {}) });
+    });
   };
 
   const confirmRemoveMember = () => {
     if (removalTarget) {
-      socket?.emit('group:remove-member', { roomId: removalTarget.roomId, userId: removalTarget.participant.id });
+      const { roomId } = removalTarget;
+      const userId = removalTarget.participant.id;
+      void attestGroupAction(roomId, 'group.memberRemoved', userId).then((attestation) => {
+        socket?.emit('group:remove-member', { roomId, userId, ...(attestation ? { attestation } : {}) });
+      });
     }
   };
 

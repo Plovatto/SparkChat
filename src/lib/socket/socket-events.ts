@@ -66,6 +66,7 @@ type JoinPayload =
       password: string;
       authSalt: string;
       recoveryVerifier: string;
+      passwordLength?: number;
     }
   | { mode: 'resume'; userId: string; sessionToken: string };
 
@@ -164,6 +165,7 @@ export interface MessageView {
   caption: string | null;
   linkPreview: MessageLinkPreview | null;
   systemEvent?: SystemEvent | null;
+  eventTrust?: 'verified' | 'legacy' | 'unverified' | 'forged';
   unencrypted?: boolean;
 }
 
@@ -352,6 +354,7 @@ export interface ServerToClientEvents {
     currentEpoch: number;
     currentKeyId: string | null;
     rotationRequiredEpoch: number | null;
+    retryAfterMs?: number;
   }) => void;
   'e2e:rotation-required': (payload: { roomId: string; epoch: number; memberIds?: string[]; inviteProofs?: RoomInviteProof[] }) => void;
   'message:new': (payload: MessageView & { clientTempId?: string }) => void;
@@ -391,6 +394,7 @@ export interface ClientToServerEvents {
   'user:change-password': (payload: {
     currentPassword?: string;
     newPassword: string;
+    passwordLength?: number;
     newAuthSalt: string;
     encryptedPrivateKeyByPassword: string;
   }) => void;
@@ -414,12 +418,12 @@ export interface ClientToServerEvents {
   'rooms:get': () => void;
   'room:create-private': (payload: { targetNickname: string }) => void;
   'room:create-group': (payload: { roomName: string }) => void;
-  'room:join-by-invite': (payload: { roomId: string; inviteToken: string; proof: string }) => void;
+  'room:join-by-invite': (payload: { roomId: string; inviteToken: string; proof: string; attestation?: string }) => void;
   'room:reset-invite': (payload: { roomId: string }) => void;
   'room:delete': (payload: { roomId: string }) => void;
-  'group:leave': (payload: { roomId: string }) => void;
-  'group:remove-member': (payload: { roomId: string; userId: string }) => void;
-  'group:promote-admin': (payload: { roomId: string; userId: string }) => void;
+  'group:leave': (payload: { roomId: string; attestation?: string }) => void;
+  'group:remove-member': (payload: { roomId: string; userId: string; attestation?: string }) => void;
+  'group:promote-admin': (payload: { roomId: string; userId: string; attestation?: string }) => void;
   'user:block': (payload: { roomId: string; blockedUserId: string }) => void;
   'user:unblock': (payload: { roomId: string; blockedUserId: string }) => void;
   'e2e:publish-room-key': (payload: PublishRoomKeyBatch) => void;
@@ -433,6 +437,7 @@ export interface ClientToServerEvents {
   'room:publish-profile-key': (payload: { roomId: string; keyId: string; envelope: string }) => void;
   'room:rewrap-profile-keys': (payload: { roomId: string; keyId: string; envelopes: Record<string, string> }) => void;
   'e2e:request-room-key': (payload: { roomId: string }) => void;
+  'e2e:report-bad-key': (payload: { roomId: string; keyId: string }) => void;
   'message:send': (payload: {
     roomId: string;
     content: string;
