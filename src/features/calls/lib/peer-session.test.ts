@@ -976,7 +976,7 @@ describe('bitrate caps and degrade', () => {
 });
 
 describe('credential refresh', () => {
-  it('refreshes ice servers at 3h30 with setConfiguration and keeps refreshing', async () => {
+  it('refreshes ice servers every 40 minutes with setConfiguration and keeps refreshing', async () => {
     const fresh = [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }];
     const refresh = vi.fn().mockResolvedValue({ iceServers: fresh });
     const h = build('caller', { refreshIceServers: refresh });
@@ -993,6 +993,35 @@ describe('credential refresh', () => {
 
     await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
     expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes six times over a four hour call without restarting ice', async () => {
+    const fresh = [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }];
+    const refresh = vi.fn().mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    const restarts = h.connection.restartCalls;
+
+    await vi.advanceTimersByTimeAsync(4 * 60 * 60 * 1000);
+
+    expect(CREDENTIAL_REFRESH_MS).toBe(40 * 60 * 1000);
+    expect(refresh).toHaveBeenCalledTimes(6);
+    expect(h.connection.restartCalls).toBe(restarts);
+  });
+
+  it('keeps refreshing after the server refuses one', async () => {
+    const fresh = [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }];
+    const refresh = vi.fn().mockResolvedValueOnce(null).mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS * 2);
+
+    expect(refresh).toHaveBeenCalledTimes(2);
+    expect(h.connection.configuration.iceServers).toEqual(fresh);
   });
 
   it('survives a failed refresh', async () => {
