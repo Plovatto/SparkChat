@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCompressAlt } from 'react-icons/fa';
-import { AVATARS, AVATAR_ICON_COLOR } from '@features/auth/constants/avatars';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
@@ -34,7 +34,6 @@ export function CallScreen({ videoRef }: CallScreenProps) {
   const localRef = useRef<HTMLVideoElement>(null);
   const [needsTap, setNeedsTap] = useState(false);
   const peer = call.peerDisplay(state.peerId);
-  const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const running = state.phase === 'active' || state.phase === 'reconnecting';
   const elapsed = useElapsed(state.connectedAt, running);
   const isVideo = state.kind === 'video' || snapshot.cameraOn || snapshot.remoteCameraOn;
@@ -134,9 +133,7 @@ export function CallScreen({ videoRef }: CallScreenProps) {
 
       <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', textAlign: 'center' }}>
         {!showRemoteVideo && (
-          <div style={{ width: '112px', height: '112px', borderRadius: '50%', background: avatar?.bgGradient ?? theme.gradientControl, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {avatar ? <avatar.icon size={56} color={AVATAR_ICON_COLOR} /> : null}
-          </div>
+          <Avatar userId={peer ? state.peerId : null} avatarIndex={peer?.avatar} size={112} iconSize={56} />
         )}
         <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{peer?.name ?? ''}</h2>
         <div aria-live="polite" style={{ fontSize: '1rem', color: theme.onGradientMuted }}>

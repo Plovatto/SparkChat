@@ -748,5 +748,38 @@
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
     }
+  },
+  "profilePhotos": {
+    "choose": "Escolher uma foto",
+    "change": "Trocar foto",
+    "remove": "Remover foto",
+    "useMine": "Usar minha foto",
+    "viewMine": "Ver minha foto",
+    "view": "Ver foto",
+    "downloadName": "foto-sparkchat",
+    "uploading": "Salvando foto...",
+    "group": {
+      "change": "Trocar foto do grupo",
+      "remove": "Remover foto do grupo",
+      "removeTitle": "Remover foto do grupo?",
+      "removeConfirm": "Todos no grupo voltarão a ver o ícone padrão.",
+      "view": "Ver foto do grupo"
+    },
+    "crop": {
+      "title": "Ajuste sua foto",
+      "hint": "Arraste para posicionar. Use o gesto de pinça, a rolagem ou o controle para dar zoom.",
+      "zoom": "Zoom",
+      "zoomIn": "Aumentar zoom",
+      "zoomOut": "Diminuir zoom",
+      "confirm": "Usar foto"
+    },
+    "errors": {
+      "notImage": "Esse arquivo não é uma imagem. Escolha uma foto JPG, PNG ou WebP.",
+      "tooLarge": "Essa foto é grande demais. Escolha uma com menos de 30 MB.",
+      "decodeFailed": "Não foi possível abrir essa foto neste dispositivo. Tente outra.",
+      "encodeFailed": "Não foi possível preparar essa foto. Tente outra.",
+      "uploadFailed": "Não foi possível salvar sua foto. Verifique sua conexão e tente de novo.",
+      "removeFailed": "Não foi possível remover sua foto. Tente de novo."
+    }
   }
 }

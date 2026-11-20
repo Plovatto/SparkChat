@@ -29,6 +29,7 @@ import {
   useUnreadBadge,
 } from '@features/notifications';
 import { CallProvider } from '@features/calls';
+import { queuePendingMyPhoto } from '@features/profile-photos';
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -164,6 +165,9 @@ function AuthGate({
             }
           })
           .catch((error: unknown) => console.error('[e2e] registration setup failed', error));
+      }
+      if (registration?.photo) {
+        queuePendingMyPhoto(registration.photo);
       }
       onRegisterStart(null);
     },

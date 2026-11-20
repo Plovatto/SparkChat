@@ -748,5 +748,38 @@
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds."
     }
+  },
+  "profilePhotos": {
+    "choose": "Choose a photo",
+    "change": "Change photo",
+    "remove": "Remove photo",
+    "useMine": "Use my photo",
+    "viewMine": "View my photo",
+    "view": "View photo",
+    "downloadName": "sparkchat-photo",
+    "uploading": "Saving photo...",
+    "group": {
+      "change": "Change group photo",
+      "remove": "Remove group photo",
+      "removeTitle": "Remove group photo?",
+      "removeConfirm": "Everyone in the group will see the default icon again.",
+      "view": "View group photo"
+    },
+    "crop": {
+      "title": "Adjust your photo",
+      "hint": "Drag to reposition. Pinch, scroll or use the slider to zoom.",
+      "zoom": "Zoom",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "confirm": "Use photo"
+    },
+    "errors": {
+      "notImage": "That file is not an image. Choose a JPG, PNG or WebP photo.",
+      "tooLarge": "That photo is too large. Choose one under 30 MB.",
+      "decodeFailed": "Couldn't open that photo on this device. Try another one.",
+      "encodeFailed": "Couldn't prepare that photo. Try another one.",
+      "uploadFailed": "Couldn't save your photo. Check your connection and try again.",
+      "removeFailed": "Couldn't remove your photo. Try again."
+    }
   }
 }
