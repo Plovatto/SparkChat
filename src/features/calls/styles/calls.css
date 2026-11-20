@@ -498,7 +498,6 @@
   padding: 4px 16px 16px;
   scrollbar-width: thin;
   scrollbar-color: var(--sc-border-strong) transparent;
-  scrollbar-gutter: stable;
 }
 
 .sc-call-panel__body::-webkit-scrollbar {
