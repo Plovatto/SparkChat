@@ -2,11 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useBackdropDismiss } from './useBackdropDismiss';
 
-function Harness({ onDismiss }: { onDismiss: () => void }) {
+function Harness({ onDismiss, onParentClick = () => {} }: { onDismiss: () => void; onParentClick?: () => void }) {
   const backdropDismissProps = useBackdropDismiss(onDismiss);
   return (
-    <div data-testid="backdrop" {...backdropDismissProps}>
-      <span>media</span>
+    <div onClick={onParentClick}>
+      <div data-testid="backdrop" {...backdropDismissProps}>
+        <span>media</span>
+      </div>
     </div>
   );
 }
@@ -63,5 +65,17 @@ describe('useBackdropDismiss', () => {
     fireEvent.click(backdrop);
 
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps clicks inside the viewer from reaching the components behind it', () => {
+    const onDismiss = vi.fn();
+    const onParentClick = vi.fn();
+    render(<Harness onDismiss={onDismiss} onParentClick={onParentClick} />);
+
+    clickWithPointer(screen.getByTestId('backdrop'));
+    clickWithPointer(screen.getByText('media'));
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onParentClick).not.toHaveBeenCalled();
   });
 });

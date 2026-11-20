@@ -14,6 +14,7 @@ export function useBackdropDismiss(onDismiss: () => void): BackdropDismissProps 
 
   const onClick = useCallback(
     (event: MouseEvent<HTMLElement>) => {
+      event.stopPropagation();
       const pressStartedOnBackdrop = pressStartedOnBackdropRef.current;
       pressStartedOnBackdropRef.current = false;
       if (pressStartedOnBackdrop && event.target === event.currentTarget) {
