@@ -16,6 +16,7 @@ import {
   type ResolvedPeer,
 } from './call-controller';
 import { createTabOwnership } from './tab-ownership';
+import type { VoiceLeveler } from './voice-leveler';
 
 const derivedKeys = vi.hoisted(() => [] as Array<{ send: Uint8Array; receive: Uint8Array }>);
 
@@ -1518,5 +1519,139 @@ describe('socket takeover after reconnect', () => {
     expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
     expect(w.a.controller.getSnapshot().notice).toBeNull();
     expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+});
+
+describe('voice leveling', () => {
+  interface FakeLeveler extends VoiceLeveler {
+    inputs: unknown[];
+    volumes: number[];
+    mutes: boolean[];
+    closed: number;
+  }
+
+  function micMedia() {
+    const mic = { kind: 'audio', enabled: true, stopped: false, stop() { this.stopped = true; } };
+    const tracks: unknown[] = [mic];
+    const stream = {
+      getTracks: () => tracks,
+      getAudioTracks: () => tracks.filter((track) => (track as { kind: string }).kind === 'audio'),
+      getVideoTracks: () => [],
+      addTrack: (track: unknown) => tracks.push(track),
+      removeTrack: (track: unknown) => tracks.splice(tracks.indexOf(track), 1),
+    } as unknown as MediaStream;
+    return { mic, stream };
+  }
+
+  function fakeLeveler(processed: boolean): FakeLeveler {
+    const output = { kind: 'audio', id: 'leveled', enabled: true } as unknown as MediaStreamTrack;
+    const sendStream = { id: 'send', getAudioTracks: () => [output] } as unknown as MediaStream;
+    const leveler: FakeLeveler = {
+      track: output,
+      processed,
+      inputs: [],
+      volumes: [],
+      mutes: [],
+      closed: 0,
+      sendStream: () => sendStream,
+      setInput: (track) => {
+        leveler.inputs.push(track);
+        return output;
+      },
+      setVolume: (volume) => void leveler.volumes.push(volume),
+      setMuted: (muted) => void leveler.mutes.push(muted),
+      close: () => void (leveler.closed += 1),
+    };
+    return leveler;
+  }
+
+  async function leveledCall(processed = true) {
+    const media = micMedia();
+    const levelers: FakeLeveler[] = [];
+    const sentTracks: unknown[] = [];
+    const w = await world({
+      alice: {
+        acquireMedia: () => Promise.resolve({ stream: media.stream, cameraFailed: false }),
+        createVoiceLeveler: (track) => {
+          const leveler = fakeLeveler(processed);
+          leveler.inputs.push(track);
+          levelers.push(leveler);
+          return leveler;
+        },
+        createPeerSession: (options) => {
+          const peer = new FakePeer(options);
+          peer.setAudioTrack = (track?: MediaStreamTrack) => {
+            sentTracks.push(track);
+            return Promise.resolve();
+          };
+          w.a.peers.push(peer);
+          return peer;
+        },
+      },
+    });
+    await connectCall(w);
+    return { w, media, levelers, sentTracks, peer: w.a.peers[0]! };
+  }
+
+  it('sends the leveled microphone instead of the raw track', async () => {
+    const { media, levelers, peer } = await leveledCall();
+
+    expect(levelers).toHaveLength(1);
+    expect(levelers[0]!.inputs).toEqual([media.mic]);
+    expect(peer.options.localStream?.getAudioTracks()).toEqual([levelers[0]!.track]);
+  });
+
+  it('keeps the raw stream when the leveler cannot process audio', async () => {
+    const { media, levelers, peer } = await leveledCall(false);
+
+    expect(peer.options.localStream).toBe(media.stream);
+    expect(levelers[0]!.closed).toBe(1);
+  });
+
+  it('mutes the leveled output while keeping the raw track alive', async () => {
+    const { w, media, levelers, peer } = await leveledCall();
+
+    w.a.controller.toggleMute();
+
+    expect(levelers[0]!.mutes.at(-1)).toBe(true);
+    expect(peer.muted).toBe(true);
+    expect(media.mic.enabled).toBe(false);
+    expect(media.mic.stopped).toBe(false);
+
+    w.a.controller.toggleMute();
+    expect(levelers[0]!.mutes.at(-1)).toBe(false);
+    expect(media.mic.enabled).toBe(true);
+  });
+
+  it('applies the microphone volume live', async () => {
+    const { w, levelers } = await leveledCall();
+
+    w.a.controller.setMicVolume(1.5);
+
+    expect(levelers[0]!.volumes).toEqual([1.5]);
+  });
+
+  it('rewires a new microphone into the leveler and keeps sending the leveled track', async () => {
+    const { w, media, levelers, sentTracks } = await leveledCall();
+    const next = { kind: 'audio', enabled: true, stop: () => undefined } as unknown as MediaStreamTrack;
+
+    w.a.controller.toggleMute();
+    await w.a.controller.replaceAudioInput(next);
+
+    expect(media.mic.stopped).toBe(true);
+    expect(levelers[0]!.inputs.at(-1)).toBe(next);
+    expect(next.enabled).toBe(false);
+    expect(sentTracks).toEqual([levelers[0]!.track]);
+  });
+
+  it('closes the leveler when the call ends', async () => {
+    const { w, levelers } = await leveledCall();
+
+    w.a.controller.hangup();
+    await settle();
+
+    expect(levelers[0]!.closed).toBe(1);
+    w.a.controller.setMicVolume(2);
+    expect(levelers[0]!.volumes).toEqual([]);
   });
 });

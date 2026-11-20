@@ -767,7 +767,14 @@
       "gain": "Volume automático",
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
-      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons."
+      "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons.",
+      "isolationWarning": "Pode deixar sua voz mais baixa para quem ouve",
+      "volumeSection": "Volume",
+      "processingSection": "Processamento",
+      "micVolume": "Volume do microfone",
+      "micVolumeHint": "Quão alto sua voz chega para quem ouve.",
+      "callVolume": "Volume da chamada",
+      "callVolumeHint": "Quão alto você ouve a outra pessoa."
     },
     "share": {
       "start": "Compartilhar tela",

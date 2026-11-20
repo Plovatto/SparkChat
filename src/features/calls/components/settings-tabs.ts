@@ -24,9 +24,16 @@ export function stepTab(tabs: readonly PanelTab[], current: PanelTab, key: strin
   }
 }
 
-export function toPercent(volume: number): number {
+export function toPercent(volume: number, min = 0, max = 1): number {
   if (!Number.isFinite(volume)) {
+    return Math.round(min * 100);
+  }
+  return Math.round(Math.min(max, Math.max(min, volume)) * 100);
+}
+
+export function rangeFill(percent: number, minPercent: number, maxPercent: number): number {
+  if (maxPercent <= minPercent) {
     return 0;
   }
-  return Math.round(Math.min(1, Math.max(0, volume)) * 100);
+  return Math.round(((Math.min(maxPercent, Math.max(minPercent, percent)) - minPercent) / (maxPercent - minPercent)) * 1000) / 10;
 }
