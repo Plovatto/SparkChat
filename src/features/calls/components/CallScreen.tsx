@@ -14,7 +14,7 @@ import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
 import { selectStageLayout } from '../lib/stage-layout';
 import { describeShareSurface } from '../lib/share-surface';
-import { useShareMonitorVolume } from '../lib/call-settings';
+import { useDuckLevel, useShareMonitorVolume } from '../lib/call-settings';
 import { shareAudioTrack, shareMonitorSupport } from '../lib/share-monitor';
 import { CallControls } from './CallControls';
 import type { BroadcastSettings } from './DevicePicker';
@@ -74,6 +74,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
   const localRef = useRef<HTMLVideoElement>(null);
   const screenRef = useRef<HTMLVideoElement>(null);
   const [shareMonitorVolume, setShareMonitorVolume] = useShareMonitorVolume();
+  const [duckLevel, setDuckLevel] = useDuckLevel();
   const [pipDismissed, setPipDismissed] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
@@ -111,16 +112,20 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
                 monitor: monitorSupport,
                 monitorVolume: shareMonitorVolume,
                 onMonitorVolume: setShareMonitorVolume,
+                duckLevel,
+                onDuckLevel: setDuckLevel,
               }
             : null,
-          receiver: remoteSharing ? { hasAudio: remoteShareAudio, volume: call.streamVolume, onVolume: call.setStreamVolume } : null,
+          receiver: remoteSharing
+            ? { hasAudio: remoteShareAudio, volume: call.streamVolume, onVolume: call.setStreamVolume, movie: call.remoteShareMovie, duckLevel, onDuckLevel: setDuckLevel }
+            : null,
         }
       : null;
   const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = call.localSpeaking;
-  const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume);
-  const monitorVolume = useDuckedVolume(call.movieMode && monitorTrack !== null, localSpeaking || remoteSpeaking, shareMonitorVolume);
+  const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume, duckLevel);
+  const monitorVolume = useDuckedVolume(call.movieMode && monitorTrack !== null, localSpeaking || remoteSpeaking, shareMonitorVolume, duckLevel);
   useShareMonitor(shareMonitorRef, monitorTrack, monitorVolume);
   const fullscreen = useFullscreen(stageRef);
   const mode = pipMode();

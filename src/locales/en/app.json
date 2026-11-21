@@ -901,7 +901,9 @@
       "hidePreviewHint": "Shows a notice instead of your screen",
       "streamVolume": "Stream volume",
       "streamVolumeHint": "Changes the volume only for you",
-      "noStreamAudio": "This stream has no sound"
+      "noStreamAudio": "This stream has no sound",
+      "duckLevel": "Show volume while someone talks",
+      "duckLevelHint": "0% mutes it, 100% keeps it as is. Only for you"
     },
     "otherDevice": "In a call on another device",
     "otherDeviceHint": "Keep talking on the device where you answered.",

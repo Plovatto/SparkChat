@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { getItem, setItem } from '@lib/storage';
 import { clampMicVolume } from './voice-leveler';
 import { clampCallVolume } from './voice-playback';
+import { DUCK_LEVEL, clampDuckLevel } from './ducking';
 
 const LEGACY_PROTECT_IP_KEY = 'chatCallProtectIp';
 const AUDIO_PROCESSING_KEY = 'chatCallAudioProcessing';
@@ -10,6 +11,7 @@ const MOVIE_MODE_KEY = 'chatCallMovieMode';
 const SHARE_MONITOR_VOLUME_KEY = 'chatCallShareMonitorVolume';
 const MIC_VOLUME_KEY = 'chatCallMicVolume';
 const CALL_VOLUME_KEY = 'chatCallVolume';
+const DUCK_LEVEL_KEY = 'chatCallDuckLevel';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -146,13 +148,15 @@ export interface VolumeSetting {
   get: () => number;
   set: (value: number) => number;
   subscribe: (listener: Listener) => () => void;
+  fallback: number;
 }
 
-function volumeSetting(key: string, clamp: (value: unknown) => number): VolumeSetting {
+function volumeSetting(key: string, clamp: (value: unknown) => number, fallback = 1): VolumeSetting {
   const volumeListeners = new Set<Listener>();
-  const get = () => clamp(getItem<unknown>(key) ?? 1);
+  const get = () => clamp(getItem<unknown>(key) ?? fallback);
   return {
     get,
+    fallback,
     set: (value) => {
       const next = clamp(value);
       setItem(key, next);
@@ -179,9 +183,10 @@ function volumeSetting(key: string, clamp: (value: unknown) => number): VolumeSe
 
 export const micVolume = volumeSetting(MIC_VOLUME_KEY, clampMicVolume);
 export const callVolume = volumeSetting(CALL_VOLUME_KEY, clampCallVolume);
+export const duckLevel = volumeSetting(DUCK_LEVEL_KEY, clampDuckLevel, DUCK_LEVEL);
 
 function useVolumeSetting(setting: VolumeSetting): [number, (value: number) => number] {
-  const value = useSyncExternalStore(setting.subscribe, setting.get, () => 1);
+  const value = useSyncExternalStore(setting.subscribe, setting.get, () => setting.fallback);
   return [value, setting.set];
 }
 
@@ -191,4 +196,8 @@ export function useMicVolume(): [number, (value: number) => number] {
 
 export function useCallVolume(): [number, (value: number) => number] {
   return useVolumeSetting(callVolume);
+}
+
+export function useDuckLevel(): [number, (value: number) => number] {
+  return useVolumeSetting(duckLevel);
 }

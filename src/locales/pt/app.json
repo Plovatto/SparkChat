@@ -901,7 +901,9 @@
       "hidePreviewHint": "Mostra só um aviso no lugar da sua tela",
       "streamVolume": "Volume da transmissão",
       "streamVolumeHint": "Muda o volume só para você",
-      "noStreamAudio": "Esta transmissão não tem som"
+      "noStreamAudio": "Esta transmissão não tem som",
+      "duckLevel": "Volume da série quando alguém fala",
+      "duckLevelHint": "0% silencia, 100% não abaixa. Só vale para você"
     },
     "otherDevice": "Em chamada em outro aparelho",
     "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
