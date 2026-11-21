@@ -1,9 +1,13 @@
+:root {
+  --sc-z-emoji-picker: 1040;
+}
+
 .sc-emoji-surface {
   --sc-emoji-cell: 40px;
   --sc-emoji-glyph: 1.5rem;
   --sc-emoji-control: 40px;
   position: fixed;
-  z-index: 1070;
+  z-index: var(--sc-z-emoji-picker);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -34,13 +38,16 @@
   --sc-emoji-cell: 46px;
   --sc-emoji-glyph: 1.75rem;
   --sc-emoji-control: 44px;
+  position: absolute;
+  bottom: 0;
   left: 0;
   right: 0;
   margin-inline: auto;
   max-width: 100%;
   border-bottom: 0;
   border-radius: 24px 24px 0 0;
-  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -12px 32px -12px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
   touch-action: pan-y;
   transition: transform var(--sc-dur-normal) var(--sc-ease-spring-soft);
   animation: scEmojiSheetIn var(--sc-dur-slow) var(--sc-ease-enter) backwards;
@@ -51,10 +58,28 @@
   animation: scEmojiSheetOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
 }
 
-.sc-emoji-backdrop {
+.sc-emoji-surface.is-sheet[data-docked=viewport] {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.sc-emoji-sheet-frame {
   position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--sc-z-emoji-picker);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sc-emoji-sheet-frame.is-exiting {
+  pointer-events: none;
+}
+
+.sc-emoji-backdrop {
+  position: absolute;
   inset: 0;
-  z-index: 1069;
+  pointer-events: auto;
   background: var(--sc-overlay);
   animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-standard) backwards;
 }
@@ -137,8 +162,21 @@
   font-size: 1rem;
 }
 
+@media (pointer: coarse) {
+  .sc-input.sc-emoji-search-input {
+    font-size: 1rem;
+  }
+}
+
 .sc-input.sc-emoji-search-input::-webkit-search-cancel-button {
   cursor: pointer;
+}
+
+.sc-emoji-close {
+  width: var(--sc-emoji-control);
+  height: var(--sc-emoji-control);
+  flex-shrink: 0;
+  border-radius: 50%;
 }
 
 .sc-emoji-tone {

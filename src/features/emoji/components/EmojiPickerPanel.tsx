@@ -1,13 +1,14 @@
-import { useCallback, useState, type CSSProperties, type MouseEvent } from 'react';
+import { Suspense, useCallback, useState, type CSSProperties, type MouseEvent } from 'react';
 import {
   EmojiPicker,
   defaultEmojiDataResolver,
+  useEmojiDetails,
   type EmojiDataResolver,
   type EmojiPickerListCategoryHeaderProps,
   type EmojiPickerListEmojiProps,
   type EmojiPickerListRowProps,
 } from 'frimousse';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaTimes } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { translate } from '@lib/i18n/app-i18n';
 import { localizeCategories } from '../utils/emoji-categories';
@@ -20,6 +21,7 @@ export interface EmojiPickerPanelProps {
   columns: number;
   autoFocusSearch: boolean;
   onSelect: (emoji: string) => void;
+  onClose: () => void;
 }
 
 const resolveEmojiData: EmojiDataResolver = async (locale, options) => {
@@ -57,7 +59,34 @@ function EmojiCell({ emoji, ...props }: EmojiPickerListEmojiProps) {
 
 const LIST_COMPONENTS = { CategoryHeader, Row, Emoji: EmojiCell };
 
-export default function EmojiPickerPanel({ locale, columns, autoFocusSearch, onSelect }: EmojiPickerPanelProps) {
+interface RecentEmojiButtonProps {
+  emoji: string;
+  locale: EmojiDataLocale;
+  onSelect: (emoji: string) => void;
+}
+
+function RecentEmojiButton({ emoji, label, onSelect }: Omit<RecentEmojiButtonProps, 'locale'> & { label: string }) {
+  return (
+    <button
+      type="button"
+      className="sc-emoji-cell"
+      onMouseDown={keepFocus}
+      onClick={() => onSelect(emoji)}
+      aria-label={label}
+      title={label}
+      data-testid="emoji-recent"
+    >
+      <span aria-hidden="true">{emoji}</span>
+    </button>
+  );
+}
+
+function LabeledRecentEmojiButton({ emoji, locale, onSelect }: RecentEmojiButtonProps) {
+  const details = useEmojiDetails(emoji, { locale, emojibaseUrl: EMOJI_DATA_PATH, resolveEmojiData });
+  return <RecentEmojiButton emoji={emoji} label={details?.label ?? emoji} onSelect={onSelect} />;
+}
+
+export default function EmojiPickerPanel({ locale, columns, autoFocusSearch, onSelect, onClose }: EmojiPickerPanelProps) {
   const { t } = useTranslation();
   const [recents] = useState(readRecentEmojis);
   const [search, setSearch] = useState('');
@@ -118,24 +147,30 @@ export default function EmojiPickerPanel({ locale, columns, autoFocusSearch, onS
         >
           <span aria-hidden="true">{SKIN_TONE_PREVIEW[skinTone]}</span>
         </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="sc-emoji-close sc-icon-btn sc-icon-btn--ghost"
+          title={t('emoji.close')}
+          aria-label={t('emoji.close')}
+          data-testid="emoji-picker-close"
+        >
+          <FaTimes size={14} aria-hidden="true" />
+        </button>
       </div>
       {visibleRecents.length > 0 && (
         <div className="sc-emoji-recents" role="group" aria-label={t('emoji.recent')}>
           <div className="sc-emoji-category">{t('emoji.recent')}</div>
           <div className="sc-emoji-row">
-            {visibleRecents.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className="sc-emoji-cell"
-                onMouseDown={keepFocus}
-                onClick={() => select(emoji)}
-                aria-label={emoji}
-                data-testid="emoji-recent"
-              >
-                <span aria-hidden="true">{emoji}</span>
-              </button>
-            ))}
+            <Suspense
+              fallback={visibleRecents.map((emoji) => (
+                <RecentEmojiButton key={emoji} emoji={emoji} label={emoji} onSelect={select} />
+              ))}
+            >
+              {visibleRecents.map((emoji) => (
+                <LabeledRecentEmojiButton key={emoji} emoji={emoji} locale={locale} onSelect={select} />
+              ))}
+            </Suspense>
           </div>
         </div>
       )}

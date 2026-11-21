@@ -30,3 +30,26 @@ export const SHEET_DISMISS_VELOCITY = 0.6;
 export function shouldDismissSheet(distance: number, velocity: number): boolean {
   return distance >= SHEET_DISMISS_DISTANCE || (distance > 24 && velocity >= SHEET_DISMISS_VELOCITY);
 }
+
+export const SHEET_ANCHOR_GAP = 10;
+const SHEET_DOCK_THRESHOLD = 0.5;
+const MIN_SHEET_HEIGHT = 220;
+
+export interface SheetAnchor {
+  top: number;
+}
+
+export interface SheetPlacement {
+  bottom: number;
+  height: number;
+}
+
+export function computeSheetPlacement(anchor: SheetAnchor | null, viewportHeight: number, keyboardInset: number): SheetPlacement {
+  const docksAboveAnchor = anchor !== null && anchor.top >= viewportHeight * SHEET_DOCK_THRESHOLD;
+  const aboveAnchor = docksAboveAnchor ? Math.round(viewportHeight - anchor.top + SHEET_ANCHOR_GAP) : 0;
+  let bottom = Math.max(keyboardInset, aboveAnchor);
+  if (viewportHeight - bottom - EMOJI_SHEET_TOP_CLEARANCE < MIN_SHEET_HEIGHT) {
+    bottom = Math.max(keyboardInset, Math.min(bottom, viewportHeight - MIN_SHEET_HEIGHT - EMOJI_SHEET_TOP_CLEARANCE));
+  }
+  return { bottom, height: Math.max(0, Math.min(EMOJI_SHEET_MAX_HEIGHT, viewportHeight - bottom - EMOJI_SHEET_TOP_CLEARANCE)) };
+}
