@@ -97,8 +97,34 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  scrollbar-width: auto;
+  scrollbar-color: auto;
   animation: scDrawerViewBack 300ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-drawer__body::-webkit-scrollbar {
+  width: 14px;
+}
+
+.sc-drawer__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sc-drawer__body::-webkit-scrollbar-thumb {
+  min-height: 48px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--sc-scrollbar-thumb) padding-box;
+}
+
+.sc-drawer__body::-webkit-scrollbar-thumb:hover {
+  background: var(--sc-scrollbar-thumb-hover) padding-box;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .sc-drawer__body {
+    scrollbar-color: var(--sc-scrollbar-thumb) transparent;
+  }
 }
 
 .sc-drawer__body[data-direction='forward'] {
