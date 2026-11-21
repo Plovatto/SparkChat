@@ -81,6 +81,7 @@ export {
   isEncryptedMediaUrl,
   type EncryptedMediaSource,
 } from './message-crypto';
+export { isReactionEmoji, openReactions, sealReaction } from './reaction-crypto';
 export { isExpiredMediaUrl } from './media-cache';
 export {
   sealAttachment,

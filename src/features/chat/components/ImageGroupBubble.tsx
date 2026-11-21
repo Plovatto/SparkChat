@@ -1,11 +1,13 @@
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaPlay } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
+import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import type { ChatMessage } from '../types';
+import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
 import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
@@ -30,9 +32,6 @@ interface ImageGroupBubbleProps extends MessageBubbleActions {
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
   run?: BubbleRunPosition;
-  canDelete?: boolean;
-  onReact?: (message: ChatMessage) => void;
-  reactions?: ReactNode;
 }
 
 const MAX_GROUP_TILES = 4;
@@ -77,12 +76,11 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   onDelete,
   onForward,
   onRetry,
+  onStartSelection,
+  onReact,
   entrancePhase = 'none',
   entranceIndex = 0,
   run,
-  canDelete = isOwn,
-  onReact,
-  reactions,
 }: ImageGroupBubbleProps) {
   const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
@@ -100,6 +98,25 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   const senderAvatar = anchor ? participants.find((participant) => participant.id === anchor.sender.id)?.avatar : undefined;
   const hasPendingOrFailed = images.some((image) => image.pending || image.failed);
   const statusTileIndex = extraCount > 0 ? visibleTiles.length - 2 : visibleTiles.length - 1;
+  const anchorId = anchor?.id ?? '';
+  const groupReactions = useMemo(() => mergeGroupReactions(images), [images]);
+  const reactionTargetId = (currentUserId ? groupReactions.find((entry) => entry.userId === currentUserId)?.messageId : undefined) ?? anchorId;
+  const dismissActions = useCallback(() => {
+    if (isSelected && anchorId) {
+      onSelect(anchorId);
+    }
+  }, [isSelected, onSelect, anchorId]);
+  const reactionUi = useMessageReactionUi({
+    messageId: reactionTargetId,
+    reactions: groupReactions,
+    canReact: Boolean(anchor) && images.every((image) => canReactToMessage(image)),
+    isOwn,
+    isSelected,
+    currentUserId,
+    participants,
+    onReact,
+    onDismiss: dismissActions,
+  });
 
   if (!anchor) {
     return null;
@@ -148,7 +165,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       entranceIndex={staggerIndex}
       cornerRadius={14}
       minWidth="0"
-      reactions={reactions}
+      reactions={reactionUi.chips}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
@@ -156,11 +173,16 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
-              canDelete={canDelete}
+              canDelete
               onReply={() => onReply(anchor)}
               onDelete={() => onDelete(images.map((image) => image.id))}
               onForward={() => onForward(images)}
-              onReact={onReact ? () => onReact(anchor) : undefined}
+              onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
+              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+              reactButtonRef={reactionUi.reactButtonRef}
+              isReactionOpen={reactionUi.isReactionOpen}
+              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+              sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
               onDismiss={() => onSelect(anchor.id)}
             />
           )}
@@ -182,6 +204,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
             messageId={videoMessage?.id}
             fileMeta={videoMessage?.fileMeta}
           />
+          {reactionUi.overlays}
         </>
       }
     >

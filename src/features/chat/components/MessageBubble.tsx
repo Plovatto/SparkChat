@@ -8,9 +8,11 @@ import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
 import type { IncomingAssessment } from '@lib/translation/incoming';
 import { RoomTranslationContext } from '../hooks/room-translation-context';
+import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
 import { localizeAssistantWelcome } from '../utils/assistant-welcome';
+import { canReactToMessage } from '../utils/reactions';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { hasDisplayableLinkPreviewImage } from '../utils/link-preview-target';
 import { renderRichText } from '../utils/rich-text';
@@ -36,6 +38,8 @@ export interface MessageBubbleActions {
   onDelete: (messageIds: string[]) => void;
   onForward: (messages: ChatMessage[]) => void;
   onRetry: (clientTempId: string) => void;
+  onStartSelection?: ((messageId: string) => void) | undefined;
+  onReact: (messageId: string, emoji: string | null) => void;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -54,9 +58,6 @@ interface MessageBubbleProps extends MessageBubbleActions {
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
   run?: BubbleRunPosition;
-  canDelete?: boolean;
-  onReact?: (message: ChatMessage) => void;
-  reactions?: ReactNode;
 }
 
 const LINK_PREVIEW_BUBBLE_WIDTH = 300;
@@ -105,12 +106,11 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onAudioPlayed,
   onRetry,
+  onStartSelection,
+  onReact,
   entrancePhase = 'none',
   entranceIndex = 0,
   run,
-  canDelete = isOwn,
-  onReact,
-  reactions,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
@@ -130,6 +130,22 @@ export const MessageBubble = memo(function MessageBubble({
     [reportAssessment, message.id, message.timestamp],
   );
   const handleManualTranslation = useCallback(() => reportManualTranslation(message.id), [reportManualTranslation, message.id]);
+  const dismissActions = useCallback(() => {
+    if (isSelected) {
+      onSelect(message.id);
+    }
+  }, [isSelected, onSelect, message.id]);
+  const reactionUi = useMessageReactionUi({
+    messageId: message.id,
+    reactions: message.reactions,
+    canReact: canReactToMessage(message),
+    isOwn,
+    isSelected,
+    currentUserId,
+    participants,
+    onReact,
+    onDismiss: dismissActions,
+  });
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
@@ -153,7 +169,17 @@ export const MessageBubble = memo(function MessageBubble({
   });
 
   if (message.deletedForEveryone) {
-    return <DeletedMessageBubble isOwn={isOwn} roomId={roomId} entrancePhase={entrance} />;
+    return (
+      <DeletedMessageBubble
+        isOwn={isOwn}
+        roomId={roomId}
+        entrancePhase={entrance}
+        isSelected={isSelected}
+        onSelect={() => onSelect(message.id)}
+        onDelete={() => onDelete([message.id])}
+        onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
+      />
+    );
   }
 
   if (message.type === 'error') {
@@ -306,7 +332,7 @@ export const MessageBubble = memo(function MessageBubble({
       containerRef={bubbleRef}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       minWidth={message.type === 'text' ? (hasLinkPreview ? `min(${LINK_PREVIEW_BUBBLE_WIDTH}px, 100%)` : '0') : undefined}
-      reactions={reactions}
+      reactions={reactionUi.chips}
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
@@ -314,7 +340,7 @@ export const MessageBubble = memo(function MessageBubble({
             <MessageActionsRow
               isOwn={isOwn}
               isExiting={actionsPresence.isExiting}
-              canDelete={canDelete}
+              canDelete
               canCopy={message.type === 'text' || Boolean(message.caption)}
               canTranslate={canTranslate && Boolean(badgeTranslation)}
               onReply={() => onReply(message)}
@@ -322,10 +348,16 @@ export const MessageBubble = memo(function MessageBubble({
               onForward={() => onForward([message])}
               onCopy={() => void navigator.clipboard?.writeText(message.type === 'text' ? originalContent : (message.caption ?? ''))}
               onTranslate={() => badgeTranslation?.requestTranslation()}
-              onReact={onReact ? () => onReact(message) : undefined}
+              onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
+              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+              reactButtonRef={reactionUi.reactButtonRef}
+              isReactionOpen={reactionUi.isReactionOpen}
+              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+              sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
               onDismiss={() => onSelect(message.id)}
             />
           )}
+          {reactionUi.overlays}
         </>
       }
     >

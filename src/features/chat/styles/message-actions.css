@@ -258,3 +258,44 @@
     animation: scFadeOut 140ms ease forwards;
   }
 }
+
+.sc-actions-toolbar__btn[data-active='true'] {
+  background: color-mix(in srgb, var(--sc-border-focus) 22%, transparent);
+  color: var(--sc-text-primary);
+}
+
+.sc-actions-popover {
+  position: absolute;
+  z-index: 29;
+  display: flex;
+}
+
+.sc-actions-popover[data-side='side'] {
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+
+.sc-actions-popover[data-side='side'][data-own='true'] {
+  left: auto;
+  right: calc(100% + 8px);
+}
+
+.sc-actions-popover[data-side='top'] {
+  bottom: calc(100% + 6px);
+  left: 0;
+}
+
+.sc-actions-popover[data-side='top'][data-own='true'] {
+  left: auto;
+  right: 0;
+}
+
+.sc-actions-popover .sc-reaction-bar {
+  margin: 0;
+}
+
+.sc-actions-sheet .sc-reaction-bar {
+  align-self: center;
+  margin: 4px auto 10px;
+}

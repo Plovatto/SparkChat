@@ -15,6 +15,8 @@ import { FaLink, FaPaperPlane, FaTimes } from 'react-icons/fa';
 import { LuMic, LuPaperclip } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
+import { useMediaQuery } from '@hooks/useMediaQuery';
+import { EmojiButton, EmojiPickerPopover, insertAtCaret } from '@features/emoji';
 import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
@@ -75,6 +77,7 @@ interface MessageInputProps {
 
 const MENTION_QUERY_PATTERN = /(?:^|\s)@([\p{L}\p{N}_]*)$/u;
 const MENTION_SUGGESTION_LIMIT = 5;
+const COMPACT_COMPOSER_QUERY = '(max-width: 420px)';
 const DOCUMENT_ACCEPT = '.pdf,.mp4,.webm,.mov,.avi,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.txt,.csv';
 const ATTACHMENT_ACCEPT = `image/*,${DOCUMENT_ACCEPT}`;
 
@@ -306,6 +309,26 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const gifButtonRef = useRef<HTMLButtonElement>(null);
   const gifPanelPresence = usePresence(isGifEnabled && isGifPanelOpen && !isBlockedBy && !userBlocked, MOTION_DURATION_MS.fast);
   const { language } = useAppLanguage();
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const composerRowRef = useRef<HTMLFormElement>(null);
+  const isComposingRef = useRef(false);
+  const [limitNotice, setLimitNotice] = useState(0);
+  const [isPillShaking, setIsPillShaking] = useState(false);
+  const isCompactComposer = useMediaQuery(COMPACT_COMPOSER_QUERY);
+
+  const closeEmojiPicker = useCallback(() => {
+    setIsEmojiPickerOpen(false);
+  }, []);
+
+  const toggleEmojiPicker = () => {
+    setIsGifPanelOpen(false);
+    setIsEmojiPickerOpen((open) => {
+      if (!open && !shouldAutoFocus) {
+        inputRef.current?.blur();
+      }
+      return !open;
+    });
+  };
 
   const closeGifPanel = useCallback(() => {
     setIsGifPanelOpen(false);
@@ -381,6 +404,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
         selectMentionCandidate(candidate.nickname);
       }
     } else if (event.key === 'Escape') {
+      event.preventDefault();
       setMentionQuery(null);
     }
   };
@@ -424,6 +448,40 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
   const characterLimit = (isCaption: boolean): number =>
     isCaption ? Math.min(CAPTION_MAX_LENGTH, maxLength ?? CAPTION_MAX_LENGTH) : (maxLength ?? TEXT_MAX_LENGTH);
+
+  const insertEmoji = (emoji: string) => {
+    const input = inputRef.current;
+    if (isComposingRef.current) {
+      return;
+    }
+    const insertion = insertAtCaret(
+      messageRef.current,
+      emoji,
+      input?.selectionStart,
+      input?.selectionEnd,
+      characterLimit(pendingAttachmentsRef.current.length > 0),
+    );
+    if (!insertion) {
+      setLimitNotice((count) => count + 1);
+      setIsPillShaking(true);
+      return;
+    }
+    messageRef.current = insertion.value;
+    setMessage(insertion.value);
+    setMentionQuery(null);
+    onTyping();
+    window.setTimeout(() => {
+      if (!input) {
+        return;
+      }
+      const active = document.activeElement;
+      const focusInPicker = active instanceof Element && active.closest('.sc-emoji-surface') !== null;
+      if (shouldAutoFocus && !focusInPicker) {
+        input.focus();
+      }
+      input.setSelectionRange(insertion.caret, insertion.caret);
+    }, 0);
+  };
 
   const exceedsLimits = (text: string, isCaption: boolean): boolean =>
     text.length > characterLimit(isCaption) || exceedsEncryptedLimit(text, isCaption);
@@ -497,6 +555,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
 
     const started = await startRecording();
     if (started) {
+      setIsEmojiPickerOpen(false);
       onRecordingStart();
     }
   };
@@ -551,7 +610,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
-      <form onSubmit={handleSubmit} className="chat-input-bar sc-composer">
+      <form ref={composerRowRef} onSubmit={handleSubmit} className="chat-input-bar sc-composer">
         <input
           type="file"
           ref={attachmentInputRef}
@@ -560,7 +619,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           multiple
           style={{ display: 'none' }}
         />
-        <div className="sc-composer-pill" data-disabled={isBlocked || undefined}>
+        <div
+          className="sc-composer-pill"
+          data-disabled={isBlocked || undefined}
+          data-shake={isPillShaking || undefined}
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsPillShaking(false);
+            }
+          }}
+        >
           {isMentionListOpen && (
             <div
               className="sc-anim-rise-in"
@@ -607,6 +675,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               ))}
             </div>
           )}
+          <EmojiButton isOpen={isEmojiPickerOpen && !isBlocked} disabled={isBlocked} title={blockedTitle ?? undefined} onToggle={toggleEmojiPicker} />
           <input
             ref={inputRef}
             type="text"
@@ -620,21 +689,38 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }}
             onKeyDown={handleInputKeyDown}
             onPaste={handlePaste}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+            }}
             maxLength={characterLimit(pendingAttachments.length > 0)}
             disabled={isBlocked}
             placeholder={
-              isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')
+              isBlockedBy
+                ? t('chat.input.placeholderBlockedBy')
+                : userBlocked
+                  ? t('chat.input.placeholderYouBlocked')
+                  : isCompactComposer
+                    ? t('chat.input.placeholderShort')
+                    : t('chat.input.placeholder')
             }
+            aria-label={isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')}
             autoFocus={shouldAutoFocus}
+            data-testid="message-input"
             className="sc-composer-input"
           />
-          {!message.trim() && (
+          {!message.trim() && !(isCompactComposer && pendingAttachments.length > 0) && (
             <GifButton
               ref={gifButtonRef}
               enabled={isGifEnabled}
               isOpen={isGifPanelOpen}
               disabled={isBlocked}
-              onToggle={() => setIsGifPanelOpen((open) => !open)}
+              onToggle={() => {
+                setIsEmojiPickerOpen(false);
+                setIsGifPanelOpen((open) => !open);
+              }}
             />
           )}
           <button
@@ -643,13 +729,14 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             disabled={isBlocked}
             title={blockedTitle ?? t('chat.input.attach')}
             aria-label={t('chat.input.attach')}
+            data-testid="attach-button"
             className="sc-composer-icon"
           >
             <LuPaperclip size={19} />
           </button>
         </div>
         {message.trim() || pendingAttachments.length > 0 ? (
-          <button key="send" type="submit" title={t('chat.input.send')} aria-label={t('chat.input.send')} className="sc-composer-action sc-anim-send-in">
+          <button key="send" type="submit" title={t('chat.input.send')} aria-label={t('chat.input.send')} data-testid="send-button" className="sc-composer-action sc-anim-send-in">
             <FaPaperPlane size={16} />
           </button>
         ) : (
@@ -660,12 +747,24 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             disabled={isBlocked}
             title={blockedTitle ?? t('chat.input.record')}
             aria-label={t('chat.input.record')}
+            data-testid="record-button"
             className="sc-composer-action sc-anim-pop-in"
           >
             <LuMic size={20} />
           </button>
         )}
+        {limitNotice > 0 && (
+          <span key={limitNotice} role="status" className="sc-sr-only">
+            {t('chat.input.tooLong')}
+          </span>
+        )}
       </form>
+      <EmojiPickerPopover
+        open={isEmojiPickerOpen && !isBlocked}
+        anchorRef={composerRowRef}
+        onSelect={insertEmoji}
+        onClose={closeEmojiPicker}
+      />
     </>
   );
 });

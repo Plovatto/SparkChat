@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { isSameDay } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
-import { ConfirmDialog } from '@components/common/ConfirmDialog';
+import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
@@ -21,6 +20,8 @@ import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, upload
 import { ActiveRoomContext } from '../hooks/active-room-context';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
+import { useDeleteForEveryone } from '../hooks/useDeleteForEveryone';
+import { useMessageSelection } from '../hooks/useMessageSelection';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { useRoomTranslationPreferences } from '../hooks/useRoomTranslationPreferences';
 import type { ChatMessage } from '../types';
@@ -29,20 +30,23 @@ import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
 import { jumpToMessage } from '../utils/jump-to-message';
+import { isSelectableMessage, resolveDeleteOptions } from '../utils/delete-options';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
-import { buildRenderItems, canDeleteMessage, canJoinRun, renderItemAnchorMessage, renderItemFirstMessage, renderItemKey, type ImageGroup, type RenderItem } from '../utils/render-items';
+import { buildRenderItems, canJoinRun, renderItemAnchorMessage, renderItemFirstMessage, renderItemKey, renderItemMessages, type ImageGroup, type RenderItem } from '../utils/render-items';
 import type { CurrentAudioRef } from './AudioMessageContent';
 import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
 import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
+import { DeleteMessageDialog } from './DeleteMessageDialog';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
 import { MediaViewerProvider } from './media-viewer/MediaViewerProvider';
 import { ImageGroupBubble } from './ImageGroupBubble';
 import { MessageBubble } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
+import { ComposerSlot, SelectableMessageRow, SelectionBar } from './MessageSelection';
 import {
   MessageInput,
   type AudioSendPayload,
@@ -78,6 +82,7 @@ const FILL_VIEWPORT_CHECK_DELAY_MS = 350;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
 const ENTRANCE_CASCADE_MAX_INDEX = 7;
 const SHOW_IN_CHAT_DELAY_MS = 320;
+const FAILURE_NOTICE_MS = 5000;
 
 function uploadErrorText(error: unknown, fallbackKey: string): string {
   return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
@@ -281,6 +286,11 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     sendMessage,
     retryMessage,
     loadOlderMessages,
+    hideMessages,
+    hideFailure,
+    dismissHideFailure,
+    reactToMessage,
+    reactionFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
@@ -338,6 +348,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | 'gif' | null>(null);
@@ -659,6 +670,80 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const roomId = room?.id ?? null;
+  const { deleteForEveryone, deleteFailure, dismissDeleteFailure } = useDeleteForEveryone(roomId);
+  const presentMessageIds = useMemo(() => messages.filter(isSelectableMessage).map((message) => message.id), [messages]);
+  const isDeleteDialogOpen = messageIdsPendingDelete !== null;
+  const { selectionIds, selectedIds, isSelecting, startSelection: beginSelection, toggleSelection, clearSelection } = useMessageSelection({
+    presentIds: presentMessageIds,
+    resetKey: roomId,
+    escapeEnabled: !isDeleteDialogOpen,
+  });
+
+  useEffect(() => {
+    setMessageIdsPendingDelete(null);
+    setIsRecordingAudio(false);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!hideFailure) {
+      return;
+    }
+    const timer = setTimeout(dismissHideFailure, FAILURE_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [hideFailure, dismissHideFailure]);
+
+  useEffect(() => {
+    if (!deleteFailure) {
+      return;
+    }
+    const timer = setTimeout(dismissDeleteFailure, FAILURE_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [deleteFailure, dismissDeleteFailure]);
+
+  const itemIdsByAnchor = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of renderItems) {
+      map.set(renderItemAnchorMessage(item).id, renderItemMessages(item).map((message) => message.id));
+    }
+    return map;
+  }, [renderItems]);
+
+  const startSelection = useCallback(
+    (anchorId: string) => {
+      setSelectedMessageId(null);
+      beginSelection(itemIdsByAnchor.get(anchorId) ?? [anchorId]);
+    },
+    [itemIdsByAnchor, beginSelection],
+  );
+
+  const pendingDeleteMessages = useMemo(() => {
+    if (!messageIdsPendingDelete) {
+      return [];
+    }
+    const ids = new Set(messageIdsPendingDelete);
+    return messages.filter((message) => ids.has(message.id) && !message.exiting);
+  }, [messageIdsPendingDelete, messages]);
+  const deleteOptions = resolveDeleteOptions(pendingDeleteMessages, user.id);
+
+  useEffect(() => {
+    if (messageIdsPendingDelete !== null && pendingDeleteMessages.length === 0) {
+      setMessageIdsPendingDelete(null);
+    }
+  }, [messageIdsPendingDelete, pendingDeleteMessages.length]);
+
+  const failureText = hideFailure
+    ? hideFailure.code === 'message.hideMixedRooms'
+      ? t('errors.message.hideMixedRooms')
+      : t('chat.hideFailed')
+    : deleteFailure
+      ? t('chat.deleteFailed', { count: deleteFailure.count })
+      : null;
+  const dismissFailure = () => {
+    dismissHideFailure();
+    dismissDeleteFailure();
+  };
+
   const toggleSelectedMessage = useCallback((messageId: string) => {
     setSelectedMessageId((current) => (current === messageId ? null : messageId));
   }, []);
@@ -851,11 +936,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   };
 
   const handleRecordingStart = () => {
+    setIsRecordingAudio(true);
+    clearSelection();
     recordingRoomIdRef.current = room.id;
     socket?.emit('recording:start', { roomId: room.id });
   };
 
   const handleRecordingStop = () => {
+    setIsRecordingAudio(false);
     const recordingRoomId = recordingRoomIdRef.current;
     recordingRoomIdRef.current = null;
     if (recordingRoomId) {
@@ -936,11 +1024,19 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     : theme.canvas;
   const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
-  const confirmDeleteMessage = () => {
-    for (const messageId of messageIdsPendingDelete ?? []) {
-      socket?.emit('message:delete', { messageId });
-    }
+  const finishDelete = () => {
     setSelectedMessageId(null);
+    clearSelection();
+  };
+
+  const confirmDeleteForEveryone = () => {
+    deleteForEveryone(pendingDeleteMessages.map((message) => message.id));
+    finishDelete();
+  };
+
+  const confirmDeleteForMe = () => {
+    hideMessages(pendingDeleteMessages.map((message) => message.id));
+    finishDelete();
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -1000,6 +1096,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           onDrop={handleDrop}
         >
           <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+          <div role="status" aria-live="polite" className="sc-reaction-notice-region">
+            {reactionFailure && (
+              <span key={reactionFailure} className="sc-reaction-notice sc-anim-rise-in">
+                <FaExclamationTriangle size={13} aria-hidden="true" />
+                {reactionFailure}
+              </span>
+            )}
+          </div>
           {isDraggingFile && (
             <div
               className="sc-drop-zone sc-anim-fade-in"
@@ -1133,6 +1237,11 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                           const itemKey = renderItemKey(item);
                           const entrancePhase = getEntrancePhase();
                           const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
+                          const itemMessages = renderItemMessages(item);
+                          const itemIds = itemMessages.map((message) => message.id);
+                          const isExiting = itemMessages.every((message) => message.exiting);
+                          const isSelectable = isSelecting && itemMessages.every(isSelectableMessage);
+                          const isChecked = isSelectable && selectionIds !== null && itemIds.every((id) => selectionIds.has(id));
 
                           return (
                             <div
@@ -1141,6 +1250,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                             data-run-start={run.isFirstInRun}
                             style={{ justifyContent: isOwn ? 'flex-end' : 'flex-start' }}
                           >
+                            <SelectableMessageRow
+                              isOwn={isOwn}
+                              isSelecting={isSelecting}
+                              isSelectable={isSelectable}
+                              isChecked={isChecked}
+                              isExiting={isExiting}
+                              onToggle={() => toggleSelection(itemIds)}
+                            >
                               {item.kind === 'single' ? (
                                 <MessageBubble
                                   message={item.message}
@@ -1163,8 +1280,9 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   onRetry={retryMessage}
                                   entrancePhase={entrancePhase}
                                   entranceIndex={entranceIndex}
+                                  onStartSelection={isRecordingAudio ? undefined : startSelection}
+                                  onReact={reactToMessage}
                                   run={run}
-                                  canDelete={canDeleteMessage(isOwn)}
                                 />
                               ) : (
                                 <ImageGroupBubble
@@ -1184,10 +1302,12 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   onRetry={retryMessage}
                                   entrancePhase={entrancePhase}
                                   entranceIndex={entranceIndex}
+                                  onStartSelection={isRecordingAudio ? undefined : startSelection}
+                                  onReact={reactToMessage}
                                   run={run}
-                                  canDelete={canDeleteMessage(isOwn)}
                                 />
                               )}
+                            </SelectableMessageRow>
                             </div>
                           );
                         })}
@@ -1294,28 +1414,44 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           />
         )}
 
-        <MessageInput
-          key={`input-${room.id}`}
-          ref={messageInputRef}
-          onSend={handleSend}
-          onSendAudio={(payload) => void handleSendAudio(payload)}
-          onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
-          onTyping={handleComposerTyping}
-          onRecordingStart={handleRecordingStart}
-          onRecordingStop={handleRecordingStop}
-          isBlockedBy={room.isBlockedBy}
-          userBlocked={room.userBlocked}
-          mentionCandidates={mentionCandidates}
-          maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
-          auth={auth}
-        />
+        {failureText && (
+          <div className="sc-notice sc-notice--danger sc-anim-rise-in" role="alert" style={{ margin: '0 12px 8px', alignItems: 'center' }}>
+            <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{failureText}</span>
+            <button type="button" onClick={dismissFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
+              <FaTimes size={12} />
+            </button>
+          </div>
+        )}
 
-        <ConfirmDialog
-          isOpen={messageIdsPendingDelete !== null}
-          title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
-          message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
-          onConfirm={confirmDeleteMessage}
-          onCancel={() => setMessageIdsPendingDelete(null)}
+        <ComposerSlot
+          isSelecting={isSelecting}
+          bar={<SelectionBar count={selectedIds.length} onCancel={clearSelection} onDelete={() => handleDeleteRequest(selectedIds)} />}
+        >
+          <MessageInput
+            key={`input-${room.id}`}
+            ref={messageInputRef}
+            onSend={handleSend}
+            onSendAudio={(payload) => void handleSendAudio(payload)}
+            onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
+            onTyping={handleComposerTyping}
+            onRecordingStart={handleRecordingStart}
+            onRecordingStop={handleRecordingStop}
+            isBlockedBy={room.isBlockedBy}
+            userBlocked={room.userBlocked}
+            mentionCandidates={mentionCandidates}
+            maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+            auth={auth}
+          />
+        </ComposerSlot>
+
+        <DeleteMessageDialog
+          isOpen={messageIdsPendingDelete !== null && pendingDeleteMessages.length > 0}
+          count={deleteOptions.count}
+          canDeleteForEveryone={deleteOptions.canDeleteForEveryone}
+          onDeleteForEveryone={confirmDeleteForEveryone}
+          onDeleteForMe={confirmDeleteForMe}
+          onClose={() => setMessageIdsPendingDelete(null)}
         />
 
         <ForwardMessageModal

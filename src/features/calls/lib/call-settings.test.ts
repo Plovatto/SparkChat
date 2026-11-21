@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { callVolume, clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareMonitorVolume, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareMonitorVolume, setShareVolume, subscribeShareMonitorVolume } from './call-settings';
+import { callVolume, clearLegacyCallSettings, duckLevel, getAudioProcessing, getMovieMode, getShareMonitorVolume, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareMonitorVolume, setShareVolume, subscribeShareMonitorVolume } from './call-settings';
 
 function createStorage(): Storage {
   const data = new Map<string, string>();
@@ -136,5 +136,22 @@ describe('volume settings', () => {
     micVolume.set(1.4);
 
     expect(getAudioProcessing()).toMatchObject({ voiceIsolation: true, noiseSuppression: false });
+  });
+});
+
+describe('movie mode duck level', () => {
+  it('defaults to 12% and persists the clamped choice', () => {
+    expect(duckLevel.get()).toBe(0.12);
+    expect(duckLevel.set(0.35)).toBe(0.35);
+    expect(localStorage.getItem('chatCallDuckLevel')).toBe('0.35');
+    expect(duckLevel.get()).toBe(0.35);
+    expect(duckLevel.set(4)).toBe(1);
+    expect(duckLevel.set(0)).toBe(0);
+    expect(duckLevel.get()).toBe(0);
+  });
+
+  it('falls back to 12% when the stored value is corrupted', () => {
+    localStorage.setItem('chatCallDuckLevel', '"quiet"');
+    expect(duckLevel.get()).toBe(0.12);
   });
 });

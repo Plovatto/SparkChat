@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../types';
-import { buildRenderItems, canDeleteMessage, canJoinRun, isAlbumCandidate, MIN_ALBUM_SIZE, renderItemKey } from './render-items';
+import { buildRenderItems, canJoinRun, isAlbumCandidate, MIN_ALBUM_SIZE, renderItemKey } from './render-items';
 
 let sequence = 0;
 
@@ -102,12 +102,5 @@ describe('canJoinRun', () => {
     expect(canJoinRun(first, other)).toBe(false);
     expect(canJoinRun(first, later)).toBe(false);
     expect(canJoinRun(first, system)).toBe(false);
-  });
-});
-
-describe('canDeleteMessage', () => {
-  it('allows deleting only own messages for now', () => {
-    expect(canDeleteMessage(true)).toBe(true);
-    expect(canDeleteMessage(false)).toBe(false);
   });
 });

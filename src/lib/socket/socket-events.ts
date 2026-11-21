@@ -7,6 +7,16 @@ export interface SocketErrorPayload {
   params?: ApiErrorParams;
   clientTempId?: string;
   event?: string;
+  messageId?: string;
+  messageIds?: string[];
+}
+
+export interface MessageHiddenPayload {
+  roomId: string;
+  messageIds: string[];
+  lastMessage?: MessageView | null;
+  unreadCount?: number;
+  mentionCount?: number;
 }
 
 export interface KtSignedTreeHeadWire {
@@ -170,6 +180,19 @@ export interface MessageReplySnapshot {
   deleted?: boolean;
 }
 
+export interface MessageReaction {
+  userId: string;
+  emoji: string;
+  updatedAt: string;
+}
+
+export interface MessageReactionsUpdatedPayload {
+  roomId: string;
+  messageId: string;
+  messageTimestamp?: string;
+  reactions: MessageReaction[];
+}
+
 export interface MessageView {
   id: string;
   roomId: string;
@@ -191,6 +214,7 @@ export interface MessageView {
   systemEvent?: SystemEvent | null;
   eventTrust?: 'verified' | 'legacy' | 'unverified' | 'forged';
   unencrypted?: boolean;
+  reactions?: MessageReaction[];
 }
 
 export interface BlockStatusPayload {
@@ -394,7 +418,9 @@ export interface ServerToClientEvents {
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
+  'message:hidden': (payload: MessageHiddenPayload) => void;
   'message:updated': (payload: MessageView) => void;
+  'message:reactions-updated': (payload: MessageReactionsUpdatedPayload) => void;
   'call:config': (payload: CallConfigPayload) => void;
   'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string }) => void;
   'call:accepted': (payload: { callId: string; envelope: string; deviceId: string }) => void;
@@ -499,7 +525,9 @@ export interface ClientToServerEvents {
   'recording:start': (payload: { roomId: string }) => void;
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
-  'message:delete': (payload: { messageId: string }) => void;
+  'message:delete': (payload: { messageId: string } | { messageIds: string[] }) => void;
+  'message:hide': (payload: { messageIds: string[] }) => void;
+  'message:react': (payload: { roomId: string; messageId: string; emoji: string | null }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;
   'call:start': (payload: { callId: string; roomId: string; kind: CallKindWire; envelope: string }) => void;
@@ -508,7 +536,7 @@ export interface ClientToServerEvents {
   'call:silence': (payload: { callId: string }) => void;
   'call:hangup': (payload: { callId: string }) => void;
   'call:signal': (payload: { callId: string; to: string; envelope: string }) => void;
-  'call:heartbeat': (payload: { callId: string }) => void;
+  'call:heartbeat': (payload: { callId: string; relayed?: boolean }) => void;
   'call:sync': (payload: Record<string, never>) => void;
   'call:ice-servers': (payload: { callId: string; protectIp: boolean }) => void;
   'call:transfer': (payload: { callId: string; envelope: string }) => void;

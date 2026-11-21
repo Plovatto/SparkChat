@@ -2,6 +2,11 @@ export const DUCK_LEVEL = 0.12;
 export const DUCK_ATTACK_MS = 120;
 export const DUCK_HOLD_MS = 700;
 export const DUCK_RELEASE_MS = 350;
+
+export function clampDuckLevel(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : DUCK_LEVEL;
+}
+
 const STEP_MS = 20;
 
 interface DuckTimers {
@@ -36,15 +41,16 @@ export class Ducker {
     return this.level;
   }
 
-  update(enabled: boolean, speaking: boolean): void {
+  update(enabled: boolean, speaking: boolean, duckLevel: number = DUCK_LEVEL): void {
+    const duck = clampDuckLevel(duckLevel);
     const wasDucking = this.enabled && this.speaking;
     this.enabled = enabled;
     this.speaking = speaking;
     const ducking = enabled && speaking;
     if (ducking) {
       this.clearHold();
-      if (!wasDucking || this.target !== DUCK_LEVEL) {
-        this.rampTo(DUCK_LEVEL, DUCK_ATTACK_MS);
+      if (!wasDucking || this.target !== duck) {
+        this.rampTo(duck, DUCK_ATTACK_MS);
       }
       return;
     }

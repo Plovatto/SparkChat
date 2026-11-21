@@ -12,6 +12,7 @@ export interface BubbleRunPosition {
   isFirstInRun: boolean;
   isLastInRun: boolean;
 }
+import { useLongPress } from '../hooks/useLongPress';
 
 interface MessageBubbleShellProps {
   isOwn: boolean;
@@ -32,6 +33,7 @@ interface MessageBubbleShellProps {
   extraClassName?: string;
   afterBubble?: ReactNode;
   reactions?: ReactNode;
+  onLongPress?: () => void;
   children: ReactNode;
   minWidth?: string;
   cornerRadius?: number;
@@ -62,6 +64,7 @@ export function MessageBubbleShell({
   extraClassName = '',
   afterBubble,
   reactions,
+  onLongPress,
   children,
   minWidth = '80px',
   cornerRadius = 12,
@@ -78,6 +81,7 @@ export function MessageBubbleShell({
   const showSenderName = showGroupChrome && run.isFirstInRun;
   const showAvatar = showGroupChrome && run.isLastInRun;
   const isBareMedia = variant === 'media';
+  const longPress = useLongPress({ onLongPress: onLongPress ?? onOpenActions, enabled: allowCustomContextMenu });
 
   return (
     <div
@@ -88,15 +92,34 @@ export function MessageBubbleShell({
       data-live={entrance === 'live'}
       data-variant={variant}
       className={`${entrance === 'none' ? '' : 'sc-anim-bubble-in sc-stagger '}chat-bubble-wrap${extraClassName}`}
+      onClickCapture={(event) => {
+        if (longPress.consumeLongPress()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();
       }}
       onPointerDown={(event) => {
         lastPointerTypeRef.current = event.pointerType;
+        if (!(event.target as HTMLElement).closest('[data-no-long-press]')) {
+          longPress.handlers.onPointerDown(event);
+        }
       }}
+      onPointerMove={longPress.handlers.onPointerMove}
+      onPointerUp={longPress.handlers.onPointerUp}
+      onPointerCancel={longPress.handlers.onPointerCancel}
+      onPointerLeave={longPress.handlers.onPointerLeave}
       onContextMenu={(event) => {
-        if (!allowCustomContextMenu || lastPointerTypeRef.current === 'touch' || (event.target as HTMLElement).closest('a, video')) {
+        if (!allowCustomContextMenu || (event.target as HTMLElement).closest('a, video')) {
+          return;
+        }
+        if (lastPointerTypeRef.current === 'touch') {
+          if (!(event.target as HTMLElement).closest('img')) {
+            event.preventDefault();
+          }
           return;
         }
         const selection = window.getSelection();
@@ -150,7 +173,7 @@ export function MessageBubbleShell({
             background: isBareMedia ? 'transparent' : bubbleStyle.background,
             color: bubbleStyle.textColor,
             borderRadius: `${cornerRadius}px`,
-            boxShadow: isBareMedia ? 'none' : theme.shadowSm,
+            boxShadow: isSelected ? `0 0 0 1.5px ${theme.messageSelectedRing}, ${isBareMedia ? 'none' : theme.shadowSm}`.replace(', none', '') : isBareMedia ? 'none' : theme.shadowSm,
             backdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
             WebkitBackdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
             display: 'flex',

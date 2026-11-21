@@ -3,6 +3,7 @@ import {
   markPreviewOnlyHandler,
   useSocket,
   type BlockStatusPayload,
+  type MessageHiddenPayload,
   type MessageView,
   type RoomParticipant,
   type RoomSummary,
@@ -176,6 +177,27 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       );
     };
 
+    const handleMessageHidden = markPreviewOnlyHandler(({ roomId, messageIds, lastMessage, unreadCount, mentionCount }: MessageHiddenPayload) => {
+      setRooms((previous) =>
+        patchRoom(previous, roomId, (room) => {
+          const previewHidden = room.lastMessage !== null && messageIds.includes(room.lastMessage.id);
+          const previewIsNewer =
+            room.lastMessage !== null &&
+            !previewHidden &&
+            (!lastMessage || new Date(room.lastMessage.timestamp).getTime() > new Date(lastMessage.timestamp).getTime());
+          if (previewIsNewer) {
+            return room;
+          }
+          return {
+            ...room,
+            lastMessage: lastMessage !== undefined ? lastMessage : previewHidden ? null : room.lastMessage,
+            unreadCount: unreadCount ?? room.unreadCount,
+            mentionCount: mentionCount ?? room.mentionCount,
+          };
+        }),
+      );
+    });
+
     const handleRoomRemoved = ({ roomId }: { roomId: string }) => {
       clearTranslationsForRoom(roomId);
       setRooms((previous) => (previous.some((room) => room.id === roomId) ? previous.filter((room) => room.id !== roomId) : previous));
@@ -231,6 +253,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('message:read-receipt', handleReadReceipt);
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:deleted', handleMessageDeleted);
+    socket.on('message:hidden', handleMessageHidden);
     socket.on('typing:update', handleTypingUpdate);
     socket.on('recording:update', handleRecordingUpdate);
 
@@ -257,6 +280,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('message:read-receipt', handleReadReceipt);
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:deleted', handleMessageDeleted);
+      socket.off('message:hidden', handleMessageHidden);
       socket.off('typing:update', handleTypingUpdate);
       socket.off('recording:update', handleRecordingUpdate);
     };

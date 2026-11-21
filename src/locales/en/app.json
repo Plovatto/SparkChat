@@ -69,7 +69,9 @@
       "blocked": "You can't send messages in this conversation because of a block.",
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
-      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again."
+      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
+      "hideMixedRooms": "You can only delete messages for yourself from one conversation at a time.",
+      "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
@@ -401,6 +403,7 @@
       "attach": "Send attachment",
       "record": "Record audio",
       "placeholder": "Type your message...",
+      "placeholderShort": "Message",
       "placeholderBlockedBy": "You were blocked...",
       "placeholderYouBlocked": "You blocked this user...",
       "send": "Send",
@@ -421,6 +424,8 @@
       "retry": "Failed to send. Tap to resend.",
       "reply": "Reply",
       "forward": "Forward",
+      "copy": "Copy",
+      "copied": "Copied!",
       "delete": "Delete",
       "image": "Image",
       "audio": "Audio {{duration}}",
@@ -461,7 +466,25 @@
       "react": "React",
       "more": "More options",
       "album": "Album with {{count}} items",
-      "albumMore": "See {{count}} more items"
+      "albumMore": "See {{count}} more items",
+      "select": "Select"
+    },
+    "reactions": {
+      "barLabel": "React to message",
+      "reactWith": "React with {{emoji}}",
+      "removeReaction": "Remove {{emoji}} reaction",
+      "more": "More emojis",
+      "listLabel": "Reactions",
+      "chipTitle_one": "{{names}} reacted with {{emoji}}",
+      "chipTitle_other": "{{names}} reacted with {{emoji}}",
+      "chipLabel_one": "{{emoji}}, {{count}} reaction. {{names}}",
+      "chipLabel_other": "{{emoji}}, {{count}} reactions. {{names}}",
+      "showReactors": "See who reacted with {{emoji}}",
+      "sheetTitle": "Reactions",
+      "all": "All",
+      "tapToRemove": "Tap to remove",
+      "close": "Close reactions",
+      "failed": "Couldn't react to this message. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -549,10 +572,26 @@
       "resetAll": "Reset to default appearance"
     },
     "assistantStatus": "100% charged, 0% sleepy 🔋",
-    "deleteTitle_one": "Delete message",
-    "deleteTitle_other": "Delete {{count}} messages",
-    "deleteConfirm_one": "Are you sure you want to delete this message for everyone?",
-    "deleteConfirm_other": "Are you sure you want to delete these {{count}} messages for everyone?",
+    "deleteDialog": {
+      "title_one": "Delete message?",
+      "title_other": "Delete messages?",
+      "bodyBoth_one": "Delete for everyone removes the message from the conversation for everybody. Delete for me only removes it from your screen.",
+      "bodyBoth_other": "Delete for everyone removes the messages from the conversation for everybody. Delete for me only removes them from your screen.",
+      "bodyForMe_one": "Delete for me only removes the message from your screen. Everyone else still sees it.",
+      "bodyForMe_other": "Delete for me only removes the {{count}} messages from your screen. Everyone else still sees them.",
+      "forEveryone": "Delete for everyone",
+      "forMe": "Delete for me"
+    },
+    "selection": {
+      "count_one": "{{count}} selected",
+      "count_other": "{{count}} selected",
+      "cancel": "Cancel selection",
+      "delete": "Delete",
+      "toggle": "Select message"
+    },
+    "hideFailed": "Couldn't delete it for you. Try again.",
+    "deleteFailed_one": "Couldn't delete 1 message for everyone.",
+    "deleteFailed_other": "Couldn't delete {{count}} messages for everyone.",
     "translation": {
       "translatedFrom": "Translated from {{language}}",
       "original": "Original message",
@@ -1026,7 +1065,9 @@
       "hidePreviewHint": "Shows a notice instead of your screen",
       "streamVolume": "Stream volume",
       "streamVolumeHint": "Changes the volume only for you",
-      "noStreamAudio": "This stream has no sound"
+      "noStreamAudio": "This stream has no sound",
+      "duckLevel": "Show volume while someone talks",
+      "duckLevelHint": "0% mutes it, 100% keeps it as is. Only for you"
     },
     "otherDevice": "In a call on another device",
     "otherDeviceHint": "Keep talking on the device where you answered.",
@@ -1172,5 +1213,28 @@
     "hex": "Hex",
     "presets": "Suggested colors",
     "eyedropper": "Pick a color from the screen"
+  },
+  "emoji": {
+    "open": "Open emoji picker",
+    "close": "Close emoji picker",
+    "pickerLabel": "Emoji picker",
+    "searchPlaceholder": "Search emoji",
+    "searchLabel": "Search emojis",
+    "recent": "Recently used",
+    "loading": "Loading emojis...",
+    "empty": "No emoji found.",
+    "hint": "Pick an emoji",
+    "skinTone": "Change skin tone",
+    "categories": {
+      "smileys": "Smileys & emotion",
+      "people": "People & body",
+      "animals": "Animals & nature",
+      "food": "Food & drink",
+      "travel": "Travel & places",
+      "activities": "Activities",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    }
   }
 }

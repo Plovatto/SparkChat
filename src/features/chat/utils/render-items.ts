@@ -33,10 +33,6 @@ export function canJoinRun(previous: ChatMessage, next: ChatMessage): boolean {
   );
 }
 
-export function canDeleteMessage(isOwn: boolean): boolean {
-  return isOwn;
-}
-
 function isSameMessageList(left: ChatMessage[], right: ChatMessage[]): boolean {
   return left.length === right.length && left.every((message, index) => message === right[index]);
 }
@@ -89,6 +85,10 @@ export function renderItemFirstMessage(item: RenderItem): ChatMessage {
 
 export function renderItemAnchorMessage(item: RenderItem): ChatMessage {
   return item.kind === 'single' ? item.message : (item.messages[item.messages.length - 1] ?? item.messages[0]);
+}
+
+export function renderItemMessages(item: RenderItem): ChatMessage[] {
+  return item.kind === 'single' ? [item.message] : item.messages;
 }
 
 export function renderItemKey(item: RenderItem): string {
