@@ -1,0 +1,503 @@
+.sc-emoji-surface {
+  --sc-emoji-cell: 40px;
+  --sc-emoji-glyph: 1.5rem;
+  --sc-emoji-control: 40px;
+  position: fixed;
+  z-index: 1070;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sc-text-primary);
+  background: var(--sc-surface-elevated);
+  border: 1px solid var(--sc-border);
+  border-radius: 20px;
+  box-shadow: var(--sc-shadow-lg);
+  overscroll-behavior: contain;
+}
+
+.sc-emoji-surface.is-popover {
+  animation: scEmojiPopoverIn var(--sc-dur-normal) var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-emoji-surface.is-popover[data-placement='bottom'] {
+  animation-name: scEmojiPopoverInDown;
+}
+
+.sc-emoji-surface.is-popover.is-exiting {
+  pointer-events: none;
+  animation: scEmojiPopoverOut var(--sc-dur-fast) var(--sc-ease-exit) forwards;
+}
+
+.sc-emoji-surface.is-sheet {
+  --sc-emoji-cell: 46px;
+  --sc-emoji-glyph: 1.75rem;
+  --sc-emoji-control: 44px;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  max-width: 100%;
+  border-bottom: 0;
+  border-radius: 24px 24px 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  touch-action: pan-y;
+  transition: transform var(--sc-dur-normal) var(--sc-ease-spring-soft);
+  animation: scEmojiSheetIn var(--sc-dur-slow) var(--sc-ease-enter) backwards;
+}
+
+.sc-emoji-surface.is-sheet.is-exiting {
+  pointer-events: none;
+  animation: scEmojiSheetOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+}
+
+.sc-emoji-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1069;
+  background: var(--sc-overlay);
+  animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-standard) backwards;
+}
+
+.sc-emoji-backdrop.is-exiting {
+  pointer-events: none;
+  animation: scFadeOut var(--sc-dur-fast) var(--sc-ease-exit) forwards;
+}
+
+.sc-emoji-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 28px;
+  margin-bottom: -6px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sc-emoji-handle:active {
+  cursor: grabbing;
+}
+
+.sc-emoji-handle-bar {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--sc-border-strong);
+  transition: background var(--sc-dur-fast) var(--sc-ease-standard), width var(--sc-dur-fast) var(--sc-ease-spring-soft);
+}
+
+.sc-emoji-handle:active .sc-emoji-handle-bar {
+  width: 56px;
+  background: var(--sc-text-muted);
+}
+
+.sc-emoji-root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 12px 0;
+  box-sizing: border-box;
+}
+
+.sc-emoji-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-bottom: 6px;
+}
+
+.sc-emoji-search {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.sc-emoji-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--sc-text-muted);
+  pointer-events: none;
+}
+
+.sc-input.sc-emoji-search-input {
+  height: var(--sc-emoji-control);
+  padding: 0 14px 0 36px;
+  border-radius: 999px;
+  border-width: 1.5px;
+  border-color: transparent;
+  font-size: 0.9rem;
+}
+
+.sc-emoji-surface.is-sheet .sc-input.sc-emoji-search-input {
+  font-size: 1rem;
+}
+
+.sc-input.sc-emoji-search-input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.sc-emoji-tone {
+  width: var(--sc-emoji-control);
+  height: var(--sc-emoji-control);
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.sc-emoji-tone span {
+  display: inline-block;
+  font-family: var(--frimousse-emoji-font, inherit);
+  transition: transform var(--sc-dur-normal) var(--sc-ease-spring);
+}
+
+.sc-emoji-tone:active span {
+  transform: scale(0.85) rotate(-12deg);
+}
+
+.sc-emoji-recents {
+  flex-shrink: 0;
+}
+
+.sc-emoji-recents .sc-emoji-row {
+  display: flex;
+}
+
+.sc-emoji-category {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  background: var(--sc-surface-elevated);
+  color: var(--sc-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sc-emoji-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--sc-scrollbar-thumb) transparent;
+}
+
+.sc-emoji-list {
+  padding-bottom: 10px;
+}
+
+.sc-emoji-row {
+  width: 100%;
+}
+
+.sc-emoji-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(100% / var(--sc-emoji-columns, 8));
+  height: var(--sc-emoji-cell);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--sc-emoji-glyph);
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--sc-dur-fast) var(--sc-ease-standard);
+}
+
+.sc-emoji-cell span {
+  display: inline-block;
+  font-family: var(--frimousse-emoji-font, inherit);
+  transition: transform var(--sc-dur-fast) var(--sc-ease-spring);
+}
+
+.sc-emoji-cell[data-active],
+.sc-emoji-cell:focus-visible {
+  background: var(--sc-surface-hover);
+}
+
+.sc-emoji-cell:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: -2px;
+}
+
+.sc-emoji-cell:active {
+  background: var(--sc-accent-soft);
+}
+
+.sc-emoji-cell:active span {
+  transform: scale(0.86);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sc-emoji-cell[data-active] span,
+  .sc-emoji-cell:hover span {
+    transform: scale(1.18);
+  }
+
+  .sc-emoji-cell:hover {
+    background: var(--sc-surface-hover);
+  }
+}
+
+.sc-emoji-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--sc-text-secondary);
+  font-size: 0.85rem;
+  text-align: center;
+  animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-standard) backwards;
+}
+
+.sc-emoji-empty-face {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.sc-emoji-spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid var(--sc-accent-soft);
+  border-top-color: var(--sc-accent);
+  animation: scEmojiSpin 0.8s linear infinite;
+}
+
+.sc-emoji-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  height: 44px;
+  margin: 0 -12px;
+  padding: 0 16px;
+  border-top: 1px solid var(--sc-border-subtle);
+  min-width: 0;
+}
+
+.sc-emoji-surface.is-sheet .sc-emoji-footer {
+  display: none;
+}
+
+.sc-emoji-footer-glyph {
+  font-family: var(--frimousse-emoji-font, inherit);
+  font-size: 1.4rem;
+  line-height: 1;
+  animation: scEmojiPop var(--sc-dur-normal) var(--sc-ease-spring) backwards;
+}
+
+.sc-emoji-footer-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sc-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-emoji-skeleton-search {
+  flex: 1;
+  height: var(--sc-emoji-control);
+  border-radius: 999px;
+  --shimmer-a: var(--sc-skeleton);
+}
+
+.sc-emoji-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--sc-emoji-columns, 8), 1fr);
+  gap: 8px;
+  padding: 30px 6px 0;
+}
+
+.sc-emoji-skeleton-cell {
+  aspect-ratio: 1;
+  max-height: calc(var(--sc-emoji-cell) - 8px);
+  margin: auto;
+  width: 100%;
+  max-width: calc(var(--sc-emoji-cell) - 8px);
+  border-radius: 50%;
+  --shimmer-a: var(--sc-skeleton);
+}
+
+.sc-emoji-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sc-icon-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--sc-dur-fast) var(--sc-ease-standard),
+    color var(--sc-dur-fast) var(--sc-ease-standard);
+}
+
+.sc-emoji-btn svg {
+  transition: transform var(--sc-dur-normal) var(--sc-ease-spring);
+}
+
+.sc-emoji-btn:hover:not(:disabled) {
+  background: var(--sc-input-hover);
+  color: var(--sc-text-primary);
+}
+
+.sc-emoji-btn:active:not(:disabled) svg {
+  transform: scale(0.88);
+}
+
+.sc-emoji-btn[aria-expanded='true'] {
+  color: var(--sc-accent-text);
+}
+
+.sc-emoji-btn[aria-expanded='true'] svg {
+  transform: scale(1.1) rotate(-10deg);
+}
+
+.sc-emoji-btn:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: -2px;
+}
+
+.sc-emoji-btn:disabled {
+  color: var(--sc-text-disabled);
+  cursor: not-allowed;
+}
+
+@keyframes scEmojiPopoverIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scEmojiPopoverInDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scEmojiPopoverOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes scEmojiSheetIn {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scEmojiSheetOut {
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+@keyframes scEmojiPop {
+  from {
+    transform: scale(0.6);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes scEmojiSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-emoji-surface.is-popover,
+  .sc-emoji-surface.is-popover[data-placement='bottom'],
+  .sc-emoji-surface.is-sheet,
+  .sc-emoji-backdrop,
+  .sc-emoji-status {
+    animation-name: scFadeIn;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+  }
+
+  .sc-emoji-surface.is-popover.is-exiting,
+  .sc-emoji-surface.is-sheet.is-exiting,
+  .sc-emoji-backdrop.is-exiting {
+    animation-name: scFadeOut;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+  }
+
+  .sc-emoji-surface.is-sheet {
+    transition: none;
+  }
+
+  .sc-emoji-footer-glyph {
+    animation: none;
+  }
+
+  .sc-emoji-spinner {
+    animation-duration: 2.4s;
+  }
+
+  .sc-emoji-cell span,
+  .sc-emoji-tone span,
+  .sc-emoji-btn svg,
+  .sc-emoji-handle-bar {
+    transition-duration: 1ms;
+  }
+
+  .sc-emoji-cell[data-active] span,
+  .sc-emoji-cell:hover span,
+  .sc-emoji-cell:active span,
+  .sc-emoji-tone:active span,
+  .sc-emoji-btn[aria-expanded='true'] svg,
+  .sc-emoji-btn:active:not(:disabled) svg {
+    transform: none;
+  }
+}

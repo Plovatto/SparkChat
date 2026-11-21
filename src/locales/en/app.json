@@ -1004,5 +1004,28 @@
     "mediaFailed": "Could not load this GIF.",
     "untitled": "Untitled GIF",
     "notReady": "Wait for the GIF to appear before sending."
+  },
+  "emoji": {
+    "open": "Open emoji picker",
+    "close": "Close emoji picker",
+    "pickerLabel": "Emoji picker",
+    "searchPlaceholder": "Search emoji",
+    "searchLabel": "Search emojis",
+    "recent": "Recently used",
+    "loading": "Loading emojis...",
+    "empty": "No emoji found.",
+    "hint": "Pick an emoji",
+    "skinTone": "Change skin tone",
+    "categories": {
+      "smileys": "Smileys & emotion",
+      "people": "People & body",
+      "animals": "Animals & nature",
+      "food": "Food & drink",
+      "travel": "Travel & places",
+      "activities": "Activities",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    }
   }
 }

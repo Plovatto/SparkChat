@@ -1004,5 +1004,28 @@
     "mediaFailed": "Não foi possível carregar este GIF.",
     "untitled": "GIF sem título",
     "notReady": "Aguarde o GIF aparecer para enviar."
+  },
+  "emoji": {
+    "open": "Abrir emojis",
+    "close": "Fechar emojis",
+    "pickerLabel": "Seletor de emojis",
+    "searchPlaceholder": "Buscar emoji",
+    "searchLabel": "Buscar emojis",
+    "recent": "Usados recentemente",
+    "loading": "Carregando emojis...",
+    "empty": "Nenhum emoji encontrado.",
+    "hint": "Escolha um emoji",
+    "skinTone": "Mudar tom de pele",
+    "categories": {
+      "smileys": "Carinhas e emoções",
+      "people": "Pessoas e corpo",
+      "animals": "Animais e natureza",
+      "food": "Comidas e bebidas",
+      "travel": "Viagens e lugares",
+      "activities": "Atividades",
+      "objects": "Objetos",
+      "symbols": "Símbolos",
+      "flags": "Bandeiras"
+    }
   }
 }
