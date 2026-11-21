@@ -367,13 +367,36 @@ describe('wrapSocketWithE2e reactions', () => {
     expect(roomKeyHandlers.sealReaction).toHaveBeenCalledWith({ roomId: 'room-1', messageId: 'm1' }, '❤️');
   });
 
-  it('sends a removal without touching the room key', () => {
+  it('sends a removal without touching the room key', async () => {
     const { socket, sent } = setup();
 
     socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: null });
 
-    expect(reacts(sent)).toEqual([{ messageId: 'm1', emoji: null }]);
+    await vi.waitFor(() => expect(reacts(sent)).toEqual([{ messageId: 'm1', emoji: null }]));
     expect(roomKeyHandlers.ensureRoomKeyForSending).not.toHaveBeenCalled();
+  });
+
+  it('keeps a fast add then remove of the same message in order', async () => {
+    const { socket, sent } = setup();
+    let release: () => void = () => undefined;
+    roomKeyHandlers.sealReaction.mockImplementationOnce(
+      (_target: unknown, emoji: string) => new Promise((resolve) => (release = () => resolve(`sealed:${emoji.length}`))),
+    );
+
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: '❤️' });
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm2', emoji: null });
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: null });
+    await vi.waitFor(() => expect(reacts(sent)).toEqual([{ messageId: 'm2', emoji: null }]));
+
+    release();
+
+    await vi.waitFor(() =>
+      expect(reacts(sent)).toEqual([
+        { messageId: 'm2', emoji: null },
+        { messageId: 'm1', emoji: 'sealed:2' },
+        { messageId: 'm1', emoji: null },
+      ]),
+    );
   });
 
   it('retries once with the recovered key after a stale key rejection and surfaces a second one', async () => {

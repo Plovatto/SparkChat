@@ -229,26 +229,36 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
 
   const pendingReactions = new Map<string, PendingReaction>();
 
-  const sendReaction = (payload: OutgoingReaction, staleKeyId: string | null) => {
+  const reactionQueues = new Map<string, Promise<void>>();
+
+  const deliverReaction = async (payload: OutgoingReaction, staleKeyId: string | null): Promise<void> => {
     if (payload.emoji === null) {
       pendingReactions.delete(payload.messageId);
       originalEmit(REACT_EVENT, { messageId: payload.messageId, emoji: null });
       return;
     }
-    const emoji = payload.emoji;
-    const obtainKey = staleKeyId
-      ? recoverFromStaleRoomKey(socket, payload.roomId, staleKeyId)
-      : ensureRoomKeyForSending(socket, payload.roomId);
-    void obtainKey
-      .then(async (generation) => {
-        const sealed = await sealReaction({ roomId: payload.roomId, messageId: payload.messageId }, emoji);
-        pendingReactions.set(payload.messageId, { payload, keyId: generation.keyId, retried: staleKeyId !== null });
-        originalEmit(REACT_EVENT, { messageId: payload.messageId, emoji: sealed });
-      })
-      .catch((error: unknown) => {
-        console.error('[e2e] failed to encrypt reaction, not sending it', error);
-        notifyReactionFailure(socket, payload.messageId, error);
-      });
+    try {
+      const generation = await (staleKeyId
+        ? recoverFromStaleRoomKey(socket, payload.roomId, staleKeyId)
+        : ensureRoomKeyForSending(socket, payload.roomId));
+      const sealed = await sealReaction({ roomId: payload.roomId, messageId: payload.messageId }, payload.emoji);
+      pendingReactions.set(payload.messageId, { payload, keyId: generation.keyId, retried: staleKeyId !== null });
+      originalEmit(REACT_EVENT, { messageId: payload.messageId, emoji: sealed });
+    } catch (error) {
+      console.error('[e2e] failed to encrypt reaction, not sending it', error);
+      notifyReactionFailure(socket, payload.messageId, error);
+    }
+  };
+
+  const sendReaction = (payload: OutgoingReaction, staleKeyId: string | null) => {
+    const previous = reactionQueues.get(payload.messageId) ?? Promise.resolve();
+    const next = previous.then(() => deliverReaction(payload, staleKeyId));
+    reactionQueues.set(payload.messageId, next);
+    void next.then(() => {
+      if (reactionQueues.get(payload.messageId) === next) {
+        reactionQueues.delete(payload.messageId);
+      }
+    });
   };
 
   const retriesStaleReaction = (payload: SocketErrorPayload): boolean => {
