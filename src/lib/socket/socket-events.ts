@@ -9,6 +9,14 @@ export interface SocketErrorPayload {
   event?: string;
 }
 
+export interface MessageHiddenPayload {
+  roomId: string;
+  messageIds: string[];
+  lastMessage?: MessageView | null;
+  unreadCount?: number;
+  mentionCount?: number;
+}
+
 export interface KtSignedTreeHeadWire {
   size: number;
   root: string;
@@ -394,6 +402,7 @@ export interface ServerToClientEvents {
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
+  'message:hidden': (payload: MessageHiddenPayload) => void;
   'message:updated': (payload: MessageView) => void;
   'call:config': (payload: CallConfigPayload) => void;
   'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string }) => void;
@@ -500,6 +509,7 @@ export interface ClientToServerEvents {
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
   'message:delete': (payload: { messageId: string }) => void;
+  'message:hide': (payload: { messageIds: string[] }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;
   'call:start': (payload: { callId: string; roomId: string; kind: CallKindWire; envelope: string }) => void;

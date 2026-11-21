@@ -5,4 +5,5 @@ export interface ChatMessage extends MessageView {
   messageId?: string;
   pending?: boolean;
   failed?: boolean;
+  exiting?: boolean;
 }

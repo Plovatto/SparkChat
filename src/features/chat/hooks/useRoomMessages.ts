@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MOTION_DURATION_MS } from '@features/motion';
 import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
 import { forgetTranslation } from '@lib/translation';
 import {
+  markPreviewOnlyHandler,
   useSocket,
   type MessageFileMeta,
+  type MessageHiddenPayload,
   type MessageLinkPreview,
   type MessageReplySnapshot,
   type MessageType,
@@ -11,6 +14,7 @@ import {
   type SocketErrorPayload,
 } from '@lib/socket';
 import type { ChatMessage } from '../types';
+import { chunkMessageIds } from '../utils/delete-options';
 
 function linkPreviewAttachmentUrls(linkPreview: { imageUrl: string | null } | null | undefined): string[] | undefined {
   const imageUrl = linkPreview?.imageUrl;
@@ -53,9 +57,19 @@ export interface RoomMessagesState {
   sendMessage: (input: SendMessageInput) => void;
   retryMessage: (clientTempId: string) => void;
   loadOlderMessages: () => void;
+  hideMessages: (messageIds: string[]) => void;
+  hideFailed: boolean;
+  dismissHideFailure: () => void;
+}
+
+interface PendingHide {
+  ids: string[];
+  messages: ChatMessage[];
+  timeoutId: ReturnType<typeof setTimeout>;
 }
 
 const PENDING_TIMEOUT_MS = 10000;
+const MESSAGE_EXIT_MS = MOTION_DURATION_MS.normal;
 const MESSAGES_PAGE_SIZE = 10;
 
 function sortMessagesByTimestamp(messages: MessageView[]): MessageView[] {
@@ -77,6 +91,20 @@ function mapChanged(messages: ChatMessage[], mapper: (message: ChatMessage) => C
     return mapped;
   });
   return changed ? next : messages;
+}
+
+function settleExiting(messages: ChatMessage[]): ChatMessage[] {
+  return mapChanged(messages, (message) => (message.exiting ? { ...message, exiting: false } : message));
+}
+
+function restoreMessages(messages: ChatMessage[], restored: ChatMessage[]): ChatMessage[] {
+  const settled = settleExiting(messages);
+  const presentIds = new Set(settled.map((message) => message.id));
+  const missing = restored.filter((message) => !presentIds.has(message.id)).map((message) => ({ ...message, exiting: false }));
+  if (missing.length === 0) {
+    return settled;
+  }
+  return [...settled, ...missing].sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
 }
 
 function buildReplySnapshot(message: MessageView | null | undefined): MessageReplySnapshot | null {
@@ -117,6 +145,35 @@ export function useRoomMessages(
   const isLoadingOlderRef = useRef(false);
   const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialPageRef = useRef(false);
+  const pendingHidesRef = useRef<PendingHide[]>([]);
+  const exitTimeoutsRef = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const [hideFailed, setHideFailed] = useState(false);
+
+  const removeWithExit = useCallback((messageIds: string[]) => {
+    const ids = new Set(messageIds);
+    if (!messagesRef.current.some((message) => ids.has(message.id))) {
+      return;
+    }
+    setMessages((previous) => mapChanged(previous, (message) => (ids.has(message.id) && !message.exiting ? { ...message, exiting: true } : message)));
+    const timeoutId = setTimeout(() => {
+      exitTimeoutsRef.current.delete(timeoutId);
+      setMessages((previous) => {
+        const next = previous.filter((message) => !(ids.has(message.id) && message.exiting));
+        return next.length === previous.length ? previous : next;
+      });
+    }, MESSAGE_EXIT_MS);
+    exitTimeoutsRef.current.add(timeoutId);
+  }, []);
+
+  const rollbackHide = useCallback((pending: PendingHide) => {
+    clearTimeout(pending.timeoutId);
+    pendingHidesRef.current = pendingHidesRef.current.filter((candidate) => candidate !== pending);
+    setHideFailed(true);
+    if (pending.messages.length === 0 || pending.messages[0]?.roomId !== roomIdRef.current) {
+      return;
+    }
+    setMessages((previous) => restoreMessages(previous, pending.messages));
+  }, []);
 
   const clearLoadOlderTimeout = () => {
     if (loadOlderTimeoutRef.current) {
@@ -164,6 +221,15 @@ export function useRoomMessages(
       clearTimeout(timeoutId);
     }
     pendingTimeoutsRef.current.clear();
+    for (const pending of pendingHidesRef.current) {
+      clearTimeout(pending.timeoutId);
+    }
+    pendingHidesRef.current = [];
+    for (const timeoutId of exitTimeoutsRef.current) {
+      clearTimeout(timeoutId);
+    }
+    exitTimeoutsRef.current.clear();
+    setHideFailed(false);
   }, [roomId]);
 
   useEffect(() => {
@@ -214,12 +280,15 @@ export function useRoomMessages(
 
       const isRefresh = isRefreshingLatestRef.current;
       isRefreshingLatestRef.current = false;
+      const listed = payload.messages.filter(
+        (message) => !pendingHidesRef.current.some((pending) => pending.ids.includes(message.id)),
+      );
 
       if (hasLoadedInitialPageRef.current && !isRefresh) {
         isLoadingOlderRef.current = false;
         setIsLoadingOlder(false);
         clearLoadOlderTimeout();
-        const sortedPage = sortMessagesByTimestamp(payload.messages);
+        const sortedPage = sortMessagesByTimestamp(listed);
         onBeforeOlderMessagesApplied?.();
         setMessages((previous) => {
           const existingIds = new Set(previous.map((message) => message.id));
@@ -230,10 +299,12 @@ export function useRoomMessages(
           const olderMessages = olderPage.slice(-MESSAGES_PAGE_SIZE).filter((message) => !existingIds.has(message.id));
           return olderMessages.length > 0 ? [...olderMessages, ...previous] : previous;
         });
-        socket.emit('message:mark-read', { roomId, messageIds: sortedPage.map((message) => message.id) });
+        if (sortedPage.length > 0) {
+          socket.emit('message:mark-read', { roomId, messageIds: sortedPage.map((message) => message.id) });
+        }
       } else {
         hasLoadedInitialPageRef.current = true;
-        const initialMessages = normalizeInitialMessagesPage(payload.messages);
+        const initialMessages = normalizeInitialMessagesPage(listed);
         setMessages((previous) => {
           if (previous.length === 0) {
             return initialMessages;
@@ -286,7 +357,14 @@ export function useRoomMessages(
       }
     };
 
-    const handleSendError = ({ clientTempId }: SocketErrorPayload) => {
+    const handleSendError = ({ clientTempId, event }: SocketErrorPayload) => {
+      if (event === 'message:hide') {
+        const [oldest] = pendingHidesRef.current;
+        if (oldest) {
+          rollbackHide(oldest);
+        }
+        return;
+      }
       if (!clientTempId) {
         return;
       }
@@ -337,6 +415,21 @@ export function useRoomMessages(
       );
     };
 
+    const handleMessageHidden = markPreviewOnlyHandler(({ roomId: hiddenRoomId, messageIds }: MessageHiddenPayload) => {
+      for (const messageId of messageIds) {
+        forgetTranslation(hiddenRoomId, messageId);
+      }
+      const hiddenIds = new Set(messageIds);
+      const confirmed = pendingHidesRef.current.filter((pending) => pending.ids.every((id) => hiddenIds.has(id)));
+      for (const pending of confirmed) {
+        clearTimeout(pending.timeoutId);
+      }
+      pendingHidesRef.current = pendingHidesRef.current.filter((pending) => !confirmed.includes(pending));
+      if (hiddenRoomId === roomId) {
+        removeWithExit(messageIds);
+      }
+    });
+
     const handleMessageUpdated = (updated: MessageView) => {
       if (updated.roomId !== roomId) {
         return;
@@ -358,6 +451,7 @@ export function useRoomMessages(
     socket.on('recording:update', handleRecordingUpdate);
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('message:updated', handleMessageUpdated);
+    socket.on('message:hidden', handleMessageHidden);
 
     return () => {
       socket.off('messages:list', handleMessagesList);
@@ -370,8 +464,9 @@ export function useRoomMessages(
       socket.off('recording:update', handleRecordingUpdate);
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('message:updated', handleMessageUpdated);
+      socket.off('message:hidden', handleMessageHidden);
     };
-  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied]);
+  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied, removeWithExit, rollbackHide]);
 
   const sendMessage = useCallback(
     (input: SendMessageInput) => {
@@ -458,6 +553,29 @@ export function useRoomMessages(
     [socket, schedulePendingTimeout],
   );
 
+  const hideMessages = useCallback(
+    (messageIds: string[]) => {
+      if (!socket || !roomId || messageIds.length === 0) {
+        return;
+      }
+      setHideFailed(false);
+      for (const ids of chunkMessageIds(messageIds)) {
+        const idSet = new Set(ids);
+        const pending: PendingHide = {
+          ids,
+          messages: messagesRef.current.filter((message) => idSet.has(message.id)),
+          timeoutId: setTimeout(() => rollbackHide(pending), PENDING_TIMEOUT_MS),
+        };
+        pendingHidesRef.current = [...pendingHidesRef.current, pending];
+        socket.emit('message:hide', { messageIds: ids });
+      }
+      removeWithExit(messageIds);
+    },
+    [socket, roomId, removeWithExit, rollbackHide],
+  );
+
+  const dismissHideFailure = useCallback(() => setHideFailed(false), []);
+
   const loadOlderMessages = useCallback(() => {
     const oldest = messagesRef.current[0];
     if (!socket || !roomId || !oldest || isLoadingOlderRef.current || !hasMoreOlder) {
@@ -485,5 +603,8 @@ export function useRoomMessages(
     sendMessage,
     retryMessage,
     loadOlderMessages,
+    hideMessages,
+    hideFailed,
+    dismissHideFailure,
   };
 }

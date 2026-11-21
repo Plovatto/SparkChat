@@ -37,6 +37,7 @@ import type { AppSocket } from './socket-client';
 import type {
   BlockStatusPayload,
   ClientToServerEvents,
+  MessageHiddenPayload,
   MessageView,
   RoomParticipant,
   RoomSummary,
@@ -70,7 +71,7 @@ function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, 
   }
 }
 
-const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
+const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated', 'message:hidden', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
 
 interface DeferredRoomEvent {
   room: RoomSummary;
@@ -107,6 +108,13 @@ async function transformPayload(socket: AppSocket, event: string, payload: unkno
     case 'message:new':
     case 'message:updated':
       return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly, live: event === 'message:new' });
+
+    case 'message:hidden': {
+      const typed = payload as MessageHiddenPayload;
+      return typed.lastMessage
+        ? { ...typed, lastMessage: await decryptMessageView(socket, typed.lastMessage, { deferGifMedia: previewOnly, live: false }) }
+        : typed;
+    }
 
     case 'messages:list': {
       const typed = payload as { roomId: string; messages: MessageView[]; hasMore: boolean };

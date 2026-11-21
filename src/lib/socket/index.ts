@@ -12,6 +12,7 @@ export type {
   KtProofWire,
   KtSignedTreeHeadWire,
   MessageFileMeta,
+  MessageHiddenPayload,
   MessageLinkPreview,
   MessageReplySnapshot,
   MessageSender,
