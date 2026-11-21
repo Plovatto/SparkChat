@@ -39,7 +39,11 @@ body {
   height: 12px;
 }
 
-::-webkit-scrollbar-track,
+::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sc-scrollbar-thumb, #8c90f5) 14%, transparent);
+}
+
 ::-webkit-scrollbar-corner {
   background: transparent;
 }
@@ -55,22 +59,19 @@ body {
   min-height: 36px;
   border: 3px solid transparent;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sc-text-primary, #ffffff) 22%, transparent) padding-box;
+  background: var(--sc-scrollbar-thumb, #8c90f5) padding-box;
   transition: background-color 160ms ease;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--sc-border-focus, #8c90f5) 70%, transparent) padding-box;
-}
-
+::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:active {
-  background: var(--sc-border-focus, #8c90f5) padding-box;
+  background: var(--sc-scrollbar-thumb-hover, #a5a9ff) padding-box;
 }
 
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--sc-text-primary, #ffffff) 25%, transparent) transparent;
+    scrollbar-color: var(--sc-scrollbar-thumb, #8c90f5) transparent;
   }
 }
 

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { ColorPicker } from '@components/common/ColorPicker';
 import { AppearanceSlider } from './AppearanceSlider';
 
 interface AppearanceBubbleCardProps {
@@ -31,9 +32,7 @@ export function AppearanceBubbleCard({
   return (
     <div className="sc-appearance-card">
       <div className="sc-appearance-card-header">
-        <label className="sc-appearance-swatch" style={{ backgroundColor: color }} title={colorLabel}>
-          <input type="color" value={color} onChange={(event) => onColorChange(event.target.value)} aria-label={colorLabel} />
-        </label>
+        <ColorPicker value={color} onChange={onColorChange} label={colorLabel} />
         <span className="sc-appearance-card-label">{label}</span>
         <button type="button" className="sc-appearance-link" onClick={onReset} disabled={!canReset}>
           {t('chat.appearance.resetDefault')}

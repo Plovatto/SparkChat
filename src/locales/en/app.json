@@ -1160,5 +1160,13 @@
     "mediaFailed": "Could not load this GIF.",
     "untitled": "Untitled GIF",
     "notReady": "Wait for the GIF to appear before sending."
+  },
+  "colorPicker": {
+    "area": "Saturation and brightness",
+    "areaValue": "Saturation {{saturation}}%, brightness {{brightness}}%",
+    "hue": "Hue",
+    "hex": "Hex",
+    "presets": "Suggested colors",
+    "eyedropper": "Pick a color from the screen"
   }
 }

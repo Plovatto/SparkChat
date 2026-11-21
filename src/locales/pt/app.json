@@ -1160,5 +1160,13 @@
     "mediaFailed": "Não foi possível carregar este GIF.",
     "untitled": "GIF sem título",
     "notReady": "Aguarde o GIF aparecer para enviar."
+  },
+  "colorPicker": {
+    "area": "Saturação e brilho",
+    "areaValue": "Saturação {{saturation}}%, brilho {{brightness}}%",
+    "hue": "Matiz",
+    "hex": "Hex",
+    "presets": "Cores sugeridas",
+    "eyedropper": "Escolher cor da tela"
   }
 }
