@@ -174,6 +174,16 @@ describe('useRoomMessages reactions', () => {
     expect(reactionsOf(result, 'm2')).toEqual([]);
   });
 
+  it('keeps the pending reaction when another update of the message arrives', () => {
+    const { result } = renderRoom([message('m1')]);
+
+    act(() => result.current.reactToMessage('m1', '😂'));
+    act(() => trigger('message:updated', message('m1', { playedBy: ['friend'], reactions: [] })));
+
+    expect(reactionsOf(result, 'm1')).toEqual([['me', '😂']]);
+    expect(result.current.messages[0]?.playedBy).toEqual(['friend']);
+  });
+
   it('does not react to system, deleted or pending messages', () => {
     const { result } = renderRoom([message('s1', { type: 'system' }), message('d1', { deletedForEveryone: true })]);
 

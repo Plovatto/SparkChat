@@ -407,15 +407,9 @@ export function useRoomMessages(
       if (updated.roomId !== roomId) {
         return;
       }
-      setMessages((previous) =>
-        mapChanged(previous, (message) => {
-          if (message.id !== updated.id) {
-            return message;
-          }
-          const reactions = updated.reactions ?? message.reactions ?? [];
-          return { ...updated, reactions: overlayPendingReaction(updated.id, reactions) };
-        }),
-      );
+      const current = messagesRef.current.find((message) => message.id === updated.id);
+      const reactions = overlayPendingReaction(updated.id, updated.reactions ?? current?.reactions ?? []);
+      setMessages((previous) => mapChanged(previous, (message) => (message.id === updated.id ? { ...updated, reactions } : message)));
     };
 
     const handleReactionsUpdated = (payload: MessageReactionsUpdatedPayload) => {
