@@ -105,3 +105,43 @@ export function describeCallPreview(event: CallEventParams, selfUserId: string |
 
   return { glyph, tone, label, detail, missed: missedIncoming, fullText };
 }
+
+export type CallCardStatus = 'answered' | 'missed' | 'declined' | 'other';
+
+export interface CallCard {
+  kind: 'voice' | 'video';
+  direction: CallEventDirection;
+  tone: CallPreviewTone;
+  glyph: CallPreviewGlyph;
+  title: string;
+  who: string;
+  status: CallCardStatus;
+  statusLabel: string;
+  pulse: boolean;
+  fullText: string;
+}
+
+export function describeCallCard(event: CallEventParams, selfUserId: string | null | undefined = getCurrentIdentity()?.userId): CallCard {
+  const described = describeCallEvent(event, selfUserId);
+  const preview = describeCallPreview(event, selfUserId);
+  const answered = described.tone === 'answered';
+  const reason = readReason(event.params);
+  const status: CallCardStatus = answered ? 'answered' : preview.missed ? 'missed' : reason === 'declined' ? 'declined' : 'other';
+  const statusLabel = answered
+    ? (described.duration ?? '')
+    : status === 'declined'
+      ? translate('calls.event.declinedShort')
+      : described.outcome;
+  return {
+    kind: described.kind,
+    direction: described.direction,
+    tone: preview.tone,
+    glyph: preview.glyph,
+    title: described.title,
+    who: described.who,
+    status,
+    statusLabel,
+    pulse: preview.missed,
+    fullText: preview.fullText,
+  };
+}

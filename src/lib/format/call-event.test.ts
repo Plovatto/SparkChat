@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { appI18n } from '@lib/i18n/app-i18n';
-import { describeCallEvent, describeCallPreview, isCallEvent } from './call-event';
+import { describeCallCard, describeCallEvent, describeCallPreview, isCallEvent } from './call-event';
 
 afterEach(async () => {
   await appI18n.changeLanguage('pt');
@@ -123,5 +123,24 @@ describe('describeCallPreview', () => {
     await appI18n.changeLanguage('en');
     expect(describeCallPreview(missed({ kind: 'voice', callerId: 'peer', reason: 'missed' }), 'me').label).toBe('Missed call');
     expect(describeCallPreview(missed({ kind: 'video', callerId: 'peer', reason: 'missed' }), 'me').label).toBe('Missed video call');
+  });
+});
+
+describe('describeCallCard', () => {
+  it('reports the status pill for answered, missed, declined and other outcomes', async () => {
+    const answered = describeCallCard(ended({ kind: 'voice', callerId: 'peer', reason: 'completed', durationSec: 1183 }), 'me');
+    expect(answered).toMatchObject({ status: 'answered', statusLabel: '19:43', tone: 'success', pulse: false, who: 'Ligou para você', title: 'Chamada de voz' });
+
+    const lost = describeCallCard(missed({ kind: 'voice', callerId: 'peer', reason: 'missed' }), 'me');
+    expect(lost).toMatchObject({ status: 'missed', statusLabel: 'Perdida', tone: 'danger', pulse: true, glyph: 'voice-missed' });
+
+    const declined = describeCallCard(missed({ kind: 'video', callerId: 'peer', reason: 'declined' }), 'me');
+    expect(declined).toMatchObject({ status: 'declined', statusLabel: 'Recusada', tone: 'danger', pulse: false, glyph: 'video-off' });
+
+    const unanswered = describeCallCard(missed({ kind: 'voice', callerId: 'me', reason: 'missed' }), 'me');
+    expect(unanswered).toMatchObject({ status: 'other', statusLabel: 'Sem resposta', tone: 'muted', direction: 'outgoing', who: 'Você ligou' });
+
+    await appI18n.changeLanguage('en');
+    expect(describeCallCard(missed({ kind: 'video', callerId: 'peer', reason: 'declined' }), 'me').statusLabel).toBe('Declined');
   });
 });

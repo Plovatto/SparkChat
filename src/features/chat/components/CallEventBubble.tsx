@@ -1,83 +1,97 @@
-import { FaPhone, FaPhoneSlash, FaVideo } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
+import { LuPhone, LuPhoneMissed, LuVideo, LuVideoOff } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 import { useOptionalCall } from '@features/calls';
-import { useTheme } from '@features/theme';
 import type { EntrancePhase } from '@features/motion';
-import { describeCallEvent } from '@lib/format/call-event';
+import { describeCallCard, type CallPreviewGlyph } from '@lib/format/call-event';
 import { formatTime } from '@lib/format';
-import type { MessageView } from '@lib/socket';
+import type { MessageView, RoomSummary } from '@lib/socket';
+import { useActiveRoom } from '../hooks/active-room-context';
+import '../styles/call-event-bubble.css';
 
 interface CallEventBubbleProps {
   message: MessageView;
   entrancePhase: EntrancePhase;
+  room?: RoomSummary | null;
 }
 
-const MISSED_COLOR = '#ff7b7b';
-const ANSWERED_COLOR = '#4cd08a';
+const GLYPHS: Record<CallPreviewGlyph, IconType> = {
+  'voice-outgoing': LuPhone,
+  'voice-incoming': LuPhone,
+  'voice-missed': LuPhoneMissed,
+  video: LuVideo,
+  'video-off': LuVideoOff,
+};
 
-export function CallEventBubble({ message, entrancePhase }: CallEventBubbleProps) {
+export function CallEventBubble({ message, entrancePhase, room: roomProp }: CallEventBubbleProps) {
+  const activeRoom = useActiveRoom();
+  const room = roomProp ?? (activeRoom?.id === message.roomId ? activeRoom : null);
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const call = useOptionalCall();
   if (!message.systemEvent) {
     return null;
   }
-  const described = describeCallEvent(message.systemEvent);
-  const answered = described.tone === 'answered';
-  const accent = answered ? ANSWERED_COLOR : MISSED_COLOR;
-  const Icon = answered ? (described.kind === 'video' ? FaVideo : FaPhone) : FaPhoneSlash;
-  const canCallBack = call !== null && call.snapshot.enabled && call.snapshot.state.phase === 'idle';
+  const card = describeCallCard(message.systemEvent);
+  const own = card.direction === 'outgoing';
+  const Glyph = GLYPHS[card.glyph];
+  const ButtonIcon = card.kind === 'video' ? LuVideo : LuPhone;
+  const callable = call !== null && (room ? call.canCall(room) : call.snapshot.enabled);
+  const busy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
+  const time = formatTime(message.timestamp);
+
+  const startCallBack = () => {
+    if (!call || busy) {
+      return;
+    }
+    if (room) {
+      call.startCall(room, card.kind);
+      return;
+    }
+    call.startCallInRoom(message.roomId, card.kind);
+  };
 
   return (
-    <div
-      className={entrancePhase === 'none' ? undefined : 'sc-anim-rise-in'}
-      style={{ display: 'flex', justifyContent: described.direction === 'outgoing' ? 'flex-end' : 'flex-start', width: '100%', margin: '6px 0' }}
-    >
+    <div className="sc-call-card-row" data-own={own}>
       <div
-        style={{
-          background: theme.messageSystem,
-          color: theme.messageSystemText,
-          border: `1px solid ${theme.accentSoft}`,
-          borderRadius: '14px',
-          padding: '10px 14px 8px',
-          minWidth: '230px',
-          maxWidth: '85%',
-          boxShadow: theme.shadowSm,
-        }}
+        className={`sc-call-card${entrancePhase === 'none' ? '' : ' sc-anim-bubble-in'}`}
+        data-own={own}
+        data-tone={card.tone}
+        data-status={card.status}
+        role="group"
+        aria-label={`${card.fullText} · ${time}`}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span
-            aria-hidden="true"
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '50%',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              color: accent,
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: `1px solid ${accent}`,
-            }}
-          >
-            <Icon size={16} />
+        <div className="sc-call-card__panel">
+          <span className="sc-call-card__halo" data-pulse={card.pulse} aria-hidden="true">
+            <span className="sc-call-card__glyph">
+              <Glyph />
+            </span>
           </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-            <strong style={{ fontSize: '0.92rem', lineHeight: 1.25 }}>{described.title}</strong>
-            <span style={{ fontSize: '0.8rem', opacity: 0.85, lineHeight: 1.3 }}>{described.subtitle}</span>
+          <div className="sc-call-card__text">
+            <strong className="sc-call-card__title">{card.title}</strong>
+            <span className="sc-call-card__who">{card.who}</span>
+          </div>
+          <div className="sc-call-card__side">
+            <span className="sc-call-card__pill">
+              {card.status === 'answered' && <span className="sc-call-card__dot" aria-hidden="true" />}
+              <span className="sc-call-card__pill-text">{card.statusLabel}</span>
+            </span>
+            <time className="sc-call-card__time" dateTime={message.timestamp}>
+              {time}
+            </time>
           </div>
         </div>
-        {canCallBack && call && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', paddingTop: '8px', borderTop: `1px solid ${theme.accentSoft}` }}>
-            <button type="button" className="sc-btn sc-btn--text" style={{ fontSize: '0.85rem', fontWeight: 600, padding: '4px 16px' }} onClick={() => call.startCallInRoom(message.roomId, 'voice')}>
-              {t('calls.callBack')}
-            </button>
-          </div>
+        {callable && (
+          <button
+            type="button"
+            className="sc-call-card__action"
+            onClick={startCallBack}
+            disabled={busy}
+            title={busy ? t('calls.alreadyInCall') : undefined}
+          >
+            <ButtonIcon aria-hidden="true" />
+            <span>{t('calls.callBack')}</span>
+          </button>
         )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: canCallBack ? '2px' : '8px' }}>
-          <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{formatTime(message.timestamp)}</span>
-        </div>
       </div>
     </div>
   );
