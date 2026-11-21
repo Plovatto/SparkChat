@@ -482,7 +482,22 @@
       "next": "Next image",
       "expanded": "Expanded image",
       "downloadVideo": "Download video",
-      "closeVideo": "Close video (ESC)"
+      "closeVideo": "Close video (ESC)",
+      "photo": "Photo",
+      "video": "Video",
+      "gif": "GIF",
+      "counter": "{{current}} of {{total}}",
+      "forward": "Forward",
+      "download": "Download",
+      "more": "More options",
+      "showInChat": "Show in chat",
+      "copyCaption": "Copy caption",
+      "captionCopied": "Caption copied",
+      "close": "Close (ESC)",
+      "thumbnails": "Thumbnails",
+      "previousMedia": "Previous",
+      "nextMedia": "Next",
+      "unavailable": "This media could not be opened"
     },
     "forward": {
       "title": "Forward message",
@@ -549,7 +564,7 @@
       "suggestAccept": "Translate automatically",
       "suggestDismiss": "Not now",
       "autoRoomTitle": "Translate messages automatically",
-      "autoRoomCaption": "Messages you receive in another language in this conversation are translated as they appear, right on your device.",
+      "autoRoomCaption": "Translates other languages on your device.",
       "languages": {
         "pt": "Portuguese",
         "en": "English"
@@ -878,6 +893,7 @@
       "outgoing": "You called",
       "incoming": "Called you",
       "answered": "Answered",
+      "declinedShort": "Declined",
       "missedTitle": {
         "voice": "Missed call",
         "video": "Missed video call"

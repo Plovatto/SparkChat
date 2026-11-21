@@ -77,9 +77,9 @@ export function SideDrawer({ isOpen, title, onClose, onBack, footer, viewKey, in
         </button>
       </header>
       <div key={content.viewKey} className="sc-drawer__body" data-direction={!hasNavigated ? 'none' : content.onBack ? 'forward' : 'back'}>
-        {content.children}
+        <div className="sc-drawer__content">{content.children}</div>
+        {content.footer && <footer className="sc-drawer__footer">{content.footer}</footer>}
       </div>
-      {content.footer && <footer className="sc-drawer__footer">{content.footer}</footer>}
     </aside>
   );
 

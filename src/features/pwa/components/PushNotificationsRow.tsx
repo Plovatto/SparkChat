@@ -59,14 +59,14 @@ export function PushNotificationsRow() {
         </span>
       </div>
       {hintKey && (
-        <div key={status} className={`sc-notice pwa-push-notice ${status === 'blocked' ? 'sc-notice--danger' : 'sc-notice--info'}`} role="note" style={{ flexWrap: 'wrap' }}>
-          <span style={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere' }}>{t(hintKey)}</span>
+        <p key={status} className="pwa-push-hint" data-tone={status === 'blocked' ? 'danger' : 'info'} role="note">
+          <span>{t(hintKey)}</span>
           {status === 'ios-needs-install' && (
-            <button type="button" onClick={openInstallSheet} className="sc-btn sc-btn--text" style={{ padding: '4px 0', fontSize: '0.8rem' }}>
+            <button type="button" onClick={openInstallSheet} className="pwa-push-hint__action">
               {t('pwa.card.iosInstallAction')}
             </button>
           )}
-        </div>
+        </p>
       )}
       {error && (
         <div className="sc-notice sc-notice--danger pwa-push-notice" role="alert">

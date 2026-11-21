@@ -482,7 +482,22 @@
       "next": "Próxima imagem",
       "expanded": "Imagem expandida",
       "downloadVideo": "Baixar vídeo",
-      "closeVideo": "Fechar vídeo (ESC)"
+      "closeVideo": "Fechar vídeo (ESC)",
+      "photo": "Foto",
+      "video": "Vídeo",
+      "gif": "GIF",
+      "counter": "{{current}} de {{total}}",
+      "forward": "Encaminhar",
+      "download": "Baixar",
+      "more": "Mais opções",
+      "showInChat": "Ver na conversa",
+      "copyCaption": "Copiar legenda",
+      "captionCopied": "Legenda copiada",
+      "close": "Fechar (ESC)",
+      "thumbnails": "Miniaturas",
+      "previousMedia": "Anterior",
+      "nextMedia": "Próxima",
+      "unavailable": "Não foi possível abrir esta mídia"
     },
     "forward": {
       "title": "Encaminhar mensagem",
@@ -549,7 +564,7 @@
       "suggestAccept": "Traduzir automaticamente",
       "suggestDismiss": "Agora não",
       "autoRoomTitle": "Traduzir mensagens automaticamente",
-      "autoRoomCaption": "Mensagens recebidas em outro idioma nesta conversa são traduzidas assim que aparecem, direto no seu dispositivo.",
+      "autoRoomCaption": "Traduz no seu aparelho o que chegar em outro idioma.",
       "languages": {
         "pt": "português",
         "en": "inglês"
@@ -878,6 +893,7 @@
       "outgoing": "Você ligou",
       "incoming": "Ligou para você",
       "answered": "Atendida",
+      "declinedShort": "Recusada",
       "missedTitle": {
         "voice": "Chamada perdida",
         "video": "Chamada de vídeo perdida"

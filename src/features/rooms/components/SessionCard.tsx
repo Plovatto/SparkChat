@@ -25,7 +25,7 @@ export function SessionCard({ session, index, onRevoke }: SessionCardProps) {
       <div className="sc-session-card__body">
         <span className="sc-session-card__title">
           <span className="sc-session-card__device">{session.device}</span>
-          {session.isCurrent && <span className="sc-session-card__current">· {t('profile.thisDevice')}</span>}
+          {session.isCurrent && <span className="sc-session-card__current">{t('profile.thisDevice')}</span>}
         </span>
         <span className="sc-session-card__meta">{t(`profile.authMethod.${session.authMethod}`)}</span>
         <span className="sc-session-card__time">{t('profile.lastUsed', { date: formatDateTime(session.lastUsedAt) })}</span>
