@@ -57,6 +57,7 @@ interface ChatAreaProps {
   rooms: RoomSummary[];
   user: User;
   onBack: () => void;
+  onInfoColumnChange?: (isOpen: boolean) => void;
 }
 
 type AttachmentMessageType = 'image' | 'file';
@@ -250,7 +251,7 @@ function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
   );
 }
 
-export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
+export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: ChatAreaProps) {
   const { t } = useTranslation();
   const { theme, getRoomWallpaper, getRoomAppearance } = useTheme();
   const { socket } = useSocket();
@@ -327,6 +328,12 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const isInfoInline = useMediaQuery(minWidthQuery(INFO_COLUMN_MIN_WIDTH_PX));
+  const isInfoColumnOpen = isInfoOpen && isInfoInline && room !== null;
+
+  useEffect(() => {
+    onInfoColumnChange?.(isInfoColumnOpen);
+    return () => onInfoColumnChange?.(false);
+  }, [isInfoColumnOpen, onInfoColumnChange]);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);

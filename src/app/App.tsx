@@ -293,6 +293,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     }
   });
   const isWideLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
+  const [isInfoColumnOpen, setIsInfoColumnOpen] = useState(false);
+  const isSidebarCollapsed = isWideLayout && isInfoColumnOpen;
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -526,8 +528,17 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 padding: 0,
                 height: '100%',
                 display: !selectedRoom || isWideLayout ? 'block' : 'none',
-                ...(isWideLayout ? { minWidth: '360px' } : { flex: '0 0 100%', maxWidth: '100%' }),
+                ...(isWideLayout
+                  ? {
+                      minWidth: isSidebarCollapsed ? 0 : '360px',
+                      ...(isSidebarCollapsed ? { width: 0, flexBasis: 0, maxWidth: 0, opacity: 0, pointerEvents: 'none' as const } : {}),
+                      overflow: 'hidden',
+                      transition: 'width 420ms var(--sc-ease-spring-soft), min-width 420ms var(--sc-ease-spring-soft), max-width 420ms var(--sc-ease-spring-soft), flex-basis 420ms var(--sc-ease-spring-soft), opacity 260ms ease',
+                    }
+                  : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
+              aria-hidden={isSidebarCollapsed || undefined}
+              inert={isSidebarCollapsed || undefined}
             >
               <Sidebar
                 user={user}
@@ -564,7 +575,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
-              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
+              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} onInfoColumnChange={setIsInfoColumnOpen} />
             </Col>
           </Row>
         </Card>

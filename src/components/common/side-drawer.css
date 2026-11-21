@@ -146,8 +146,9 @@
 
 .sc-drawer--inline .sc-drawer__header {
   min-height: 0;
-  height: 58px;
-  padding: 0 12px 0 18px;
+  height: var(--sc-room-header-height, 77px);
+  padding: 0 16px 0 20px;
+  box-sizing: border-box;
 }
 
 .sc-drawer--inline .sc-drawer__icon-btn {

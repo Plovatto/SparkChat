@@ -7,6 +7,18 @@
   max-width: min(72%, 420px);
 }
 
+:root {
+  --sc-room-header-height: 77px;
+}
+
+@media (min-width: 870px) {
+  .chat-header-bar {
+    box-sizing: border-box;
+    height: var(--sc-room-header-height);
+    padding-block: 0;
+  }
+}
+
 .chat-message-row {
   width: 100%;
   display: flex;
