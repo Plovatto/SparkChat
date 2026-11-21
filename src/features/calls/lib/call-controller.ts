@@ -126,6 +126,8 @@ export interface PeerSessionLike {
   setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
   getStats: () => Promise<RTCStatsReport>;
+  isIceHealthy: () => boolean;
+  dropRelayCredentials: () => void;
   close: () => void;
 }
 
@@ -1597,6 +1599,7 @@ export class CallController {
       onDegrade: (step) => this.handleDegrade(session, step),
       onRestart: (reason) => {
         if (this.session === session) {
+          session.relay = RELAY_UNKNOWN;
           this.update({ restartCount: this.snapshot.restartCount + 1, lastRestartReason: reason });
         }
       },
@@ -1648,9 +1651,23 @@ export class CallController {
   }
 
   private sendHeartbeat(callId: string): void {
-    if (this.deps.socket.connected !== false) {
-      this.deps.socket.emit('call:heartbeat', { callId });
+    if (this.deps.socket.connected === false) {
+      return;
     }
+    const relayed = this.reportableRoute(callId);
+    this.deps.socket.emit('call:heartbeat', relayed === null ? { callId } : { callId, relayed });
+    if (relayed === false) {
+      this.session?.peerSession?.dropRelayCredentials();
+    }
+  }
+
+  private reportableRoute(callId: string): boolean | null {
+    const session = this.session;
+    const peer = session?.peerSession;
+    if (!session || !peer || session.callId !== callId || this.machine.getState().phase !== 'active' || !peer.isIceHealthy()) {
+      return null;
+    }
+    return session.relay.pending === null ? session.relay.relayed : null;
   }
 
   private resumeFromBackground(): void {
@@ -1689,6 +1706,9 @@ export class CallController {
           session.statsSample = reading.sample;
           const wasRelayed = session.relay.relayed;
           session.relay = nextRelay(session.relay, selectedPairRelayed(report));
+          if (session.relay.relayed !== null && session.relay.relayed !== wasRelayed && this.heartbeat !== null && this.session === session) {
+            this.sendHeartbeat(session.callId);
+          }
           if (wasRelayed !== null && wasRelayed !== session.relay.relayed && session.screen && this.snapshot.movieMode) {
             void peer.setMovieMode(true);
           }
