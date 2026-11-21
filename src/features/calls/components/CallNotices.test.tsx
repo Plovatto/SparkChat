@@ -48,3 +48,40 @@ describe('CallNotices screen paused toast', () => {
     expect(stopped.container.textContent).toBe('');
   });
 });
+
+describe('CallNotices call on another device', () => {
+  const otherDevice = { callId: 'c1', peerId: 'p1', kind: 'voice' as const, roomId: 'r1', role: 'callee' as const, answeredAt: null };
+
+  function renderOtherDevice(transferring = false) {
+    const transferHere = vi.fn();
+    const endOtherDeviceCall = vi.fn();
+    const api = { snapshot: { ...EMPTY_CALL_SNAPSHOT, otherDevice, transferring }, minimized: false, dismissNotice: vi.fn(), transferHere, endOtherDeviceCall } as unknown as CallApi;
+    render(
+      <CallContext value={api}>
+        <CallNotices />
+      </CallContext>,
+    );
+    return { transferHere, endOtherDeviceCall };
+  }
+
+  it('stacks the message above its actions in the responsive notice layout', () => {
+    renderOtherDevice();
+    const notice = screen.getByRole('status');
+    expect(notice.className).toBe('sc-call-device-notice');
+    expect(notice.querySelector('.sc-call-device-notice__text')?.textContent).toBe('calls.otherDevicecalls.otherDeviceHint');
+    expect(notice.querySelectorAll('.sc-call-device-notice__actions button')).toHaveLength(2);
+  });
+
+  it('switches the call here or ends it from the buttons', () => {
+    const { transferHere, endOtherDeviceCall } = renderOtherDevice();
+    screen.getByRole('button', { name: 'calls.transferHere' }).click();
+    screen.getByRole('button', { name: 'calls.otherDeviceEnd' }).click();
+    expect(transferHere).toHaveBeenCalledTimes(1);
+    expect(endOtherDeviceCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables switching while a transfer is in progress', () => {
+    renderOtherDevice(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'calls.transferHere' }).disabled).toBe(true);
+  });
+});

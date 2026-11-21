@@ -60,13 +60,13 @@ export function CallNotices() {
 
   if (call.snapshot.otherDevice && state.phase === 'idle') {
     return (
-      <div role="status" style={{ ...bar, background: theme.surfaceElevated, color: theme.textPrimary, display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ minWidth: 0 }}>
+      <div role="status" className="sc-call-device-notice" style={{ background: theme.surfaceElevated, color: theme.textPrimary, boxShadow: theme.shadowMd }}>
+        <div className="sc-call-device-notice__text">
           <strong>{t('calls.otherDevice')}</strong>
           <div style={{ color: theme.textSecondary }}>{t('calls.otherDeviceHint')}</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <button type="button" className="sc-btn sc-btn--primary" onClick={call.transferHere} disabled={call.snapshot.transferring} style={{ whiteSpace: 'nowrap' }}>
+        <div className="sc-call-device-notice__actions">
+          <button type="button" className="sc-btn sc-btn--primary sc-call-device-notice__primary" onClick={call.transferHere} disabled={call.snapshot.transferring}>
             {t('calls.transferHere')}
           </button>
           <button type="button" className="sc-btn sc-btn--text-danger" onClick={call.endOtherDeviceCall}>
