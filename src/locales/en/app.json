@@ -453,7 +453,15 @@
       "sentGif": "Sent GIF",
       "gifExpired": "GIF expired",
       "gifExpiredHint": "GIFs stay available for 30 days.",
-      "fromRemovedMember": "🔒 Message from a former member, not shown."
+      "fromRemovedMember": "🔒 Message from a former member, not shown.",
+      "copyText": "Copy text",
+      "translate": "Translate",
+      "deleteAction": "Delete",
+      "actions": "Message actions",
+      "react": "React",
+      "more": "More options",
+      "album": "Album with {{count}} items",
+      "albumMore": "See {{count}} more items"
     },
     "fileTypes": {
       "pdf": "PDF",

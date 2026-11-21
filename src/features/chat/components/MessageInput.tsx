@@ -11,7 +11,8 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { FaLink, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { LuMic, LuPaperclip } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
@@ -23,6 +24,7 @@ import { useLinkPreview, type LinkPreviewStatus } from '../hooks/useLinkPreview'
 import type { ComposerLinkPreview } from '../utils/composer-link-preview';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { PendingAttachmentTile } from './PendingAttachmentTile';
+import '../styles/composer.css';
 
 export interface MessageInputHandle {
   focus: () => void;
@@ -549,18 +551,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
-      <form
-        onSubmit={handleSubmit}
-        className="chat-input-bar"
-        style={{
-          background: theme.surface,
-          boxShadow: theme.shadowSm,
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          borderTop: `1px solid ${theme.border}`,
-        }}
-      >
+      <form onSubmit={handleSubmit} className="chat-input-bar sc-composer">
         <input
           type="file"
           ref={attachmentInputRef}
@@ -569,38 +560,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           multiple
           style={{ display: 'none' }}
         />
-        {!message.trim() && (
-          <>
-            <button
-              type="button"
-              onClick={() => attachmentInputRef.current?.click()}
-              disabled={isBlocked}
-              title={blockedTitle ?? t('chat.input.attach')}
-              className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
-              style={{ width: '44px', height: '44px' }}
-            >
-              <FaPaperclip size={18} />
-            </button>
-            <GifButton
-              ref={gifButtonRef}
-              enabled={isGifEnabled}
-              isOpen={isGifPanelOpen}
-              disabled={isBlocked}
-              onToggle={() => setIsGifPanelOpen((open) => !open)}
-            />
-            <button
-              type="button"
-              onClick={() => void handleMicClick()}
-              disabled={isBlocked}
-              title={blockedTitle ?? t('chat.input.record')}
-              className="sc-icon-btn sc-icon-btn--muted sc-anim-pop-in"
-              style={{ width: '44px', height: '44px' }}
-            >
-              <FaMicrophone size={18} />
-            </button>
-          </>
-        )}
-        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+        <div className="sc-composer-pill" data-disabled={isBlocked || undefined}>
           {isMentionListOpen && (
             <div
               className="sc-anim-rise-in"
@@ -666,17 +626,43 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')
             }
             autoFocus={shouldAutoFocus}
-            className="sc-input sc-input--composer"
+            className="sc-composer-input"
           />
-        </div>
-        {(message.trim() || pendingAttachments.length > 0) && (
+          {!message.trim() && (
+            <GifButton
+              ref={gifButtonRef}
+              enabled={isGifEnabled}
+              isOpen={isGifPanelOpen}
+              disabled={isBlocked}
+              onToggle={() => setIsGifPanelOpen((open) => !open)}
+            />
+          )}
           <button
-            type="submit"
-            title={t('chat.input.send')}
-            className="sc-icon-btn sc-icon-btn--gradient sc-anim-send-in"
-            style={{ width: '44px', height: '44px', fontSize: '1rem' }}
+            type="button"
+            onClick={() => attachmentInputRef.current?.click()}
+            disabled={isBlocked}
+            title={blockedTitle ?? t('chat.input.attach')}
+            aria-label={t('chat.input.attach')}
+            className="sc-composer-icon"
           >
-            <FaPaperPlane />
+            <LuPaperclip size={19} />
+          </button>
+        </div>
+        {message.trim() || pendingAttachments.length > 0 ? (
+          <button key="send" type="submit" title={t('chat.input.send')} aria-label={t('chat.input.send')} className="sc-composer-action sc-anim-send-in">
+            <FaPaperPlane size={16} />
+          </button>
+        ) : (
+          <button
+            key="mic"
+            type="button"
+            onClick={() => void handleMicClick()}
+            disabled={isBlocked}
+            title={blockedTitle ?? t('chat.input.record')}
+            aria-label={t('chat.input.record')}
+            className="sc-composer-action sc-anim-pop-in"
+          >
+            <LuMic size={20} />
           </button>
         )}
       </form>

@@ -12,9 +12,10 @@ const VIDEO_FALLBACK_HEIGHT = fitAttachmentHeight(16, 9);
 
 interface VideoMessageContentProps {
   message: ChatMessage;
+  flush?: boolean;
 }
 
-export function VideoMessageContent({ message }: VideoMessageContentProps) {
+export function VideoMessageContent({ message, flush = false }: VideoMessageContentProps) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<VideoThumbnail | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -35,7 +36,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
   }, [message.content]);
 
   return (
-    <div style={{ padding: '0 10px' }}>
+    <div style={{ padding: flush ? 0 : '0 10px' }}>
       <div
         onClick={(event) => event.stopPropagation()}
         style={{
@@ -43,7 +44,7 @@ export function VideoMessageContent({ message }: VideoMessageContentProps) {
           width: `${CHAT_ATTACHMENT_MAX_WIDTH}px`,
           maxWidth: '100%',
           height: thumbnail ? fitAttachmentHeight(thumbnail.width, thumbnail.height) : VIDEO_FALLBACK_HEIGHT,
-          borderRadius: '16px',
+          borderRadius: flush ? 0 : '16px',
           background: '#000000',
           overflow: 'hidden',
         }}

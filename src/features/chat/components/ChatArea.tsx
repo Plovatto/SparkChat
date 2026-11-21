@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { Spinner } from '@components/common/Spinner';
+import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
 import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
+import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translateError } from '@lib/api/api-error';
 import { MissingRoomKeyError } from '@lib/e2ee';
 import { formatDayLabel, resolveActiveUserNames } from '@lib/format';
@@ -15,7 +17,6 @@ import { oppositeLanguage } from '@lib/i18n/language';
 import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
-import { isGifMimeType } from '@lib/media/media-type';
 import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
@@ -28,6 +29,7 @@ import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestio
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
+import { buildRenderItems, canDeleteMessage, canJoinRun, renderItemAnchorMessage, renderItemFirstMessage, renderItemKey, type ImageGroup, type RenderItem } from '../utils/render-items';
 import type { CurrentAudioRef } from './AudioMessageContent';
 import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
@@ -92,74 +94,6 @@ function applyStuckDateHeaderOpacity(container: HTMLDivElement, stuckKeys: Set<s
   });
 }
 
-type ImageGroup = [ChatMessage, ChatMessage, ...ChatMessage[]];
-type RenderItem = { kind: 'single'; message: ChatMessage } | { kind: 'image-group'; messages: ImageGroup };
-
-function isImageGroup(messages: ChatMessage[]): messages is ImageGroup {
-  return messages.length >= 2;
-}
-
-function isSameMessageList(left: ChatMessage[], right: ChatMessage[]): boolean {
-  return left.length === right.length && left.every((message, index) => message === right[index]);
-}
-
-function buildRenderItems(messages: ChatMessage[], previousGroups: Map<string, ImageGroup>): RenderItem[] {
-  const items: RenderItem[] = [];
-  let buffer: ChatMessage[] = [];
-
-  const flushBuffer = () => {
-    const [first] = buffer;
-    if (!first) {
-      return;
-    }
-    if (isImageGroup(buffer)) {
-      const previous = previousGroups.get(first.id);
-      items.push({ kind: 'image-group', messages: previous && isSameMessageList(previous, buffer) ? previous : buffer });
-    } else {
-      items.push({ kind: 'single', message: first });
-    }
-    buffer = [];
-  };
-
-  for (const message of messages) {
-    const isGroupable =
-      message.type === 'image' &&
-      !message.deletedForEveryone &&
-      !message.pending &&
-      !message.failed &&
-      !message.caption &&
-      !isGifMimeType(message.fileMeta?.mimeType);
-    const bufferTail = buffer[buffer.length - 1];
-
-    if (isGroupable && (!bufferTail || (bufferTail.sender.id === message.sender.id && isSameDay(new Date(bufferTail.timestamp), new Date(message.timestamp))))) {
-      buffer.push(message);
-      continue;
-    }
-
-    flushBuffer();
-
-    if (isGroupable) {
-      buffer.push(message);
-    } else {
-      items.push({ kind: 'single', message });
-    }
-  }
-  flushBuffer();
-
-  return items;
-}
-
-function renderItemFirstMessage(item: RenderItem): ChatMessage {
-  return item.kind === 'single' ? item.message : item.messages[0];
-}
-
-function renderItemAnchorMessage(item: RenderItem): ChatMessage {
-  return item.kind === 'single' ? item.message : (item.messages[item.messages.length - 1] ?? item.messages[0]);
-}
-
-function renderItemKey(item: RenderItem): string {
-  return item.kind === 'single' ? item.message.id : `group-${item.messages[0].id}`;
-}
 
 interface DayGroup {
   timestamp: string;
@@ -388,6 +322,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const messageInputRef = useRef<MessageInputHandle>(null);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const isInfoInline = useMediaQuery(minWidthQuery(INFO_COLUMN_MIN_WIDTH_PX));
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
@@ -1007,12 +942,363 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const replyPreviewMessage = repliedMessage ?? lastRepliedMessageRef.current;
 
   const content = (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: theme.canvas }}>
-      <ChatHeader key={room.id} room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
-      <CallStatusBar />
-      <ContactKeyBanner key={`${room.id}-key-trust`} room={room} currentUserId={user.id} />
+    <div className="chat-area-layout" style={{ height: '100%', display: 'flex', background: theme.canvas, overflow: 'hidden' }}>
+      <div className="chat-area-column" style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <ChatHeader key={room.id} room={room} currentUserId={user.id} onBack={onBack} onOpenInfo={() => setIsInfoOpen(true)} />
+        <CallStatusBar />
+        <ContactKeyBanner key={`${room.id}-key-trust`} room={room} currentUserId={user.id} />
+
+        <div aria-live="polite" className="sc-sr-only">
+          {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
+        </div>
+        {showTranslationSuggestion && (
+          <AutoTranslateBanner
+            language={oppositeLanguage(appLanguage)}
+            onAccept={() => {
+              changeAutoTranslate(room.id, true);
+              dismissSuggestion(room.id);
+            }}
+            onDismiss={() => dismissSuggestion(room.id)}
+          />
+        )}
+
+        <div
+          style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+          {isDraggingFile && (
+            <div
+              className="sc-drop-zone sc-anim-fade-in"
+              style={{
+                position: 'absolute',
+                inset: '8px',
+                zIndex: 20,
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+              }}
+            >
+              <div
+                className="sc-anim-pop-in"
+                style={{
+                  background: theme.surfaceElevated,
+                  color: theme.accentText,
+                  padding: '14px 22px',
+                  borderRadius: '12px',
+                  fontWeight: 700,
+                  fontSize: '0.95rem',
+                  boxShadow: theme.shadowMd,
+                  border: `1px solid ${theme.accent}`,
+                }}
+              >
+                {t('chat.dropFile')}
+              </div>
+            </div>
+          )}
+          {showOverlay && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: `rgba(0, 0, 0, ${appearance.overlayOpacity / 100})`,
+                backdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
+                WebkitBackdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
+              }}
+            />
+          )}
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleMessagesScroll}
+            onWheel={markUserScrolled}
+            onTouchMove={markUserScrolled}
+            onPointerDown={markUserScrolled}
+            onKeyDown={markUserScrolled}
+            data-chat-messages
+            className="chat-messages-scroll"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
+            <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+              {!areMessagesLoaded ? (
+                <MessageListSkeleton />
+              ) : messages.length === 0 ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '300px',
+                    color: theme.textSecondary,
+                    fontSize: '1.1rem',
+                    fontWeight: 500,
+                    gap: '12px',
+                  }}
+                >
+                  <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
+                  <div className="sc-anim-rise-in sc-stagger" style={{ '--sc-stagger-index': 1 } as CSSProperties}>
+                    {t('chat.noMessages')}
+                  </div>
+                  <div
+                    className="sc-anim-rise-in sc-stagger"
+                    style={{ fontSize: '0.9rem', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
+                  >
+                    {t('chat.startConversation')}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {isLoadingOlder && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
+                      <Spinner size={20} />
+                    </div>
+                  )}
+                  {dayGroups.map((group) => {
+                    const dayKey = `day-${renderItemKey(group.items[0])}`;
+
+                    return (
+                      <div key={dayKey} style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div data-day-sentinel={dayKey} style={{ height: 0 }} />
+                        <div
+                          style={{
+                            position: 'sticky',
+                            top: `${STICKY_DATE_TOP_PX}px`,
+                            zIndex: 5,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            margin: '15px 0',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <span
+                            data-day-sticky
+                            data-day-key={dayKey}
+                            style={{ ...DATE_CHIP_STYLE, background: theme.dateChip, color: theme.dateChipText, boxShadow: theme.shadowSm }}
+                          >
+                            {formatDayLabel(group.timestamp)}
+                          </span>
+                        </div>
+
+                        {group.items.map((item, itemIndex) => {
+                          const anchorMessage = renderItemAnchorMessage(item);
+                          const isOwn = anchorMessage.sender.id === user.id;
+                          const previousItem = group.items[itemIndex - 1];
+                          const nextItem = group.items[itemIndex + 1];
+                          const run = {
+                            isFirstInRun: !previousItem || !canJoinRun(renderItemAnchorMessage(previousItem), renderItemFirstMessage(item)),
+                            isLastInRun: !nextItem || !canJoinRun(anchorMessage, renderItemFirstMessage(nextItem)),
+                          };
+                          const itemKey = renderItemKey(item);
+                          const entrancePhase = getEntrancePhase();
+                          const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
+
+                          return (
+                            <div
+                            key={itemKey}
+                            className="chat-message-row"
+                            data-run-start={run.isFirstInRun}
+                            style={{ justifyContent: isOwn ? 'flex-end' : 'flex-start' }}
+                          >
+                              {item.kind === 'single' ? (
+                                <MessageBubble
+                                  message={item.message}
+                                  isOwn={isOwn}
+                                  isGroupChat={isGroupChat}
+                                  roomId={room.id}
+                                  isAssistantRoom={isAssistantRoom(room)}
+                                  participants={room.participants}
+                                  currentUserId={user.id}
+                                  currentNickname={user.nickname}
+                                  isSelected={selectedMessageId === item.message.id}
+                                  currentAudioRef={currentAudioRef}
+                                  receipt={visibleReceipts.get(itemKey) ?? null}
+                                  onSelect={toggleSelectedMessage}
+                                  onOpenActions={openMessageActions}
+                                  onReply={handleReply}
+                                  onDelete={handleDeleteRequest}
+                                  onForward={handleForward}
+                                  onAudioPlayed={handleAudioPlayed}
+                                  onRetry={retryMessage}
+                                  entrancePhase={entrancePhase}
+                                  entranceIndex={entranceIndex}
+                                  run={run}
+                                  canDelete={canDeleteMessage(isOwn)}
+                                />
+                              ) : (
+                                <ImageGroupBubble
+                                  images={item.messages}
+                                  isOwn={isOwn}
+                                  isGroupChat={isGroupChat}
+                                  roomId={room.id}
+                                  participants={room.participants}
+                                  currentUserId={user.id}
+                                  isSelected={selectedMessageId === anchorMessage.id}
+                                  receipt={visibleReceipts.get(itemKey) ?? null}
+                                  onSelect={toggleSelectedMessage}
+                                  onOpenActions={openMessageActions}
+                                  onReply={handleReply}
+                                  onDelete={handleDeleteRequest}
+                                  onForward={handleForward}
+                                  onRetry={retryMessage}
+                                  entrancePhase={entrancePhase}
+                                  entranceIndex={entranceIndex}
+                                  run={run}
+                                  canDelete={canDeleteMessage(isOwn)}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {recordingText && (
+                <ChatStatusPill
+                  indicator={
+                    <div
+                      className="sc-anim-blink"
+                      style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '100%',
+                        background: theme.accent,
+                        flexShrink: 0,
+                      }}
+                    />
+                  }
+                  text={recordingText}
+                  italicWeight={500}
+                />
+              )}
+
+              {typingText && (
+                <ChatStatusPill
+                  indicator={
+                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                      {[0, 1, 2].map((index) => (
+                        <span
+                          key={index}
+                          className="sc-anim-typing-dot"
+                          style={
+                            {
+                              width: '8px',
+                              height: '8px',
+                              background: theme.accent,
+                              borderRadius: '50%',
+                              '--sc-anim-delay': `${index * 150}ms`,
+                            } as CSSProperties
+                          }
+                        />
+                      ))}
+                    </div>
+                  }
+                  text={typingText}
+                />
+              )}
+
+              {uploadingMediaType && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <ChatStatusPill indicator={<Spinner size={16} />} text={t(`chat.uploading.${uploadingMediaType}`)} maxWidth="220px" />
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                isAtBottomRef.current = true;
+                setIsAtBottom(true);
+                scrollToBottom('smooth');
+              }}
+              title={t('chat.scrollToLatest')}
+              aria-hidden={isAtBottom}
+              tabIndex={isAtBottom ? -1 : 0}
+              className="sc-icon-btn sc-icon-btn--surface"
+              style={{
+                position: 'fixed',
+                top: scrollButtonPosition?.top ?? 0,
+                left: scrollButtonPosition?.left ?? 0,
+                visibility: scrollButtonPosition ? 'visible' : 'hidden',
+                width: '42px',
+                height: '42px',
+                border: `1px solid ${theme.border}`,
+                zIndex: 5,
+                opacity: isAtBottom ? 0 : 1,
+                transform: isAtBottom ? 'translateY(10px) scale(0.7)' : undefined,
+                pointerEvents: isAtBottom ? 'none' : 'auto',
+              }}
+            >
+              <FaArrowDown size={16} />
+            </button>
+          </div>
+        </div>
+
+        {room.userBlocked && (
+          <BlockedBanner tone="warning" icon={<FaBan size={16} />} text={t('chat.youBlocked')} />
+        )}
+
+        {room.isBlockedBy && (
+          <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text={t('chat.blockedYou')} />
+        )}
+
+        {replyPresence.isPresent && replyPreviewMessage && (
+          <ReplyPreviewBar
+            key={replyPreviewMessage.id}
+            message={replyPreviewMessage}
+            currentUserId={user.id}
+            isExiting={replyPresence.isExiting}
+            onCancel={() => setRepliedMessage(null)}
+          />
+        )}
+
+        <MessageInput
+          key={`input-${room.id}`}
+          ref={messageInputRef}
+          onSend={handleSend}
+          onSendAudio={(payload) => void handleSendAudio(payload)}
+          onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
+          onTyping={handleComposerTyping}
+          onRecordingStart={handleRecordingStart}
+          onRecordingStop={handleRecordingStop}
+          isBlockedBy={room.isBlockedBy}
+          userBlocked={room.userBlocked}
+          mentionCandidates={mentionCandidates}
+          maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+          auth={auth}
+        />
+
+        <ConfirmDialog
+          isOpen={messageIdsPendingDelete !== null}
+          title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
+          message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
+          onConfirm={confirmDeleteMessage}
+          onCancel={() => setMessageIdsPendingDelete(null)}
+        />
+
+        <ForwardMessageModal
+          isOpen={forwardingMessages !== null}
+          onClose={() => setForwardingMessages(null)}
+          rooms={rooms}
+          currentUserId={user.id}
+          messages={forwardingMessages ?? []}
+          auth={auth}
+        />
+      </div>
       <RoomInfoPanel
         isOpen={isInfoOpen}
+        inline={isInfoInline}
         onClose={() => setIsInfoOpen(false)}
         room={room}
         currentUserId={user.id}
@@ -1030,339 +1316,6 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                 },
               }
         }
-      />
-
-      <div aria-live="polite" className="sc-sr-only">
-        {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
-      </div>
-      {showTranslationSuggestion && (
-        <AutoTranslateBanner
-          language={oppositeLanguage(appLanguage)}
-          onAccept={() => {
-            changeAutoTranslate(room.id, true);
-            dismissSuggestion(room.id);
-          }}
-          onDismiss={() => dismissSuggestion(room.id)}
-        />
-      )}
-
-      <div
-        style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
-        {isDraggingFile && (
-          <div
-            className="sc-drop-zone sc-anim-fade-in"
-            style={{
-              position: 'absolute',
-              inset: '8px',
-              zIndex: 20,
-              borderRadius: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-            }}
-          >
-            <div
-              className="sc-anim-pop-in"
-              style={{
-                background: theme.surfaceElevated,
-                color: theme.accentText,
-                padding: '14px 22px',
-                borderRadius: '12px',
-                fontWeight: 700,
-                fontSize: '0.95rem',
-                boxShadow: theme.shadowMd,
-                border: `1px solid ${theme.accent}`,
-              }}
-            >
-              {t('chat.dropFile')}
-            </div>
-          </div>
-        )}
-        {showOverlay && (
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: `rgba(0, 0, 0, ${appearance.overlayOpacity / 100})`,
-              backdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
-              WebkitBackdropFilter: appearance.overlayBlur > 0 ? `blur(${appearance.overlayBlur}px)` : undefined,
-            }}
-          />
-        )}
-        <div
-          ref={scrollContainerRef}
-          onScroll={handleMessagesScroll}
-          onWheel={markUserScrolled}
-          onTouchMove={markUserScrolled}
-          onPointerDown={markUserScrolled}
-          onKeyDown={markUserScrolled}
-          data-chat-messages
-          className="chat-messages-scroll"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px',
-          }}
-        >
-          <div ref={contentWrapperRef} style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
-            {!areMessagesLoaded ? (
-              <MessageListSkeleton />
-            ) : messages.length === 0 ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '300px',
-                  color: theme.textSecondary,
-                  fontSize: '1.1rem',
-                  fontWeight: 500,
-                  gap: '12px',
-                }}
-              >
-                <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
-                <div className="sc-anim-rise-in sc-stagger" style={{ '--sc-stagger-index': 1 } as CSSProperties}>
-                  {t('chat.noMessages')}
-                </div>
-                <div
-                  className="sc-anim-rise-in sc-stagger"
-                  style={{ fontSize: '0.9rem', color: theme.textMuted, '--sc-stagger-index': 2 } as CSSProperties}
-                >
-                  {t('chat.startConversation')}
-                </div>
-              </div>
-            ) : (
-              <>
-                {isLoadingOlder && (
-                  <div style={{ display: 'flex', justifyContent: 'center', padding: '6px 0 2px' }}>
-                    <Spinner size={20} />
-                  </div>
-                )}
-                {dayGroups.map((group) => {
-                  const dayKey = `day-${renderItemKey(group.items[0])}`;
-
-                  return (
-                    <div key={dayKey} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div data-day-sentinel={dayKey} style={{ height: 0 }} />
-                      <div
-                        style={{
-                          position: 'sticky',
-                          top: `${STICKY_DATE_TOP_PX}px`,
-                          zIndex: 5,
-                          display: 'flex',
-                          justifyContent: 'center',
-                          margin: '15px 0',
-                          pointerEvents: 'none',
-                        }}
-                      >
-                        <span
-                          data-day-sticky
-                          data-day-key={dayKey}
-                          style={{ ...DATE_CHIP_STYLE, background: theme.dateChip, color: theme.dateChipText, boxShadow: theme.shadowSm }}
-                        >
-                          {formatDayLabel(group.timestamp)}
-                        </span>
-                      </div>
-
-                      {group.items.map((item) => {
-                        const anchorMessage = renderItemAnchorMessage(item);
-                        const isOwn = anchorMessage.sender.id === user.id;
-                        const itemKey = renderItemKey(item);
-                        const entrancePhase = getEntrancePhase();
-                        const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
-
-                        return (
-                          <div key={itemKey} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
-                            {item.kind === 'single' ? (
-                              <MessageBubble
-                                message={item.message}
-                                isOwn={isOwn}
-                                isGroupChat={isGroupChat}
-                                roomId={room.id}
-                                isAssistantRoom={isAssistantRoom(room)}
-                                participants={room.participants}
-                                currentUserId={user.id}
-                                currentNickname={user.nickname}
-                                isSelected={selectedMessageId === item.message.id}
-                                currentAudioRef={currentAudioRef}
-                                receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={toggleSelectedMessage}
-                                onOpenActions={openMessageActions}
-                                onReply={handleReply}
-                                onDelete={handleDeleteRequest}
-                                onForward={handleForward}
-                                onAudioPlayed={handleAudioPlayed}
-                                onRetry={retryMessage}
-                                entrancePhase={entrancePhase}
-                                entranceIndex={entranceIndex}
-                              />
-                            ) : (
-                              <ImageGroupBubble
-                                images={item.messages}
-                                isOwn={isOwn}
-                                isGroupChat={isGroupChat}
-                                roomId={room.id}
-                                participants={room.participants}
-                                currentUserId={user.id}
-                                isSelected={selectedMessageId === anchorMessage.id}
-                                receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={toggleSelectedMessage}
-                                onOpenActions={openMessageActions}
-                                onReply={handleReply}
-                                onDelete={handleDeleteRequest}
-                                onForward={handleForward}
-                                onRetry={retryMessage}
-                                entrancePhase={entrancePhase}
-                                entranceIndex={entranceIndex}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </>
-            )}
-
-            {recordingText && (
-              <ChatStatusPill
-                indicator={
-                  <div
-                    className="sc-anim-blink"
-                    style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '100%',
-                      background: theme.accent,
-                      flexShrink: 0,
-                    }}
-                  />
-                }
-                text={recordingText}
-                italicWeight={500}
-              />
-            )}
-
-            {typingText && (
-              <ChatStatusPill
-                indicator={
-                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                    {[0, 1, 2].map((index) => (
-                      <span
-                        key={index}
-                        className="sc-anim-typing-dot"
-                        style={
-                          {
-                            width: '8px',
-                            height: '8px',
-                            background: theme.accent,
-                            borderRadius: '50%',
-                            '--sc-anim-delay': `${index * 150}ms`,
-                          } as CSSProperties
-                        }
-                      />
-                    ))}
-                  </div>
-                }
-                text={typingText}
-              />
-            )}
-
-            {uploadingMediaType && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <ChatStatusPill indicator={<Spinner size={16} />} text={t(`chat.uploading.${uploadingMediaType}`)} maxWidth="220px" />
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => {
-              isAtBottomRef.current = true;
-              setIsAtBottom(true);
-              scrollToBottom('smooth');
-            }}
-            title={t('chat.scrollToLatest')}
-            aria-hidden={isAtBottom}
-            tabIndex={isAtBottom ? -1 : 0}
-            className="sc-icon-btn sc-icon-btn--surface"
-            style={{
-              position: 'fixed',
-              top: scrollButtonPosition?.top ?? 0,
-              left: scrollButtonPosition?.left ?? 0,
-              visibility: scrollButtonPosition ? 'visible' : 'hidden',
-              width: '42px',
-              height: '42px',
-              border: `1px solid ${theme.border}`,
-              zIndex: 5,
-              opacity: isAtBottom ? 0 : 1,
-              transform: isAtBottom ? 'translateY(10px) scale(0.7)' : undefined,
-              pointerEvents: isAtBottom ? 'none' : 'auto',
-            }}
-          >
-            <FaArrowDown size={16} />
-          </button>
-        </div>
-      </div>
-
-      {room.userBlocked && (
-        <BlockedBanner tone="warning" icon={<FaBan size={16} />} text={t('chat.youBlocked')} />
-      )}
-
-      {room.isBlockedBy && (
-        <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text={t('chat.blockedYou')} />
-      )}
-
-      {replyPresence.isPresent && replyPreviewMessage && (
-        <ReplyPreviewBar
-          key={replyPreviewMessage.id}
-          message={replyPreviewMessage}
-          currentUserId={user.id}
-          isExiting={replyPresence.isExiting}
-          onCancel={() => setRepliedMessage(null)}
-        />
-      )}
-
-      <MessageInput
-        key={`input-${room.id}`}
-        ref={messageInputRef}
-        onSend={handleSend}
-        onSendAudio={(payload) => void handleSendAudio(payload)}
-        onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
-        onTyping={handleComposerTyping}
-        onRecordingStart={handleRecordingStart}
-        onRecordingStop={handleRecordingStop}
-        isBlockedBy={room.isBlockedBy}
-        userBlocked={room.userBlocked}
-        mentionCandidates={mentionCandidates}
-        maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
-        auth={auth}
-      />
-
-      <ConfirmDialog
-        isOpen={messageIdsPendingDelete !== null}
-        title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
-        message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
-        onConfirm={confirmDeleteMessage}
-        onCancel={() => setMessageIdsPendingDelete(null)}
-      />
-
-      <ForwardMessageModal
-        isOpen={forwardingMessages !== null}
-        onClose={() => setForwardingMessages(null)}
-        rooms={rooms}
-        currentUserId={user.id}
-        messages={forwardingMessages ?? []}
-        auth={auth}
       />
     </div>
   );
