@@ -4,6 +4,7 @@
   left: 50%;
   translate: -50% 0;
   width: min(380px, calc(100vw - 32px));
+  max-height: min(620px, calc(100dvh - 150px));
   display: flex;
   flex-direction: column;
   background: var(--sc-surface-elevated);
@@ -86,6 +87,8 @@
 }
 
 .sc-call-panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 20px 20px;
@@ -388,6 +391,16 @@
   }
   to {
     transform: translateY(100%);
+  }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .sc-call-panel {
+    max-height: calc(100dvh - 96px);
+  }
+
+  .sc-call-panel__head {
+    padding: 12px 14px 8px 18px;
   }
 }
 

@@ -43,7 +43,7 @@
   pointer-events: auto;
   border-radius: 18px;
   color: var(--sc-text-primary);
-  background: color-mix(in srgb, var(--sc-surface-elevated) 88%, transparent);
+  background: color-mix(in srgb, var(--sc-surface-elevated) 96%, transparent);
   -webkit-backdrop-filter: blur(16px) saturate(1.2);
   backdrop-filter: blur(16px) saturate(1.2);
   border: 1px solid color-mix(in srgb, var(--sc-text-primary) 10%, transparent);

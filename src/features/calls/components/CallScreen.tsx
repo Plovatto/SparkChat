@@ -335,19 +335,28 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
   const selfMedia = snapshot.cameraOn ? (
     <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" />
   ) : (
-    <Avatar
-      userId={me?.id ?? null}
-      avatarIndex={meAvatar}
-      icon={meAvatar === undefined ? LuUser : undefined}
-      size={112}
-      iconSize={48}
-      className="sc-call-avatar sc-call-avatar--self"
-      style={{ width: undefined, height: undefined }}
-    />
+    <span className="sc-call-person__halo">
+      <Avatar
+        userId={me?.id ?? null}
+        avatarIndex={meAvatar}
+        icon={meAvatar === undefined ? LuUser : undefined}
+        size={112}
+        iconSize={48}
+        className="sc-call-avatar sc-call-avatar--self"
+        style={{ width: undefined, height: undefined }}
+      />
+    </span>
+  );
+
+  const aura = (userId: string | null, avatarIndex: number | undefined, icon?: typeof LuUser) => (
+    <span className="sc-call-aura" aria-hidden="true">
+      <Avatar userId={userId} avatarIndex={avatarIndex} icon={icon} size={8} iconSize={1} className="sc-call-aura__fill" style={{ width: undefined, height: undefined }} />
+    </span>
   );
 
   const peerTile = (
     <div className={`sc-call-person${remoteSpeaking ? ' is-speaking' : ''}`} data-ringing={ringing} data-dim={reconnecting} style={{ '--tile-index': 0 } as CSSProperties}>
+      {aura(peer ? state.peerId : null, peer?.avatar)}
       <div className="sc-call-person__center">
         <span className="sc-call-person__halo">
           {ringing && (
@@ -387,6 +396,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
 
   const selfTile = (
     <div className={`sc-call-person sc-call-person--self${localSpeaking ? ' is-speaking' : ''}`} data-video={snapshot.cameraOn} style={{ '--tile-index': 1 } as CSSProperties}>
+      {!snapshot.cameraOn && aura(me?.id ?? null, meAvatar, meAvatar === undefined ? LuUser : undefined)}
       <div className="sc-call-person__center">{selfMedia}</div>
       {nameChip(t('calls.you'), snapshot.muted)}
     </div>
@@ -394,6 +404,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
 
   const endedCard = (
     <div className="sc-call-ended">
+      {aura(peer ? state.peerId : null, peer?.avatar)}
       <Avatar userId={peer ? state.peerId : null} avatarIndex={peer?.avatar} size={96} iconSize={44} className="sc-call-avatar sc-call-avatar--ended" style={{ width: undefined, height: undefined }} />
       <h2 className="sc-call-name">{peerName}</h2>
       <p className="sc-call-ended__title">{statusText}</p>

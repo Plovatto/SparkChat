@@ -510,6 +510,28 @@
   }
 }
 
+@media (max-height: 520px) and (orientation: landscape) {
+  .sc-stage-wrap {
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .sc-stage-tiles {
+    flex-direction: column;
+    justify-content: center;
+    width: clamp(120px, 24vw, 200px);
+    gap: 8px;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  .sc-call-tile {
+    width: 100%;
+    max-width: none;
+    flex: 0 0 auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sc-call-stage,
   .sc-stage-main,
