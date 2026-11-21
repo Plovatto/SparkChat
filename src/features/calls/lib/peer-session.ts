@@ -14,6 +14,7 @@ export const RESTART_RETRY_MS: readonly number[] = [3_000, 5_000, 8_000, 13_000,
 export const RELAY_PROBE_INTERVAL_MS = 60_000;
 export const KEEPALIVE_INTERVAL_MS = 5_000;
 export const MAX_RELAY_PROBES = 3;
+export const RELAY_PROBE_SLOW_INTERVAL_MS = 5 * 60_000;
 
 export function isRelayUrl(url: string): boolean {
   return /^turns?:/i.test(url);
@@ -474,6 +475,9 @@ export class PeerSession {
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private probePending = false;
   private probeFailures = 0;
+  private probeInterval = 0;
+  private relayCredentialsDropped = false;
+  private relayRefresh: Promise<void> | null = null;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -847,6 +851,13 @@ export class PeerSession {
     this.attempt += 1;
     this.options.onRestart?.(reason, relay);
     this.restartIce(first);
+    if (relay && this.relayCredentialsDropped) {
+      void this.refreshRelayCredentials().then(() => {
+        if (!this.closed && this.relayEnabled && !this.isIceHealthy()) {
+          this.restartIce(true);
+        }
+      });
+    }
     this.clearRetryTimer();
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
@@ -883,16 +894,18 @@ export class PeerSession {
       this.stopProbe();
       return;
     }
-    if (this.probeFailures >= MAX_RELAY_PROBES) {
-      this.stopProbe();
+    this.startProbeTimer(this.probeFailures >= MAX_RELAY_PROBES ? RELAY_PROBE_SLOW_INTERVAL_MS : RELAY_PROBE_INTERVAL_MS);
+  }
+
+  private startProbeTimer(interval: number): void {
+    if (this.probeTimer !== null && this.probeInterval === interval) {
       return;
     }
-    if (this.probeTimer !== null) {
-      return;
-    }
+    this.stopProbe();
+    this.probeInterval = interval;
     this.probeTimer = setInterval(() => {
       void this.probeTick();
-    }, RELAY_PROBE_INTERVAL_MS);
+    }, interval);
   }
 
   private async probeTick(): Promise<void> {
@@ -906,8 +919,7 @@ export class PeerSession {
         return;
       }
       if (this.probeFailures >= MAX_RELAY_PROBES) {
-        this.stopProbe();
-        return;
+        this.startProbeTimer(RELAY_PROBE_SLOW_INTERVAL_MS);
       }
     }
     if (this.closed || !this.isIceHealthy() || this.retryTimer !== null || this.options.canProbeDirect?.() === false) {
@@ -1313,19 +1325,45 @@ export class PeerSession {
     }
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
+      if (this.relayCredentialsDropped) {
+        this.scheduleCredentialRefresh();
+        return;
+      }
       void refresh()
-        .then((result) => {
-          if (result && !this.closed) {
-            this.allServers = [...result.iceServers];
-            this.useServers(this.relayEnabled);
-            if (result.degrade !== undefined) {
-              void this.applyDegrade(result.degrade);
-            }
-          }
-        })
+        .then((result) => this.applyRefresh(result))
         .catch(() => undefined)
         .finally(() => this.scheduleCredentialRefresh());
     }, CREDENTIAL_REFRESH_MS);
+  }
+
+  dropRelayCredentials(): void {
+    this.relayCredentialsDropped = true;
+  }
+
+  private applyRefresh(result: IceRefresh | null): void {
+    if (!result || this.closed) {
+      return;
+    }
+    this.allServers = [...result.iceServers];
+    this.useServers(this.relayEnabled);
+    if (result.degrade !== undefined) {
+      void this.applyDegrade(result.degrade);
+    }
+  }
+
+  private refreshRelayCredentials(): Promise<void> {
+    const refresh = this.options.refreshIceServers;
+    if (!refresh) {
+      return Promise.resolve();
+    }
+    this.relayCredentialsDropped = false;
+    this.relayRefresh ??= refresh()
+      .then((result) => this.applyRefresh(result))
+      .catch(() => undefined)
+      .finally(() => {
+        this.relayRefresh = null;
+      });
+    return this.relayRefresh;
   }
 
   getStats(): Promise<RTCStatsReport> {

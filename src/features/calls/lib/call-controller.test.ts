@@ -147,6 +147,14 @@ class FakePeer implements PeerSessionLike {
   getStats(): Promise<RTCStatsReport> {
     return Promise.resolve(this.statsReport as unknown as RTCStatsReport);
   }
+  iceHealthy = true;
+  isIceHealthy(): boolean {
+    return this.iceHealthy;
+  }
+  dropped = 0;
+  dropRelayCredentials(): void {
+    this.dropped += 1;
+  }
   close(): void {
     this.closed = true;
   }
@@ -1465,6 +1473,90 @@ describe('relay indicator', () => {
     w.a.controller.hangup();
     await settle();
     expect(w.a.controller.getSnapshot().relayed).toBeNull();
+  });
+
+  it('reports the media route in the heartbeat and right away when it changes, so the server counts only relayed time', async () => {
+    const w = await world();
+    w.a.socket.connected = true;
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const callId = w.a.controller.getSnapshot().state.callId;
+    const stats = new Map<string, Record<string, unknown>>([
+      ['t', { type: 'transport', selectedCandidatePairId: 'p' }],
+      ['p', { type: 'candidate-pair', localCandidateId: 'l', remoteCandidateId: 'r' }],
+      ['l', { type: 'local-candidate', candidateType: 'host' }],
+      ['r', { type: 'remote-candidate', candidateType: 'srflx' }],
+    ]);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+
+    peer.statsReport = stats;
+    const before = w.a.socket.sent('call:heartbeat').length;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.socket.sent('call:heartbeat')).toHaveLength(before + 1);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+
+    stats.set('l', { type: 'local-candidate', candidateType: 'relay' });
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+  });
+
+  it('lets the peer drop its relay credentials only after a stable direct reading on a healthy connection', async () => {
+    const w = await world();
+    w.a.socket.connected = true;
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const callId = w.a.controller.getSnapshot().state.callId;
+    const stats = new Map<string, Record<string, unknown>>([
+      ['t', { type: 'transport', selectedCandidatePairId: 'p' }],
+      ['p', { type: 'candidate-pair', localCandidateId: 'l', remoteCandidateId: 'r' }],
+      ['l', { type: 'local-candidate', candidateType: 'relay' }],
+      ['r', { type: 'remote-candidate', candidateType: 'host' }],
+    ]);
+    peer.statsReport = stats;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+    expect(peer.dropped).toBe(0);
+
+    stats.set('l', { type: 'local-candidate', candidateType: 'host' });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+    expect(peer.dropped).toBe(1);
+
+    peer.iceHealthy = false;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+    expect(peer.dropped).toBe(1);
+  });
+
+  it('forgets the route on every ICE restart so a stale direct reading never drops the credentials a relay fallback needs', async () => {
+    const w = await world();
+    w.a.socket.connected = true;
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const callId = w.a.controller.getSnapshot().state.callId;
+    peer.statsReport = new Map<string, Record<string, unknown>>([
+      ['t', { type: 'transport', selectedCandidatePairId: 'p' }],
+      ['p', { type: 'candidate-pair', localCandidateId: 'l', remoteCandidateId: 'r' }],
+      ['l', { type: 'local-candidate', candidateType: 'host' }],
+      ['r', { type: 'remote-candidate', candidateType: 'host' }],
+    ]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const dropped = peer.dropped;
+
+    peer.options.onRestart('failed', true);
+    peer.statsReport = new Map();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+    expect(peer.dropped).toBe(dropped);
   });
 });
 

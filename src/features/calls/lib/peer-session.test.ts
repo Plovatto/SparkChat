@@ -8,6 +8,7 @@ import {
   KEEPALIVE_INTERVAL_MS,
   RELAY_PROBE_INTERVAL_MS,
   MAX_RELAY_PROBES,
+  RELAY_PROBE_SLOW_INTERVAL_MS,
   directServers,
   hasRelay,
   restartUsesRelay,
@@ -1024,6 +1025,60 @@ describe('credential refresh', () => {
     expect(h.connection.configuration.iceServers).toEqual(fresh);
   });
 
+  it('does not ask for relay credentials again while the server dropped them for a direct route', async () => {
+    const refresh = vi.fn().mockResolvedValue({ iceServers: [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }] });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    h.session.dropRelayCredentials();
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS * 3);
+
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('fetches fresh relay credentials before falling back to the relay once they were dropped', async () => {
+    const fresh = [{ urls: 'stun:stun.example:3478' }, { urls: 'turn:fresh.example:3478', username: 'n2', credential: 'k2' }];
+    const refresh = vi.fn().mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.session.dropRelayCredentials();
+    h.connection.setIce('failed');
+    await settle();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(JSON.stringify(h.connection.configuration.iceServers)).not.toContain('turn:');
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(h.connection.configuration.iceServers).toEqual(fresh);
+    const restartsAfterRefresh = h.connection.restartCalls;
+
+    h.connection.setIce('connected');
+    await settle();
+    h.connection.setIce('failed');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(h.connection.restartCalls).toBeGreaterThan(restartsAfterRefresh);
+  });
+
+  it('keeps the direct-only configuration when a recovery does not need the relay, even after the credentials were dropped', async () => {
+    const refresh = vi.fn().mockResolvedValue({ iceServers: [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }] });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.session.dropRelayCredentials();
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS);
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(JSON.stringify(h.connection.configuration.iceServers)).not.toContain('turn:');
+  });
+
   it('survives a failed refresh', async () => {
     const refresh = vi.fn().mockRejectedValue(new Error('network'));
     const h = build('caller', { refreshIceServers: refresh });
@@ -1718,7 +1773,7 @@ describe('recovery review hardening', () => {
     expect(restarts).toHaveLength(2);
   });
 
-  it('stops probing for a direct route after three probes that stay relayed and resumes after a network change', async () => {
+  it('keeps probing for a direct route for the whole call, every five minutes after three relayed probes, and speeds up after a network change', async () => {
     const { h, restarts } = await verifiedCall({ canProbeDirect: () => true });
     h.connection.setIce('disconnected');
     await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS + retryDelay(1) + retryDelay(2));
@@ -1727,13 +1782,20 @@ describe('recovery review hardening', () => {
     await settle();
     const base = restarts.length;
 
-    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS * 10);
-    expect(restarts.slice(base).filter((entry) => entry.reason === 'probe')).toHaveLength(MAX_RELAY_PROBES);
+    const probes = () => restarts.slice(base).filter((entry) => entry.reason === 'probe').length;
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS * (MAX_RELAY_PROBES + 1));
+    expect(probes()).toBe(MAX_RELAY_PROBES + 1);
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_SLOW_INTERVAL_MS - 1_000);
+    expect(probes()).toBe(MAX_RELAY_PROBES + 1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(probes()).toBe(MAX_RELAY_PROBES + 2);
+    await vi.advanceTimersByTimeAsync(RELAY_PROBE_SLOW_INTERVAL_MS * 6);
+    expect(probes()).toBe(MAX_RELAY_PROBES + 8);
 
     h.session.recoverIfUnhealthy('online');
     h.connection.setIce('connected');
     await settle();
     await vi.advanceTimersByTimeAsync(RELAY_PROBE_INTERVAL_MS);
-    expect(restarts.slice(base).filter((entry) => entry.reason === 'probe')).toHaveLength(MAX_RELAY_PROBES + 1);
+    expect(probes()).toBe(MAX_RELAY_PROBES + 9);
   });
 });
