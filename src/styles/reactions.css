@@ -324,10 +324,16 @@
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .chat-bubble-wrap {
+  .chat-bubble-wrap .sc-bubble {
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+  }
+
+  .chat-bubble-wrap .sc-bubble a,
+  .chat-bubble-wrap .sc-bubble img,
+  .chat-bubble-wrap .sc-bubble video {
+    -webkit-touch-callout: default;
   }
 
   .sc-reaction-option:hover,

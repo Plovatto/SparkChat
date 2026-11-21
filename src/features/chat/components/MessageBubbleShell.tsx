@@ -68,11 +68,14 @@ export function MessageBubbleShell({
       data-own={isOwn}
       data-live={entrance === 'live'}
       className={`${entrance === 'none' ? '' : 'sc-anim-bubble-in sc-stagger '}chat-bubble-wrap${extraClassName}`}
+      onClickCapture={(event) => {
+        if (longPress.consumeLongPress()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
       onClick={(event) => {
         event.stopPropagation();
-        if (longPress.consumeLongPress()) {
-          return;
-        }
         onSelect();
       }}
       onPointerDown={(event) => {
@@ -90,7 +93,9 @@ export function MessageBubbleShell({
           return;
         }
         if (lastPointerTypeRef.current === 'touch') {
-          event.preventDefault();
+          if (!(event.target as HTMLElement).closest('img')) {
+            event.preventDefault();
+          }
           return;
         }
         const selection = window.getSelection();
