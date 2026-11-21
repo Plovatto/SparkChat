@@ -337,6 +337,8 @@
       "retry": "Failed to send. Tap to resend.",
       "reply": "Reply",
       "forward": "Forward",
+      "copy": "Copy",
+      "copied": "Copied!",
       "delete": "Delete",
       "image": "Image",
       "audio": "Audio {{duration}}",

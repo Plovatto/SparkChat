@@ -312,6 +312,7 @@ export const MessageBubble = memo(function MessageBubble({
               onReply={() => onReply(message)}
               onDelete={() => onDelete([message.id])}
               onForward={() => onForward([message])}
+              copyText={message.type === 'text' ? originalContent : message.caption}
             />
           )}
           {reactionUi.overlays}

@@ -337,6 +337,8 @@
       "retry": "Falha ao enviar. Toque para reenviar.",
       "reply": "Responder",
       "forward": "Encaminhar",
+      "copy": "Copiar",
+      "copied": "Copiado!",
       "delete": "Excluir",
       "image": "Imagem",
       "audio": "Áudio {{duration}}",
