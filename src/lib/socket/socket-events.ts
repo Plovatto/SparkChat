@@ -508,7 +508,7 @@ export interface ClientToServerEvents {
   'call:silence': (payload: { callId: string }) => void;
   'call:hangup': (payload: { callId: string }) => void;
   'call:signal': (payload: { callId: string; to: string; envelope: string }) => void;
-  'call:heartbeat': (payload: { callId: string }) => void;
+  'call:heartbeat': (payload: { callId: string; relayed?: boolean }) => void;
   'call:sync': (payload: Record<string, never>) => void;
   'call:ice-servers': (payload: { callId: string; protectIp: boolean }) => void;
   'call:transfer': (payload: { callId: string; envelope: string }) => void;
