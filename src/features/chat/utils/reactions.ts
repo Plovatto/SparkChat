@@ -58,3 +58,20 @@ export function reactorName(userId: string, participants: readonly RoomParticipa
   const participant = participants.find((entry) => entry.id === userId);
   return getDisplayName(userId, participant?.nickname ?? '', currentUserId, !participant);
 }
+
+export interface GroupReaction extends MessageReaction {
+  messageId: string;
+}
+
+export function mergeGroupReactions(messages: readonly { id: string; reactions?: MessageReaction[] | undefined }[]): GroupReaction[] {
+  const latestByUser = new Map<string, GroupReaction>();
+  for (const message of messages) {
+    for (const reaction of message.reactions ?? []) {
+      const current = latestByUser.get(reaction.userId);
+      if (!current || reaction.updatedAt >= current.updatedAt) {
+        latestByUser.set(reaction.userId, { ...reaction, messageId: message.id });
+      }
+    }
+  }
+  return [...latestByUser.values()].sort((left, right) => (left.updatedAt < right.updatedAt ? -1 : left.updatedAt > right.updatedAt ? 1 : 0));
+}

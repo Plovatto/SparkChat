@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOwnReaction, canReactToMessage, findOwnReaction, nextOwnReaction, summarizeReactions } from './reactions';
+import { applyOwnReaction, canReactToMessage, findOwnReaction, mergeGroupReactions, nextOwnReaction, summarizeReactions } from './reactions';
 
 const reactions = [
   { userId: 'ana', emoji: '❤️', updatedAt: '1' },
@@ -21,6 +21,19 @@ describe('reaction helpers', () => {
     expect(applyOwnReaction(reactions, 'me', '❤️', '9').map((reaction) => `${reaction.userId}${reaction.emoji}`)).toEqual(['ana❤️', 'bia❤️', 'me❤️']);
     expect(applyOwnReaction(reactions, 'me', null, '9').map((reaction) => reaction.userId)).toEqual(['ana', 'bia']);
     expect(applyOwnReaction(undefined, 'me', '👍', '9')).toEqual([{ userId: 'me', emoji: '👍', updatedAt: '9' }]);
+  });
+
+  it('merges the reactions of an image group with one entry per person, keeping the newest and where it lives', () => {
+    const merged = mergeGroupReactions([
+      { id: 'i1', reactions: [{ userId: 'me', emoji: '❤️', updatedAt: '1' }, { userId: 'ana', emoji: '😂', updatedAt: '2' }] },
+      { id: 'i2', reactions: [{ userId: 'me', emoji: '👍', updatedAt: '3' }] },
+      { id: 'i3' },
+    ]);
+    expect(merged).toEqual([
+      { userId: 'ana', emoji: '😂', updatedAt: '2', messageId: 'i1' },
+      { userId: 'me', emoji: '👍', updatedAt: '3', messageId: 'i2' },
+    ]);
+    expect(findOwnReaction(merged, 'me')).toBe('👍');
   });
 
   it('toggles off when the same emoji is chosen again', () => {

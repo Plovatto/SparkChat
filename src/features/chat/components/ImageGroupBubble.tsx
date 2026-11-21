@@ -6,7 +6,7 @@ import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
 import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import type { ChatMessage } from '../types';
-import { canReactToMessage, findOwnReaction } from '../utils/reactions';
+import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
@@ -62,9 +62,8 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   const visibleTiles = images.slice(0, MAX_GROUP_TILES);
   const extraCount = images.length - visibleTiles.length;
   const anchorId = anchor?.id ?? '';
-  const groupReactions = useMemo(() => images.flatMap((image) => image.reactions ?? []), [images]);
-  const reactionTargetId =
-    [...images].reverse().find((image) => currentUserId && findOwnReaction(image.reactions, currentUserId) !== null)?.id ?? anchorId;
+  const groupReactions = useMemo(() => mergeGroupReactions(images), [images]);
+  const reactionTargetId = (currentUserId ? groupReactions.find((entry) => entry.userId === currentUserId)?.messageId : undefined) ?? anchorId;
   const dismissActions = useCallback(() => {
     if (isSelected && anchorId) {
       onSelect(anchorId);
