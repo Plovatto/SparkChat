@@ -1,3 +1,69 @@
+@keyframes scReactionChipIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scReactionChipOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes scReactionCountTick {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 55%, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scReactionOptionIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scReactorsSheetIn {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scReactorsSheetOut {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
 .sc-reactions {
   display: flex;
   flex-wrap: wrap;
@@ -34,6 +100,15 @@
 .sc-reaction-chip[data-own='true'] {
   background: color-mix(in srgb, var(--sc-accent) 22%, var(--sc-surface-elevated));
   border-color: var(--sc-accent);
+}
+
+.sc-reaction-chip--in {
+  animation: scReactionChipIn var(--sc-dur-slow) var(--sc-ease-spring) backwards;
+}
+
+.sc-reaction-chip--out {
+  animation: scReactionChipOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+  pointer-events: none;
 }
 
 .sc-reaction-chip__toggle,
@@ -97,6 +172,10 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
   color: var(--sc-text-secondary);
+}
+
+.sc-reaction-chip__count--tick {
+  animation: scReactionCountTick var(--sc-dur-normal) var(--sc-ease-spring-soft) backwards;
 }
 
 .sc-reaction-chip[data-own='true'] .sc-reaction-chip__count {
@@ -182,6 +261,8 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  animation: scReactionOptionIn var(--sc-dur-slow) var(--sc-ease-spring) backwards;
+  animation-delay: var(--sc-anim-delay, 0ms);
   transition:
     background var(--sc-dur-fast) var(--sc-ease-standard),
     color var(--sc-dur-fast) var(--sc-ease-standard),
@@ -265,6 +346,12 @@
   background: var(--sc-overlay);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  animation: scFadeIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
+.sc-reactors-backdrop.is-exiting {
+  animation: scFadeOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
+  pointer-events: none;
 }
 
 .sc-reactors-sheet {
@@ -280,6 +367,11 @@
   border-radius: 22px 22px 0 0;
   box-shadow: var(--sc-shadow-lg);
   padding: 8px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  animation: scReactorsSheetIn var(--sc-dur-slow) var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-reactors-sheet.is-exiting {
+  animation: scReactorsSheetOut var(--sc-dur-normal) var(--sc-ease-exit) forwards;
 }
 
 .sc-reactors-sheet__handle {
@@ -419,4 +511,41 @@ button.sc-reactors-row:active {
 .sc-reactors-row__emoji {
   font-size: 1.5rem;
   line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-reaction-chip--in,
+  .sc-reaction-option,
+  .sc-reactors-sheet,
+  .sc-reactors-backdrop {
+    animation-name: scFadeIn;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+    animation-delay: 0ms;
+  }
+
+  .sc-reaction-chip--out,
+  .sc-reactors-sheet.is-exiting,
+  .sc-reactors-backdrop.is-exiting {
+    animation-name: scFadeOut;
+    animation-duration: var(--sc-dur-instant);
+    animation-timing-function: linear;
+  }
+
+  .sc-reaction-chip__count--tick {
+    animation: none;
+  }
+
+  .sc-reaction-chip,
+  .sc-reaction-option,
+  .sc-reaction-option__emoji {
+    transition-duration: 1ms;
+  }
+
+  .sc-reaction-chip:hover:not(.sc-reaction-chip--out),
+  .sc-reaction-option:hover .sc-reaction-option__emoji,
+  .sc-reaction-option:active .sc-reaction-option__emoji,
+  .sc-reaction-chip__toggle:active {
+    transform: none;
+  }
 }
