@@ -16,7 +16,9 @@ export interface MediaViewerItem {
   senderAvatar: number | undefined;
   timestamp: string;
   isGif: boolean;
-  message: ChatMessage;
+  message?: ChatMessage;
+  directUrl?: string;
+  downloadName?: string;
 }
 
 export function isViewerMedia(message: ChatMessage): boolean {

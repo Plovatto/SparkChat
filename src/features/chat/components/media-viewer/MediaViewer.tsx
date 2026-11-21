@@ -43,7 +43,7 @@ function useResolvedMediaUrl(item: MediaViewerItem | undefined, isOpen: boolean)
   const key = item?.id;
 
   useEffect(() => {
-    if (!isOpen || !item || item.kind !== 'image' || resolved[item.id] !== undefined) {
+    if (!isOpen || !item || item.directUrl || item.kind !== 'image' || resolved[item.id] !== undefined) {
       return;
     }
     let cancelled = false;
@@ -65,6 +65,9 @@ function useResolvedMediaUrl(item: MediaViewerItem | undefined, isOpen: boolean)
 
   if (!item || !key) {
     return undefined;
+  }
+  if (item.directUrl) {
+    return toLocalMediaUrl(item.directUrl) ?? null;
   }
   if (item.kind === 'video') {
     return toLocalMediaUrl(item.content) ?? null;
@@ -236,6 +239,15 @@ export function MediaViewer({ isOpen, items, startIndex, onClose, roomName, onFo
   };
 
   const handleDownload = () => {
+    if (item.directUrl) {
+      const link = document.createElement('a');
+      link.href = item.directUrl;
+      link.download = item.downloadName ?? t('chat.message.defaultImageName');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return;
+    }
     void downloadMessageMedia({
       content: item.content,
       roomId: item.roomId,
@@ -252,8 +264,7 @@ export function MediaViewer({ isOpen, items, startIndex, onClose, roomName, onFo
       ? formatAudioTime(itemDetails.duration)
       : `${itemDetails.width} × ${itemDetails.height}`
     : null;
-  const sentAt = new Date(item.timestamp);
-  const metaLine = [`${formatDayLabel(sentAt)}, ${formatTime(item.timestamp)}`, roomName].filter(Boolean).join(' · ');
+  const metaLine = item.directUrl ? '' : [`${formatDayLabel(new Date(item.timestamp))}, ${formatTime(item.timestamp)}`, roomName].filter(Boolean).join(' · ');
   const stateClassName = isExiting ? ' is-exiting' : '';
 
   const actionButtons = (
@@ -322,10 +333,14 @@ export function MediaViewer({ isOpen, items, startIndex, onClose, roomName, onFo
 
       <header className="sc-viewer__top">
         <div className="sc-viewer__author">
-          <Avatar userId={item.senderId} avatarIndex={item.senderAvatar} tone="soft" size={40} iconSize={18} />
+          {item.directUrl ? (
+            mediaUrl && <img className="sc-viewer__author-photo" src={mediaUrl} alt="" />
+          ) : (
+            <Avatar userId={item.senderId} avatarIndex={item.senderAvatar} tone="soft" size={40} iconSize={18} />
+          )}
           <div className="sc-viewer__author-text">
             <span className="sc-viewer__author-name">{item.senderName}</span>
-            <span className="sc-viewer__author-meta">{metaLine}</span>
+            {metaLine && <span className="sc-viewer__author-meta">{metaLine}</span>}
           </div>
         </div>
         <div className="sc-viewer__toolbar">
@@ -447,7 +462,7 @@ export function MediaViewer({ isOpen, items, startIndex, onClose, roomName, onFo
                   onClick={() => goTo(candidateIndex)}
                   aria-label={t('chat.viewer.counter', { current: candidateIndex + 1, total: visibleItems.length })}
                 >
-                  <GalleryMediaTile message={candidate.message} />
+                  {candidate.message && <GalleryMediaTile message={candidate.message} />}
                 </button>
               ))}
             </div>
