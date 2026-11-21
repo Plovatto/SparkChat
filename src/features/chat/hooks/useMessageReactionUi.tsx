@@ -18,6 +18,8 @@ interface ReactionUiOptions {
   participants: RoomParticipant[];
   onReact: (messageId: string, emoji: string | null) => void;
   onDismiss: () => void;
+  showCount?: boolean;
+  chipBackground?: string;
 }
 
 export interface ReactionUi {
@@ -41,6 +43,8 @@ export function useMessageReactionUi({
   participants,
   onReact,
   onDismiss,
+  showCount = true,
+  chipBackground,
 }: ReactionUiOptions): ReactionUi {
   const compact = useMediaQuery(REACTION_COMPACT_QUERY);
   const [isBarRequested, setIsBarRequested] = useState(false);
@@ -81,7 +85,15 @@ export function useMessageReactionUi({
     [choose, onDismiss],
   );
 
-  const closePicker = useCallback(() => setIsPickerOpen(false), []);
+  const closePicker = useCallback(
+    (outsideTarget?: unknown) => {
+      setIsPickerOpen(false);
+      if (compact && outsideTarget instanceof Element && !outsideTarget.closest('.sc-actions-sheet, .sc-actions-sheet-backdrop')) {
+        onDismiss();
+      }
+    },
+    [compact, onDismiss],
+  );
   const togglePicker = useCallback(() => {
     if (isPickerOpen) {
       setIsPickerOpen(false);
@@ -128,6 +140,8 @@ export function useMessageReactionUi({
       participants={participants}
       isOwn={isOwn}
       compact={compact}
+      showCount={showCount}
+      background={chipBackground}
       disabled={!canReact}
       onToggle={choose}
       onShowReactors={showReactors}
@@ -141,6 +155,7 @@ export function useMessageReactionUi({
           open={isPickerOpen}
           anchorRef={pickerSource === 'react' ? reactButtonRef : moreButtonRef}
           toggleRefs={toggleRefs}
+          elevated={compact}
           placement={compact ? 'top' : 'bottom'}
           onClose={closePicker}
           onSelect={(emoji) => {

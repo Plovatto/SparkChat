@@ -32,6 +32,7 @@ interface MessageBubbleShellProps {
   run?: BubbleRunPosition;
   extraClassName?: string;
   afterBubble?: ReactNode;
+  bubbleSide?: ReactNode;
   reactions?: ReactNode;
   onLongPress?: () => void;
   children: ReactNode;
@@ -72,6 +73,7 @@ export function MessageBubbleShell({
   run = SINGLE_RUN,
   extraClassName = '',
   afterBubble,
+  bubbleSide,
   reactions,
   onLongPress,
   children,
@@ -182,6 +184,7 @@ export function MessageBubbleShell({
             {getDisplayName(senderId, senderNickname, currentUserId)}
           </div>
         )}
+        <div className="sc-bubble-anchor" data-own={isOwn}>
         <div
           data-message-id={messageId}
           data-selected={isSelected}
@@ -206,6 +209,8 @@ export function MessageBubbleShell({
           }}
         >
           {children}
+        </div>
+        {bubbleSide}
         </div>
         {reactions}
         {afterBubble}

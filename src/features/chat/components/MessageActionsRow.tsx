@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { LuCircleCheck, LuCopy, LuEllipsisVertical, LuForward, LuLanguages, LuReply, LuSmilePlus, LuTrash2 } from 'react-icons/lu';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useEscapeKey } from '@hooks/useEscapeKey';
+import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import '../styles/message-actions.css';
 
@@ -92,6 +93,9 @@ function ActionsSheet(props: MessageActionsRowProps) {
     }
   };
 
+  const onDismissSheet = props.onDismiss;
+  const dismissSheet = useCallback(() => onDismissSheet?.(), [onDismissSheet]);
+  const backdropDismiss = useBackdropDismiss(dismissSheet);
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: number; startY: number; lastY: number; lastTime: number; velocity: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -146,10 +150,11 @@ function ActionsSheet(props: MessageActionsRowProps) {
       <div
         className={`sc-actions-sheet-backdrop${isClosing ? ' is-exiting' : ''}`}
         data-no-long-press
-        onClick={(event) => {
+        onPointerDown={(event) => {
           event.stopPropagation();
-          props.onDismiss?.();
+          backdropDismiss.onPointerDown(event);
         }}
+        onClick={backdropDismiss.onClick}
       />
       <div
         ref={sheetRef}
@@ -173,21 +178,14 @@ function ActionsSheet(props: MessageActionsRowProps) {
         </div>
         {props.sheetHeader}
         <div className="sc-actions-sheet__list">
-          {[...primary, ...secondary].map((item, index) => (
-            <button key={item.key} type="button" role="menuitem" className="sc-actions-sheet__item" style={{ '--sc-i': index } as CSSProperties} onClick={run(item)}>
-              <span className="sc-actions-sheet__icon">{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-          {danger.length > 0 && <span className="sc-actions-sheet__divider" aria-hidden="true" />}
-          {danger.map((item) => (
+          {[...primary, ...secondary, ...danger].map((item, index) => (
             <button
               key={item.key}
               type="button"
               role="menuitem"
-              data-tone="danger"
+              data-tone={item.tone}
               className="sc-actions-sheet__item"
-              style={{ '--sc-i': primary.length + secondary.length } as CSSProperties}
+              style={{ '--sc-i': index } as CSSProperties}
               onClick={run(item)}
             >
               <span className="sc-actions-sheet__icon">{item.icon}</span>
@@ -206,6 +204,7 @@ function ActionsToolbar(props: MessageActionsRowProps) {
   const { primary, secondary, danger } = useActionItems(props);
   const [menuOpen, setMenuOpen] = useState(false);
   const [popoverSide, setPopoverSide] = useState<'side' | 'top'>('side');
+  const [place, setPlace] = useState<'side' | 'below'>('side');
   const menu = usePresence(menuOpen, MOTION_DURATION_MS.fast);
   const rootRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -230,6 +229,26 @@ function ActionsToolbar(props: MessageActionsRowProps) {
     document.addEventListener('pointerdown', close);
     return () => document.removeEventListener('pointerdown', close);
   }, [menuOpen]);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const anchor = root?.parentElement;
+    const bubble = anchor?.firstElementChild;
+    if (!root || !anchor?.classList.contains('sc-bubble-anchor') || !bubble) {
+      setPlace('below');
+      return;
+    }
+    const scrollParent = findScrollParent(anchor);
+    const measure = () => {
+      const bubbleRect = bubble.getBoundingClientRect();
+      const bounds = scrollParent ? scrollParent.getBoundingClientRect() : { left: 0, right: window.innerWidth };
+      const available = isOwn ? bubbleRect.left - bounds.left : bounds.right - bubbleRect.right;
+      setPlace(root.offsetWidth + POPOVER_GAP_PX + POPOVER_EDGE_PX <= available ? 'side' : 'below');
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [isOwn]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -284,6 +303,7 @@ function ActionsToolbar(props: MessageActionsRowProps) {
       ref={rootRef}
       className={`sc-actions-toolbar${props.isExiting ? ' is-exiting' : ''}`}
       data-own={isOwn}
+      data-place={place}
       data-no-long-press
       role="toolbar"
       aria-label={t('chat.message.actions')}

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePrefersReducedMotion } from '@features/motion';
 import type { MessageReaction, RoomParticipant } from '@lib/socket';
@@ -11,6 +11,8 @@ interface MessageReactionsProps {
   participants: RoomParticipant[];
   isOwn: boolean;
   compact: boolean;
+  showCount?: boolean;
+  background?: string;
   disabled?: boolean;
   onToggle: (emoji: string) => void;
   onShowReactors: (emoji: string) => void;
@@ -84,12 +86,13 @@ interface ReactionChipProps {
   chip: DisplayedChip;
   names: string;
   compact: boolean;
+  showCount: boolean;
   disabled: boolean;
   onToggle: (emoji: string) => void;
   onShowReactors: (emoji: string) => void;
 }
 
-function ReactionChip({ chip, names, compact, disabled, onToggle, onShowReactors }: ReactionChipProps) {
+function ReactionChip({ chip, names, compact, showCount, disabled, onToggle, onShowReactors }: ReactionChipProps) {
   const { t } = useTranslation();
   const { summary, phase } = chip;
   const mountedCountRef = useRef(summary.count);
@@ -103,6 +106,7 @@ function ReactionChip({ chip, names, compact, disabled, onToggle, onShowReactors
       className={`sc-reaction-chip${phaseClass}`}
       data-own={summary.includesOwn}
       data-compact={compact}
+      data-count={showCount}
       aria-hidden={phase === 'exit' ? true : undefined}
       onContextMenu={compact ? (event) => event.preventDefault() : undefined}
     >
@@ -125,13 +129,13 @@ function ReactionChip({ chip, names, compact, disabled, onToggle, onShowReactors
         <span className="sc-reaction-chip__emoji" aria-hidden="true">
           {summary.emoji}
         </span>
-        {!compact && (
+        {showCount && !compact && (
           <span key={summary.count} className={countClass} aria-hidden="true">
             {summary.count}
           </span>
         )}
       </button>
-      {compact && (
+      {showCount && compact && (
         <button
           type="button"
           className="sc-reaction-chip__count-button"
@@ -157,6 +161,8 @@ export const MessageReactions = memo(function MessageReactions({
   participants,
   isOwn,
   compact,
+  showCount = true,
+  background,
   disabled = false,
   onToggle,
   onShowReactors,
@@ -183,6 +189,7 @@ export const MessageReactions = memo(function MessageReactions({
     <ul
       className="sc-reactions"
       data-own={isOwn}
+      style={background ? ({ '--sc-reaction-bg': background } as CSSProperties) : undefined}
       aria-label={t('chat.reactions.listLabel')}
       data-no-long-press
       onClick={(event) => event.stopPropagation()}
@@ -193,6 +200,7 @@ export const MessageReactions = memo(function MessageReactions({
           chip={chip}
           names={chip.summary.userIds.map((userId) => reactorName(userId, participants, currentUserId)).join(', ')}
           compact={compact}
+          showCount={showCount}
           disabled={disabled}
           onToggle={onToggle}
           onShowReactors={onShowReactors}

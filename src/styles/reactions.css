@@ -69,8 +69,8 @@
   flex-wrap: wrap;
   gap: 4px;
   max-width: 100%;
-  margin: -4px 0 0;
-  padding: 0 6px;
+  margin: 2px 0 0;
+  padding: 0;
   list-style: none;
   justify-content: flex-start;
 }
@@ -85,9 +85,9 @@
   align-items: stretch;
   min-width: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sc-surface-elevated) 88%, transparent);
-  border: 1px solid var(--sc-border-subtle);
-  box-shadow: var(--sc-shadow-sm);
+  background: var(--sc-reaction-bg, var(--sc-surface-elevated));
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  box-shadow: none;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   transition:
@@ -98,8 +98,7 @@
 }
 
 .sc-reaction-chip[data-own='true'] {
-  background: color-mix(in srgb, var(--sc-accent) 22%, var(--sc-surface-elevated));
-  border-color: var(--sc-accent);
+  border-color: color-mix(in srgb, var(--sc-accent) 60%, transparent);
 }
 
 .sc-reaction-chip--in {
@@ -130,8 +129,8 @@
 }
 
 .sc-reaction-chip__toggle {
-  height: 24px;
-  padding: 0 8px 0 7px;
+  height: 22px;
+  padding: 0 7px 0 6px;
   border-radius: 999px;
 }
 
@@ -159,7 +158,7 @@
 }
 
 .sc-reaction-chip__emoji {
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   line-height: 1;
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
@@ -167,11 +166,11 @@
 .sc-reaction-chip__count {
   display: inline-block;
   min-width: 0.6em;
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--sc-text-secondary);
+  color: var(--sc-text-primary);
 }
 
 .sc-reaction-chip__count--tick {
@@ -183,17 +182,21 @@
 }
 
 .sc-reaction-chip[data-compact='true'] .sc-reaction-chip__toggle {
-  height: 30px;
-  padding: 0 4px 0 10px;
+  height: 24px;
+  padding: 0 3px 0 8px;
+}
+
+.sc-reaction-chip[data-compact='true'][data-count='false'] .sc-reaction-chip__toggle {
+  padding: 0 8px;
 }
 
 .sc-reaction-chip[data-compact='true'] .sc-reaction-chip__emoji {
-  font-size: 1.05rem;
+  font-size: 0.92rem;
 }
 
 .sc-reaction-chip__count-button {
-  height: 30px;
-  padding: 0 10px 0 4px;
+  height: 24px;
+  padding: 0 8px 0 2px;
   border-radius: 0 999px 999px 0;
 }
 
@@ -560,6 +563,14 @@ button.sc-reactors-row:active {
 .sc-reaction-notice svg {
   flex-shrink: 0;
   color: var(--sc-danger);
+}
+
+.sc-reaction-notice--success {
+  border-color: var(--sc-success);
+}
+
+.sc-reaction-notice--success svg {
+  color: var(--sc-success);
 }
 
 @media (prefers-reduced-motion: reduce) {

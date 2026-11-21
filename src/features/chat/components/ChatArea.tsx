@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { isSameDay } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
+import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
@@ -83,6 +83,7 @@ const STICKY_DATE_IDLE_DELAY_MS = 1200;
 const ENTRANCE_CASCADE_MAX_INDEX = 7;
 const SHOW_IN_CHAT_DELAY_MS = 320;
 const FAILURE_NOTICE_MS = 5000;
+const COPY_NOTICE_MS = 1600;
 
 function uploadErrorText(error: unknown, fallbackKey: string): string {
   return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
@@ -349,6 +350,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [copyNotice, setCopyNotice] = useState(0);
   const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | 'gif' | null>(null);
@@ -744,6 +746,24 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     dismissDeleteFailure();
   };
 
+  useEffect(() => {
+    if (copyNotice === 0) {
+      return;
+    }
+    const timer = setTimeout(() => setCopyNotice(0), COPY_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [copyNotice]);
+
+  const handleCopyText = useCallback((text: string) => {
+    if (!('clipboard' in navigator)) {
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+      () => setCopyNotice((count) => count + 1),
+      () => undefined,
+    );
+  }, []);
+
   const toggleSelectedMessage = useCallback((messageId: string) => {
     setSelectedMessageId((current) => (current === messageId ? null : messageId));
   }, []);
@@ -1097,11 +1117,18 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         >
           <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
           <div role="status" aria-live="polite" className="sc-reaction-notice-region">
-            {reactionFailure && (
+            {reactionFailure ? (
               <span key={reactionFailure} className="sc-reaction-notice sc-anim-rise-in">
                 <FaExclamationTriangle size={13} aria-hidden="true" />
                 {reactionFailure}
               </span>
+            ) : (
+              copyNotice > 0 && (
+                <span key={`copied-${copyNotice}`} className="sc-reaction-notice sc-reaction-notice--success sc-anim-rise-in">
+                  <FaCheck size={12} aria-hidden="true" />
+                  {t('chat.message.copied')}
+                </span>
+              )
             )}
           </div>
           {isDraggingFile && (
@@ -1283,6 +1310,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   entranceIndex={entranceIndex}
                                   onStartSelection={isRecordingAudio ? undefined : startSelection}
                                   onReact={reactToMessage}
+                                  onCopyText={handleCopyText}
                                   run={run}
                                 />
                               ) : (

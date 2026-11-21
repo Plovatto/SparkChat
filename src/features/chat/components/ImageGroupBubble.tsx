@@ -106,6 +106,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       onSelect(anchorId);
     }
   }, [isSelected, onSelect, anchorId]);
+  const reactionChipBackground = bubbleStyle.background;
   const reactionUi = useMessageReactionUi({
     messageId: reactionTargetId,
     reactions: groupReactions,
@@ -116,6 +117,8 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
     participants,
     onReact,
     onDismiss: dismissActions,
+    showCount: isGroupChat,
+    chipBackground: reactionChipBackground,
   });
 
   if (!anchor) {
@@ -166,26 +169,28 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       cornerRadius={14}
       minWidth="0"
       reactions={reactionUi.chips}
+      bubbleSide={
+        actionsPresence.isPresent && !hasPendingOrFailed ? (
+          <MessageActionsRow
+            isOwn={isOwn}
+            isExiting={actionsPresence.isExiting}
+            canDelete
+            onReply={() => onReply(anchor)}
+            onDelete={() => onDelete(images.map((image) => image.id))}
+            onForward={() => onForward(images)}
+            onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
+            onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+            reactButtonRef={reactionUi.reactButtonRef}
+            isReactionOpen={reactionUi.isReactionOpen}
+            reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+            sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
+            onDismiss={() => onSelect(anchor.id)}
+          />
+        ) : null
+      }
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {actionsPresence.isPresent && !hasPendingOrFailed && (
-            <MessageActionsRow
-              isOwn={isOwn}
-              isExiting={actionsPresence.isExiting}
-              canDelete
-              onReply={() => onReply(anchor)}
-              onDelete={() => onDelete(images.map((image) => image.id))}
-              onForward={() => onForward(images)}
-              onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
-              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
-              reactButtonRef={reactionUi.reactButtonRef}
-              isReactionOpen={reactionUi.isReactionOpen}
-              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
-              sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
-              onDismiss={() => onSelect(anchor.id)}
-            />
-          )}
           <ImageModal
             isOpen={modalIndex !== null}
             images={photoMessages.map((image) => image.content)}

@@ -40,6 +40,7 @@ export interface MessageBubbleActions {
   onRetry: (clientTempId: string) => void;
   onStartSelection?: ((messageId: string) => void) | undefined;
   onReact: (messageId: string, emoji: string | null) => void;
+  onCopyText?: (text: string) => void;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -108,6 +109,7 @@ export const MessageBubble = memo(function MessageBubble({
   onRetry,
   onStartSelection,
   onReact,
+  onCopyText,
   entrancePhase = 'none',
   entranceIndex = 0,
   run,
@@ -135,6 +137,7 @@ export const MessageBubble = memo(function MessageBubble({
       onSelect(message.id);
     }
   }, [isSelected, onSelect, message.id]);
+  const reactionChipBackground = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn).background;
   const reactionUi = useMessageReactionUi({
     messageId: message.id,
     reactions: message.reactions,
@@ -145,6 +148,8 @@ export const MessageBubble = memo(function MessageBubble({
     participants,
     onReact,
     onDismiss: dismissActions,
+    showCount: isGroupChat,
+    chipBackground: reactionChipBackground,
   });
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
@@ -333,30 +338,39 @@ export const MessageBubble = memo(function MessageBubble({
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       minWidth={message.type === 'text' ? (hasLinkPreview ? `min(${LINK_PREVIEW_BUBBLE_WIDTH}px, 100%)` : '0') : undefined}
       reactions={reactionUi.chips}
+      bubbleSide={
+        actionsPresence.isPresent && !message.pending && !message.failed ? (
+          <MessageActionsRow
+            isOwn={isOwn}
+            isExiting={actionsPresence.isExiting}
+            canDelete
+            canCopy={message.type === 'text' || Boolean(message.caption)}
+            canTranslate={canTranslate && Boolean(badgeTranslation)}
+            onReply={() => onReply(message)}
+            onDelete={() => onDelete([message.id])}
+            onForward={() => onForward([message])}
+            onCopy={() => {
+              const text = message.type === 'text' ? originalContent : (message.caption ?? '');
+              if (onCopyText) {
+                onCopyText(text);
+              } else {
+                void navigator.clipboard?.writeText(text);
+              }
+            }}
+            onTranslate={() => badgeTranslation?.requestTranslation()}
+            onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
+            onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+            reactButtonRef={reactionUi.reactButtonRef}
+            isReactionOpen={reactionUi.isReactionOpen}
+            reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+            sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
+            onDismiss={() => onSelect(message.id)}
+          />
+        ) : null
+      }
       afterBubble={
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {actionsPresence.isPresent && !message.pending && !message.failed && (
-            <MessageActionsRow
-              isOwn={isOwn}
-              isExiting={actionsPresence.isExiting}
-              canDelete
-              canCopy={message.type === 'text' || Boolean(message.caption)}
-              canTranslate={canTranslate && Boolean(badgeTranslation)}
-              onReply={() => onReply(message)}
-              onDelete={() => onDelete([message.id])}
-              onForward={() => onForward([message])}
-              onCopy={() => void navigator.clipboard?.writeText(message.type === 'text' ? originalContent : (message.caption ?? ''))}
-              onTranslate={() => badgeTranslation?.requestTranslation()}
-              onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
-              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
-              reactButtonRef={reactionUi.reactButtonRef}
-              isReactionOpen={reactionUi.isReactionOpen}
-              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
-              sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
-              onDismiss={() => onSelect(message.id)}
-            />
-          )}
           {reactionUi.overlays}
         </>
       }

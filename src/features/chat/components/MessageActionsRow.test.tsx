@@ -124,6 +124,29 @@ describe('MessageActionsRow toolbar', () => {
 });
 
 describe('MessageActionsRow sheet', () => {
+  it('keeps every item in one evenly spaced list, delete included, with no extra divider', () => {
+    media.sheet = true;
+    render(<MessageActionsRow isOwn canCopy onReply={vi.fn()} onForward={vi.fn()} onCopy={vi.fn()} onStartSelection={vi.fn()} onDelete={vi.fn()} onDismiss={vi.fn()} />);
+
+    const list = document.querySelector('.sc-actions-sheet__list') as HTMLElement;
+    expect(Array.from(list.children).every((child) => child.classList.contains('sc-actions-sheet__item'))).toBe(true);
+    expect(list.lastElementChild?.getAttribute('data-tone')).toBe('danger');
+  });
+
+  it('closes when the backdrop is pressed and released, but not on a release that started elsewhere', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn onDelete={vi.fn()} onDismiss={onDismiss} />);
+    const backdrop = document.querySelector('.sc-actions-sheet-backdrop') as HTMLElement;
+
+    fireEvent.click(backdrop);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   function dragHandle(distance: number) {
     const handle = document.querySelector('.sc-actions-sheet__handle') as HTMLElement;
     fireEvent.pointerDown(handle, { pointerId: 1, clientY: 100, pointerType: 'touch' });
