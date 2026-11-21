@@ -230,13 +230,13 @@
 
 .sc-info-toggle__label {
   color: var(--sc-text-primary);
-  font-size: 0.92rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
 .sc-info-toggle__caption {
   color: var(--sc-text-secondary);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.45;
 }
 
