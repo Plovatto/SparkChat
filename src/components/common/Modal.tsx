@@ -72,7 +72,7 @@ export function Modal({ isOpen, title, header, onClose, showCloseButton = true, 
           left: '50%',
           transform: 'translate(-50%, -50%)',
           zIndex: 10000,
-          width: '90%',
+          width: 'calc(100% - 2 * var(--sc-modal-gutter, 5%))',
           maxWidth,
         }}
       >
@@ -83,7 +83,7 @@ export function Modal({ isOpen, title, header, onClose, showCloseButton = true, 
             borderRadius: '18px',
             boxShadow: theme.shadowLg,
             overflow: 'hidden',
-            maxHeight: '90vh',
+            maxHeight: 'var(--sc-modal-max-height, 90vh)',
             display: 'flex',
             flexDirection: 'column',
           }}
@@ -91,7 +91,7 @@ export function Modal({ isOpen, title, header, onClose, showCloseButton = true, 
           {content.header ?? (content.title && (
             <div
               style={{
-                padding: '20px 24px',
+                padding: 'var(--sc-modal-header-padding, 20px 24px)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -117,12 +117,12 @@ export function Modal({ isOpen, title, header, onClose, showCloseButton = true, 
 
           <div
             style={{
-              padding: '24px',
+              padding: 'var(--sc-modal-padding, 24px)',
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
               color: theme.textPrimary,
-              scrollbarGutter: 'stable both-edges',
+              scrollbarGutter: 'var(--sc-modal-scrollbar-gutter, stable both-edges)',
               ...bodyStyle,
             }}
           >

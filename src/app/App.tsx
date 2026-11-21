@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
+import { LuWifiOff } from 'react-icons/lu';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
-import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import {
   ChatArea,
@@ -37,6 +37,7 @@ import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms'
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useSplashPresence } from '@hooks/useSplashPresence';
+import { useSustainedFlag } from '@hooks/useSustainedFlag';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
@@ -48,6 +49,7 @@ import { hasDeepLinkParams, readDeepLinkIntents, withInviteIntent, withoutFirstI
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
+const CONNECTION_PROBLEM_DELAY_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
 
 interface RecoveryFilePrompt {
@@ -284,6 +286,7 @@ function lastRoomStorageKey(userId: string): string {
 function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { t } = useTranslation();
   const { socket, connected } = useSocket();
+  const connectionLost = useSustainedFlag(!connected, CONNECTION_PROBLEM_DELAY_MS);
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => {
     try {
@@ -495,8 +498,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     <PwaCallBridge />
     <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {!connected && (
+        {connectionLost && (
           <div
+            role="status"
             className="chat-connection-banner sc-anim-drop-in"
             style={{
               display: 'flex',
@@ -514,8 +518,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               flexShrink: 0,
             }}
           >
-            <Spinner size={14} />
-            {t('app.connecting')}
+            <LuWifiOff size={15} color={theme.warningText} aria-hidden="true" style={{ flexShrink: 0 }} />
+            {t('app.connectionProblem')}
           </div>
         )}
         <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden', background: theme.canvas, boxShadow: theme.shadowLg }}>

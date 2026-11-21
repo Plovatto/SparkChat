@@ -810,7 +810,7 @@
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connecting": "Connecting to the server...",
+    "connectionProblem": "Connection problem. Check your internet, we keep trying to reconnect.",
     "deepLink": {
       "joinTitle": "Join group?",
       "joinMessage": "A link invited you to join a group. Do you want to join?",
@@ -1107,7 +1107,6 @@
       "description": "Calls and messages even when the app is closed.",
       "blocked": "Notifications are blocked in this browser. To allow them, tap the lock or settings icon next to the address, allow Notifications and reload the page. In the installed app, allow them in System Settings > Notifications > SparkChat.",
       "unsupported": "This browser does not support notifications while the app is closed.",
-      "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
       "serverDisabled": "Notifications with the app closed are not available on this server yet.",
       "checking": "Checking…",
       "error": "Could not turn on notifications right now. Try again in a moment."

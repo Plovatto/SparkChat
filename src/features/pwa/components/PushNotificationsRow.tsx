@@ -6,13 +6,11 @@ import { Switch } from '@components/common/Switch';
 import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { usePushNotifications, type PushStatus } from '../hooks/usePushNotifications';
-import { openInstallSheet } from '../lib/install-state';
 import '../styles/pwa.css';
 
 const HINT_KEYS = {
   blocked: 'pwa.push.blocked',
   unsupported: 'pwa.push.unsupported',
-  'ios-needs-install': 'pwa.push.iosNeedsInstall',
   'server-disabled': 'pwa.push.serverDisabled',
 } as const satisfies Partial<Record<PushStatus, string>>;
 
@@ -61,11 +59,6 @@ export function PushNotificationsRow() {
       {hintKey && (
         <p key={status} className="pwa-push-hint" data-tone={status === 'blocked' ? 'danger' : 'info'} role="note">
           <span>{t(hintKey)}</span>
-          {status === 'ios-needs-install' && (
-            <button type="button" onClick={openInstallSheet} className="pwa-push-hint__action">
-              {t('pwa.card.iosInstallAction')}
-            </button>
-          )}
         </p>
       )}
       {error && (

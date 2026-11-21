@@ -716,6 +716,16 @@
   pointer-events: none;
 }
 
+@media (max-width: 600px) {
+  .sc-modal-panel {
+    --sc-modal-gutter: 10px;
+    --sc-modal-padding: 16px;
+    --sc-modal-header-padding: 14px 16px;
+    --sc-modal-scrollbar-gutter: auto;
+    --sc-modal-max-height: calc(100dvh - 24px);
+  }
+}
+
 .sc-media-gallery-grid .sc-tile img {
   transition: transform var(--sc-dur-slow) var(--sc-ease-standard);
 }

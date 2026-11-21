@@ -60,28 +60,6 @@
   color: var(--sc-danger-text);
 }
 
-.pwa-push-hint__action {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--sc-accent-text);
-  font-size: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.pwa-push-hint__action:focus-visible {
-  outline: 2px solid var(--sc-border-focus);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .pwa-push-hint__action:hover {
-    text-decoration: underline;
-  }
-}
-
 .pwa-push-notice {
   animation: scRiseIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
 }
