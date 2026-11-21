@@ -16,6 +16,7 @@ import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 import { UnencryptedNotice } from './UnencryptedNotice';
 import { VideoPreviewModal } from './VideoPreviewModal';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageGroupBubbleProps extends MessageBubbleActions {
   images: ChatMessage[];
@@ -87,6 +88,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   const { theme, getRoomAppearance } = useTheme();
   const [modalIndex, setModalIndex] = useState<number | null>(null);
   const [videoMessage, setVideoMessage] = useState<ChatMessage | null>(null);
+  const mediaViewer = useMediaViewer();
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
   const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
@@ -110,6 +112,9 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   };
 
   const openTile = (image: ChatMessage, index: number) => {
+    if (mediaViewer?.open(image.id)) {
+      return;
+    }
     const isLastVisible = index === visibleTiles.length - 1;
     if (isLastVisible && extraCount > 0) {
       setModalIndex(Math.max(0, photoMessages.indexOf(image)));

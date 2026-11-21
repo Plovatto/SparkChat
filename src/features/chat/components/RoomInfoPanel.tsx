@@ -22,9 +22,10 @@ import { ChatAppearanceModal } from './ChatAppearanceModal';
 import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
 import { GroupNameEditor } from './GroupNameEditor';
-import { ImageModal } from './ImageModal';
 import { PdfPreviewModal } from './PdfPreviewModal';
-import { VideoPreviewModal } from './VideoPreviewModal';
+import { MediaViewer } from './media-viewer/MediaViewer';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
+import { toMediaViewerItems } from './media-viewer/media-viewer-items';
 import { InfoMediaGrid } from './room-info/InfoMediaGrid';
 import { InfoMessageSearch } from './room-info/InfoMessageSearch';
 import { MemberRow } from './room-info/MemberRow';
@@ -50,7 +51,7 @@ interface RoomAutoTranslateProps {
 type InfoView = 'main' | 'invite' | 'search' | 'media';
 
 const COPY_KEY_NICKNAME = 'nickname';
-const MEDIA_PREVIEW_COUNT = 6;
+const MEDIA_PREVIEW_COUNT = 9;
 const HERO_AVATAR_SIZE = 92;
 
 function getLastSeen(participant: RoomParticipant): string {
@@ -160,9 +161,11 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
   const canCall = call !== null && call.canCall(room);
   const callBusy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
   const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
-  const isSelectedMediaVideo = selectedMedia?.type === 'file' && Boolean(selectedMedia.fileMeta?.mimeType.startsWith('video/'));
   const isSelectedMediaPdf = selectedMedia?.type === 'file' && selectedMedia.fileMeta?.mimeType === 'application/pdf';
   const media = useMemo(() => getGalleryMedia(messages), [messages]);
+  const mediaViewer = useMediaViewer();
+  const viewerItems = useMemo(() => toMediaViewerItems(messages, room.participants), [messages, room.participants]);
+  const [localViewerIndex, setLocalViewerIndex] = useState<number | null>(null);
   const sortedParticipants = useMemo(
     () =>
       [...room.participants].sort((a, b) => {
@@ -191,7 +194,17 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
       });
       return;
     }
-    setSelectedMedia(message);
+    if (message.type === 'file' && message.fileMeta?.mimeType === 'application/pdf') {
+      setSelectedMedia(message);
+      return;
+    }
+    if (mediaViewer?.open(message.id)) {
+      return;
+    }
+    const viewerIndex = viewerItems.findIndex((item) => item.id === message.id);
+    if (viewerIndex >= 0) {
+      setLocalViewerIndex(viewerIndex);
+    }
   };
 
   const handleBlock = () => {
@@ -425,24 +438,20 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
         onConfirm={confirmRemoveMember}
         onCancel={() => setPendingRemoval(null)}
       />
-      <ImageModal
-        isOpen={selectedMedia?.type === 'image'}
-        images={selectedMedia?.type === 'image' ? [selectedMedia.content] : []}
-        roomId={room.id}
-        messageIds={selectedMedia?.type === 'image' ? [selectedMedia.id] : []}
-        fileMetas={selectedMedia?.type === 'image' ? [selectedMedia.fileMeta] : []}
-        onClose={() => setSelectedMedia(null)}
-      />
+      {!mediaViewer && (
+        <MediaViewer
+          isOpen={localViewerIndex !== null}
+          items={viewerItems}
+          startIndex={localViewerIndex ?? 0}
+          onClose={() => setLocalViewerIndex(null)}
+          roomName={isGroup ? room.name : undefined}
+          onShowInChat={(messageId) => {
+            setLocalViewerIndex(null);
+            handleSearchSelect(messageId);
+          }}
+        />
+      )}
       <ProfilePhotoViewer photoUrl={viewerPhoto} onClose={() => setViewerPhoto(null)} />
-      <VideoPreviewModal
-        isOpen={isSelectedMediaVideo}
-        onClose={() => setSelectedMedia(null)}
-        url={isSelectedMediaVideo ? (selectedMedia?.content ?? '') : ''}
-        fileName={selectedMedia?.fileMeta?.name ?? t('chat.message.defaultVideoName')}
-        roomId={room.id}
-        messageId={selectedMedia?.id}
-        fileMeta={selectedMedia?.fileMeta}
-      />
       <PdfPreviewModal
         isOpen={isSelectedMediaPdf}
         onClose={() => setSelectedMedia(null)}

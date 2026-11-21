@@ -8,6 +8,7 @@ import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, CHAT_GIF_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageMessageContentProps {
   message: ChatMessage;
@@ -54,6 +55,7 @@ export function ImageMessageContent({ message, flush = false }: ImageMessageCont
   const [isLoaded, setIsLoaded] = useState(false);
   const [displayHeight, setDisplayHeight] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const mediaViewer = useMediaViewer();
   const isGif = isGifMimeType(message.fileMeta?.mimeType);
   const maxWidth = isGif ? CHAT_GIF_MAX_WIDTH : CHAT_ATTACHMENT_MAX_WIDTH;
   const localSource = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
@@ -99,7 +101,9 @@ export function ImageMessageContent({ message, flush = false }: ImageMessageCont
           }}
           onClick={(event) => {
             event.stopPropagation();
-            setIsModalOpen(true);
+            if (!mediaViewer?.open(message.id)) {
+              setIsModalOpen(true);
+            }
           }}
           className="sc-media-thumb"
           style={{

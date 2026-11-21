@@ -6,6 +6,7 @@ import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-at
 import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { VideoPreviewModal } from './VideoPreviewModal';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 const VIDEO_THUMBNAIL_WIDTH = 380;
 const VIDEO_FALLBACK_HEIGHT = fitAttachmentHeight(16, 9);
@@ -19,6 +20,7 @@ export function VideoMessageContent({ message, flush = false }: VideoMessageCont
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<VideoThumbnail | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const mediaViewer = useMediaViewer();
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +61,9 @@ export function VideoMessageContent({ message, flush = false }: VideoMessageCont
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            setIsPreviewOpen(true);
+            if (!mediaViewer?.open(message.id)) {
+              setIsPreviewOpen(true);
+            }
           }}
           title={t('chat.message.fullscreen')}
           className="sc-icon-btn sc-icon-btn--scrim-solid"

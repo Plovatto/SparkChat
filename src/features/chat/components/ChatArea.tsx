@@ -18,6 +18,7 @@ import { getMessageReceipt, type MessageReceiptInfo } from '@lib/message-status'
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
 import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
+import { ActiveRoomContext } from '../hooks/active-room-context';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
 import { useRoomMessages } from '../hooks/useRoomMessages';
@@ -27,6 +28,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
+import { jumpToMessage } from '../utils/jump-to-message';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import { buildRenderItems, canDeleteMessage, canJoinRun, renderItemAnchorMessage, renderItemFirstMessage, renderItemKey, type ImageGroup, type RenderItem } from '../utils/render-items';
@@ -37,6 +39,7 @@ import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
+import { MediaViewerProvider } from './media-viewer/MediaViewerProvider';
 import { ImageGroupBubble } from './ImageGroupBubble';
 import { MessageBubble } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
@@ -73,6 +76,7 @@ const STICKY_DATE_TOP_PX = 8;
 const FILL_VIEWPORT_CHECK_DELAY_MS = 350;
 const STICKY_DATE_IDLE_DELAY_MS = 1200;
 const ENTRANCE_CASCADE_MAX_INDEX = 7;
+const SHOW_IN_CHAT_DELAY_MS = 320;
 
 function uploadErrorText(error: unknown, fallbackKey: string): string {
   return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
@@ -669,6 +673,26 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const handleForward = useCallback((messagesToForward: ChatMessage[]) => {
     setForwardingMessages(messagesToForward);
   }, []);
+
+  const handleForwardMediaById = useCallback(
+    (messageId: string) => {
+      const target = messages.find((message) => message.id === messageId);
+      if (target) {
+        setForwardingMessages([target]);
+      }
+    },
+    [messages],
+  );
+
+  const handleShowMessageInChat = useCallback(
+    (messageId: string) => {
+      if (!isInfoInline) {
+        setIsInfoOpen(false);
+      }
+      window.setTimeout(() => jumpToMessage(messageId), SHOW_IN_CHAT_DELAY_MS);
+    },
+    [isInfoInline],
+  );
 
   const handleAudioPlayed = useCallback(
     (messageId: string) => {
@@ -1320,5 +1344,19 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     </div>
   );
 
-  return <RoomTranslationContext.Provider value={roomTranslation}>{content}</RoomTranslationContext.Provider>;
+  return (
+    <RoomTranslationContext.Provider value={roomTranslation}>
+      <ActiveRoomContext.Provider value={room}>
+        <MediaViewerProvider
+          messages={messages}
+          participants={room.participants}
+          roomName={room.type === 'group' ? room.name : undefined}
+          onForward={handleForwardMediaById}
+          onShowInChat={handleShowMessageInChat}
+        >
+          {content}
+        </MediaViewerProvider>
+      </ActiveRoomContext.Provider>
+    </RoomTranslationContext.Provider>
+  );
 }
