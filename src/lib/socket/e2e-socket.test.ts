@@ -21,6 +21,8 @@ const roomKeyHandlers = vi.hoisted(() => ({
   ensureRoomKeyForSending: vi.fn(),
   recoverFromStaleRoomKey: vi.fn(),
   encryptOutgoingMessage: vi.fn(),
+  sealReaction: vi.fn(),
+  openReactions: vi.fn((_socket: unknown, _roomId: string, _messageId: string, reactions: unknown) => Promise.resolve(reactions)),
 }));
 
 const profilePhotoHandlers = vi.hoisted(() => ({
@@ -335,6 +337,80 @@ describe('wrapSocketWithE2e room key events', () => {
       receive('error', { message: 'x' });
       expect(appErrors).toHaveLength(0);
     });
+  });
+});
+
+describe('wrapSocketWithE2e reactions', () => {
+  const generation = (keyId: string) => ({ keyId: keyId.repeat(22), epoch: 1, key: new Uint8Array(32) });
+
+  function setup() {
+    const fake = createFakeSocket();
+    const sent = vi.spyOn(fake.socket, 'emit');
+    const appErrors: unknown[] = [];
+    roomKeyHandlers.ensureRoomKeyForSending.mockReset().mockResolvedValue(generation('a'));
+    roomKeyHandlers.recoverFromStaleRoomKey.mockReset().mockResolvedValue(generation('b'));
+    roomKeyHandlers.sealReaction.mockReset().mockImplementation((_target: unknown, emoji: string) => Promise.resolve(`sealed:${emoji.length}`));
+    wrapSocketWithE2e(fake.socket);
+    fake.socket.on('error', (payload: unknown) => appErrors.push(payload));
+    return { ...fake, sent, appErrors };
+  }
+
+  const reacts = (sent: { mock: { calls: unknown[][] } }) => sent.mock.calls.filter((call) => call[0] === 'message:react').map((call) => call[1]);
+
+  it('seals the emoji and sends only the message id and the ciphertext', async () => {
+    const { socket, sent } = setup();
+
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: '❤️' });
+
+    await vi.waitFor(() => expect(reacts(sent)).toHaveLength(1));
+    expect(reacts(sent)[0]).toEqual({ messageId: 'm1', emoji: 'sealed:2' });
+    expect(roomKeyHandlers.sealReaction).toHaveBeenCalledWith({ roomId: 'room-1', messageId: 'm1' }, '❤️');
+  });
+
+  it('sends a removal without touching the room key', () => {
+    const { socket, sent } = setup();
+
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: null });
+
+    expect(reacts(sent)).toEqual([{ messageId: 'm1', emoji: null }]);
+    expect(roomKeyHandlers.ensureRoomKeyForSending).not.toHaveBeenCalled();
+  });
+
+  it('retries once with the recovered key after a stale key rejection and surfaces a second one', async () => {
+    const { socket, receive, sent, appErrors } = setup();
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: '👍' });
+    await vi.waitFor(() => expect(reacts(sent)).toHaveLength(1));
+    const stale = { message: 'stale', code: 'message.staleRoomKey', event: 'message:react', messageId: 'm1' };
+
+    receive('error', { ...stale });
+    await vi.waitFor(() => expect(reacts(sent)).toHaveLength(2));
+    expect(roomKeyHandlers.recoverFromStaleRoomKey).toHaveBeenCalledWith(socket, 'room-1', 'a'.repeat(22));
+    expect(appErrors).toHaveLength(0);
+
+    receive('error', { ...stale });
+    expect(appErrors).toHaveLength(1);
+  });
+
+  it('reports a reaction that cannot be sealed so the interface can roll it back', async () => {
+    const { socket, sent, appErrors } = setup();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    roomKeyHandlers.ensureRoomKeyForSending.mockRejectedValue(new Error('no key'));
+
+    socket.emit('message:react', { roomId: 'room-1', messageId: 'm1', emoji: '😢' });
+
+    await vi.waitFor(() => expect(appErrors).toEqual([expect.objectContaining({ event: 'message:react', messageId: 'm1' })]));
+    expect(reacts(sent)).toHaveLength(0);
+  });
+
+  it('decrypts incoming reaction updates before handing them over', async () => {
+    const { socket, receive } = setup();
+    const received: unknown[] = [];
+    socket.on('message:reactions-updated', (payload: unknown) => received.push(payload));
+
+    receive('message:reactions-updated', { roomId: 'room-1', messageId: 'm1', reactions: [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }] });
+
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    expect(roomKeyHandlers.openReactions).toHaveBeenCalledWith(socket, 'room-1', 'm1', [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }], { live: true });
   });
 });
 

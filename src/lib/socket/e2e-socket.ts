@@ -26,7 +26,9 @@ import {
   handleRotationRequired,
   handleUserAvatarUpdated,
   MissingRoomKeyError,
+  openReactions,
   recoverFromStaleRoomKey,
+  sealReaction,
   subscribeCurrentIdentity,
   trackRoom,
   updateRoomParticipants,
@@ -37,6 +39,7 @@ import type { AppSocket } from './socket-client';
 import type {
   BlockStatusPayload,
   ClientToServerEvents,
+  MessageReactionsUpdatedPayload,
   MessageView,
   RoomParticipant,
   RoomSummary,
@@ -53,6 +56,8 @@ type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
+type OutgoingReaction = Parameters<ClientToServerEvents['message:react']>[0];
+
 type RoomKeyRejectedPayload = Parameters<ServerToClientEvents['e2e:room-key-rejected']>[0];
 
 const STALE_ROOM_KEY_CODE = 'message.staleRoomKey';
@@ -63,6 +68,14 @@ interface PendingSend {
   retried: boolean;
 }
 
+interface PendingReaction {
+  payload: OutgoingReaction;
+  keyId: string;
+  retried: boolean;
+}
+
+const REACT_EVENT = 'message:react';
+
 function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, error: unknown): void {
   const message = error instanceof MissingRoomKeyError ? error.message : translate('errors.e2ee.encryptFailed');
   for (const listener of socket.listeners('error')) {
@@ -70,7 +83,23 @@ function notifySendFailure(socket: AppSocket, clientTempId: string | undefined, 
   }
 }
 
-const DECRYPT_EVENTS = new Set(['message:new', 'messages:list', 'message:updated', 'room:created', 'room:joined', 'room:new', 'rooms:list']);
+function notifyReactionFailure(socket: AppSocket, messageId: string, error: unknown): void {
+  const message = error instanceof MissingRoomKeyError ? error.message : translate('errors.e2ee.encryptFailed');
+  for (const listener of socket.listeners('error')) {
+    listener({ message, event: REACT_EVENT, messageId });
+  }
+}
+
+const DECRYPT_EVENTS = new Set([
+  'message:new',
+  'messages:list',
+  'message:updated',
+  'message:reactions-updated',
+  'room:created',
+  'room:joined',
+  'room:new',
+  'rooms:list',
+]);
 
 interface DeferredRoomEvent {
   room: RoomSummary;
@@ -107,6 +136,11 @@ async function transformPayload(socket: AppSocket, event: string, payload: unkno
     case 'message:new':
     case 'message:updated':
       return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly, live: event === 'message:new' });
+
+    case 'message:reactions-updated': {
+      const typed = payload as MessageReactionsUpdatedPayload;
+      return { ...typed, reactions: await openReactions(socket, typed.roomId, typed.messageId, typed.reactions, { live: true }) };
+    }
 
     case 'messages:list': {
       const typed = payload as { roomId: string; messages: MessageView[]; hasMore: boolean };
@@ -190,6 +224,43 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       });
   };
 
+  const pendingReactions = new Map<string, PendingReaction>();
+
+  const sendReaction = (payload: OutgoingReaction, staleKeyId: string | null) => {
+    if (payload.emoji === null) {
+      pendingReactions.delete(payload.messageId);
+      originalEmit(REACT_EVENT, { messageId: payload.messageId, emoji: null });
+      return;
+    }
+    const emoji = payload.emoji;
+    const obtainKey = staleKeyId
+      ? recoverFromStaleRoomKey(socket, payload.roomId, staleKeyId)
+      : ensureRoomKeyForSending(socket, payload.roomId);
+    void obtainKey
+      .then(async (generation) => {
+        const sealed = await sealReaction({ roomId: payload.roomId, messageId: payload.messageId }, emoji);
+        pendingReactions.set(payload.messageId, { payload, keyId: generation.keyId, retried: staleKeyId !== null });
+        originalEmit(REACT_EVENT, { messageId: payload.messageId, emoji: sealed });
+      })
+      .catch((error: unknown) => {
+        console.error('[e2e] failed to encrypt reaction, not sending it', error);
+        notifyReactionFailure(socket, payload.messageId, error);
+      });
+  };
+
+  const retriesStaleReaction = (payload: SocketErrorPayload): boolean => {
+    const pending = payload.messageId ? pendingReactions.get(payload.messageId) : undefined;
+    if (!payload.messageId || !pending) {
+      return false;
+    }
+    pendingReactions.delete(payload.messageId);
+    if (payload.code === STALE_ROOM_KEY_CODE && !pending.retried) {
+      sendReaction(pending.payload, pending.keyId);
+      return true;
+    }
+    return false;
+  };
+
   const retriesStaleSend = (payload: unknown): boolean => {
     if (typeof payload !== 'object' || payload === null) {
       return false;
@@ -197,6 +268,11 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     const decided = staleRetryDecisions.get(payload);
     if (decided !== undefined) {
       return decided;
+    }
+    if ((payload as SocketErrorPayload).event === REACT_EVENT) {
+      const retryReaction = retriesStaleReaction(payload as SocketErrorPayload);
+      staleRetryDecisions.set(payload, retryReaction);
+      return retryReaction;
     }
     const { code, clientTempId } = payload as SocketErrorPayload;
     const pending = clientTempId ? pendingSends.get(clientTempId) : undefined;
@@ -258,6 +334,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   genericSocket.emit = (event: string, ...args: unknown[]) => {
     if (event === 'message:send') {
       sendEncrypted(args[0] as OutgoingMessage, null);
+      return socket;
+    }
+    if (event === REACT_EVENT) {
+      sendReaction(args[0] as OutgoingReaction, null);
       return socket;
     }
     if (event === 'room:create-group') {
@@ -400,6 +480,12 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   originalOn('message:new', (payload: { clientTempId?: string }) => {
     if (payload.clientTempId) {
       pendingSends.delete(payload.clientTempId);
+    }
+  });
+
+  originalOn('message:reactions-updated', (payload: { messageId?: string }) => {
+    if (payload.messageId) {
+      pendingReactions.delete(payload.messageId);
     }
   });
 
