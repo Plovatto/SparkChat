@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties, type ReactNode, type Ref } from '
 import type { EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
+import { useLongPress } from '../hooks/useLongPress';
 
 interface MessageBubbleShellProps {
   isOwn: boolean;
@@ -18,6 +19,8 @@ interface MessageBubbleShellProps {
   padding: string;
   extraClassName?: string;
   afterBubble?: ReactNode;
+  beforeBubble?: ReactNode;
+  onLongPress?: () => void;
   children: ReactNode;
   minWidth?: string;
   cornerRadius?: number;
@@ -41,6 +44,8 @@ export function MessageBubbleShell({
   padding,
   extraClassName = '',
   afterBubble,
+  beforeBubble,
+  onLongPress,
   children,
   minWidth = '80px',
   cornerRadius = 16,
@@ -53,6 +58,7 @@ export function MessageBubbleShell({
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
   const lastPointerTypeRef = useRef<string | null>(null);
+  const longPress = useLongPress({ onLongPress: onLongPress ?? onOpenActions, enabled: allowCustomContextMenu });
 
   return (
     <div
@@ -64,13 +70,27 @@ export function MessageBubbleShell({
       className={`${entrance === 'none' ? '' : 'sc-anim-bubble-in sc-stagger '}chat-bubble-wrap${extraClassName}`}
       onClick={(event) => {
         event.stopPropagation();
+        if (longPress.consumeLongPress()) {
+          return;
+        }
         onSelect();
       }}
       onPointerDown={(event) => {
         lastPointerTypeRef.current = event.pointerType;
+        if (!(event.target as HTMLElement).closest('[data-no-long-press]')) {
+          longPress.handlers.onPointerDown(event);
+        }
       }}
+      onPointerMove={longPress.handlers.onPointerMove}
+      onPointerUp={longPress.handlers.onPointerUp}
+      onPointerCancel={longPress.handlers.onPointerCancel}
+      onPointerLeave={longPress.handlers.onPointerLeave}
       onContextMenu={(event) => {
-        if (!allowCustomContextMenu || lastPointerTypeRef.current === 'touch' || (event.target as HTMLElement).closest('a, video')) {
+        if (!allowCustomContextMenu || (event.target as HTMLElement).closest('a, video')) {
+          return;
+        }
+        if (lastPointerTypeRef.current === 'touch') {
+          event.preventDefault();
           return;
         }
         const selection = window.getSelection();
@@ -94,6 +114,7 @@ export function MessageBubbleShell({
         } as CSSProperties
       }
     >
+      {beforeBubble}
       <div
         data-message-id={messageId}
         data-selected={isSelected}

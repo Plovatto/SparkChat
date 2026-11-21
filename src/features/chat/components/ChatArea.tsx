@@ -342,6 +342,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     sendMessage,
     retryMessage,
     loadOlderMessages,
+    reactToMessage,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
@@ -1203,6 +1204,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onForward={handleForward}
                                 onAudioPlayed={handleAudioPlayed}
                                 onRetry={retryMessage}
+                                onReact={reactToMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
                               />
@@ -1222,6 +1224,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onDelete={handleDeleteRequest}
                                 onForward={handleForward}
                                 onRetry={retryMessage}
+                                onReact={reactToMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
                               />
