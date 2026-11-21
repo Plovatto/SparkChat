@@ -84,7 +84,16 @@ export async function sealReaction(target: ReactionTarget, emoji: string): Promi
 }
 
 interface OpenReactionOptions {
-  live?: boolean;
+  messageTimestamp?: string | undefined;
+}
+
+export function reactionEventTime(updatedAt: string, messageTimestamp: string | undefined): string {
+  const reacted = Date.parse(updatedAt);
+  const sent = messageTimestamp ? Date.parse(messageTimestamp) : Number.NaN;
+  if (!Number.isFinite(sent)) {
+    return updatedAt;
+  }
+  return Number.isFinite(reacted) && reacted > sent ? updatedAt : new Date(sent).toISOString();
 }
 
 async function openReaction(
@@ -102,7 +111,12 @@ async function openReaction(
     if (!roomKey) {
       return null;
     }
-    const source = { messageId: target.messageId, senderId: reaction.userId, timestamp: reaction.updatedAt, live: options.live === true };
+    const source = {
+      messageId: target.messageId,
+      senderId: reaction.userId,
+      timestamp: reactionEventTime(reaction.updatedAt, options.messageTimestamp),
+      live: false,
+    };
     if ((await checkGroupSender(target.roomId, parsed.keyId, source)) !== 'ok') {
       return null;
     }

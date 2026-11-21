@@ -353,7 +353,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId, source, fileMeta?.previewKey),
     options.skipReactions === true || message.deletedForEveryone
       ? Promise.resolve([])
-      : openReactions(socket, message.roomId, message.id, message.reactions, { live: options.live === true }),
+      : openReactions(socket, message.roomId, message.id, message.reactions, { messageTimestamp: message.timestamp }),
   ]);
   return {
     ...message,

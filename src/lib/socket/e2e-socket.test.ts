@@ -402,15 +402,22 @@ describe('wrapSocketWithE2e reactions', () => {
     expect(reacts(sent)).toHaveLength(0);
   });
 
-  it('decrypts incoming reaction updates before handing them over', async () => {
+  it('decrypts incoming reaction updates as history bound to the message time', async () => {
     const { socket, receive } = setup();
     const received: unknown[] = [];
     socket.on('message:reactions-updated', (payload: unknown) => received.push(payload));
 
-    receive('message:reactions-updated', { roomId: 'room-1', messageId: 'm1', reactions: [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }] });
+    receive('message:reactions-updated', {
+      roomId: 'room-1',
+      messageId: 'm1',
+      messageTimestamp: '2026-11-20T10:00:00.000Z',
+      reactions: [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }],
+    });
 
     await vi.waitFor(() => expect(received).toHaveLength(1));
-    expect(roomKeyHandlers.openReactions).toHaveBeenCalledWith(socket, 'room-1', 'm1', [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }], { live: true });
+    expect(roomKeyHandlers.openReactions).toHaveBeenCalledWith(socket, 'room-1', 'm1', [{ userId: 'u', emoji: 'e2e:v2:x', updatedAt: 't' }], {
+      messageTimestamp: '2026-11-20T10:00:00.000Z',
+    });
   });
 });
 

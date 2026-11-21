@@ -139,7 +139,10 @@ async function transformPayload(socket: AppSocket, event: string, payload: unkno
 
     case 'message:reactions-updated': {
       const typed = payload as MessageReactionsUpdatedPayload;
-      return { ...typed, reactions: await openReactions(socket, typed.roomId, typed.messageId, typed.reactions, { live: true }) };
+      return {
+        ...typed,
+        reactions: await openReactions(socket, typed.roomId, typed.messageId, typed.reactions, { messageTimestamp: typed.messageTimestamp }),
+      };
     }
 
     case 'messages:list': {

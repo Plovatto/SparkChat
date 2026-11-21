@@ -180,6 +180,7 @@ export interface MessageReaction {
 export interface MessageReactionsUpdatedPayload {
   roomId: string;
   messageId: string;
+  messageTimestamp?: string;
   reactions: MessageReaction[];
 }
 

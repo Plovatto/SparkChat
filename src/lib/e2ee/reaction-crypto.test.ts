@@ -10,6 +10,7 @@ import {
   REACTION_EMOJI_MAX_BYTES,
   REACTION_FIELD_LABEL,
   REACTION_PLAINTEXT_BYTES,
+  reactionEventTime,
   sealReaction,
   unpadReaction,
 } from './reaction-crypto';
@@ -18,6 +19,7 @@ import { getSodium } from './sodium';
 
 const roomKeys = vi.hoisted(() => new Map<string, { keyId: string; epoch: number; key: Uint8Array }[]>());
 const contactSigningKeys = vi.hoisted(() => new Map<string, string>());
+const groupContext = vi.hoisted(() => ({ current: null as unknown }));
 
 vi.mock('./room-keys', () => {
   class MissingRoomKeyError extends Error {}
@@ -30,7 +32,7 @@ vi.mock('./room-keys', () => {
       }
       return current;
     },
-    getGroupSenderContext: () => Promise.resolve(null),
+    getGroupSenderContext: () => Promise.resolve(groupContext.current),
     getMemberNickname: () => undefined,
     retryDeferredEnvelopes: () => Promise.resolve(),
     getVerifiedGroupAdmins: () => null,
@@ -90,6 +92,7 @@ const alice: Person = { userId: ALICE, privateKey: crypto.getRandomValues(new Ui
 const bob: Person = { userId: BOB, privateKey: crypto.getRandomValues(new Uint8Array(32)) };
 
 beforeEach(async () => {
+  groupContext.current = null;
   roomKeys.clear();
   contactSigningKeys.clear();
   addGeneration();
@@ -263,5 +266,52 @@ describe('reactions inside message views', () => {
       lastMessage: view({ reactions: [reaction(ALICE, sealed)] }),
     } as Parameters<typeof decryptRoomSummary>[1]);
     expect(room.lastMessage?.reactions).toEqual([]);
+  });
+});
+
+describe('reactions from people who left a group', () => {
+  const removedAt = Date.parse('2026-11-20T12:00:00.000Z');
+
+  function groupWithoutAlice(): void {
+    const [first] = roomKeys.get(ROOM_ID)!;
+    const second = addGeneration();
+    groupContext.current = {
+      isMember: (userId: string) => userId !== ALICE,
+      generations: [
+        { epoch: 1, keyId: first!.keyId, signed: true, roster: { members: [{ userId: ALICE }, { userId: BOB }], issuedAt: 0 } },
+        { epoch: 2, keyId: second.keyId, signed: true, roster: { members: [{ userId: BOB }], issuedAt: removedAt } },
+      ],
+    };
+  }
+
+  it('keeps a reaction made while the person was still a member, even when the update arrives later', async () => {
+    actAs(alice);
+    const sealed = await sealReaction({ roomId: ROOM_ID, messageId: MESSAGE_ID }, '❤️');
+    groupWithoutAlice();
+
+    actAs(bob);
+    const before = { userId: ALICE, emoji: sealed, updatedAt: '2026-11-20T11:00:00.000Z' };
+    await expect(openReactions(socket, ROOM_ID, MESSAGE_ID, [before], { messageTimestamp: '2026-11-20T10:00:00.000Z' })).resolves.toEqual([
+      { ...before, emoji: '❤️' },
+    ]);
+  });
+
+  it('drops a reaction dated after the removal and cannot be antedated before its message', async () => {
+    actAs(alice);
+    const sealed = await sealReaction({ roomId: ROOM_ID, messageId: MESSAGE_ID }, '❤️');
+    groupWithoutAlice();
+
+    actAs(bob);
+    const after = { userId: ALICE, emoji: sealed, updatedAt: '2026-11-20T13:00:00.000Z' };
+    await expect(openReactions(socket, ROOM_ID, MESSAGE_ID, [after], { messageTimestamp: '2026-11-20T10:00:00.000Z' })).resolves.toEqual([]);
+    const antedated = { userId: ALICE, emoji: sealed, updatedAt: '2020-01-01T00:00:00.000Z' };
+    await expect(openReactions(socket, ROOM_ID, MESSAGE_ID, [antedated], { messageTimestamp: '2026-11-20T12:30:00.000Z' })).resolves.toEqual([]);
+  });
+
+  it('never dates a reaction before the message it targets', () => {
+    expect(reactionEventTime('2020-01-01T00:00:00.000Z', '2026-11-20T10:00:00.000Z')).toBe('2026-11-20T10:00:00.000Z');
+    expect(reactionEventTime('2026-11-20T11:00:00.000Z', '2026-11-20T10:00:00.000Z')).toBe('2026-11-20T11:00:00.000Z');
+    expect(reactionEventTime('2026-11-20T11:00:00.000Z', undefined)).toBe('2026-11-20T11:00:00.000Z');
+    expect(reactionEventTime('garbage', '2026-11-20T10:00:00.000Z')).toBe('2026-11-20T10:00:00.000Z');
   });
 });
