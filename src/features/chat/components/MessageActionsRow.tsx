@@ -25,7 +25,8 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         justifyContent: isOwn ? 'flex-end' : 'flex-start',
         gap: '8px',
         margin: '8px 0 3px',
-        maxWidth: '100%',
+        width: 'max-content',
+        maxWidth: 'calc(100vw - 32px)',
         transformOrigin: isOwn ? 'top right' : 'top left',
       }}
     >
