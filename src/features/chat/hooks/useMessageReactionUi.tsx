@@ -62,6 +62,11 @@ export function useMessageReactionUi({
   );
 
   const closePicker = useCallback(() => setIsPickerOpen(false), []);
+  const togglePicker = useCallback(() => setIsPickerOpen((open) => !open), []);
+  const showReactors = useCallback((emoji: string) => {
+    setSheetEmoji(emoji);
+    setIsSheetOpen(true);
+  }, []);
   const closeSheet = useCallback(() => setIsSheetOpen(false), []);
 
   const quickBar = barPresence.isPresent ? (
@@ -73,7 +78,7 @@ export function useMessageReactionUi({
       compact={compact}
       isPickerOpen={isPickerOpen}
       onReact={chooseFromBar}
-      onOpenPicker={() => setIsPickerOpen((open) => !open)}
+      onOpenPicker={togglePicker}
     />
   ) : null;
 
@@ -86,10 +91,7 @@ export function useMessageReactionUi({
       compact={compact}
       disabled={!canReact}
       onToggle={choose}
-      onShowReactors={(emoji) => {
-        setSheetEmoji(emoji);
-        setIsSheetOpen(true);
-      }}
+      onShowReactors={showReactors}
     />
   );
 
