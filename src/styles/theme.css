@@ -685,7 +685,14 @@
 .sc-composer {
   display: flex;
   align-items: center;
+}
+
+.sc-composer-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
 .sc-composer-pill {
@@ -718,6 +725,43 @@
 
 .sc-composer-pill[data-disabled] {
   background: var(--sc-input-disabled);
+}
+
+.sc-composer-pill[data-shake] {
+  animation: scComposerShake var(--sc-dur-slow) var(--sc-ease-standard);
+  box-shadow:
+    inset 0 0 0 1.5px var(--sc-danger),
+    0 0 0 3px var(--sc-danger-soft);
+}
+
+@keyframes scComposerShake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  20%,
+  60% {
+    transform: translate3d(-5px, 0, 0);
+  }
+  40%,
+  80% {
+    transform: translate3d(5px, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-composer-pill[data-shake] {
+    animation: scComposerLimitPulse var(--sc-dur-slow) linear;
+  }
+}
+
+@keyframes scComposerLimitPulse {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .sc-composer-input {

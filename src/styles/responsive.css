@@ -94,7 +94,7 @@
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
 
-  .sc-composer {
+  .sc-composer-row {
     gap: 8px;
   }
 
