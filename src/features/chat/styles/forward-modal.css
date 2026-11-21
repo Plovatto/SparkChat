@@ -189,8 +189,6 @@
   padding: 2px 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sc-border-strong) transparent;
 }
 
 .sc-forward-empty {

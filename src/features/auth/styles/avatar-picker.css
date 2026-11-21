@@ -9,8 +9,6 @@
   border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--sc-text-primary) 7%, transparent);
   background: color-mix(in srgb, var(--sc-surface-sunken) 72%, #000000);
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--sc-border-focus) 40%, transparent) transparent;
 }
 
 .sc-avatar-picker[data-kind='light'] {

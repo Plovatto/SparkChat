@@ -33,23 +33,32 @@ vi.mock('@features/theme', async (importOriginal) => {
   };
 });
 
-const { ChatAppearanceModal } = await import('./ChatAppearanceModal');
+const { ChatAppearanceActions, ChatAppearanceView } = await import('./ChatAppearanceView');
 
-describe('ChatAppearanceModal', () => {
+function renderAppearance() {
+  return render(
+    <>
+      <ChatAppearanceView roomId="room-1" />
+      <ChatAppearanceActions roomId="room-1" />
+    </>,
+  );
+}
+
+describe('ChatAppearanceView', () => {
   beforeEach(() => {
     themeState.hasRoomWallpaperOverride.mockReturnValue(false);
     themeState.hasRoomAppearanceOverride.mockReturnValue(false);
   });
 
-  it('renders the title and marks the default wallpaper as selected', () => {
-    render(<ChatAppearanceModal isOpen roomId="room-1" onClose={vi.fn()} />);
+  it('renders the sections and marks the default wallpaper as selected', () => {
+    renderAppearance();
 
-    expect(screen.getByRole('heading', { name: 'chat.appearance.title' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'chat.appearance.wallpaper' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'wallpaper:default' }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('sets the room wallpaper when a tile is picked', () => {
-    render(<ChatAppearanceModal isOpen roomId="room-1" onClose={vi.fn()} />);
+    renderAppearance();
 
     fireEvent.click(screen.getByRole('radio', { name: 'wallpaper:gradient3' }));
 
@@ -58,7 +67,7 @@ describe('ChatAppearanceModal', () => {
 
   it('promotes the room settings to every chat and clears the room override', () => {
     themeState.hasRoomWallpaperOverride.mockReturnValue(true);
-    render(<ChatAppearanceModal isOpen roomId="room-1" onClose={vi.fn()} />);
+    renderAppearance();
 
     fireEvent.click(screen.getByText('chat.appearance.applyAll'));
 
@@ -69,7 +78,7 @@ describe('ChatAppearanceModal', () => {
   });
 
   it('keeps apply-to-all disabled without room overrides and resets this chat on demand', () => {
-    render(<ChatAppearanceModal isOpen roomId="room-1" onClose={vi.fn()} />);
+    renderAppearance();
 
     expect((screen.getByText('chat.appearance.applyAll').closest('button') as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByText('chat.appearanceModal.resetAll'));
@@ -78,15 +87,11 @@ describe('ChatAppearanceModal', () => {
     expect(themeState.resetRoomWallpaper).toHaveBeenCalledWith('room-1', false);
   });
 
-  it('updates the bubble opacity through the room appearance action and closes from the header', () => {
-    const onClose = vi.fn();
-    render(<ChatAppearanceModal isOpen roomId="room-1" onClose={onClose} />);
+  it('updates the bubble opacity through the room appearance action', () => {
+    renderAppearance();
 
     const sliders = screen.getAllByRole('slider');
     fireEvent.change(sliders[2] as HTMLInputElement, { target: { value: '40' } });
     expect(themeState.setRoomAppearance).toHaveBeenCalledWith('room-1', { ownBubbleOpacity: 40 }, false);
-
-    fireEvent.click(screen.getByLabelText('common.close'));
-    expect(onClose).toHaveBeenCalled();
   });
 });

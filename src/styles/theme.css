@@ -2022,8 +2022,6 @@
   box-shadow: var(--sc-shadow-lg, var(--sc-shadow-md));
   transform-origin: top center;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sc-border-strong) transparent;
   animation: scDropdownIn 160ms var(--sc-ease-enter);
 }
 

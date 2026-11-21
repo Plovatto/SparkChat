@@ -18,7 +18,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isAssistantRoom } from '../utils/assistant';
 import { getGalleryMedia } from '../utils/gallery-media';
 import { jumpToMessage } from '../utils/jump-to-message';
-import { ChatAppearanceModal } from './ChatAppearanceModal';
+import { ChatAppearanceActions, ChatAppearanceView } from './ChatAppearanceView';
 import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
 import { GroupNameEditor } from './GroupNameEditor';
@@ -48,7 +48,7 @@ interface RoomAutoTranslateProps {
   onChange: (enabled: boolean) => void;
 }
 
-type InfoView = 'main' | 'invite' | 'search' | 'media';
+type InfoView = 'main' | 'invite' | 'search' | 'media' | 'appearance';
 
 const COPY_KEY_NICKNAME = 'nickname';
 const MEDIA_PREVIEW_COUNT = 9;
@@ -135,7 +135,6 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [view, setView] = useState<InfoView>('main');
-  const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);
@@ -251,7 +250,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
 
   const drawerCloseHandler = removalTarget
     ? () => setPendingRemoval(null)
-    : isGroupPhotoConfirmOpen || isAppearanceOpen
+    : isGroupPhotoConfirmOpen
       ? () => {}
       : viewerPhoto
         ? () => setViewerPhoto(null)
@@ -271,12 +270,13 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
     invite: t('roomInfo.invite'),
     search: t('roomInfo.search'),
     media: t('roomInfo.media'),
+    appearance: t('chat.appearance.title'),
   };
 
   const footer =
     view === 'main' ? (
       <>
-        <FooterRow icon={<LuImage size={19} />} label={t('roomInfo.appearance')} onClick={() => setIsAppearanceOpen(true)} withChevron />
+        <FooterRow icon={<LuImage size={19} />} label={t('roomInfo.appearance')} onClick={() => setView('appearance')} withChevron />
         {isGroup && <FooterRow icon={<LuLogOut size={19} />} label={t('roomInfo.leave')} onClick={handleLeaveGroup} tone="danger" />}
         {!isGroup && otherUser && !isAssistant && (
           <FooterRow
@@ -287,6 +287,8 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
           />
         )}
       </>
+    ) : view === 'appearance' ? (
+      <ChatAppearanceActions roomId={room.id} />
     ) : undefined;
 
   const mainView = (
@@ -423,13 +425,17 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
             <InfoMessageSearch messages={messages} currentUserId={currentUserId} onSelect={handleSearchSelect} />
           </section>
         )}
+        {view === 'appearance' && (
+          <section className="sc-info-section sc-info-section--flat sc-info-section--appearance">
+            <ChatAppearanceView roomId={room.id} />
+          </section>
+        )}
         {view === 'media' && (
           <section className="sc-info-section sc-info-section--flat">
             <InfoMediaGrid media={media} messagesLoaded={messagesLoaded} variant="full" onSelect={handleSelectMedia} />
           </section>
         )}
       </SideDrawer>
-      <ChatAppearanceModal isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} roomId={room.id} />
       <ConfirmDialog
         isOpen={removalTarget !== null}
         title={t('roomInfo.removeTitle')}
