@@ -20,7 +20,10 @@ const SINGLE_EMOJI_PATTERN = new RegExp(
 const encoder = new TextEncoder();
 let graphemeSegmenter: Intl.Segmenter | null = null;
 
-function countGraphemes(value: string): number {
+function countGraphemes(value: string): number | null {
+  if (typeof Intl.Segmenter !== 'function') {
+    return null;
+  }
   graphemeSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   let count = 0;
   for (const segment of graphemeSegmenter.segment(value)) {
@@ -35,7 +38,8 @@ export function isReactionEmoji(value: string): boolean {
   if (value.length === 0 || encoder.encode(value).length > REACTION_EMOJI_MAX_BYTES) {
     return false;
   }
-  return countGraphemes(value) === 1 && SINGLE_EMOJI_PATTERN.test(value);
+  const graphemes = countGraphemes(value);
+  return (graphemes === null || graphemes === 1) && SINGLE_EMOJI_PATTERN.test(value);
 }
 
 export function padReaction(emoji: string): string {

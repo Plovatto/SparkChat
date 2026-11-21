@@ -113,6 +113,21 @@ describe('reaction emoji validation', () => {
     expect(isReactionEmoji(value)).toBe(false);
   });
 
+  it('still validates emoji where Intl.Segmenter is missing', () => {
+    const original = Intl.Segmenter;
+    Object.defineProperty(Intl, 'Segmenter', { value: undefined, configurable: true, writable: true });
+    try {
+      expect(isReactionEmoji('❤️')).toBe(true);
+      expect(isReactionEmoji('👨‍👩‍👧')).toBe(true);
+      expect(isReactionEmoji('🇧🇷')).toBe(true);
+      expect(isReactionEmoji('❤️❤️')).toBe(false);
+      expect(isReactionEmoji('oi')).toBe(false);
+      expect(unpadReaction(padReaction('😂'))).toBe('😂');
+    } finally {
+      Object.defineProperty(Intl, 'Segmenter', { value: original, configurable: true, writable: true });
+    }
+  });
+
   it('rejects a single grapheme that is larger than the emoji budget', () => {
     const chain = `${'👍\u200D'.repeat(10)}👍`;
     expect(encoder.encode(chain).length).toBeGreaterThan(REACTION_EMOJI_MAX_BYTES);
