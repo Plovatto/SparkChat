@@ -33,6 +33,7 @@ vi.mock('frimousse', () => {
       List: () => null,
       ActiveEmoji: ({ children }: { children: (props: { emoji?: { emoji: string; label: string } }) => ReactNode }) => <>{children({})}</>,
     },
+    useEmojiDetails: (emoji: string) => (emoji === GRIN ? { emoji: GRIN, label: 'grinning face' } : undefined),
     defaultEmojiDataResolver: vi.fn(() =>
       Promise.resolve({
       locale: 'pt',
@@ -59,7 +60,7 @@ afterEach(() => {
 
 describe('EmojiPickerPanel', () => {
   it('configures frimousse with self-hosted data, the locale and the column count', () => {
-    render(<EmojiPickerPanel locale="pt" columns={7} autoFocusSearch={false} onSelect={() => undefined} />);
+    render(<EmojiPickerPanel locale="pt" columns={7} autoFocusSearch={false} onSelect={() => undefined} onClose={() => undefined} />);
     expect(root.props).toMatchObject({ locale: 'pt', columns: 7, skinTone: 'none', emojibaseUrl: '/emoji-data/17.0.0' });
     const search = screen.getByTestId('emoji-search-input');
     expect(search.getAttribute('placeholder')).toBe('emoji.searchPlaceholder');
@@ -67,7 +68,7 @@ describe('EmojiPickerPanel', () => {
   });
 
   it('translates category names through the app translations', async () => {
-    render(<EmojiPickerPanel locale="pt" columns={7} autoFocusSearch={false} onSelect={() => undefined} />);
+    render(<EmojiPickerPanel locale="pt" columns={7} autoFocusSearch={false} onSelect={() => undefined} onClose={() => undefined} />);
     const resolve = root.props?.resolveEmojiData as (locale: string, options: object) => Promise<{ categories: { label: string }[] }>;
     const data = await resolve('pt', {});
     expect(data.categories.map((category) => category.label)).toEqual(['translated:emoji.categories.smileys', 'translated:emoji.categories.flags']);
@@ -75,7 +76,7 @@ describe('EmojiPickerPanel', () => {
 
   it('forwards selections and remembers them as recently used', () => {
     const onSelect = vi.fn();
-    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={onSelect} />);
+    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={onSelect} onClose={() => undefined} />);
     expect(screen.queryAllByTestId('emoji-recent')).toHaveLength(0);
 
     fireEvent.click(screen.getByText('list-emoji'));
@@ -87,11 +88,14 @@ describe('EmojiPickerPanel', () => {
     const stored = Array.from({ length: 12 }, (_, index) => String.fromCodePoint(0x1f600 + index));
     window.localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(stored));
     const onSelect = vi.fn();
-    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={onSelect} />);
+    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={onSelect} onClose={() => undefined} />);
 
     const recents = screen.getAllByTestId('emoji-recent');
     expect(recents).toHaveLength(8);
     expect(screen.getByText('emoji.recent')).toBeTruthy();
+
+    expect(recents[0]?.getAttribute('aria-label')).toBe('grinning face');
+    expect(recents[1]?.getAttribute('aria-label')).toBe(stored[1]);
 
     fireEvent.click(recents[0] as HTMLElement);
     expect(onSelect).toHaveBeenCalledWith(GRIN);
@@ -102,15 +106,25 @@ describe('EmojiPickerPanel', () => {
 
   it('keeps focus where it was when an emoji is pressed', () => {
     window.localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify([GRIN]));
-    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={() => undefined} />);
+    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={() => undefined} onClose={() => undefined} />);
     const pressed = fireEvent.mouseDown(screen.getByTestId('emoji-recent'));
     expect(pressed).toBe(false);
   });
 
   it('cycles and persists the skin tone', () => {
-    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={() => undefined} />);
+    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch={false} onSelect={() => undefined} onClose={() => undefined} />);
     fireEvent.click(screen.getByTestId('emoji-skin-tone'));
     expect(root.props?.skinTone).toBe('light');
     expect(window.localStorage.getItem(SKIN_TONE_STORAGE_KEY)).toBe('light');
+  });
+
+  it('has a visible close button', () => {
+    const onClose = vi.fn();
+    render(<EmojiPickerPanel locale="en" columns={8} autoFocusSearch onSelect={() => undefined} onClose={onClose} />);
+    const close = screen.getByTestId('emoji-picker-close');
+    expect(close.getAttribute('aria-label')).toBe('emoji.close');
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByTestId('emoji-search-input'));
   });
 });

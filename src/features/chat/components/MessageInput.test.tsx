@@ -36,9 +36,12 @@ vi.mock('../hooks/useAudioRecorder', () => ({
 vi.mock('@features/emoji/utils/load-emoji-picker', () => {
   function FakePanel({ onSelect }: EmojiPickerPanelProps) {
     return (
-      <button type="button" data-testid="fake-emoji" onMouseDown={(event) => event.preventDefault()} onClick={() => onSelect(GRIN)}>
-        {GRIN}
-      </button>
+      <>
+        <input data-testid="fake-search" aria-label="search" />
+        <button type="button" data-testid="fake-emoji" onMouseDown={(event) => event.preventDefault()} onClick={() => onSelect(GRIN)}>
+          {GRIN}
+        </button>
+      </>
     );
   }
   return { loadEmojiPickerPanel: () => Promise.resolve({ default: FakePanel }), preloadEmojiPicker: () => undefined };
@@ -155,5 +158,77 @@ describe('MessageInput composer', () => {
     renderComposer({ isBlockedBy: true });
     expect(screen.getByTestId<HTMLButtonElement>('emoji-button').disabled).toBe(true);
     expect(screen.getByTestId<HTMLButtonElement>('attach-button').disabled).toBe(true);
+  });
+
+  it('keeps typing in the picker search when an emoji is picked from there', async () => {
+    const { input } = renderComposer();
+    fireEvent.change(input, { target: { value: 'oi' } });
+    fireEvent.click(screen.getByTestId('emoji-button'));
+    const search = await screen.findByTestId('fake-search');
+    search.focus();
+    fireEvent.click(screen.getByTestId('fake-emoji'));
+    await flushTimers();
+    expect(input.value).toBe(`oi${GRIN}`);
+    expect(document.activeElement).toBe(search);
+  });
+
+  it('does not overwrite an active IME composition', async () => {
+    const { input } = renderComposer();
+    fireEvent.change(input, { target: { value: 'ni' } });
+    fireEvent.compositionStart(input);
+    fireEvent.click(screen.getByTestId('emoji-button'));
+    fireEvent.click(await screen.findByTestId('fake-emoji'));
+    await flushTimers();
+    expect(input.value).toBe('ni');
+    fireEvent.compositionEnd(input);
+    fireEvent.click(screen.getByTestId('fake-emoji'));
+    await flushTimers();
+    expect(input.value).toBe(`ni${GRIN}`);
+  });
+
+  it('signals when the emoji would go past the limit', async () => {
+    const { input } = renderComposer({ maxLength: 5 });
+    fireEvent.change(input, { target: { value: 'abcd' } });
+    fireEvent.click(screen.getByTestId('emoji-button'));
+    fireEvent.click(await screen.findByTestId('fake-emoji'));
+    await flushTimers();
+    const pill = input.parentElement as HTMLElement;
+    expect(pill.getAttribute('data-shake')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe('chat.input.tooLong');
+    fireEvent.animationEnd(pill);
+    act(() => {
+      pill.dispatchEvent(new Event('webkitAnimationEnd', { bubbles: true }));
+    });
+    expect(pill.getAttribute('data-shake')).toBeNull();
+  });
+
+  it('lets Escape close the mention list without closing the picker', async () => {
+    const { input } = renderComposer({ mentionCandidates: [{ id: 'u2', nickname: 'ana' }] });
+    fireEvent.click(screen.getByTestId('emoji-button'));
+    await screen.findByTestId('fake-emoji');
+    fireEvent.change(input, { target: { value: '@a', selectionStart: 2 } });
+    expect(screen.getByRole('option')).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.queryByRole('option')).toBeNull();
+    expect(screen.getByTestId('emoji-button').getAttribute('aria-expanded')).toBe('true');
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(screen.getByTestId('emoji-button').getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the picker open when sending and anchors it to the whole composer row', async () => {
+    const { input, onSend } = renderComposer();
+    fireEvent.click(screen.getByTestId('emoji-button'));
+    fireEvent.click(await screen.findByTestId('fake-emoji'));
+    await flushTimers();
+    fireEvent.pointerDown(screen.getByTestId('send-button'));
+    fireEvent.click(screen.getByTestId('send-button'));
+    expect(onSend).toHaveBeenCalledWith(expect.objectContaining({ text: GRIN }));
+    expect(input.value).toBe('');
+    expect(screen.getByTestId('emoji-button').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('describes the field with the blocked text when blocked', () => {
+    renderComposer({ userBlocked: true });
+    expect(screen.getByTestId('message-input').getAttribute('aria-label')).toBe('chat.input.placeholderYouBlocked');
   });
 });
