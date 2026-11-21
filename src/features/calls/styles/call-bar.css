@@ -1,0 +1,20 @@
+.sc-call-bar {
+  animation: scCallBarReveal 240ms var(--sc-ease-enter);
+}
+
+.sc-call-bar > * {
+  animation: scCallFadeIn 200ms ease-out 60ms both;
+}
+
+.sc-call-bar__mute {
+  transition: box-shadow 220ms ease;
+}
+
+@keyframes scCallBarReveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}

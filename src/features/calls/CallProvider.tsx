@@ -27,6 +27,8 @@ import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
 import './styles/calls.css';
+import './styles/incoming-call.css';
+import './styles/call-bar.css';
 
 interface CallProviderProps {
   rooms: RoomSummary[];
