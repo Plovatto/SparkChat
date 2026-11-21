@@ -682,6 +682,160 @@
   border-color: var(--sc-border);
 }
 
+.sc-composer {
+  display: flex;
+  align-items: center;
+}
+
+.sc-composer-row {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sc-composer-pill {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--sc-input);
+  box-shadow: inset 0 0 0 1.5px transparent;
+  transition:
+    background var(--sc-duration) var(--sc-ease),
+    box-shadow var(--sc-duration) var(--sc-ease);
+}
+
+.sc-composer-pill:hover:not([data-disabled]):not(:focus-within) {
+  background: var(--sc-input-hover);
+  box-shadow: inset 0 0 0 1.5px var(--sc-border);
+}
+
+.sc-composer-pill:focus-within {
+  background: var(--sc-input-focus);
+  box-shadow:
+    inset 0 0 0 1.5px var(--sc-border-focus),
+    0 0 0 3px var(--sc-focus-ring);
+}
+
+.sc-composer-pill[data-disabled] {
+  background: var(--sc-input-disabled);
+}
+
+.sc-composer-pill[data-shake] {
+  animation: scComposerShake var(--sc-dur-slow) var(--sc-ease-standard);
+  box-shadow:
+    inset 0 0 0 1.5px var(--sc-danger),
+    0 0 0 3px var(--sc-danger-soft);
+}
+
+@keyframes scComposerShake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  20%,
+  60% {
+    transform: translate3d(-5px, 0, 0);
+  }
+  40%,
+  80% {
+    transform: translate3d(5px, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-composer-pill[data-shake] {
+    animation: scComposerLimitPulse var(--sc-dur-slow) linear;
+  }
+}
+
+@keyframes scComposerLimitPulse {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.sc-composer-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sc-text-primary);
+  font-family: inherit;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+}
+
+.sc-composer-input::placeholder {
+  color: var(--sc-placeholder);
+  opacity: 1;
+}
+
+.sc-composer-input:disabled {
+  color: var(--sc-text-disabled);
+  cursor: not-allowed;
+}
+
+.sc-composer-action,
+.sc-composer-pill .sc-gif-btn.sc-icon-btn--muted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sc-icon-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--sc-dur-fast) var(--sc-ease-standard),
+    color var(--sc-dur-fast) var(--sc-ease-standard),
+    transform var(--sc-dur-fast) var(--sc-ease-spring);
+}
+
+.sc-composer-action:hover:not(:disabled),
+.sc-composer-pill .sc-gif-btn.sc-icon-btn--muted:hover:not(:disabled) {
+  background: var(--sc-input-hover);
+  color: var(--sc-text-primary);
+}
+
+.sc-composer-action:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.sc-composer-action:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: -2px;
+}
+
+.sc-composer-action:disabled {
+  color: var(--sc-text-disabled);
+  cursor: not-allowed;
+}
+
+.sc-composer-round {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
 .sc-input--header {
   background: var(--sc-gradient-input);
   color: var(--sc-on-gradient);

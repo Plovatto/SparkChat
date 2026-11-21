@@ -94,6 +94,14 @@
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
   }
 
+  .sc-composer-row {
+    gap: 8px;
+  }
+
+  .sc-composer-input {
+    font-size: 1rem;
+  }
+
   .chat-preview-bar {
     padding: 10px 12px;
   }

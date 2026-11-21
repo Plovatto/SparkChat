@@ -12,6 +12,7 @@ import { languageFromPath, LANGUAGES, type Language } from './src/lib/i18n/langu
 import { landingBootScript } from './src/features/landing/lib/boot-script';
 import { LANDING_BOOT_PLACEHOLDER, renderLandingDocument, type LandingHeadCopy } from './src/features/landing/lib/landing-head';
 import { buildContentSecurityPolicy, contentSecurityPolicyMetaTag } from './src/config/content-security-policy';
+import { EMOJI_DATA_PATH, emojiDataFiles } from './src/features/emoji/utils/emoji-data-source';
 
 const LANDING_SERVER_ENTRY = 'src/features/landing/entry-server.tsx';
 const SERVICE_WORKER_ENTRY = 'src/features/pwa/sw/sw-entry.ts';
@@ -238,6 +239,52 @@ function buildServiceWorker(): Plugin {
   };
 }
 
+const EMOJI_DATA_SOURCE_DIR = 'node_modules/emojibase-data';
+
+function selfHostedEmojiData(): Plugin {
+  const files = new Set(emojiDataFiles());
+  let root = process.cwd();
+  let isSsr = false;
+  const sourceOf = (file: string) => path.resolve(root, EMOJI_DATA_SOURCE_DIR, file);
+
+  return {
+    name: 'sparkchat:self-hosted-emoji-data',
+    configResolved(config) {
+      root = config.root;
+      isSsr = Boolean(config.build.ssr);
+    },
+    configureServer(server) {
+      server.middlewares.use(EMOJI_DATA_PATH, (request, response, next) => {
+        const file = (request.url ?? '').split('?')[0]?.replace(/^\/+/, '') ?? '';
+        if (!files.has(file) || (request.method !== 'GET' && request.method !== 'HEAD')) {
+          next();
+          return;
+        }
+        readFile(sourceOf(file))
+          .then((body) => {
+            response.setHeader('Content-Type', 'application/json; charset=utf-8');
+            response.setHeader('ETag', `"${createHash('sha256').update(body).digest('hex').slice(0, 32)}"`);
+            response.setHeader('Cache-Control', 'no-cache');
+            response.end(request.method === 'HEAD' ? undefined : body);
+          })
+          .catch(next);
+      });
+    },
+    async generateBundle() {
+      if (isSsr) {
+        return;
+      }
+      for (const file of files) {
+        this.emitFile({
+          type: 'asset',
+          fileName: `${EMOJI_DATA_PATH.replace(/^\/+/, '')}/${file}`,
+          source: await readFile(sourceOf(file)),
+        });
+      }
+    },
+  };
+}
+
 export default defineConfig(({ isSsrBuild }) => ({
   build: isSsrBuild
     ? {}
@@ -249,7 +296,7 @@ export default defineConfig(({ isSsrBuild }) => ({
           },
         },
       },
-  plugins: [pruneUnusedBootstrapCss(), react(), landingDocument(), prerenderLanding(), buildServiceWorker()],
+  plugins: [pruneUnusedBootstrapCss(), react(), selfHostedEmojiData(), landingDocument(), prerenderLanding(), buildServiceWorker()],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, 'src'),
