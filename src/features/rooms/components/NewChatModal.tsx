@@ -1,25 +1,35 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
-import type { IconType } from 'react-icons';
-import { FaArrowRight, FaExclamationTriangle, FaLink, FaUser, FaUsers } from 'react-icons/fa';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LuArrowRight, LuLink, LuLock, LuMessageSquare, LuTriangleAlert, LuUser, LuUsers, LuX } from 'react-icons/lu';
 import { Modal } from '@components/common/Modal';
 import { Spinner } from '@components/common/Spinner';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme, withAlpha } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { useSocket, type SocketErrorPayload } from '@lib/socket';
+import { useSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
+import { recentContacts } from '../utils/recent-contacts';
+import '../styles/new-chat-modal.css';
 
 interface NewChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  rooms?: readonly RoomSummary[];
+  currentUserId?: string;
 }
 
 type ChatType = 'private' | 'group';
 
 const GROUP_NAME_MIN_LENGTH = 3;
+const NICKNAME_MAX_LENGTH = 20;
+const GROUP_NAME_MAX_LENGTH = 30;
 
-export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
+function stagger(index: number): CSSProperties {
+  return { '--sc-newchat-i': index } as CSSProperties;
+}
+
+export function NewChatModal({ isOpen, onClose, rooms = [], currentUserId }: NewChatModalProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -30,6 +40,7 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
   useOnLanguageChange(() => setError(''));
   useAutoDismiss(error, setError);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const recent = useMemo(() => recentContacts(rooms, currentUserId), [rooms, currentUserId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -71,12 +82,13 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     if (isSubmitting) {
       return;
     }
-    if (!targetNickname.trim()) {
+    const nickname = targetNickname.trim().replace(/^@/, '');
+    if (!nickname) {
       setError(t('newChat.enterUsername'));
       return;
     }
     setIsSubmitting(true);
-    socket?.emit('room:create-private', { targetNickname: targetNickname.trim() });
+    socket?.emit('room:create-private', { targetNickname: nickname });
     setError('');
   };
 
@@ -94,131 +106,177 @@ export function NewChatModal({ isOpen, onClose }: NewChatModalProps) {
     setError('');
   };
 
-  const labelStyle: CSSProperties = {
-    fontWeight: 600,
-    display: 'block',
-    marginBottom: '10px',
-    color: theme.textPrimary,
-    fontSize: '0.95rem',
+  const selectType = (type: ChatType) => {
+    setChatType(type);
+    setError('');
   };
-
-  const helperStyle: CSSProperties = {
-    color: theme.textSecondary,
-    marginTop: '6px',
-    display: 'block',
-  };
-
-  const fullWidthButton: CSSProperties = { width: '100%', padding: '12px 20px' };
 
   const submitIcon = isSubmitting ? (
-    <Spinner size={14} trackColor={withAlpha(theme.textOnAccent, 0.35)} accentColor={theme.textOnAccent} />
+    <Spinner size={15} trackColor={withAlpha(theme.onGradient, 0.35)} accentColor={theme.onGradient} />
   ) : (
-    <FaArrowRight size={14} />
+    <LuArrowRight size={17} className="sc-newchat-submit__arrow" aria-hidden="true" />
   );
 
-  const renderTab = (type: ChatType, Icon: IconType, label: string) => {
-    const isActive = chatType === type;
+  const segment = (type: ChatType, icon: ReactNode, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={chatType === type}
+      data-active={chatType === type}
+      className="sc-newchat-segment__option"
+      onClick={() => selectType(type)}
+    >
+      {icon}
+      {label}
+    </button>
+  );
 
-    return (
-      <button
-        onClick={() => {
-          setChatType(type);
-          setError('');
-        }}
-        data-active={isActive}
-        className="sc-tab"
-        style={{
-          flex: 1,
-          padding: '12px 16px',
-          fontSize: '0.95rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          borderRadius: '8px 8px 0 0',
-        }}
-      >
-        <Icon size={16} />
-        {label}
+  const header = (
+    <div className="sc-newchat-header">
+      <span className="sc-newchat-header__icon" aria-hidden="true">
+        <LuMessageSquare size={18} />
+      </span>
+      <div className="sc-newchat-header__text">
+        <h2 className="sc-newchat-header__title">{t('newChat.title')}</h2>
+        <p className="sc-newchat-header__subtitle">{t('newChat.subtitle')}</p>
+      </div>
+      <button type="button" onClick={onClose} title={t('common.close')} aria-label={t('common.close')} className="sc-icon-btn sc-icon-btn--header sc-newchat-header__close">
+        <LuX size={18} />
       </button>
-    );
-  };
+    </div>
+  );
 
   return (
-    <Modal isOpen={isOpen} title={t('newChat.title')} onClose={onClose}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div style={{ display: 'flex', marginBottom: '16px', borderBottom: `2px solid ${theme.border}` }}>
-          {renderTab('private', FaUser, t('newChat.private'))}
-          {renderTab('group', FaUsers, t('common.group'))}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      header={header}
+      maxWidth="440px"
+      panelClassName="sc-newchat-panel"
+      bodyStyle={{ padding: 0, scrollbarGutter: 'auto' }}
+    >
+      <div className="sc-newchat">
+        <div className="sc-newchat-segment sc-newchat-enter" role="tablist" data-value={chatType} style={stagger(0)}>
+          <span className="sc-newchat-segment__thumb" aria-hidden="true" />
+          {segment('private', <LuUser size={16} aria-hidden="true" />, t('newChat.private'))}
+          {segment('group', <LuUsers size={16} aria-hidden="true" />, t('common.group'))}
         </div>
 
         {error && (
-          <div key={error} className="sc-notice sc-notice--danger sc-anim-shake" style={{ fontSize: '0.9rem', fontWeight: 500 }}>
-            <FaExclamationTriangle size={14} style={{ marginTop: '2px', flexShrink: 0 }} />
+          <div key={error} role="alert" className="sc-notice sc-notice--danger sc-anim-shake sc-newchat-error">
+            <LuTriangleAlert size={15} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
-        {chatType === 'private' && (
-          <form
-            className="sc-anim-rise-in"
-            onSubmit={handleStartPrivateChat}
-            style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
-          >
-            <div>
-              <label style={labelStyle}>{t('newChat.friendUsername')}</label>
+        {chatType === 'private' ? (
+          <form key="private" className="sc-newchat-form" onSubmit={handleStartPrivateChat}>
+            <div className="sc-newchat-field sc-newchat-enter" style={stagger(1)}>
+              <label className="sc-newchat-label" htmlFor="new-chat-username">
+                <LuUser size={14} aria-hidden="true" />
+                {t('newChat.friendUsername')}
+              </label>
+              <div className="sc-newchat-input-wrap">
+                <span className="sc-newchat-input-prefix" aria-hidden="true">
+                  @
+                </span>
+                <input
+                  id="new-chat-username"
+                  type="text"
+                  value={targetNickname}
+                  onChange={(event) => {
+                    setTargetNickname(event.target.value);
+                    setError('');
+                  }}
+                  placeholder={t('newChat.friendPlaceholder')}
+                  maxLength={NICKNAME_MAX_LENGTH + 1}
+                  autoFocus
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  aria-describedby="new-chat-username-help"
+                  className="sc-newchat-input sc-newchat-input--prefixed"
+                />
+              </div>
+              <small id="new-chat-username-help" className="sc-newchat-help">
+                {t('newChat.friendHelp')}
+              </small>
+            </div>
+
+            {recent.length > 0 && (
+              <div className="sc-newchat-recent sc-newchat-enter" style={stagger(2)}>
+                <span className="sc-newchat-recent__title" id="new-chat-recent">
+                  {t('newChat.recent')}
+                </span>
+                <div className="sc-newchat-recent__list" role="group" aria-labelledby="new-chat-recent">
+                  {recent.map((contact, index) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      className="sc-newchat-chip"
+                      data-active={targetNickname.trim().replace(/^@/, '').toLowerCase() === contact.nickname.toLowerCase()}
+                      style={stagger(index)}
+                      onClick={() => {
+                        setTargetNickname(contact.nickname);
+                        setError('');
+                      }}
+                    >
+                      <Avatar userId={contact.id} avatarIndex={contact.avatar} size={24} iconSize={12} />
+                      <span className="sc-newchat-chip__name">{contact.nickname}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button type="submit" disabled={isSubmitting} className="sc-newchat-submit sc-newchat-enter" style={stagger(3)}>
+              {isSubmitting ? t('newChat.starting') : t('newChat.start')}
+              {submitIcon}
+            </button>
+          </form>
+        ) : (
+          <form key="group" className="sc-newchat-form" onSubmit={handleCreateGroup}>
+            <div className="sc-newchat-field sc-newchat-enter" style={stagger(1)}>
+              <label className="sc-newchat-label" htmlFor="new-chat-group">
+                <LuUsers size={14} aria-hidden="true" />
+                {t('newChat.createNew')}
+              </label>
               <input
+                id="new-chat-group"
                 type="text"
-                value={targetNickname}
+                value={groupName}
                 onChange={(event) => {
-                  setTargetNickname(event.target.value);
+                  setGroupName(event.target.value);
                   setError('');
                 }}
-                placeholder={t('newChat.friendPlaceholder')}
-                maxLength={20}
+                placeholder={t('newChat.namePlaceholder')}
+                maxLength={GROUP_NAME_MAX_LENGTH}
                 autoFocus
-                className="sc-input"
+                autoComplete="off"
+                aria-describedby="new-chat-group-help"
+                className="sc-newchat-input"
               />
-              <small style={helperStyle}>{t('newChat.friendHelp')}</small>
+              <small id="new-chat-group-help" className="sc-newchat-help">
+                {t('newChat.nameHelp')}
+              </small>
             </div>
-            <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
+
+            <div className="sc-newchat-note sc-newchat-enter" style={stagger(2)}>
+              <LuLink size={14} aria-hidden="true" />
+              <span>{t('newChat.joinWithLink')}</span>
+            </div>
+
+            <button type="submit" disabled={isSubmitting} className="sc-newchat-submit sc-newchat-enter" style={stagger(3)}>
+              {isSubmitting ? t('newChat.creating') : t('newChat.create')}
               {submitIcon}
-              {isSubmitting ? t('newChat.starting') : t('newChat.start')}
             </button>
           </form>
         )}
 
-        {chatType === 'group' && (
-          <div className="sc-anim-rise-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>{t('newChat.createNew')}</label>
-                <input
-                  type="text"
-                  value={groupName}
-                  onChange={(event) => {
-                    setGroupName(event.target.value);
-                    setError('');
-                  }}
-                  placeholder={t('newChat.namePlaceholder')}
-                  maxLength={30}
-                  autoFocus
-                  className="sc-input"
-                />
-                <small style={helperStyle}>{t('newChat.nameHelp')}</small>
-              </div>
-              <button type="submit" disabled={isSubmitting} className="sc-btn sc-btn--primary sc-btn--lift" style={fullWidthButton}>
-                {submitIcon}
-                {isSubmitting ? t('newChat.creating') : t('newChat.create')}
-              </button>
-            </form>
-
-            <div className="sc-notice sc-notice--info" style={{ alignItems: 'center' }}>
-              <FaLink size={13} style={{ flexShrink: 0, opacity: 0.85 }} />
-              <span>{t('newChat.joinWithLink')}</span>
-            </div>
-          </div>
-        )}
+        <p className="sc-newchat-footnote sc-newchat-enter" style={stagger(4)}>
+          <LuLock size={12} aria-hidden="true" />
+          {t('newChat.e2ee')}
+        </p>
       </div>
     </Modal>
   );

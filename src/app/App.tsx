@@ -569,7 +569,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
           </Row>
         </Card>
       </div>
-      <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} />
+      <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} rooms={rooms} currentUserId={user.id} />
       <DeepLinkConfirmDialog
         intent={deepLinkIntents[0] ?? null}
         canConfirm={socket !== null}
