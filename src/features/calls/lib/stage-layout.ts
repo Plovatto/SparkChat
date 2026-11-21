@@ -23,3 +23,51 @@ export function selectStageLayout({ running, remoteSharing, localSharing }: Stag
   }
   return { main: null, localScreenTile: false };
 }
+
+export type CallView = 'ended' | 'share' | 'video' | 'tiles';
+
+export interface CallViewInput {
+  ended: boolean;
+  stageActive: boolean;
+  remoteVideo: boolean;
+}
+
+export function selectCallView({ ended, stageActive, remoteVideo }: CallViewInput): CallView {
+  if (ended) {
+    return 'ended';
+  }
+  if (stageActive) {
+    return 'share';
+  }
+  return remoteVideo ? 'video' : 'tiles';
+}
+
+export const CHROME_HIDE_MS = 3_000;
+
+export interface ChromeInput {
+  view: CallView;
+  phase: string;
+  panelOpen: boolean;
+}
+
+export function chromeAutoHides({ view, phase, panelOpen }: ChromeInput): boolean {
+  return (view === 'video' || view === 'share') && phase === 'active' && !panelOpen;
+}
+
+export interface ChromeVisibilityInput {
+  autoHide: boolean;
+  pinned: boolean;
+  recentActivity: boolean;
+}
+
+export function chromeVisible({ autoHide, pinned, recentActivity }: ChromeVisibilityInput): boolean {
+  return !autoHide || pinned || recentActivity;
+}
+
+export function describeSurface(kindText: string, label: string | null | undefined, unknown: boolean): string {
+  const parts = unknown ? [] : [kindText];
+  if (label) {
+    parts.push(label);
+  }
+  return parts.join(' · ');
+}

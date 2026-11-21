@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCompress, FaExpand, FaMicrophoneSlash } from 'react-icons/fa';
-import { MdOpenInNew, MdPictureInPictureAlt, MdScreenShare, MdVisibilityOff } from 'react-icons/md';
+import { LuEyeOff, LuExternalLink, LuMaximize, LuMicOff, LuMinimize, LuPanelRightClose, LuPanelRightOpen, LuPictureInPicture2, LuScreenShare } from 'react-icons/lu';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
 import { OverlayVisibility, resolveFocus, stripItems, type StageItem } from '../lib/stage-focus';
 import { useStreamOn } from './call-hooks';
 import { useFrozenFrame } from './use-frozen-frame';
+import '../styles/call-stage.css';
 
 interface StreamVideoProps {
   stream: MediaStream | null;
@@ -27,6 +27,30 @@ function StreamVideo({ stream, mirror = false, fit = 'cover', videoRef, label, h
       {holdFrame && <canvas ref={frame.canvasRef} aria-hidden="true" className="sc-stage-video sc-stage-frozen" data-frozen={frame.frozen} style={{ objectFit: fit }} />}
     </>
   );
+}
+
+function useVideoRatio(ref: RefObject<HTMLVideoElement | null>, stream: MediaStream | null): number | null {
+  const [ratio, setRatio] = useState<number | null>(null);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !stream) {
+      setRatio(null);
+      return;
+    }
+    const update = () => {
+      if (element.videoWidth > 0 && element.videoHeight > 0) {
+        setRatio(Math.round((element.videoWidth / element.videoHeight) * 1000) / 1000);
+      }
+    };
+    update();
+    element.addEventListener('loadedmetadata', update);
+    element.addEventListener('resize', update);
+    return () => {
+      element.removeEventListener('loadedmetadata', update);
+      element.removeEventListener('resize', update);
+    };
+  }, [ref, stream]);
+  return ratio;
 }
 
 interface Person {
@@ -54,6 +78,7 @@ export interface ShareStageProps {
   paused: boolean;
   streamWindow: { open: boolean; onOpen: () => void } | null;
   onStop: (() => void) | null;
+  cinema?: boolean;
 }
 
 function Avatar({ person, size }: { person: Person; size: number }) {
@@ -64,21 +89,25 @@ function Avatar({ person, size }: { person: Person; size: number }) {
   );
 }
 
-export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, previewHidden, paused, streamWindow, onStop }: ShareStageProps) {
+export function ShareStage({ stream, local, title, detail, remote, self, myScreen, stageRef, streamVideoRef, fullscreen, pip, previewHidden, paused, streamWindow, onStop, cinema = false }: ShareStageProps) {
   const { t } = useTranslation();
   const [focus, setFocus] = useState<StageItem>('stream');
   const [overlay, setOverlay] = useState(false);
+  const [stripHidden, setStripHidden] = useState(false);
   const visibilityRef = useRef<OverlayVisibility | null>(null);
   visibilityRef.current ??= new OverlayVisibility(setOverlay);
   const items = { stream: stream !== null, self: self !== null, myScreen: myScreen !== null };
   const current = resolveFocus(focus, items);
   const strip = stripItems(focus, items);
+  const ratio = useVideoRatio(streamVideoRef, stream);
+  const fitMedia = current === 'stream' && !(local && previewHidden);
+  const showStrip = strip.length > 0 && !stripHidden;
 
   useEffect(() => () => visibilityRef.current?.dispose(), []);
 
   const mutedBadge = (
     <span className="sc-call-muted-badge sc-call-muted-badge--small" role="img" aria-label={t('calls.mutedBadge')}>
-      <FaMicrophoneSlash size={11} />
+      <LuMicOff size={12} />
     </span>
   );
 
@@ -89,7 +118,9 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
     if (local && previewHidden) {
       return (
         <div className="sc-stage-placeholder">
-          <MdScreenShare size={34} aria-hidden="true" />
+          <span className="sc-stage-placeholder__icon">
+            <LuScreenShare size={30} aria-hidden="true" />
+          </span>
           <span>{t('calls.share.banner')}</span>
         </div>
       );
@@ -99,7 +130,9 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
         <StreamVideo stream={stream} fit="contain" label={title} holdFrame={local ? undefined : { paused }} />
         {paused && !local && (
           <div className="sc-stage-paused" role="status">
-            <MdVisibilityOff size={30} aria-hidden="true" />
+            <span className="sc-stage-placeholder__icon">
+              <LuEyeOff size={28} aria-hidden="true" />
+            </span>
             <span>{t('calls.share.pausedViewer')}</span>
           </div>
         )}
@@ -112,28 +145,28 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
       case 'stream':
         return streamView();
       case 'remote':
-        return personView(remote, false, 96);
+        return personView(remote, false, 112);
       case 'self':
-        return self ? personView(self, true, 96) : null;
+        return self ? personView(self, true, 112) : null;
       case 'my-screen':
         return <StreamVideo stream={myScreen} fit="contain" label={t('calls.share.yourScreen')} />;
     }
   };
 
-  const tile = (item: StageItem) => {
-    const common = { type: 'button' as const, onClick: () => setFocus(item) };
+  const tile = (item: StageItem, index: number) => {
+    const common = { type: 'button' as const, onClick: () => setFocus(item), style: { '--tile-index': index } as CSSProperties };
     switch (item) {
       case 'stream':
         return (
           <button key={item} {...common} className="sc-call-tile sc-call-tile--screen" aria-label={title}>
-            {local && previewHidden ? <MdScreenShare size={22} aria-hidden="true" /> : <StreamVideo stream={stream} fit="contain" />}
+            {local && previewHidden ? <LuScreenShare size={22} aria-hidden="true" /> : <StreamVideo stream={stream} fit="contain" />}
             <span className="sc-stage-live sc-stage-live--small">{t('calls.share.live')}</span>
           </button>
         );
       case 'remote':
         return (
           <button key={item} {...common} className={`sc-call-tile${remote.speaking ? ' sc-call-speaking' : ''}`} aria-label={remote.name}>
-            {personView(remote, false, 44)}
+            {personView(remote, false, 52)}
             <span className="sc-call-chip">
               <span>{remote.name}</span>
             </span>
@@ -143,7 +176,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
       case 'self':
         return self ? (
           <button key={item} {...common} className={`sc-call-tile${self.speaking ? ' sc-call-speaking' : ''}`} aria-label={t('calls.you')}>
-            {personView(self, true, 44)}
+            {personView(self, true, 52)}
             <span className="sc-call-chip">
               <span>{t('calls.you')}</span>
             </span>
@@ -164,95 +197,99 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
 
   const visibility = visibilityRef.current;
   const fullscreenLabel = fullscreen.active ? t('calls.share.exitFullscreen') : t('calls.share.fullscreen');
+  const stripLabel = stripHidden ? t('calls.share.showParticipants') : t('calls.share.hideParticipants');
+  const chipTitle = detail ? `${title} · ${detail}` : title;
 
   return (
-    <div className="sc-stage-wrap">
-      <div
-        ref={stageRef}
-        className="sc-call-stage"
-        data-overlay={overlay}
-        data-focus={current}
-        data-fullscreen-control={fullscreen.available}
-        onPointerMove={(event) => {
-          if (event.pointerType === 'mouse') {
-            visibility.activity();
-          }
-        }}
-        onPointerLeave={(event) => {
-          if (event.pointerType === 'mouse') {
-            visibility.hide();
-          }
-        }}
-        onFocus={() => visibility.holdOpen(true)}
-        onBlur={() => visibility.holdOpen(false)}
-      >
-        <div className="sc-stage-pip-source" aria-hidden="true">
-          <StreamVideo stream={stream} fit="contain" videoRef={streamVideoRef} />
-        </div>
+    <div className="sc-stage-wrap" data-strip={showStrip} data-cinema={cinema} data-fit={fitMedia ? 'media' : 'fill'} style={{ '--stage-ratio': ratio ?? 16 / 9 } as CSSProperties}>
+      <div className="sc-stage-area">
         <div
-          key={current}
-          className="sc-stage-main"
-          onDoubleClick={() => {
-            if (fullscreen.available) {
-              fullscreen.toggle();
+          ref={stageRef}
+          className="sc-call-stage"
+          data-overlay={overlay}
+          data-focus={current}
+          data-fit={fitMedia ? 'media' : 'fill'}
+          data-fullscreen-control={fullscreen.available}
+          onPointerMove={(event) => {
+            if (event.pointerType === 'mouse') {
+              visibility.activity();
             }
           }}
-          onClick={(event) => {
-            if (current !== 'stream' && items.stream) {
-              setFocus('stream');
-              return;
-            }
-            if ((event.nativeEvent as PointerEvent).pointerType !== 'mouse') {
-              visibility.toggle();
+          onPointerLeave={(event) => {
+            if (event.pointerType === 'mouse') {
+              visibility.hide();
             }
           }}
+          onFocus={() => visibility.holdOpen(true)}
+          onBlur={() => visibility.holdOpen(false)}
         >
-          {mainView()}
-        </div>
-        {fullscreen.available && (
-          <button
-            type="button"
-            className="sc-stage-fullscreen"
-            onClick={fullscreen.toggle}
-            onPointerEnter={() => visibility.holdOpen(true)}
-            onPointerLeave={() => visibility.holdOpen(false)}
-            title={fullscreenLabel}
-            aria-label={fullscreenLabel}
+          <div className="sc-stage-pip-source" aria-hidden="true">
+            <StreamVideo stream={stream} fit="contain" videoRef={streamVideoRef} />
+          </div>
+          <div
+            key={current}
+            className="sc-stage-main"
+            onDoubleClick={() => {
+              if (fullscreen.available) {
+                fullscreen.toggle();
+              }
+            }}
+            onClick={(event) => {
+              if (current !== 'stream' && items.stream) {
+                setFocus('stream');
+                return;
+              }
+              if ((event.nativeEvent as PointerEvent).pointerType !== 'mouse') {
+                visibility.toggle();
+              }
+            }}
           >
-            <span key={fullscreen.active ? 'compress' : 'expand'} className="sc-call-icon-swap">
-              {fullscreen.active ? <FaCompress size={15} /> : <FaExpand size={15} />}
+            {mainView()}
+          </div>
+          <div className="sc-stage-badges">
+            <span className="sc-stage-live">
+              <span className="sc-stage-live__dot" aria-hidden="true" />
+              {t('calls.share.live')}
             </span>
-          </button>
-        )}
-        <div className="sc-stage-badges">
-          <span className="sc-stage-live">{t('calls.share.live')}</span>
-          <span className="sc-stage-chip" title={`${title} · ${detail}`}>
-            <span>
-              <strong>{title}</strong> · {detail}
+            <span className="sc-stage-chip" title={chipTitle}>
+              <strong>{title}</strong>
+              {detail && <span className="sc-stage-chip__detail">{detail}</span>}
             </span>
-          </span>
-        </div>
-        {strip.length > 0 && <div className="sc-stage-tiles">{strip.map((item) => tile(item))}</div>}
-        <div className="sc-stage-overlay" onPointerEnter={() => visibility.holdOpen(true)} onPointerLeave={() => visibility.holdOpen(false)}>
-          <div className="sc-stage-overlay__group">
-            {streamWindow && !streamWindow.open && (
-              <button type="button" className="sc-stage-icon" onClick={streamWindow.onOpen} title={t('calls.share.openWindow')} aria-label={t('calls.share.openWindow')}>
-                <MdOpenInNew size={17} />
-              </button>
-            )}
-            {pip.available && (
-              <button type="button" className="sc-stage-icon" onClick={pip.toggle} aria-pressed={pip.open} title={pip.open ? t('calls.pip.close') : t('calls.pip.open')} aria-label={pip.open ? t('calls.pip.close') : t('calls.pip.open')}>
-                <MdPictureInPictureAlt size={17} />
-              </button>
-            )}
-            {onStop && (
-              <button type="button" className="sc-call-pill-btn" onClick={onStop}>
-                {t('calls.share.stopShort')}
-              </button>
-            )}
+          </div>
+          <div className="sc-stage-overlay" onPointerEnter={() => visibility.holdOpen(true)} onPointerLeave={() => visibility.holdOpen(false)}>
+            <div className="sc-stage-overlay__group">
+              {strip.length > 0 && (
+                <button type="button" className="sc-stage-icon sc-stage-icon--strip" onClick={() => setStripHidden((value) => !value)} aria-pressed={stripHidden} title={stripLabel} aria-label={stripLabel}>
+                  {stripHidden ? <LuPanelRightOpen size={18} /> : <LuPanelRightClose size={18} />}
+                </button>
+              )}
+              {streamWindow && !streamWindow.open && (
+                <button type="button" className="sc-stage-icon" onClick={streamWindow.onOpen} title={t('calls.share.openWindow')} aria-label={t('calls.share.openWindow')}>
+                  <LuExternalLink size={18} />
+                </button>
+              )}
+              {pip.available && (
+                <button type="button" className="sc-stage-icon" onClick={pip.toggle} aria-pressed={pip.open} title={pip.open ? t('calls.pip.close') : t('calls.pip.open')} aria-label={pip.open ? t('calls.pip.close') : t('calls.pip.open')}>
+                  <LuPictureInPicture2 size={18} />
+                </button>
+              )}
+              {fullscreen.available && (
+                <button type="button" className="sc-stage-icon sc-stage-fullscreen" onClick={fullscreen.toggle} title={fullscreenLabel} aria-label={fullscreenLabel}>
+                  <span key={fullscreen.active ? 'compress' : 'expand'} className="sc-call-icon-swap">
+                    {fullscreen.active ? <LuMinimize size={18} /> : <LuMaximize size={18} />}
+                  </span>
+                </button>
+              )}
+              {onStop && (
+                <button type="button" className="sc-stage-btn sc-stage-btn--stop" onClick={onStop}>
+                  <span>{t('calls.share.stopShort')}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
+      {showStrip && <div className="sc-stage-tiles">{strip.map((item, index) => tile(item, index))}</div>}
     </div>
   );
 }
