@@ -3,6 +3,7 @@ import type { EntrancePhase } from '@features/motion';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
+import { useLongPress } from '../hooks/useLongPress';
 import { senderNameColor } from '../utils/sender-color';
 import '../styles/chat-bubbles.css';
 
@@ -12,7 +13,6 @@ export interface BubbleRunPosition {
   isFirstInRun: boolean;
   isLastInRun: boolean;
 }
-import { useLongPress } from '../hooks/useLongPress';
 
 interface MessageBubbleShellProps {
   isOwn: boolean;
@@ -43,6 +43,15 @@ interface MessageBubbleShellProps {
 }
 
 const SINGLE_RUN: BubbleRunPosition = { isFirstInRun: true, isLastInRun: true };
+const TAIL_RADIUS = 4;
+
+function bubbleCorners(radius: number, isOwn: boolean, isFirstInRun: boolean): string {
+  const joined = isFirstInRun ? radius : TAIL_RADIUS;
+  return isOwn
+    ? `${radius}px ${joined}px ${TAIL_RADIUS}px ${radius}px`
+    : `${joined}px ${radius}px ${radius}px ${TAIL_RADIUS}px`;
+}
+
 const GROUP_AVATAR_SIZE = 30;
 
 export function MessageBubbleShell({
@@ -81,7 +90,14 @@ export function MessageBubbleShell({
   const showSenderName = showGroupChrome && run.isFirstInRun;
   const showAvatar = showGroupChrome && run.isLastInRun;
   const isBareMedia = variant === 'media';
-  const longPress = useLongPress({ onLongPress: onLongPress ?? onOpenActions, enabled: allowCustomContextMenu });
+  const longPress = useLongPress({
+    onLongPress: () => {
+      window.getSelection()?.removeAllRanges();
+      navigator.vibrate?.(12);
+      (onLongPress ?? onOpenActions)();
+    },
+    enabled: allowCustomContextMenu,
+  });
 
   return (
     <div
@@ -99,8 +115,10 @@ export function MessageBubbleShell({
         }
       }}
       onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
+        if (isSelected) {
+          event.stopPropagation();
+          onSelect();
+        }
       }}
       onPointerDown={(event) => {
         lastPointerTypeRef.current = event.pointerType;
@@ -172,7 +190,7 @@ export function MessageBubbleShell({
           style={{
             background: isBareMedia ? 'transparent' : bubbleStyle.background,
             color: bubbleStyle.textColor,
-            borderRadius: `${cornerRadius}px`,
+            borderRadius: isBareMedia ? `${cornerRadius}px` : bubbleCorners(cornerRadius, isOwn, run.isFirstInRun),
             boxShadow: isSelected ? `0 0 0 1.5px ${theme.messageSelectedRing}, ${isBareMedia ? 'none' : theme.shadowSm}`.replace(', none', '') : isBareMedia ? 'none' : theme.shadowSm,
             backdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
             WebkitBackdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,

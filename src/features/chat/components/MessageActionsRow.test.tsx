@@ -124,6 +124,35 @@ describe('MessageActionsRow toolbar', () => {
 });
 
 describe('MessageActionsRow sheet', () => {
+  function dragHandle(distance: number) {
+    const handle = document.querySelector('.sc-actions-sheet__handle') as HTMLElement;
+    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 100, pointerType: 'touch' });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 + distance / 2, pointerType: 'touch' });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 + distance, pointerType: 'touch' });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 100 + distance, pointerType: 'touch' });
+  }
+
+  it('dismisses when the handle is dragged down far enough', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} onDismiss={onDismiss} />);
+
+    dragHandle(200);
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('springs back and stays open after a short drag', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} onDismiss={onDismiss} />);
+
+    dragHandle(8);
+
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect((document.querySelector('.sc-actions-sheet') as HTMLElement).style.transform).toBe('');
+  });
+
   it('shows the quick reactions header and every action, dismissing after an action', () => {
     media.sheet = true;
     const onDismiss = vi.fn();

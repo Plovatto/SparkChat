@@ -1158,6 +1158,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
             style={{
               position: 'absolute',
               inset: 0,
+              overflowX: 'hidden',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',

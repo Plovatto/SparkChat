@@ -25,11 +25,11 @@
 }
 
 .chat-message-row[data-run-start='true'] {
-  margin-top: 10px;
+  margin-top: 14px;
 }
 
 .chat-message-row[data-run-start='false'] {
-  margin-top: 3px;
+  margin-top: 7px;
 }
 
 .sc-bubble-avatar-slot {
@@ -99,6 +99,10 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 2px 10px 6px;
+}
+
+.sc-bubble-text > .sc-meta--row {
+  padding: 4px 0 0;
 }
 
 .sc-meta__leading {
@@ -291,5 +295,13 @@
 
   .sc-album__tile img {
     transition: none;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .chat-bubble-wrap {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
 }

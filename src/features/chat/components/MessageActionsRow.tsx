@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { LuCircleCheck, LuCopy, LuEllipsisVertical, LuForward, LuLanguages, LuReply, LuSmilePlus, LuTrash2 } from 'react-icons/lu';
@@ -8,6 +8,8 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import '../styles/message-actions.css';
 
 export const MESSAGE_ACTIONS_SHEET_QUERY = '(max-width: 767.98px), (hover: none)';
+const SHEET_DISMISS_DISTANCE = 110;
+const SHEET_DISMISS_VELOCITY = 0.6;
 
 const POPOVER_GAP_PX = 8;
 const POPOVER_EDGE_PX = 12;
@@ -90,6 +92,55 @@ function ActionsSheet(props: MessageActionsRowProps) {
     }
   };
 
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ id: number; startY: number; lastY: number; lastTime: number; velocity: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const moveSheet = (offset: number) => {
+    if (sheetRef.current) {
+      sheetRef.current.style.transform = offset > 0 ? `translate3d(0, ${offset}px, 0)` : '';
+    }
+  };
+
+  const handleDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isClosing || (event.pointerType === 'mouse' && event.button !== 0)) {
+      return;
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = { id: event.pointerId, startY: event.clientY, lastY: event.clientY, lastTime: event.timeStamp, velocity: 0 };
+    setIsDragging(true);
+  };
+
+  const handleDragMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) {
+      return;
+    }
+    const elapsed = Math.max(1, event.timeStamp - drag.lastTime);
+    drag.velocity = (event.clientY - drag.lastY) / elapsed;
+    drag.lastY = event.clientY;
+    drag.lastTime = event.timeStamp;
+    const offset = event.clientY - drag.startY;
+    moveSheet(offset > 0 ? offset : offset / 6);
+  };
+
+  const handleDragEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.id !== event.pointerId) {
+      return;
+    }
+    dragRef.current = null;
+    setIsDragging(false);
+    const offset = event.clientY - drag.startY;
+    const height = sheetRef.current?.offsetHeight ?? 0;
+    const threshold = height > 0 ? Math.min(SHEET_DISMISS_DISTANCE, height * 0.35) : SHEET_DISMISS_DISTANCE;
+    if (offset > threshold || (offset > 12 && drag.velocity > SHEET_DISMISS_VELOCITY)) {
+      props.onDismiss?.();
+      return;
+    }
+    moveSheet(0);
+  };
+
   return createPortal(
     <>
       <div
@@ -101,14 +152,25 @@ function ActionsSheet(props: MessageActionsRowProps) {
         }}
       />
       <div
+        ref={sheetRef}
         className={`sc-actions-sheet${isClosing ? ' is-exiting' : ''}`}
+        data-dragging={isDragging || undefined}
         role="menu"
         aria-label={t('chat.message.actions')}
         data-no-long-press
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <span className="sc-actions-sheet__grabber" aria-hidden="true" />
+        <div
+          className="sc-actions-sheet__handle"
+          aria-hidden="true"
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+        >
+          <span className="sc-actions-sheet__grabber" />
+        </div>
         {props.sheetHeader}
         <div className="sc-actions-sheet__list">
           {[...primary, ...secondary].map((item, index) => (

@@ -144,13 +144,39 @@
   animation: scSheetOut 200ms var(--sc-ease-exit) forwards;
 }
 
+.sc-actions-sheet {
+  transition: transform 320ms var(--sc-ease-spring-soft);
+}
+
+.sc-actions-sheet[data-dragging] {
+  transition: none;
+}
+
+.sc-actions-sheet__handle {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: -8px -8px 2px;
+  padding: 12px 0 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sc-actions-sheet[data-dragging] .sc-actions-sheet__handle {
+  cursor: grabbing;
+}
+
 .sc-actions-sheet__grabber {
-  align-self: center;
-  width: 36px;
-  height: 4px;
-  margin: 2px 0 10px;
+  width: 40px;
+  height: 5px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sc-border-focus) 55%, transparent);
+  background: color-mix(in srgb, var(--sc-text-primary) 28%, transparent);
+  transition: width 200ms var(--sc-ease-spring-soft), background-color 200ms ease;
+}
+
+.sc-actions-sheet[data-dragging] .sc-actions-sheet__grabber {
+  width: 52px;
+  background: color-mix(in srgb, var(--sc-border-focus) 70%, transparent);
 }
 
 .sc-actions-sheet__list {
@@ -175,6 +201,21 @@
   cursor: pointer;
   animation: scSheetItemIn 320ms var(--sc-ease-spring-soft) calc(60ms + var(--sc-i, 0) * 35ms) backwards;
   transition: background-color 140ms ease;
+}
+
+.sc-actions-sheet__item + .sc-actions-sheet__item {
+  position: relative;
+}
+
+.sc-actions-sheet__item + .sc-actions-sheet__item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 16px;
+  left: 52px;
+  height: 1px;
+  background: var(--sc-border-subtle);
+  pointer-events: none;
 }
 
 .sc-actions-sheet__item:active,

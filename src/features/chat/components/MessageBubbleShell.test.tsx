@@ -11,7 +11,7 @@ vi.mock('@lib/format', () => ({
   getDisplayName: (_id: string, nickname: string) => nickname,
 }));
 
-function renderShell() {
+function renderShell(isSelected = false) {
   const onSelect = vi.fn();
   const onOpenActions = vi.fn();
   const onImageClick = vi.fn();
@@ -25,6 +25,7 @@ function renderShell() {
       senderId="ana"
       senderNickname="Ana"
       currentUserId="me"
+      isSelected={isSelected}
       onSelect={onSelect}
       onOpenActions={onOpenActions}
       padding="0"
@@ -77,15 +78,34 @@ describe('MessageBubbleShell long press', () => {
     expect(onLinkClick).not.toHaveBeenCalled();
   });
 
-  it('keeps short taps working normally', () => {
-    const { onSelect, onImageClick } = renderShell();
+  it('keeps short taps working normally without opening the actions', () => {
+    const { onSelect, onOpenActions, onImageClick } = renderShell();
 
     fireEvent.pointerDown(screen.getByAltText('foto'), { pointerType: 'touch' });
     fireEvent.pointerUp(screen.getByAltText('foto'));
     fireEvent.click(screen.getByAltText('foto'));
 
     expect(onImageClick).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onOpenActions).not.toHaveBeenCalled();
+  });
+
+  it('closes the actions when the selected message is tapped again', () => {
+    const { onSelect } = renderShell(true);
+
+    fireEvent.click(screen.getByText('texto da mensagem'));
+
     expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the actions on right click with a mouse', () => {
+    const { onOpenActions } = renderShell();
+
+    fireEvent.pointerDown(screen.getByText('texto da mensagem'), { pointerType: 'mouse', button: 2 });
+    const result = fireEvent.contextMenu(screen.getByText('texto da mensagem'));
+
+    expect(result).toBe(false);
+    expect(onOpenActions).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the native menu for images on touch but blocks it on text', () => {
