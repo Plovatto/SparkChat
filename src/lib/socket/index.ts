@@ -14,6 +14,8 @@ export type {
   MessageFileMeta,
   MessageHiddenPayload,
   MessageLinkPreview,
+  MessageReaction,
+  MessageReactionsUpdatedPayload,
   MessageReplySnapshot,
   MessageSender,
   MessageStatus,

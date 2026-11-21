@@ -1,10 +1,12 @@
-import { memo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
+import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import type { ChatMessage } from '../types';
+import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
@@ -45,6 +47,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   onForward,
   onRetry,
   onStartSelection,
+  onReact,
   entrancePhase = 'none',
   entranceIndex = 0,
 }: ImageGroupBubbleProps) {
@@ -59,6 +62,25 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   const statusInfo = anchor ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null;
   const visibleTiles = images.slice(0, MAX_GROUP_TILES);
   const extraCount = images.length - visibleTiles.length;
+  const anchorId = anchor?.id ?? '';
+  const groupReactions = useMemo(() => mergeGroupReactions(images), [images]);
+  const reactionTargetId = (currentUserId ? groupReactions.find((entry) => entry.userId === currentUserId)?.messageId : undefined) ?? anchorId;
+  const dismissActions = useCallback(() => {
+    if (isSelected && anchorId) {
+      onSelect(anchorId);
+    }
+  }, [isSelected, onSelect, anchorId]);
+  const reactionUi = useMessageReactionUi({
+    messageId: reactionTargetId,
+    reactions: groupReactions,
+    canReact: Boolean(anchor) && images.every((image) => canReactToMessage(image)),
+    isOwn,
+    isSelected,
+    currentUserId,
+    participants,
+    onReact,
+    onDismiss: dismissActions,
+  });
 
   if (!anchor) {
     return null;
@@ -87,9 +109,12 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
       cornerRadius={20}
+      beforeBubble={reactionUi.compact ? reactionUi.quickBar : null}
       afterBubble={
         <>
+          {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
+          {!reactionUi.compact && reactionUi.quickBar}
           {actionsPresence.isPresent && !images.some((image) => image.pending || image.failed) && (
             <MessageActionsRow
               isOwn={isOwn}
@@ -109,6 +134,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
             startIndex={modalIndex ?? 0}
             onClose={() => setModalIndex(null)}
           />
+          {reactionUi.overlays}
         </>
       }
     >

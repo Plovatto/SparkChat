@@ -286,4 +286,64 @@ describe('useRoomMessages hiding', () => {
     act(() => socket.fire('messages:list', { roomId: ROOM, messages: [], hasMore: false }));
     expect(ids(result)).toEqual([]);
   });
+
+  it('drops the reactions of a hidden message and ignores reaction updates that arrive later', () => {
+    const reacted = { ...message('a', 1), reactions: [{ userId: 'other', emoji: '❤️', updatedAt: '2026-11-20T12:05:00.000Z' }] };
+    const { result } = renderLoaded([reacted, message('b', 2)]);
+
+    act(() => result.current.hideMessages(['a']));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => socket.fire('message:hidden', { roomId: ROOM, messageIds: ['a'], lastMessage: null, unreadCount: 0, mentionCount: 0 }));
+    act(() =>
+      socket.fire('message:reactions-updated', {
+        roomId: ROOM,
+        messageId: 'a',
+        messageTimestamp: reacted.timestamp,
+        reactions: [{ userId: 'other', emoji: '😂', updatedAt: '2026-11-20T12:06:00.000Z' }],
+      }),
+    );
+    act(() => socket.fire('message:updated', { ...reacted, content: 'edited' }));
+
+    expect(ids(result)).toEqual(['b']);
+  });
+
+  it('brings back the latest reactions when a hide is rolled back', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+    const latest = [{ userId: 'other', emoji: '👍', updatedAt: '2026-11-20T12:06:00.000Z' }];
+
+    act(() => result.current.hideMessages(['a']));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => socket.fire('message:reactions-updated', { roomId: ROOM, messageId: 'a', messageTimestamp: message('a', 1).timestamp, reactions: latest }));
+    expect(ids(result)).toEqual(['b']);
+
+    act(() => socket.fire('error', { message: 'x', code: 'internal.unexpected', event: 'message:hide', messageIds: ['a'] }));
+
+    expect(result.current.messages[0]).toMatchObject({ id: 'a', reactions: latest });
+  });
+
+  it('does not react to a message that is leaving the screen', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+
+    act(() => result.current.hideMessages(['a']));
+    act(() => result.current.reactToMessage('a', '❤️'));
+
+    expect(socket.sent('message:react')).toEqual([]);
+  });
+
+  it('restores a message deleted for everyone meanwhile without its reactions', () => {
+    const reacted = { ...message('a', 1), reactions: [{ userId: 'other', emoji: '❤️', updatedAt: '2026-11-20T12:05:00.000Z' }] };
+    const { result } = renderLoaded([reacted, message('b', 2)]);
+    act(() => result.current.hideMessages(['a']));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => socket.fire('message:deleted', { messageId: 'a', roomId: ROOM }));
+    act(() => socket.fire('error', { message: 'x', code: 'internal.unexpected', event: 'message:hide', messageIds: ['a'] }));
+
+    expect(result.current.messages[0]).toMatchObject({ id: 'a', deletedForEveryone: true, reactions: [] });
+  });
 });

@@ -355,6 +355,8 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     hideMessages,
     hideFailure,
     dismissHideFailure,
+    reactToMessage,
+    reactionFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
@@ -1152,6 +1154,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         onDrop={handleDrop}
       >
         <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+        <div role="status" aria-live="polite" className="sc-reaction-notice-region">
+          {reactionFailure && (
+            <span key={reactionFailure} className="sc-reaction-notice sc-anim-rise-in">
+              <FaExclamationTriangle size={13} aria-hidden="true" />
+              {reactionFailure}
+            </span>
+          )}
+        </div>
         {isDraggingFile && (
           <div
             className="sc-drop-zone sc-anim-fade-in"
@@ -1295,51 +1305,53 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                             isExiting={isExiting}
                             onToggle={() => toggleSelection(itemIds)}
                           >
-                              {item.kind === 'single' ? (
-                                <MessageBubble
-                                  message={item.message}
-                                  isOwn={isOwn}
-                                  isGroupChat={isGroupChat}
-                                  roomId={room.id}
-                                  isAssistantRoom={isAssistantRoom(room)}
-                                  participants={room.participants}
-                                  currentUserId={user.id}
-                                  currentNickname={user.nickname}
-                                  isSelected={selectedMessageId === item.message.id}
-                                  currentAudioRef={currentAudioRef}
-                                  receipt={visibleReceipts.get(itemKey) ?? null}
-                                  onSelect={toggleSelectedMessage}
-                                  onOpenActions={openMessageActions}
-                                  onReply={handleReply}
-                                  onDelete={handleDeleteRequest}
-                                  onForward={handleForward}
-                                  onAudioPlayed={handleAudioPlayed}
-                                  onRetry={retryMessage}
-                                  onStartSelection={isRecordingAudio ? undefined : startSelection}
-                                  entrancePhase={entrancePhase}
-                                  entranceIndex={entranceIndex}
-                                />
-                              ) : (
-                                <ImageGroupBubble
-                                  images={item.messages}
-                                  isOwn={isOwn}
-                                  isGroupChat={isGroupChat}
-                                  roomId={room.id}
-                                  participants={room.participants}
-                                  currentUserId={user.id}
-                                  isSelected={selectedMessageId === anchorMessage.id}
-                                  receipt={visibleReceipts.get(itemKey) ?? null}
-                                  onSelect={toggleSelectedMessage}
-                                  onOpenActions={openMessageActions}
-                                  onReply={handleReply}
-                                  onDelete={handleDeleteRequest}
-                                  onForward={handleForward}
-                                  onRetry={retryMessage}
-                                  onStartSelection={isRecordingAudio ? undefined : startSelection}
-                                  entrancePhase={entrancePhase}
-                                  entranceIndex={entranceIndex}
-                                />
-                              )}
+                            {item.kind === 'single' ? (
+                              <MessageBubble
+                                message={item.message}
+                                isOwn={isOwn}
+                                isGroupChat={isGroupChat}
+                                roomId={room.id}
+                                isAssistantRoom={isAssistantRoom(room)}
+                                participants={room.participants}
+                                currentUserId={user.id}
+                                currentNickname={user.nickname}
+                                isSelected={selectedMessageId === item.message.id}
+                                currentAudioRef={currentAudioRef}
+                                receipt={visibleReceipts.get(itemKey) ?? null}
+                                onSelect={toggleSelectedMessage}
+                                onOpenActions={openMessageActions}
+                                onReply={handleReply}
+                                onDelete={handleDeleteRequest}
+                                onForward={handleForward}
+                                onAudioPlayed={handleAudioPlayed}
+                                onRetry={retryMessage}
+                                onStartSelection={isRecordingAudio ? undefined : startSelection}
+                                onReact={reactToMessage}
+                                entrancePhase={entrancePhase}
+                                entranceIndex={entranceIndex}
+                              />
+                            ) : (
+                              <ImageGroupBubble
+                                images={item.messages}
+                                isOwn={isOwn}
+                                isGroupChat={isGroupChat}
+                                roomId={room.id}
+                                participants={room.participants}
+                                currentUserId={user.id}
+                                isSelected={selectedMessageId === anchorMessage.id}
+                                receipt={visibleReceipts.get(itemKey) ?? null}
+                                onSelect={toggleSelectedMessage}
+                                onOpenActions={openMessageActions}
+                                onReply={handleReply}
+                                onDelete={handleDeleteRequest}
+                                onForward={handleForward}
+                                onRetry={retryMessage}
+                                onStartSelection={isRecordingAudio ? undefined : startSelection}
+                                onReact={reactToMessage}
+                                entrancePhase={entrancePhase}
+                                entranceIndex={entranceIndex}
+                              />
+                            )}
                           </SelectableMessageRow>
                         );
                       })}

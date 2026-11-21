@@ -11,6 +11,7 @@ import '@/styles/globals.css';
 import '@/styles/theme.css';
 import '@/styles/cursor.css';
 import '@/styles/motion.css';
+import '@/styles/reactions.css';
 import '@/styles/responsive.css';
 
 installInviteFragmentCapture();

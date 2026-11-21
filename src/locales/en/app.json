@@ -67,7 +67,8 @@
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
       "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
-      "hideMixedRooms": "You can only delete messages for yourself from one conversation at a time."
+      "hideMixedRooms": "You can only delete messages for yourself from one conversation at a time.",
+      "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
@@ -317,6 +318,7 @@
       "attach": "Send attachment",
       "record": "Record audio",
       "placeholder": "Type your message...",
+      "placeholderShort": "Message",
       "placeholderBlockedBy": "You were blocked...",
       "placeholderYouBlocked": "You blocked this user...",
       "send": "Send",
@@ -337,6 +339,8 @@
       "retry": "Failed to send. Tap to resend.",
       "reply": "Reply",
       "forward": "Forward",
+      "copy": "Copy",
+      "copied": "Copied!",
       "delete": "Delete",
       "image": "Image",
       "audio": "Audio {{duration}}",
@@ -371,6 +375,23 @@
       "gifExpiredHint": "GIFs stay available for 30 days.",
       "fromRemovedMember": "🔒 Message from a former member, not shown.",
       "select": "Select"
+    },
+    "reactions": {
+      "barLabel": "React to message",
+      "reactWith": "React with {{emoji}}",
+      "removeReaction": "Remove {{emoji}} reaction",
+      "more": "More emojis",
+      "listLabel": "Reactions",
+      "chipTitle_one": "{{names}} reacted with {{emoji}}",
+      "chipTitle_other": "{{names}} reacted with {{emoji}}",
+      "chipLabel_one": "{{emoji}}, {{count}} reaction. {{names}}",
+      "chipLabel_other": "{{emoji}}, {{count}} reactions. {{names}}",
+      "showReactors": "See who reacted with {{emoji}}",
+      "sheetTitle": "Reactions",
+      "all": "All",
+      "tapToRemove": "Tap to remove",
+      "close": "Close reactions",
+      "failed": "Couldn't react to this message. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -1022,5 +1043,28 @@
     "mediaFailed": "Could not load this GIF.",
     "untitled": "Untitled GIF",
     "notReady": "Wait for the GIF to appear before sending."
+  },
+  "emoji": {
+    "open": "Open emoji picker",
+    "close": "Close emoji picker",
+    "pickerLabel": "Emoji picker",
+    "searchPlaceholder": "Search emoji",
+    "searchLabel": "Search emojis",
+    "recent": "Recently used",
+    "loading": "Loading emojis...",
+    "empty": "No emoji found.",
+    "hint": "Pick an emoji",
+    "skinTone": "Change skin tone",
+    "categories": {
+      "smileys": "Smileys & emotion",
+      "people": "People & body",
+      "animals": "Animals & nature",
+      "food": "Food & drink",
+      "travel": "Travel & places",
+      "activities": "Activities",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    }
   }
 }

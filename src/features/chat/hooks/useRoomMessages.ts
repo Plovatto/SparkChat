@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { translate } from '@lib/i18n/app-i18n';
 import { forgetTranslation } from '@lib/translation';
 import {
   markPreviewOnlyHandler,
@@ -8,6 +10,8 @@ import {
   type MessageFileMeta,
   type MessageHiddenPayload,
   type MessageLinkPreview,
+  type MessageReaction,
+  type MessageReactionsUpdatedPayload,
   type MessageReplySnapshot,
   type MessageType,
   type MessageView,
@@ -15,6 +19,7 @@ import {
 } from '@lib/socket';
 import type { ChatMessage } from '../types';
 import { chunkMessageIds } from '../utils/delete-options';
+import { applyOwnReaction, canReactToMessage } from '../utils/reactions';
 
 function linkPreviewAttachmentUrls(linkPreview: { imageUrl: string | null } | null | undefined): string[] | undefined {
   const imageUrl = linkPreview?.imageUrl;
@@ -60,6 +65,8 @@ export interface RoomMessagesState {
   hideMessages: (messageIds: string[]) => void;
   hideFailure: HideFailure | null;
   dismissHideFailure: () => void;
+  reactToMessage: (messageId: string, emoji: string | null) => void;
+  reactionFailure: string;
 }
 
 export interface HideFailure {
@@ -72,8 +79,19 @@ interface PendingHide {
   timeoutId: ReturnType<typeof setTimeout>;
 }
 
+interface PendingReaction {
+  emoji: string | null;
+  baseline: MessageReaction[];
+  updatedAt: string;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
+
 const PENDING_TIMEOUT_MS = 10000;
 const MESSAGE_EXIT_MS = MOTION_DURATION_MS.normal;
+const REACTION_TIMEOUT_MS = 10000;
+const REACTION_FAILURE_VISIBLE_MS = 4500;
+const REACTION_FAILED_KEY = 'chat.reactions.failed';
+const REACT_EVENT = 'message:react';
 const MESSAGES_PAGE_SIZE = 10;
 
 function sortMessagesByTimestamp(messages: MessageView[]): MessageView[] {
@@ -113,7 +131,7 @@ function restoreMessages(messages: ChatMessage[], restored: ChatMessage[]): Chat
 }
 
 function markDeletedForEveryone(message: ChatMessage): ChatMessage {
-  return { ...message, deletedForEveryone: true, content: '', fileMeta: null, caption: null, linkPreview: null, replyTo: null };
+  return { ...message, deletedForEveryone: true, content: '', fileMeta: null, caption: null, linkPreview: null, replyTo: null, reactions: [] };
 }
 
 function mergeReloadedPage(previous: ChatMessage[], page: ChatMessage[], hasMore: boolean): ChatMessage[] {
@@ -210,6 +228,64 @@ export function useRoomMessages(
     setMessages((previous) => restoreMessages(previous, pending.messages));
   }, []);
 
+  const pendingReactionsRef = useRef(new Map<string, PendingReaction>());
+  const [reactionFailure, setReactionFailure] = useState('');
+
+  useEffect(() => {
+    if (!reactionFailure) {
+      return;
+    }
+    const timer = setTimeout(() => setReactionFailure(''), REACTION_FAILURE_VISIBLE_MS);
+    return () => clearTimeout(timer);
+  }, [reactionFailure]);
+
+  const clearPendingReactions = useCallback(() => {
+    for (const pending of pendingReactionsRef.current.values()) {
+      clearTimeout(pending.timeoutId);
+    }
+    pendingReactionsRef.current.clear();
+  }, []);
+
+  const settlePendingReaction = useCallback((messageId: string) => {
+    const pending = pendingReactionsRef.current.get(messageId);
+    if (pending) {
+      clearTimeout(pending.timeoutId);
+      pendingReactionsRef.current.delete(messageId);
+    }
+    return pending;
+  }, []);
+
+  const rollbackReaction = useCallback(
+    (messageId: string, reason?: string) => {
+      const pending = settlePendingReaction(messageId);
+      if (!pending) {
+        return;
+      }
+      setReactionFailure(reason ?? translate(REACTION_FAILED_KEY));
+      setMessages((previous) =>
+        mapChanged(previous, (message) => (message.id === messageId ? { ...message, reactions: pending.baseline } : message)),
+      );
+    },
+    [settlePendingReaction],
+  );
+
+  const overlayPendingReaction = useCallback(
+    (messageId: string, reactions: MessageReaction[]): MessageReaction[] => {
+      const pending = pendingReactionsRef.current.get(messageId);
+      if (!pending) {
+        return reactions;
+      }
+      const own = reactions.find((reaction) => reaction.userId === currentUser.id)?.emoji ?? null;
+      if (own === pending.emoji) {
+        settlePendingReaction(messageId);
+        return reactions;
+      }
+      pending.baseline = reactions;
+      return applyOwnReaction(reactions, currentUser.id, pending.emoji, pending.updatedAt);
+    },
+    [currentUser.id, settlePendingReaction],
+  );
+
   const clearLoadOlderTimeout = () => {
     if (loadOlderTimeoutRef.current) {
       clearTimeout(loadOlderTimeoutRef.current);
@@ -252,10 +328,12 @@ export function useRoomMessages(
     clearLoadOlderTimeout();
     setTypingUserIds([]);
     setRecordingUserIds([]);
+    setReactionFailure('');
     for (const timeoutId of pendingTimeoutsRef.current.values()) {
       clearTimeout(timeoutId);
     }
     pendingTimeoutsRef.current.clear();
+    clearPendingReactions();
     for (const pending of pendingHidesRef.current) {
       clearTimeout(pending.timeoutId);
     }
@@ -265,7 +343,7 @@ export function useRoomMessages(
     }
     exitTimeoutsRef.current.clear();
     setHideFailure(null);
-  }, [roomId]);
+  }, [roomId, clearPendingReactions]);
 
   useEffect(() => {
     if (!socket || !roomId || !connected) {
@@ -383,7 +461,12 @@ export function useRoomMessages(
       }
     };
 
-    const handleSendError = ({ clientTempId, event, code, messageIds }: SocketErrorPayload) => {
+    const handleSendError = (payload: SocketErrorPayload) => {
+      const { clientTempId, event, code, messageId, messageIds } = payload;
+      if (event === REACT_EVENT && messageId) {
+        rollbackReaction(messageId, code ? translateErrorPayload(payload, REACTION_FAILED_KEY) : translate(REACTION_FAILED_KEY));
+        return;
+      }
       if (event === 'message:hide') {
         const pendingHides = pendingHidesRef.current;
         const target = messageIds
@@ -438,9 +521,10 @@ export function useRoomMessages(
         return;
       }
       updatePendingSnapshots(messageId, markDeletedForEveryone);
+      settlePendingReaction(messageId);
       setMessages((previous) =>
         mapChanged(previous, (message) =>
-          message.id === messageId ? { ...message, deletedForEveryone: true, content: '' } : message,
+          message.id === messageId ? { ...message, deletedForEveryone: true, content: '', reactions: [] } : message,
         ),
       );
     };
@@ -456,6 +540,9 @@ export function useRoomMessages(
       }
       pendingHidesRef.current = pendingHidesRef.current.filter((pending) => !confirmed.includes(pending));
       if (hiddenRoomId === roomId) {
+        for (const messageId of messageIds) {
+          settlePendingReaction(messageId);
+        }
         removeWithExit(messageIds);
       }
     });
@@ -464,9 +551,24 @@ export function useRoomMessages(
       if (updated.roomId !== roomId) {
         return;
       }
-      updatePendingSnapshots(updated.id, (message) => ({ ...updated, exiting: message.exiting }));
+      const current = messagesRef.current.find((message) => message.id === updated.id);
+      const reactions = overlayPendingReaction(updated.id, updated.reactions ?? current?.reactions ?? []);
+      updatePendingSnapshots(updated.id, (message) => ({ ...updated, reactions, exiting: message.exiting }));
       setMessages((previous) =>
-        mapChanged(previous, (message) => (message.id === updated.id ? { ...updated, ...(message.exiting ? { exiting: true } : {}) } : message)),
+        mapChanged(previous, (message) =>
+          message.id === updated.id ? { ...updated, reactions, ...(message.exiting ? { exiting: true } : {}) } : message,
+        ),
+      );
+    };
+
+    const handleReactionsUpdated = (payload: MessageReactionsUpdatedPayload) => {
+      if (payload.roomId !== roomId) {
+        return;
+      }
+      const reactions = overlayPendingReaction(payload.messageId, payload.reactions);
+      updatePendingSnapshots(payload.messageId, (message) => ({ ...message, reactions }));
+      setMessages((previous) =>
+        mapChanged(previous, (message) => (message.id === payload.messageId ? { ...message, reactions } : message)),
       );
     };
 
@@ -485,6 +587,7 @@ export function useRoomMessages(
     socket.on('message:deleted', handleMessageDeleted);
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:hidden', handleMessageHidden);
+    socket.on('message:reactions-updated', handleReactionsUpdated);
 
     return () => {
       socket.off('messages:list', handleMessagesList);
@@ -498,8 +601,21 @@ export function useRoomMessages(
       socket.off('message:deleted', handleMessageDeleted);
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:hidden', handleMessageHidden);
+      socket.off('message:reactions-updated', handleReactionsUpdated);
     };
-  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied, removeWithExit, rollbackHide, updatePendingSnapshots]);
+  }, [
+    socket,
+    roomId,
+    currentUser.id,
+    clearPendingTimeout,
+    onBeforeOlderMessagesApplied,
+    removeWithExit,
+    rollbackHide,
+    updatePendingSnapshots,
+    rollbackReaction,
+    settlePendingReaction,
+    overlayPendingReaction,
+  ]);
 
   const sendMessage = useCallback(
     (input: SendMessageInput) => {
@@ -609,6 +725,34 @@ export function useRoomMessages(
 
   const dismissHideFailure = useCallback(() => setHideFailure(null), []);
 
+  const reactToMessage = useCallback(
+    (messageId: string, emoji: string | null) => {
+      const target = messagesRef.current.find((message) => message.id === messageId);
+      if (!socket || !roomId || !target || target.roomId !== roomId || target.exiting || !canReactToMessage(target)) {
+        return;
+      }
+
+      const previous = pendingReactionsRef.current.get(messageId);
+      const baseline = previous?.baseline ?? target.reactions ?? [];
+      if (previous) {
+        clearTimeout(previous.timeoutId);
+      }
+      const updatedAt = new Date().toISOString();
+      const timeoutId = setTimeout(() => rollbackReaction(messageId), REACTION_TIMEOUT_MS);
+      pendingReactionsRef.current.set(messageId, { emoji, baseline, updatedAt, timeoutId });
+
+      setMessages((current) =>
+        mapChanged(current, (message) =>
+          message.id === messageId ? { ...message, reactions: applyOwnReaction(baseline, currentUser.id, emoji, updatedAt) } : message,
+        ),
+      );
+      socket.emit('message:react', { roomId, messageId, emoji });
+    },
+    [socket, roomId, currentUser.id, rollbackReaction],
+  );
+
+  useEffect(() => clearPendingReactions, [clearPendingReactions]);
+
   const loadOlderMessages = useCallback(() => {
     const oldest = messagesRef.current[0];
     if (!socket || !roomId || !oldest || isLoadingOlderRef.current || !hasMoreOlder) {
@@ -639,5 +783,7 @@ export function useRoomMessages(
     hideMessages,
     hideFailure,
     dismissHideFailure,
+    reactToMessage,
+    reactionFailure,
   };
 }
