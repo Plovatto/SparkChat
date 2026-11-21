@@ -1,32 +1,57 @@
 import { FaBan, FaExclamationCircle } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { formatTime, systemMessageSegments, systemMessageText } from '@lib/format';
 import type { EntrancePhase } from '@features/motion';
 import { isCallEvent } from '@lib/format/call-event';
 import type { MessageView } from '@lib/socket';
 import { CallEventBubble } from './CallEventBubble';
+import { MessageActionsRow } from './MessageActionsRow';
 
 interface DeletedMessageBubbleProps {
   isOwn: boolean;
   entrancePhase: EntrancePhase;
   roomId: string;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onDelete?: () => void;
+  onStartSelection?: () => void;
 }
 
-export function DeletedMessageBubble({ isOwn, roomId, entrancePhase }: DeletedMessageBubbleProps) {
+export function DeletedMessageBubble({
+  isOwn,
+  roomId,
+  entrancePhase,
+  isSelected = false,
+  onSelect,
+  onDelete,
+  onStartSelection,
+}: DeletedMessageBubbleProps) {
   const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
+  const actionsPresence = usePresence(isSelected && Boolean(onDelete), MOTION_DURATION_MS.fast);
 
   return (
     <div
       className={`${entrancePhase === 'none' ? '' : 'sc-anim-bubble-in '}chat-bubble-wrap`}
       data-own={isOwn}
+      onClick={
+        onSelect
+          ? (event) => {
+              event.stopPropagation();
+              onSelect();
+            }
+          : undefined
+      }
       style={{
         display: 'flex',
-        alignItems: 'flex-end',
+        flexDirection: 'column',
+        alignItems: isOwn ? 'flex-end' : 'flex-start',
         alignSelf: isOwn ? 'flex-end' : 'flex-start',
         marginBottom: '2px',
+        cursor: onSelect ? 'pointer' : undefined,
       }}
     >
       <div
@@ -49,6 +74,9 @@ export function DeletedMessageBubble({ isOwn, roomId, entrancePhase }: DeletedMe
         <FaBan size={13} style={{ flexShrink: 0 }} />
         <span>{t('chat.deleted')}</span>
       </div>
+      {actionsPresence.isPresent && onDelete && (
+        <MessageActionsRow isOwn={isOwn} isExiting={actionsPresence.isExiting} onDelete={onDelete} onStartSelection={onStartSelection} />
+      )}
     </div>
   );
 }

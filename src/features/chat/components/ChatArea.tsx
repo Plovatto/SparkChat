@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { isSameDay } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
-import { ConfirmDialog } from '@components/common/ConfirmDialog';
+import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes, FaTrash } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
 import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
@@ -26,6 +25,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
+import { isSelectableMessage, resolveDeleteOptions } from '../utils/delete-options';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import type { CurrentAudioRef } from './AudioMessageContent';
@@ -33,6 +33,7 @@ import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
 import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
+import { DeleteMessageDialog } from './DeleteMessageDialog';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
 import { ImageGroupBubble } from './ImageGroupBubble';
@@ -156,6 +157,12 @@ function renderItemFirstMessage(item: RenderItem): ChatMessage {
 function renderItemAnchorMessage(item: RenderItem): ChatMessage {
   return item.kind === 'single' ? item.message : (item.messages[item.messages.length - 1] ?? item.messages[0]);
 }
+
+function renderItemMessages(item: RenderItem): ChatMessage[] {
+  return item.kind === 'single' ? [item.message] : item.messages;
+}
+
+const HIDE_FAILED_NOTICE_MS = 5000;
 
 function renderItemKey(item: RenderItem): string {
   return item.kind === 'single' ? item.message.id : `group-${item.messages[0].id}`;
@@ -342,6 +349,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     sendMessage,
     retryMessage,
     loadOlderMessages,
+    hideMessages,
+    hideFailed,
+    dismissHideFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
@@ -392,6 +402,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
+  const [selectionIds, setSelectionIds] = useState<ReadonlySet<string> | null>(null);
   const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | 'gif' | null>(null);
@@ -713,6 +724,78 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const roomId = room?.id ?? null;
+  useEffect(() => {
+    setSelectionIds(null);
+    setMessageIdsPendingDelete(null);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!hideFailed) {
+      return;
+    }
+    const timer = setTimeout(dismissHideFailure, HIDE_FAILED_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [hideFailed, dismissHideFailure]);
+
+  const isSelecting = selectionIds !== null;
+  const isDeleteDialogOpen = messageIdsPendingDelete !== null;
+  useEffect(() => {
+    if (!isSelecting || isDeleteDialogOpen) {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectionIds(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isSelecting, isDeleteDialogOpen]);
+
+  const itemIdsByAnchor = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of renderItems) {
+      map.set(renderItemAnchorMessage(item).id, renderItemMessages(item).map((message) => message.id));
+    }
+    return map;
+  }, [renderItems]);
+
+  const startSelection = useCallback(
+    (anchorId: string) => {
+      setSelectedMessageId(null);
+      setSelectionIds(new Set(itemIdsByAnchor.get(anchorId) ?? [anchorId]));
+    },
+    [itemIdsByAnchor],
+  );
+
+  const toggleSelectionItem = useCallback((ids: string[]) => {
+    setSelectionIds((current) => {
+      if (!current) {
+        return current;
+      }
+      const next = new Set(current);
+      const isChecked = ids.every((id) => next.has(id));
+      for (const id of ids) {
+        if (isChecked) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const pendingDeleteMessages = useMemo(() => {
+    if (!messageIdsPendingDelete) {
+      return [];
+    }
+    const ids = new Set(messageIdsPendingDelete);
+    return messages.filter((message) => ids.has(message.id) && !message.exiting);
+  }, [messageIdsPendingDelete, messages]);
+  const deleteOptions = resolveDeleteOptions(pendingDeleteMessages, user.id);
+
   const toggleSelectedMessage = useCallback((messageId: string) => {
     setSelectedMessageId((current) => (current === messageId ? null : messageId));
   }, []);
@@ -970,11 +1053,21 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     : theme.canvas;
   const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
-  const confirmDeleteMessage = () => {
-    for (const messageId of messageIdsPendingDelete ?? []) {
-      socket?.emit('message:delete', { messageId });
-    }
+  const finishDelete = () => {
     setSelectedMessageId(null);
+    setSelectionIds(null);
+  };
+
+  const confirmDeleteForEveryone = () => {
+    for (const message of pendingDeleteMessages) {
+      socket?.emit('message:delete', { messageId: message.id });
+    }
+    finishDelete();
+  };
+
+  const confirmDeleteForMe = () => {
+    hideMessages(pendingDeleteMessages.map((message) => message.id));
+    finishDelete();
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -1180,52 +1273,95 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                         const itemKey = renderItemKey(item);
                         const entrancePhase = getEntrancePhase();
                         const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
+                        const itemMessages = renderItemMessages(item);
+                        const itemIds = itemMessages.map((message) => message.id);
+                        const isExiting = itemMessages.every((message) => message.exiting);
+                        const isSelectable = isSelecting && itemMessages.every(isSelectableMessage);
+                        const isChecked = isSelectable && itemIds.every((id) => selectionIds.has(id));
+                        const rowClassName = `sc-message-row${isExiting ? ' is-exiting' : ''}${isSelectable ? ' is-selecting' : ''}`;
 
                         return (
-                          <div key={itemKey} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
-                            {item.kind === 'single' ? (
-                              <MessageBubble
-                                message={item.message}
-                                isOwn={isOwn}
-                                isGroupChat={isGroupChat}
-                                roomId={room.id}
-                                isAssistantRoom={isAssistantRoom(room)}
-                                participants={room.participants}
-                                currentUserId={user.id}
-                                currentNickname={user.nickname}
-                                isSelected={selectedMessageId === item.message.id}
-                                currentAudioRef={currentAudioRef}
-                                receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={toggleSelectedMessage}
-                                onOpenActions={openMessageActions}
-                                onReply={handleReply}
-                                onDelete={handleDeleteRequest}
-                                onForward={handleForward}
-                                onAudioPlayed={handleAudioPlayed}
-                                onRetry={retryMessage}
-                                entrancePhase={entrancePhase}
-                                entranceIndex={entranceIndex}
-                              />
-                            ) : (
-                              <ImageGroupBubble
-                                images={item.messages}
-                                isOwn={isOwn}
-                                isGroupChat={isGroupChat}
-                                roomId={room.id}
-                                participants={room.participants}
-                                currentUserId={user.id}
-                                isSelected={selectedMessageId === anchorMessage.id}
-                                receipt={visibleReceipts.get(itemKey) ?? null}
-                                onSelect={toggleSelectedMessage}
-                                onOpenActions={openMessageActions}
-                                onReply={handleReply}
-                                onDelete={handleDeleteRequest}
-                                onForward={handleForward}
-                                onRetry={retryMessage}
-                                entrancePhase={entrancePhase}
-                                entranceIndex={entranceIndex}
-                              />
-                            )}
+                          <div
+                            key={itemKey}
+                            className={rowClassName}
+                            data-checked={isChecked}
+                            role={isSelectable ? 'checkbox' : undefined}
+                            tabIndex={isSelectable ? 0 : undefined}
+                            aria-checked={isSelectable ? isChecked : undefined}
+                            aria-label={isSelectable ? t('chat.selection.toggle') : undefined}
+                            onClick={
+                              isSelectable
+                                ? (event) => {
+                                    event.stopPropagation();
+                                    toggleSelectionItem(itemIds);
+                                  }
+                                : undefined
+                            }
+                            onKeyDown={
+                              isSelectable
+                                ? (event) => {
+                                    if (event.key === ' ' || event.key === 'Enter') {
+                                      event.preventDefault();
+                                      toggleSelectionItem(itemIds);
+                                    }
+                                  }
+                                : undefined
+                            }
+                          >
+                            <div className="sc-message-row__inner">
+                              {isSelectable && (
+                                <span className="sc-select-check" aria-hidden="true">
+                                  {isChecked && <FaCheck size={10} />}
+                                </span>
+                              )}
+                              <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+                                {item.kind === 'single' ? (
+                                  <MessageBubble
+                                    message={item.message}
+                                    isOwn={isOwn}
+                                    isGroupChat={isGroupChat}
+                                    roomId={room.id}
+                                    isAssistantRoom={isAssistantRoom(room)}
+                                    participants={room.participants}
+                                    currentUserId={user.id}
+                                    currentNickname={user.nickname}
+                                    isSelected={selectedMessageId === item.message.id}
+                                    currentAudioRef={currentAudioRef}
+                                    receipt={visibleReceipts.get(itemKey) ?? null}
+                                    onSelect={toggleSelectedMessage}
+                                    onOpenActions={openMessageActions}
+                                    onReply={handleReply}
+                                    onDelete={handleDeleteRequest}
+                                    onForward={handleForward}
+                                    onAudioPlayed={handleAudioPlayed}
+                                    onRetry={retryMessage}
+                                    onStartSelection={startSelection}
+                                    entrancePhase={entrancePhase}
+                                    entranceIndex={entranceIndex}
+                                  />
+                                ) : (
+                                  <ImageGroupBubble
+                                    images={item.messages}
+                                    isOwn={isOwn}
+                                    isGroupChat={isGroupChat}
+                                    roomId={room.id}
+                                    participants={room.participants}
+                                    currentUserId={user.id}
+                                    isSelected={selectedMessageId === anchorMessage.id}
+                                    receipt={visibleReceipts.get(itemKey) ?? null}
+                                    onSelect={toggleSelectedMessage}
+                                    onOpenActions={openMessageActions}
+                                    onReply={handleReply}
+                                    onDelete={handleDeleteRequest}
+                                    onForward={handleForward}
+                                    onRetry={retryMessage}
+                                    onStartSelection={startSelection}
+                                    entrancePhase={entrancePhase}
+                                    entranceIndex={entranceIndex}
+                                  />
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
@@ -1332,28 +1468,71 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         />
       )}
 
-      <MessageInput
-        key={`input-${room.id}`}
-        ref={messageInputRef}
-        onSend={handleSend}
-        onSendAudio={(payload) => void handleSendAudio(payload)}
-        onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
-        onTyping={handleComposerTyping}
-        onRecordingStart={handleRecordingStart}
-        onRecordingStop={handleRecordingStop}
-        isBlockedBy={room.isBlockedBy}
-        userBlocked={room.userBlocked}
-        mentionCandidates={mentionCandidates}
-        maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
-        auth={auth}
-      />
+      {hideFailed && (
+        <div className="sc-notice sc-notice--danger sc-anim-rise-in" role="alert" style={{ margin: '0 12px 8px', alignItems: 'center' }}>
+          <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{t('chat.hideFailed')}</span>
+          <button type="button" onClick={dismissHideFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
+            <FaTimes size={12} />
+          </button>
+        </div>
+      )}
 
-      <ConfirmDialog
-        isOpen={messageIdsPendingDelete !== null}
-        title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
-        message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
-        onConfirm={confirmDeleteMessage}
-        onCancel={() => setMessageIdsPendingDelete(null)}
+      {selectionIds && (
+        <div className="sc-selection-bar" role="toolbar" aria-label={t('chat.selection.count', { count: selectionIds.size })}>
+          <button
+            type="button"
+            onClick={() => setSelectionIds(null)}
+            className="sc-icon-btn sc-icon-btn--surface"
+            aria-label={t('chat.selection.cancel')}
+            title={t('chat.selection.cancel')}
+            style={{ width: '44px', height: '44px', flexShrink: 0 }}
+          >
+            <FaTimes size={16} />
+          </button>
+          <span className="sc-selection-bar__count" aria-live="polite">
+            {t('chat.selection.count', { count: selectionIds.size })}
+          </span>
+          <button
+            type="button"
+            className="sc-selection-bar__delete"
+            disabled={selectionIds.size === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              handleDeleteRequest([...selectionIds]);
+            }}
+          >
+            <FaTrash size={13} aria-hidden="true" />
+            {t('chat.selection.delete')}
+          </button>
+        </div>
+      )}
+
+      <div style={{ display: selectionIds ? 'none' : 'contents' }}>
+        <MessageInput
+          key={`input-${room.id}`}
+          ref={messageInputRef}
+          onSend={handleSend}
+          onSendAudio={(payload) => void handleSendAudio(payload)}
+          onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
+          onTyping={handleComposerTyping}
+          onRecordingStart={handleRecordingStart}
+          onRecordingStop={handleRecordingStop}
+          isBlockedBy={room.isBlockedBy}
+          userBlocked={room.userBlocked}
+          mentionCandidates={mentionCandidates}
+          maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+          auth={auth}
+        />
+      </div>
+
+      <DeleteMessageDialog
+        isOpen={messageIdsPendingDelete !== null && pendingDeleteMessages.length > 0}
+        count={deleteOptions.count}
+        canDeleteForEveryone={deleteOptions.canDeleteForEveryone}
+        onDeleteForEveryone={confirmDeleteForEveryone}
+        onDeleteForMe={confirmDeleteForMe}
+        onClose={() => setMessageIdsPendingDelete(null)}
       />
 
       <ForwardMessageModal

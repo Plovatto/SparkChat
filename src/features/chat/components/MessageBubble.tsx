@@ -36,6 +36,7 @@ export interface MessageBubbleActions {
   onDelete: (messageIds: string[]) => void;
   onForward: (messages: ChatMessage[]) => void;
   onRetry: (clientTempId: string) => void;
+  onStartSelection: (messageId: string) => void;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -121,6 +122,7 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onAudioPlayed,
   onRetry,
+  onStartSelection,
   entrancePhase = 'none',
   entranceIndex = 0,
 }: MessageBubbleProps) {
@@ -165,7 +167,17 @@ export const MessageBubble = memo(function MessageBubble({
   });
 
   if (message.deletedForEveryone) {
-    return <DeletedMessageBubble isOwn={isOwn} roomId={roomId} entrancePhase={entrance} />;
+    return (
+      <DeletedMessageBubble
+        isOwn={isOwn}
+        roomId={roomId}
+        entrancePhase={entrance}
+        isSelected={isSelected}
+        onSelect={() => onSelect(message.id)}
+        onDelete={() => onDelete([message.id])}
+        onStartSelection={() => onStartSelection(message.id)}
+      />
+    );
   }
 
   if (message.type === 'error') {
@@ -289,6 +301,7 @@ export const MessageBubble = memo(function MessageBubble({
               onReply={() => onReply(message)}
               onDelete={() => onDelete([message.id])}
               onForward={() => onForward([message])}
+              onStartSelection={() => onStartSelection(message.id)}
             />
           )}
         </>
