@@ -66,6 +66,51 @@ describe('ReactorsSheet', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('moves between tabs with the arrow keys and labels the panel with the active tab', () => {
+    renderSheet(null);
+    const tabs = screen.getAllByRole('tab');
+    tabs[0]?.focus();
+
+    fireEvent.keyDown(tabs[0]!, { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(screen.getAllByRole('tab')[1]);
+    expect(screen.getAllByRole('tab')[1]?.getAttribute('aria-selected')).toBe('true');
+    const panel = screen.getByRole('tabpanel');
+    expect(panel.getAttribute('aria-labelledby')).toBe(screen.getAllByRole('tab')[1]?.id);
+    expect(screen.getAllByRole('tab').every((tab) => tab.getAttribute('aria-controls') === panel.id)).toBe(true);
+
+    fireEvent.keyDown(screen.getAllByRole('tab')[1]!, { key: 'End' });
+    expect(screen.getAllByRole('tab')[2]?.getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(screen.getAllByRole('tab')[2]!, { key: 'ArrowRight' });
+    expect(screen.getAllByRole('tab')[0]?.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getAllByRole('tab').filter((tab) => tab.tabIndex === 0)).toHaveLength(1);
+  });
+
+  it('keeps focus inside while open and gives it back when closed', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    const props = {
+      initialEmoji: null,
+      reactions,
+      participants,
+      currentUserId: 'me',
+      onRemoveOwn: vi.fn(),
+      onClose: vi.fn(),
+    };
+    const { rerender } = render(<ReactorsSheet isOpen {...props} />);
+    const close = screen.getByRole('button', { name: 'chat.reactions.close' });
+    expect(document.activeElement).toBe(close);
+
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'chat.reactions.removeReaction' }));
+    fireEvent.keyDown(document.activeElement!, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+
+    rerender(<ReactorsSheet isOpen={false} {...props} />);
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+
   it('closes from the close button and with Escape', () => {
     const { onClose } = renderSheet(null);
 

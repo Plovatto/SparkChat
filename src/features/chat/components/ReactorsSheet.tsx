@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
@@ -31,15 +31,25 @@ export function ReactorsSheet({ isOpen, initialEmoji, reactions, participants, c
   const [filter, setFilter] = useState<string | null>(initialEmoji);
   const snapshotRef = useRef<SheetSnapshot>({ reactions, initialEmoji });
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const idPrefix = useId();
   const backdropDismiss = useBackdropDismiss(onClose);
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
 
   useEffect(() => {
-    if (isOpen) {
-      setFilter(initialEmoji);
-      closeButtonRef.current?.focus();
+    if (!isOpen) {
+      return;
     }
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setFilter(initialEmoji);
+    closeButtonRef.current?.focus();
+    return () => {
+      if (previouslyFocused?.isConnected) {
+        previouslyFocused.focus();
+      }
+    };
   }, [isOpen, initialEmoji]);
 
   if (isOpen) {
@@ -62,6 +72,46 @@ export function ReactorsSheet({ isOpen, initialEmoji, reactions, participants, c
   }
 
   const exitClass = isExiting ? ' is-exiting' : '';
+  const tabFilters: (string | null)[] = [null, ...summaries.map((summary) => summary.emoji)];
+  const activeIndex = Math.max(0, tabFilters.indexOf(activeFilter));
+  const tabId = (index: number) => `${idPrefix}-tab-${index}`;
+  const panelId = `${idPrefix}-panel`;
+
+  const trapFocus = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Tab' || !sheetRef.current) {
+      return;
+    }
+    const focusable = [...sheetRef.current.querySelectorAll<HTMLElement>('button:not([disabled])')].filter((element) => element.tabIndex >= 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) {
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const moveTab = (event: KeyboardEvent<HTMLDivElement>) => {
+    const keys: Record<string, number> = {
+      ArrowRight: activeIndex + 1,
+      ArrowLeft: activeIndex - 1,
+      Home: 0,
+      End: tabFilters.length - 1,
+    };
+    const target = keys[event.key];
+    if (target === undefined) {
+      return;
+    }
+    event.preventDefault();
+    const next = (target + tabFilters.length) % tabFilters.length;
+    setFilter(tabFilters[next] ?? null);
+    tabRefs.current[next]?.focus();
+  };
 
   return createPortal(
     <div
@@ -73,11 +123,13 @@ export function ReactorsSheet({ isOpen, initialEmoji, reactions, participants, c
       }}
     >
       <section
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
         aria-label={t('chat.reactions.sheetTitle')}
         className={`sc-reactors-sheet${exitClass}`}
         onClick={(event) => event.stopPropagation()}
+        onKeyDown={trapFocus}
       >
         <div className="sc-reactors-sheet__handle" aria-hidden="true" />
         <header className="sc-reactors-sheet__header">
@@ -87,61 +139,79 @@ export function ReactorsSheet({ isOpen, initialEmoji, reactions, participants, c
           </button>
         </header>
 
-        <div className="sc-reactors-sheet__tabs" role="tablist">
-          <button type="button" role="tab" aria-selected={activeFilter === null} className="sc-reactors-tab" onClick={() => setFilter(null)}>
-            {t('chat.reactions.all')} <span className="sc-reactors-tab__count">{shownReactions?.length ?? 0}</span>
-          </button>
-          {summaries.map((summary) => (
-            <button
-              key={summary.emoji}
-              type="button"
-              role="tab"
-              aria-selected={activeFilter === summary.emoji}
-              className="sc-reactors-tab"
-              onClick={() => setFilter(summary.emoji)}
-            >
-              <span aria-hidden="true">{summary.emoji}</span> <span className="sc-reactors-tab__count">{summary.count}</span>
-            </button>
-          ))}
-        </div>
-
-        <ul className="sc-reactors-sheet__list">
-          {rows.map((reaction, index) => {
-            const isMine = reaction.userId === currentUserId;
-            const participant = participants.find((entry) => entry.id === reaction.userId);
-            const content = (
-              <>
-                <Avatar userId={reaction.userId} avatarIndex={participant?.avatar} tone="soft" size={38} iconSize={18} />
-                <span className="sc-reactors-row__name">
-                  {reactorName(reaction.userId, participants, currentUserId)}
-                  {isMine && <small>{t('chat.reactions.tapToRemove')}</small>}
-                </span>
-                <span className="sc-reactors-row__emoji" aria-hidden="true">
-                  {reaction.emoji}
-                </span>
-              </>
-            );
+        <div className="sc-reactors-sheet__tabs" role="tablist" aria-label={t('chat.reactions.sheetTitle')} onKeyDown={moveTab}>
+          {tabFilters.map((tabFilter, index) => {
+            const summary = summaries.find((entry) => entry.emoji === tabFilter);
+            const isActive = index === activeIndex;
             return (
-              <li key={`${reaction.userId}:${reaction.emoji}:${index}`}>
-                {isMine ? (
-                  <button
-                    type="button"
-                    className="sc-reactors-row"
-                    aria-label={t('chat.reactions.removeReaction', { emoji: reaction.emoji })}
-                    onClick={() => {
-                      onRemoveOwn();
-                      onClose();
-                    }}
-                  >
-                    {content}
-                  </button>
+              <button
+                key={tabFilter ?? 'all'}
+                ref={(element) => {
+                  tabRefs.current[index] = element;
+                }}
+                id={tabId(index)}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={panelId}
+                aria-label={summary ? `${summary.emoji} ${summary.count}` : undefined}
+                tabIndex={isActive ? 0 : -1}
+                className="sc-reactors-tab"
+                onClick={() => setFilter(tabFilter)}
+              >
+                {summary ? (
+                  <>
+                    <span aria-hidden="true">{summary.emoji}</span> <span className="sc-reactors-tab__count">{summary.count}</span>
+                  </>
                 ) : (
-                  <div className="sc-reactors-row">{content}</div>
+                  <>
+                    {t('chat.reactions.all')} <span className="sc-reactors-tab__count">{shownReactions?.length ?? 0}</span>
+                  </>
                 )}
-              </li>
+              </button>
             );
           })}
-        </ul>
+        </div>
+
+        <div className="sc-reactors-sheet__list" id={panelId} role="tabpanel" aria-labelledby={tabId(activeIndex)}>
+          <ul>
+            {rows.map((reaction, index) => {
+              const isMine = reaction.userId === currentUserId;
+              const participant = participants.find((entry) => entry.id === reaction.userId);
+              const content = (
+                <>
+                  <Avatar userId={reaction.userId} avatarIndex={participant?.avatar} tone="soft" size={38} iconSize={18} />
+                  <span className="sc-reactors-row__name">
+                    {reactorName(reaction.userId, participants, currentUserId)}
+                    {isMine && <small>{t('chat.reactions.tapToRemove')}</small>}
+                  </span>
+                  <span className="sc-reactors-row__emoji" aria-hidden="true">
+                    {reaction.emoji}
+                  </span>
+                </>
+              );
+              return (
+                <li key={`${reaction.userId}:${reaction.emoji}:${index}`}>
+                  {isMine ? (
+                    <button
+                      type="button"
+                      className="sc-reactors-row"
+                      aria-label={t('chat.reactions.removeReaction', { emoji: reaction.emoji })}
+                      onClick={() => {
+                        onRemoveOwn();
+                        onClose();
+                      }}
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <div className="sc-reactors-row">{content}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </section>
     </div>,
     document.body,

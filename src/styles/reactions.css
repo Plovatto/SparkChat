@@ -471,11 +471,16 @@
 }
 
 .sc-reactors-sheet__list {
-  list-style: none;
   margin: 0;
   padding: 6px 8px 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.sc-reactors-sheet__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .sc-reactors-row {
