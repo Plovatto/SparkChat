@@ -7,6 +7,7 @@ export interface SocketErrorPayload {
   params?: ApiErrorParams;
   clientTempId?: string;
   event?: string;
+  messageIds?: string[];
 }
 
 export interface MessageHiddenPayload {
@@ -508,7 +509,7 @@ export interface ClientToServerEvents {
   'recording:start': (payload: { roomId: string }) => void;
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
-  'message:delete': (payload: { messageId: string }) => void;
+  'message:delete': (payload: { messageId: string } | { messageIds: string[] }) => void;
   'message:hide': (payload: { messageIds: string[] }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;

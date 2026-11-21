@@ -181,6 +181,13 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) =>
         patchRoom(previous, roomId, (room) => {
           const previewHidden = room.lastMessage !== null && messageIds.includes(room.lastMessage.id);
+          const previewIsNewer =
+            room.lastMessage !== null &&
+            !previewHidden &&
+            (!lastMessage || new Date(room.lastMessage.timestamp).getTime() > new Date(lastMessage.timestamp).getTime());
+          if (previewIsNewer) {
+            return room;
+          }
           return {
             ...room,
             lastMessage: lastMessage !== undefined ? lastMessage : previewHidden ? null : room.lastMessage,

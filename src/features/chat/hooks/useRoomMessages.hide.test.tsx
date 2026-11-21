@@ -122,7 +122,7 @@ describe('useRoomMessages hiding', () => {
       vi.advanceTimersByTime(20000);
     });
     expect(ids(result)).toEqual(['a']);
-    expect(result.current.hideFailed).toBe(false);
+    expect(result.current.hideFailure).toBeNull();
   });
 
   it('puts the messages back in order when the server rejects the hide', () => {
@@ -138,9 +138,9 @@ describe('useRoomMessages hiding', () => {
 
     expect(ids(result)).toEqual(['a', 'b', 'c']);
     expect(result.current.messages.every((entry) => !entry.exiting)).toBe(true);
-    expect(result.current.hideFailed).toBe(true);
+    expect(result.current.hideFailure).not.toBeNull();
     act(() => result.current.dismissHideFailure());
-    expect(result.current.hideFailed).toBe(false);
+    expect(result.current.hideFailure).toBeNull();
   });
 
   it('rolls back when the server never confirms, like an older server without the event', () => {
@@ -156,7 +156,7 @@ describe('useRoomMessages hiding', () => {
       vi.advanceTimersByTime(2000);
     });
     expect(ids(result)).toEqual(['a', 'b']);
-    expect(result.current.hideFailed).toBe(true);
+    expect(result.current.hideFailure).not.toBeNull();
   });
 
   it('ignores errors from other events', () => {
@@ -167,7 +167,7 @@ describe('useRoomMessages hiding', () => {
       vi.advanceTimersByTime(300);
     });
     expect(ids(result)).toEqual(['b']);
-    expect(result.current.hideFailed).toBe(false);
+    expect(result.current.hideFailure).toBeNull();
   });
 
   it('splits large selections in batches of one hundred', () => {
@@ -212,5 +212,78 @@ describe('useRoomMessages hiding', () => {
     act(() => socket.fire('messages:list', { roomId: ROOM, messages: [message('a', 1), message('b', 2)], hasMore: false }));
 
     expect(ids(result)).toEqual(['a']);
+  });
+
+  it('rolls back exactly the request named in the error and leaves a concurrent hide alone', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2), message('c', 3)]);
+
+    act(() => result.current.hideMessages(['a']));
+    act(() => result.current.hideMessages(['b']));
+    act(() => socket.fire('error', { message: 'x', code: 'message.notFound', event: 'message:hide', messageIds: ['b'] }));
+
+    expect(result.current.messages.find((entry) => entry.id === 'a')?.exiting).toBe(true);
+    expect(result.current.messages.find((entry) => entry.id === 'b')?.exiting).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(ids(result)).toEqual(['b', 'c']);
+    expect(result.current.hideFailure).toEqual({ code: 'message.notFound' });
+  });
+
+  it('ignores an error naming ids that no pending hide asked for', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+    act(() => result.current.hideMessages(['a']));
+    act(() => socket.fire('error', { message: 'x', code: 'message.notFound', event: 'message:hide', messageIds: ['zzz'] }));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(ids(result)).toEqual(['b']);
+    expect(result.current.hideFailure).toBeNull();
+  });
+
+  it('keeps a message leaving the list when it is updated meanwhile', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+    act(() => result.current.hideMessages(['a']));
+    act(() => socket.fire('message:updated', { ...message('a', 1), playedBy: ['x'] }));
+    expect(result.current.messages.find((entry) => entry.id === 'a')).toMatchObject({ exiting: true, playedBy: ['x'] });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(ids(result)).toEqual(['b']);
+  });
+
+  it('restores a message deleted for everyone meanwhile with its deleted state', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+    act(() => result.current.hideMessages(['a']));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    act(() => socket.fire('message:deleted', { messageId: 'a', roomId: ROOM }));
+    act(() => socket.fire('error', { message: 'x', code: 'internal.unexpected', event: 'message:hide', messageIds: ['a'] }));
+
+    expect(result.current.messages[0]).toMatchObject({ id: 'a', deletedForEveryone: true, content: '' });
+  });
+
+  it('drops messages a reloaded page no longer returns, as when a hide happened while offline', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2), message('c', 3), message('d', 4)]);
+    act(() => {
+      socket.fire('message:new', message('live', 6));
+    });
+    act(() => {
+      result.current.sendMessage({ content: 'local', type: 'text' });
+    });
+
+    act(() => socket.fire('user:resumed', {}));
+    act(() => socket.fire('messages:list', { roomId: ROOM, messages: [message('a', 1), message('c', 3), message('d', 4)], hasMore: true }));
+
+    expect(ids(result).slice(0, 4)).toEqual(['a', 'c', 'd', 'live']);
+    expect(result.current.messages.some((entry) => entry.pending)).toBe(true);
+  });
+
+  it('clears everything but unsent messages when the reloaded page comes back empty', () => {
+    const { result } = renderLoaded([message('a', 1), message('b', 2)]);
+    act(() => socket.fire('user:resumed', {}));
+    act(() => socket.fire('messages:list', { roomId: ROOM, messages: [], hasMore: false }));
+    expect(ids(result)).toEqual([]);
   });
 });

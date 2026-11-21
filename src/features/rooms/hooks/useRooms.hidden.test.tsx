@@ -48,7 +48,7 @@ vi.mock('@lib/translation', () => ({
 
 const { useRooms } = await import('./useRooms');
 
-function message(id: string): MessageView {
+function message(id: string, minute = 0): MessageView {
   return {
     id,
     roomId: 'room-1',
@@ -56,7 +56,7 @@ function message(id: string): MessageView {
     content: id,
     type: 'text',
     duration: null,
-    timestamp: '2026-11-20T12:00:00.000Z',
+    timestamp: new Date(Date.UTC(2026, 10, 20, 12, minute)).toISOString(),
     deletedForEveryone: false,
     status: 'sent',
     deliveredTo: [],
@@ -110,5 +110,14 @@ describe('useRooms message:hidden', () => {
     act(() => socket.fire('rooms:list', { rooms: [room(message('kept'))] }));
     act(() => socket.fire('message:hidden', { roomId: 'room-1', messageIds: ['other'] }));
     expect(result.current.rooms[0]).toMatchObject({ lastMessage: { id: 'kept' } });
+  });
+
+  it('ignores a late reply when a newer message already took over the preview', () => {
+    const { result } = renderHook(() => useRooms(null, 'me'));
+    act(() => socket.fire('rooms:list', { rooms: [room(message('newest', 10))] }));
+
+    act(() => socket.fire('message:hidden', { roomId: 'room-1', messageIds: ['old'], lastMessage: message('older', 5), unreadCount: 0, mentionCount: 0 }));
+
+    expect(result.current.rooms[0]).toMatchObject({ lastMessage: { id: 'newest' }, unreadCount: 3, mentionCount: 1 });
   });
 });

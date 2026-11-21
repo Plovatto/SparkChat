@@ -58,8 +58,12 @@ export interface RoomMessagesState {
   retryMessage: (clientTempId: string) => void;
   loadOlderMessages: () => void;
   hideMessages: (messageIds: string[]) => void;
-  hideFailed: boolean;
+  hideFailure: HideFailure | null;
   dismissHideFailure: () => void;
+}
+
+export interface HideFailure {
+  code: string | null;
 }
 
 interface PendingHide {
@@ -93,18 +97,43 @@ function mapChanged(messages: ChatMessage[], mapper: (message: ChatMessage) => C
   return changed ? next : messages;
 }
 
-function settleExiting(messages: ChatMessage[]): ChatMessage[] {
-  return mapChanged(messages, (message) => (message.exiting ? { ...message, exiting: false } : message));
+function timeOf(message: { timestamp: string }): number {
+  return new Date(message.timestamp).getTime();
 }
 
 function restoreMessages(messages: ChatMessage[], restored: ChatMessage[]): ChatMessage[] {
-  const settled = settleExiting(messages);
+  const restoredById = new Map(restored.map((message) => [message.id, message]));
+  const settled = mapChanged(messages, (message) => (restoredById.has(message.id) && message.exiting ? { ...message, exiting: false } : message));
   const presentIds = new Set(settled.map((message) => message.id));
   const missing = restored.filter((message) => !presentIds.has(message.id)).map((message) => ({ ...message, exiting: false }));
   if (missing.length === 0) {
     return settled;
   }
-  return [...settled, ...missing].sort((left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime());
+  return [...settled, ...missing].sort((left, right) => timeOf(left) - timeOf(right));
+}
+
+function markDeletedForEveryone(message: ChatMessage): ChatMessage {
+  return { ...message, deletedForEveryone: true, content: '', fileMeta: null, caption: null, linkPreview: null, replyTo: null };
+}
+
+function mergeReloadedPage(previous: ChatMessage[], page: ChatMessage[], hasMore: boolean): ChatMessage[] {
+  const pageIds = new Set(page.map((message) => message.id));
+  const oldest = page[0];
+  const newest = page[page.length - 1];
+  const kept = previous.filter((message) => {
+    if (pageIds.has(message.id)) {
+      return false;
+    }
+    if (message.pending || message.failed) {
+      return true;
+    }
+    if (!oldest || !newest) {
+      return hasMore;
+    }
+    const time = timeOf(message);
+    return time < timeOf(oldest) || time > timeOf(newest);
+  });
+  return [...page, ...kept].sort((left, right) => timeOf(left) - timeOf(right));
 }
 
 function buildReplySnapshot(message: MessageView | null | undefined): MessageReplySnapshot | null {
@@ -147,7 +176,13 @@ export function useRoomMessages(
   const hasLoadedInitialPageRef = useRef(false);
   const pendingHidesRef = useRef<PendingHide[]>([]);
   const exitTimeoutsRef = useRef(new Set<ReturnType<typeof setTimeout>>());
-  const [hideFailed, setHideFailed] = useState(false);
+  const [hideFailure, setHideFailure] = useState<HideFailure | null>(null);
+
+  const updatePendingSnapshots = useCallback((messageId: string, update: (message: ChatMessage) => ChatMessage) => {
+    for (const pending of pendingHidesRef.current) {
+      pending.messages = pending.messages.map((message) => (message.id === messageId ? update(message) : message));
+    }
+  }, []);
 
   const removeWithExit = useCallback((messageIds: string[]) => {
     const ids = new Set(messageIds);
@@ -165,10 +200,10 @@ export function useRoomMessages(
     exitTimeoutsRef.current.add(timeoutId);
   }, []);
 
-  const rollbackHide = useCallback((pending: PendingHide) => {
+  const rollbackHide = useCallback((pending: PendingHide, code: string | null = null) => {
     clearTimeout(pending.timeoutId);
     pendingHidesRef.current = pendingHidesRef.current.filter((candidate) => candidate !== pending);
-    setHideFailed(true);
+    setHideFailure({ code });
     if (pending.messages.length === 0 || pending.messages[0]?.roomId !== roomIdRef.current) {
       return;
     }
@@ -229,7 +264,7 @@ export function useRoomMessages(
       clearTimeout(timeoutId);
     }
     exitTimeoutsRef.current.clear();
-    setHideFailed(false);
+    setHideFailure(null);
   }, [roomId]);
 
   useEffect(() => {
@@ -305,16 +340,7 @@ export function useRoomMessages(
       } else {
         hasLoadedInitialPageRef.current = true;
         const initialMessages = normalizeInitialMessagesPage(listed);
-        setMessages((previous) => {
-          if (previous.length === 0) {
-            return initialMessages;
-          }
-          const historyIds = new Set(initialMessages.map((message) => message.id));
-          const liveOnly = previous.filter((message) => !historyIds.has(message.id));
-          return [...initialMessages, ...liveOnly].sort(
-            (left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
-          );
-        });
+        setMessages((previous) => (previous.length === 0 ? initialMessages : mergeReloadedPage(previous, initialMessages, payload.hasMore)));
         setIsLoaded(true);
         if (initialMessages.length > 0) {
           socket.emit('message:mark-read', { roomId });
@@ -357,11 +383,14 @@ export function useRoomMessages(
       }
     };
 
-    const handleSendError = ({ clientTempId, event }: SocketErrorPayload) => {
+    const handleSendError = ({ clientTempId, event, code, messageIds }: SocketErrorPayload) => {
       if (event === 'message:hide') {
-        const [oldest] = pendingHidesRef.current;
-        if (oldest) {
-          rollbackHide(oldest);
+        const pendingHides = pendingHidesRef.current;
+        const target = messageIds
+          ? pendingHides.find((pending) => pending.ids.length === messageIds.length && pending.ids.every((id) => messageIds.includes(id)))
+          : pendingHides[pendingHides.length - 1];
+        if (target) {
+          rollbackHide(target, code ?? null);
         }
         return;
       }
@@ -408,6 +437,7 @@ export function useRoomMessages(
       if (deletedRoomId !== roomId) {
         return;
       }
+      updatePendingSnapshots(messageId, markDeletedForEveryone);
       setMessages((previous) =>
         mapChanged(previous, (message) =>
           message.id === messageId ? { ...message, deletedForEveryone: true, content: '' } : message,
@@ -434,7 +464,10 @@ export function useRoomMessages(
       if (updated.roomId !== roomId) {
         return;
       }
-      setMessages((previous) => mapChanged(previous, (message) => (message.id === updated.id ? updated : message)));
+      updatePendingSnapshots(updated.id, (message) => ({ ...updated, exiting: message.exiting }));
+      setMessages((previous) =>
+        mapChanged(previous, (message) => (message.id === updated.id ? { ...updated, ...(message.exiting ? { exiting: true } : {}) } : message)),
+      );
     };
 
     socket.on('messages:list', handleMessagesList);
@@ -466,7 +499,7 @@ export function useRoomMessages(
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:hidden', handleMessageHidden);
     };
-  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied, removeWithExit, rollbackHide]);
+  }, [socket, roomId, currentUser.id, clearPendingTimeout, onBeforeOlderMessagesApplied, removeWithExit, rollbackHide, updatePendingSnapshots]);
 
   const sendMessage = useCallback(
     (input: SendMessageInput) => {
@@ -558,7 +591,7 @@ export function useRoomMessages(
       if (!socket || !roomId || messageIds.length === 0) {
         return;
       }
-      setHideFailed(false);
+      setHideFailure(null);
       for (const ids of chunkMessageIds(messageIds)) {
         const idSet = new Set(ids);
         const pending: PendingHide = {
@@ -574,7 +607,7 @@ export function useRoomMessages(
     [socket, roomId, removeWithExit, rollbackHide],
   );
 
-  const dismissHideFailure = useCallback(() => setHideFailed(false), []);
+  const dismissHideFailure = useCallback(() => setHideFailure(null), []);
 
   const loadOlderMessages = useCallback(() => {
     const oldest = messagesRef.current[0];
@@ -604,7 +637,7 @@ export function useRoomMessages(
     retryMessage,
     loadOlderMessages,
     hideMessages,
-    hideFailed,
+    hideFailure,
     dismissHideFailure,
   };
 }
