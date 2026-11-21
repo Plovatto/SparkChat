@@ -11,6 +11,7 @@ import { MIC_VOLUME_MAX, MIC_VOLUME_MIN } from '../lib/voice-leveler';
 import { CALL_VOLUME_MAX, CALL_VOLUME_MIN } from '../lib/voice-playback';
 import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
+import { DUCK_LEVEL } from '../lib/ducking';
 import type { ShareMonitorSupport } from '../lib/share-monitor';
 import { isOutside } from './call-hooks';
 import { panelTabs, rangeFill, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
@@ -26,12 +27,17 @@ export interface SharerSettings {
   monitor?: ShareMonitorSupport;
   monitorVolume?: number;
   onMonitorVolume?: (volume: number) => void;
+  duckLevel?: number;
+  onDuckLevel?: (level: number) => void;
 }
 
 export interface ReceiverSettings {
   hasAudio: boolean;
   volume: number;
   onVolume: (volume: number) => void;
+  movie?: boolean;
+  duckLevel?: number;
+  onDuckLevel?: (level: number) => void;
 }
 
 export interface BroadcastSettings {
@@ -289,6 +295,8 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
     </button>
   );
 
+  const sharerDuck = Boolean(sharer?.movieMode && sharer.monitor === 'local' && sharer.onDuckLevel);
+
   const sharerSection = sharer && (
     <>
       <AudioOption id="call-share-movie" label={t('calls.broadcast.movie')} description={t('calls.broadcast.movieHint')} checked={sharer.movieMode} onChange={() => sharer.onMovieMode(!sharer.movieMode)} />
@@ -302,6 +310,11 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
           <VolumeOption id="call-share-monitor" label={t('calls.broadcast.monitorVolume')} description={t('calls.broadcast.monitorVolumeHint')} value={sharer.monitorVolume ?? 1} onChange={sharer.onMonitorVolume} />
         </div>
       )}
+      {sharerDuck && sharer.onDuckLevel && (
+        <div className="sc-call-reveal">
+          <VolumeOption id="call-share-duck" label={t('calls.broadcast.duckLevel')} description={t('calls.broadcast.duckLevelHint')} value={sharer.duckLevel ?? DUCK_LEVEL} onChange={sharer.onDuckLevel} />
+        </div>
+      )}
       {sharer.monitor === 'unsupported' && (
         <div className="sc-call-reveal">
           <PanelNote>{t('calls.broadcast.monitorUnsupported')}</PanelNote>
@@ -313,7 +326,14 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
 
   const receiverSection = receiver &&
     (receiver.hasAudio ? (
-      <VolumeOption id="call-stream-volume" label={t('calls.broadcast.streamVolume')} description={t('calls.broadcast.streamVolumeHint')} value={receiver.volume} onChange={receiver.onVolume} />
+      <>
+        <VolumeOption id="call-stream-volume" label={t('calls.broadcast.streamVolume')} description={t('calls.broadcast.streamVolumeHint')} value={receiver.volume} onChange={receiver.onVolume} />
+        {receiver.movie && !sharerDuck && receiver.onDuckLevel && (
+          <div className="sc-call-reveal">
+            <VolumeOption id="call-stream-duck" label={t('calls.broadcast.duckLevel')} description={t('calls.broadcast.duckLevelHint')} value={receiver.duckLevel ?? DUCK_LEVEL} onChange={receiver.onDuckLevel} />
+          </div>
+        )}
+      </>
     ) : (
       <PanelNote>{t('calls.broadcast.noStreamAudio')}</PanelNote>
     ));

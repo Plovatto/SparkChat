@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DUCK_ATTACK_MS, DUCK_HOLD_MS, DUCK_LEVEL, DUCK_RELEASE_MS, Ducker } from './ducking';
+import { DUCK_ATTACK_MS, DUCK_HOLD_MS, DUCK_LEVEL, DUCK_RELEASE_MS, Ducker, clampDuckLevel } from './ducking';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -55,6 +55,31 @@ describe('Ducker', () => {
     instance.update(false, true);
     vi.advanceTimersByTime(DUCK_RELEASE_MS + 40);
     expect(instance.current).toBe(1);
+  });
+
+  it('ducks to the level the user picked and follows a change made while ducking', () => {
+    const { instance } = ducker();
+    instance.update(true, true, 0.4);
+    vi.advanceTimersByTime(DUCK_ATTACK_MS * 2);
+    expect(instance.current).toBe(0.4);
+    instance.update(true, true, 0);
+    vi.advanceTimersByTime(DUCK_ATTACK_MS * 2);
+    expect(instance.current).toBe(0);
+  });
+
+  it('leaves the volume untouched when the user picks 100%', () => {
+    const { instance, levels } = ducker();
+    instance.update(true, true, 1);
+    vi.advanceTimersByTime(DUCK_ATTACK_MS * 2);
+    expect(levels).toEqual([]);
+    expect(instance.current).toBe(1);
+  });
+
+  it('clamps invalid levels', () => {
+    expect(clampDuckLevel(-1)).toBe(0);
+    expect(clampDuckLevel(3)).toBe(1);
+    expect(clampDuckLevel(Number.NaN)).toBe(DUCK_LEVEL);
+    expect(clampDuckLevel('x')).toBe(DUCK_LEVEL);
   });
 
   it('stops every timer on dispose', () => {

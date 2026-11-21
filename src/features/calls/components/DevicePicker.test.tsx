@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ShareMonitorSupport } from '../lib/share-monitor';
-import { DevicePicker, type SharerSettings } from './DevicePicker';
+import { DevicePicker, type ReceiverSettings, type SharerSettings } from './DevicePicker';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@features/theme', () => ({ useTheme: () => ({ theme: {} }) }));
@@ -27,7 +27,7 @@ function sharer(monitor: ShareMonitorSupport, extra: Partial<SharerSettings> = {
   };
 }
 
-function renderPicker(settings: SharerSettings) {
+function renderPicker(settings: SharerSettings | null, receiver: ReceiverSettings | null = null) {
   render(
     <DevicePicker
       cameraOn={false}
@@ -37,7 +37,7 @@ function renderPicker(settings: SharerSettings) {
       onVideoInput={() => undefined}
       onAudioOutput={() => undefined}
       onClose={() => undefined}
-      broadcast={{ sharer: settings, receiver: null }}
+      broadcast={{ sharer: settings, receiver }}
     />,
   );
   fireEvent.click(screen.getByRole('tab', { name: 'calls.tabs.broadcast' }));
@@ -69,5 +69,44 @@ describe('DevicePicker sharer monitor', () => {
     expect(screen.queryByRole('slider', { name: 'calls.broadcast.monitorVolume' })).toBeNull();
     expect(screen.queryByText('calls.broadcast.monitorUnsupported')).toBeNull();
     expect(screen.getByText('calls.broadcast.noShareAudio')).toBeTruthy();
+  });
+});
+
+describe('DevicePicker duck level', () => {
+  it('lets the viewer pick how low the show goes while someone talks in movie mode', () => {
+    const onDuckLevel = vi.fn();
+    renderPicker(null, { hasAudio: true, volume: 1, onVolume: () => undefined, movie: true, duckLevel: 0.12, onDuckLevel });
+
+    const slider = screen.getByRole('slider', { name: 'calls.broadcast.duckLevel' });
+    expect((slider as HTMLInputElement).value).toBe('12');
+    fireEvent.change(slider, { target: { value: '40' } });
+    expect(onDuckLevel).toHaveBeenCalledWith(0.4);
+  });
+
+  it('hides the viewer slider outside movie mode', () => {
+    renderPicker(null, { hasAudio: true, volume: 1, onVolume: () => undefined, movie: false, duckLevel: 0.12, onDuckLevel: () => undefined });
+
+    expect(screen.queryByRole('slider', { name: 'calls.broadcast.duckLevel' })).toBeNull();
+  });
+
+  it('lets the sharer pick it when the show plays inside the app in movie mode', () => {
+    const onDuckLevel = vi.fn();
+    renderPicker(sharer('local', { movieMode: true, duckLevel: 0.3, onDuckLevel }));
+
+    const slider = screen.getByRole('slider', { name: 'calls.broadcast.duckLevel' });
+    expect((slider as HTMLInputElement).value).toBe('30');
+    fireEvent.change(slider, { target: { value: '0' } });
+    expect(onDuckLevel).toHaveBeenCalledWith(0);
+  });
+
+  it('shows a single slider while sharing and watching at the same time', () => {
+    renderPicker(sharer('local', { movieMode: true, duckLevel: 0.3, onDuckLevel: () => undefined }), { hasAudio: true, volume: 1, onVolume: () => undefined, movie: true, duckLevel: 0.3, onDuckLevel: () => undefined });
+
+    expect(screen.getAllByRole('slider', { name: 'calls.broadcast.duckLevel' })).toHaveLength(1);
+  });
+
+  it('hides the sharer slider when movie mode is off or the tab sound cannot be lowered', () => {
+    renderPicker(sharer('local', { movieMode: false, onDuckLevel: () => undefined }));
+    expect(screen.queryByRole('slider', { name: 'calls.broadcast.duckLevel' })).toBeNull();
   });
 });
