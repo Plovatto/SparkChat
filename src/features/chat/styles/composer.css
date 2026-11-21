@@ -14,7 +14,7 @@
   gap: 2px;
   min-width: 0;
   min-height: 46px;
-  padding: 0 6px 0 18px;
+  padding: 0 6px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--sc-text-primary) 8%, transparent);
   background: var(--sc-input);
@@ -45,13 +45,31 @@
 }
 
 .sc-composer-input::placeholder {
-  color: var(--sc-placeholder);
+  color: var(--sc-text-muted);
+  opacity: 1;
+}
+
+.sc-composer-pill .sc-emoji-btn {
+  color: var(--sc-text-secondary);
+}
+
+.sc-composer-pill .sc-emoji-btn[aria-expanded='true'] {
+  color: var(--sc-text-primary);
 }
 
 .sc-composer-pill .sc-gif-btn {
   width: 38px !important;
   height: 34px !important;
+  margin-right: 6px;
   background: transparent;
+}
+
+.sc-composer-pill .sc-gif-btn.sc-icon-btn.sc-icon-btn--muted {
+  color: var(--sc-text-secondary);
+}
+
+.sc-composer-pill .sc-gif-btn.sc-icon-btn.sc-icon-btn--muted:hover:not(:disabled) {
+  color: var(--sc-text-primary);
 }
 
 .sc-composer-icon {
@@ -129,7 +147,7 @@
   }
 
   .sc-composer-pill {
-    padding-left: 14px;
+    padding: 0 4px;
   }
 }
 
@@ -138,5 +156,145 @@
   .sc-composer-action:hover:not(:disabled),
   .sc-composer-action:active:not(:disabled) {
     transform: none;
+  }
+}
+
+@keyframes scRecordingDot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sc-danger) 55%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--sc-danger) 0%, transparent);
+  }
+}
+
+@keyframes scRecordingIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.sc-recording {
+  animation: scRecordingIn 260ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-recording__discard {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sc-danger) 14%, transparent);
+  color: var(--sc-danger-text);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    transform 200ms var(--sc-ease-spring-soft);
+}
+
+.sc-recording__discard:hover {
+  background: color-mix(in srgb, var(--sc-danger) 24%, transparent);
+}
+
+.sc-recording__discard:active {
+  transform: scale(0.92);
+}
+
+.sc-recording__discard:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-recording__pill {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sc-accent) 35%, transparent);
+  background: var(--sc-input);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc-accent) 12%, transparent);
+}
+
+.sc-recording__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sc-danger);
+  animation: scRecordingDot 1.4s ease-out infinite;
+}
+
+.sc-recording__time {
+  flex: none;
+  min-width: 34px;
+  color: var(--sc-text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-recording__wave {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 30px;
+  overflow: hidden;
+}
+
+.sc-recording__bar {
+  flex: 0 0 3px;
+  min-height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--sc-accent-secondary), var(--sc-accent));
+  transition: height 90ms var(--sc-ease-standard);
+}
+
+.sc-recording__bar[data-quiet] {
+  height: 3px;
+  min-height: 3px;
+  background: color-mix(in srgb, var(--sc-text-primary) 22%, transparent);
+}
+
+.sc-recording__send:disabled {
+  filter: grayscale(0.4);
+  opacity: 0.5;
+}
+
+@media (max-width: 479.98px) {
+  .sc-recording__discard {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sc-recording__pill {
+    gap: 10px;
+    padding: 0 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-recording,
+  .sc-recording__dot {
+    animation: none;
+  }
+
+  .sc-recording__bar {
+    transition: none;
   }
 }

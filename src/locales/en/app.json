@@ -410,6 +410,7 @@
       "microphoneDenied": "Couldn't access the microphone. Please check your permissions.",
       "removeAttachment": "Remove",
       "discard": "Discard",
+      "recordingLabel": "Recording audio",
       "removePreview": "Remove preview",
       "linkPreview": {
         "generate": "Generate link preview",

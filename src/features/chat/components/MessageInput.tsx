@@ -12,7 +12,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { FaLink, FaPaperPlane, FaTimes } from 'react-icons/fa';
-import { LuMic, LuPaperclip } from 'react-icons/lu';
+import { LuMic, LuPaperclip, LuTrash2 } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -198,85 +198,45 @@ interface RecordingBarProps {
 
 function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: RecordingBarProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const bars = interpolateLevels(audioLevels);
+  const canSend = recordingTime >= 1;
 
   return (
-    <div
-      className="chat-input-bar sc-anim-fade-in"
-      style={{
-        background: theme.surface,
-        boxShadow: theme.shadowSm,
-        display: 'flex',
-        gap: '12px',
-        alignItems: 'center',
-        borderTop: `1px solid ${theme.border}`,
-      }}
-    >
-      <button type="button" onClick={onCancel} title={t('chat.input.discard')} className="sc-icon-btn sc-icon-btn--danger-soft" style={{ width: '38px', height: '38px' }}>
-        <FaTimes size={15} />
+    <div className="chat-input-bar sc-composer sc-recording" role="group" aria-label={t('chat.input.recordingLabel')}>
+      <button type="button" onClick={onCancel} title={t('chat.input.discard')} aria-label={t('chat.input.discard')} className="sc-recording__discard">
+        <LuTrash2 size={19} aria-hidden="true" />
       </button>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flex: 1,
-          minWidth: 0,
-          background: theme.surfaceSunken,
-          border: `1px solid ${theme.borderSubtle}`,
-          borderRadius: '999px',
-          padding: '8px 16px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          className="sc-anim-blink"
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: theme.danger,
-            flexShrink: 0,
-          }}
-        />
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '3px',
-            flex: 1,
-            height: '28px',
-            overflow: 'hidden',
-            minWidth: 0,
-          }}
-        >
-          {bars.map((level, index) => (
-            <div
-              key={index}
-              style={{
-                flex: '0 0 3px',
-                height: `${Math.max(15, Math.min(100, level))}%`,
-                background: theme.accent,
-                borderRadius: '3px',
-                transition: 'height 0.08s var(--sc-ease-standard)',
-              }}
-            />
-          ))}
-        </div>
-
-        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, minWidth: '38px', textAlign: 'right', flexShrink: 0 }}>
+      <div className="sc-recording__pill">
+        <span className="sc-recording__dot" aria-hidden="true" />
+        <span className="sc-recording__time" aria-live="off">
           {formatRecordingTime(recordingTime)}
+        </span>
+        <div className="sc-recording__wave" aria-hidden="true">
+          {bars.map((level, index) => {
+            const quiet = level <= 15;
+            return (
+              <span
+                key={index}
+                className="sc-recording__bar"
+                data-quiet={quiet || undefined}
+                style={{ height: quiet ? undefined : `${Math.min(100, level)}%` }}
+              />
+            );
+          })}
         </div>
       </div>
 
-      {recordingTime >= 1 && (
-        <button type="button" onClick={onSend} title={t('chat.input.send')} className="sc-icon-btn sc-icon-btn--primary sc-anim-pop-in" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
-          <FaPaperPlane />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onSend}
+        disabled={!canSend}
+        title={t('chat.input.send')}
+        aria-label={t('chat.input.send')}
+        className="sc-composer-action sc-recording__send"
+      >
+        <FaPaperPlane size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
