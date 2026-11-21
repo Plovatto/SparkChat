@@ -31,7 +31,7 @@ import { ensureAutoSavePermission, tryAutoOverwrite } from '@lib/recovery-file-s
 import { shareLinkNatively } from '@lib/share-link';
 import { translateError, translateErrorPayload } from '@lib/api/api-error';
 import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { LuCheck, LuInfo, LuLink, LuLock, LuRefreshCw } from 'react-icons/lu';
+import { LuCheck, LuDownload, LuInfo, LuLink, LuLock } from 'react-icons/lu';
 import { useSocket, type SessionSummary, type SocketErrorPayload, type SocketUser } from '@lib/socket';
 import { PushNotificationsRow } from '@features/pwa/components/PushNotificationsRow';
 import {
@@ -655,18 +655,17 @@ export function EditProfileModal({
                   onClick={() => void handleRegenerateRecoveryFile()}
                   disabled={!regeneratePassword || isDeriving}
                   className="sc-profile-outline-btn"
-                  data-tone="danger"
                   style={{ flex: 1 }}
                 >
-                  {isDeriving ? <Spinner size={16} /> : <LuRefreshCw size={18} aria-hidden="true" />}
-                  {t('profile.confirmRegenerate')}
+                  {isDeriving ? <Spinner size={16} /> : <LuDownload size={18} aria-hidden="true" />}
+                  {t('profile.downloadNewRecovery')}
                 </button>
               </div>
             </div>
           ) : (
-            <button type="button" onClick={() => setIsConfirmingRegenerate(true)} className="sc-profile-outline-btn" data-tone="danger">
-              <LuRefreshCw size={18} aria-hidden="true" />
-              {t('profile.confirmRegenerate')}
+            <button type="button" onClick={() => setIsConfirmingRegenerate(true)} className="sc-profile-outline-btn">
+              <LuDownload size={18} aria-hidden="true" />
+              {t('profile.downloadNewRecovery')}
             </button>
           )}
         </div>

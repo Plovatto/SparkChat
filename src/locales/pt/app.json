@@ -757,8 +757,9 @@
     "lastUsed": "Último uso: {{date}}",
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
-    "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
-    "confirmRegenerate": "Gerar novo arquivo"
+    "regeneratePasswordHint": "Baixar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
+    "confirmRegenerate": "Gerar novo arquivo",
+    "downloadNewRecovery": "Baixar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",

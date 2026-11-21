@@ -758,7 +758,8 @@
     "revokeSession": "Sign out this session",
     "nicknamePasswordHint": "Changing your username signs out your other sessions. Confirm with your current password.",
     "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
-    "confirmRegenerate": "Generate new file"
+    "confirmRegenerate": "Generate new file",
+    "downloadNewRecovery": "Download new file"
   },
   "notifications": {
     "sentImage": "Sent an image",
