@@ -1065,6 +1065,22 @@ describe('credential refresh', () => {
     expect(h.connection.restartCalls).toBeGreaterThan(restartsAfterRefresh);
   });
 
+  it('asks for relay credentials again on the next recovery attempt when fetching them after a drop failed', async () => {
+    const fresh = [{ urls: 'stun:stun.example:3478' }, { urls: 'turn:fresh.example:3478', username: 'n3', credential: 'k3' }];
+    const refresh = vi.fn().mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('network')).mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.session.dropRelayCredentials();
+    h.connection.setIce('failed');
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(refresh).toHaveBeenCalledTimes(3);
+    expect(h.connection.configuration.iceServers).toEqual(fresh);
+  });
+
   it('keeps the direct-only configuration when a recovery does not need the relay, even after the credentials were dropped', async () => {
     const refresh = vi.fn().mockResolvedValue({ iceServers: [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }] });
     const h = build('caller', { refreshIceServers: refresh });

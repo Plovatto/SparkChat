@@ -1358,8 +1358,16 @@ export class PeerSession {
     }
     this.relayCredentialsDropped = false;
     this.relayRefresh ??= refresh()
-      .then((result) => this.applyRefresh(result))
-      .catch(() => undefined)
+      .then((result) => {
+        if (!result) {
+          this.relayCredentialsDropped = true;
+          return;
+        }
+        this.applyRefresh(result);
+      })
+      .catch(() => {
+        this.relayCredentialsDropped = true;
+      })
       .finally(() => {
         this.relayRefresh = null;
       });
