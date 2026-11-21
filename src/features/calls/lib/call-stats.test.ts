@@ -36,16 +36,81 @@ describe('readQuality', () => {
       report([
         { type: 'inbound-rtp', kind: 'audio', packetsReceived: 100, packetsLost: 0, jitter: 0.01 },
         { type: 'inbound-rtp', kind: 'video', packetsReceived: 200, packetsLost: 0, jitter: 0.02 },
-        { type: 'candidate-pair', nominated: true, currentRoundTripTime: 0.12 },
+        { type: 'candidate-pair', nominated: true, state: 'succeeded', currentRoundTripTime: 0.12 },
         { type: 'candidate-pair', nominated: false, currentRoundTripTime: 5 },
       ]),
       null,
     );
 
-    expect(reading.sample).toEqual({ packetsReceived: 300, packetsLost: 0 });
-    expect(reading.jitterMs).toBeCloseTo(20);
+    expect(reading.sample).toMatchObject({ packetsReceived: 300, packetsLost: 0 });
+    expect(reading.jitterMs).toBeCloseTo(10);
     expect(reading.rttMs).toBeCloseTo(120);
     expect(reading.bars).toBe(3);
+  });
+
+  it('ignores video jitter so the bursty frames of a screen share do not read as a bad connection', () => {
+    const reading = readQuality(
+      report([
+        { type: 'inbound-rtp', kind: 'audio', packetsReceived: 500, packetsLost: 0, jitter: 0.012 },
+        { type: 'inbound-rtp', kind: 'audio', packetsReceived: 400, packetsLost: 0, jitter: 0.015 },
+        { type: 'inbound-rtp', kind: 'video', packetsReceived: 9000, packetsLost: 0, jitter: 0.14 },
+      ]),
+      null,
+    );
+
+    expect(reading.jitterMs).toBeCloseTo(15);
+    expect(reading.bars).toBe(3);
+  });
+
+  it('still counts lost video packets', () => {
+    const reading = readQuality(
+      report([
+        { type: 'inbound-rtp', kind: 'audio', packetsReceived: 100, packetsLost: 0, jitter: 0.01 },
+        { type: 'inbound-rtp', kind: 'video', packetsReceived: 900, packetsLost: 100, jitter: 0.2 },
+      ]),
+      null,
+    );
+
+    expect(reading.lossRatio).toBeCloseTo(100 / 1100);
+    expect(reading.bars).toBe(1);
+  });
+
+  it('reads the round trip of the selected pair, not of a stale nominated pair left by an ICE restart', () => {
+    const reading = readQuality(
+      new Map<string, Record<string, unknown>>([
+        ['t', { type: 'transport', selectedCandidatePairId: 'live' }],
+        ['live', { id: 'live', type: 'candidate-pair', nominated: true, state: 'succeeded', currentRoundTripTime: 0.04 }],
+        ['stale', { id: 'stale', type: 'candidate-pair', nominated: true, state: 'succeeded', currentRoundTripTime: 0.9 }],
+      ]),
+      null,
+    );
+
+    expect(reading.rttMs).toBeCloseTo(40);
+  });
+
+  it('averages the round trip over the interval so one slow STUN response does not drop the bars', () => {
+    const pair = (total: number, responses: number, current: number) =>
+      new Map<string, Record<string, unknown>>([
+        ['t', { type: 'transport', selectedCandidatePairId: 'p' }],
+        ['p', { id: 'p', type: 'candidate-pair', nominated: true, state: 'succeeded', totalRoundTripTime: total, responsesReceived: responses, currentRoundTripTime: current }],
+      ]);
+    const first = readQuality(pair(1, 20, 0.05), null);
+    const second = readQuality(pair(1.4, 25, 0.4), first.sample);
+
+    expect(second.rttMs).toBeCloseTo(80);
+    expect(second.bars).toBe(3);
+  });
+
+  it('falls back to the current round trip when the pair changed or no new responses arrived', () => {
+    const pair = (id: string, total: number, responses: number, current: number) =>
+      new Map<string, Record<string, unknown>>([
+        ['t', { type: 'transport', selectedCandidatePairId: id }],
+        [id, { id, type: 'candidate-pair', nominated: true, state: 'succeeded', totalRoundTripTime: total, responsesReceived: responses, currentRoundTripTime: current }],
+      ]);
+    const first = readQuality(pair('a', 1, 20, 0.05), null);
+
+    expect(readQuality(pair('b', 3, 40, 0.07), first.sample).rttMs).toBeCloseTo(70);
+    expect(readQuality(pair('a', 1, 20, 0.06), first.sample).rttMs).toBeCloseTo(60);
   });
 
   it('measures loss over the interval since the previous sample', () => {

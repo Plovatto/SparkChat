@@ -5,6 +5,9 @@ export const STATS_INTERVAL_MS = 2_000;
 export interface QualitySample {
   packetsReceived: number;
   packetsLost: number;
+  pairId?: string;
+  rttTotal?: number;
+  rttResponses?: number;
 }
 
 export interface QualityReading {
@@ -54,38 +57,7 @@ export function qualityBars(lossRatio: number, rttMs: number | null, jitterMs: n
   return Math.min(loss, latency, jitter) as QualityBars;
 }
 
-export function readQuality(report: RTCStatsReport, previous: QualitySample | null): QualityReading {
-  let packetsReceived = 0;
-  let packetsLost = 0;
-  let jitterMs: number | null = null;
-  let rttMs: number | null = null;
-  let outboundLoss = 0;
-
-  report.forEach((entry: Record<string, unknown>) => {
-    if (entry.type === 'inbound-rtp' && (entry.kind === 'audio' || entry.kind === 'video')) {
-      packetsReceived += typeof entry.packetsReceived === 'number' ? entry.packetsReceived : 0;
-      packetsLost += typeof entry.packetsLost === 'number' ? Math.max(0, entry.packetsLost) : 0;
-      if (typeof entry.jitter === 'number') {
-        jitterMs = Math.max(jitterMs ?? 0, entry.jitter * 1000);
-      }
-    }
-    if (entry.type === 'remote-inbound-rtp' && typeof entry.fractionLost === 'number' && Number.isFinite(entry.fractionLost)) {
-      outboundLoss = Math.max(outboundLoss, Math.min(1, Math.max(0, entry.fractionLost)));
-    }
-    if (entry.type === 'candidate-pair' && entry.nominated === true && typeof entry.currentRoundTripTime === 'number') {
-      rttMs = entry.currentRoundTripTime * 1000;
-    }
-  });
-
-  const sample: QualitySample = { packetsReceived, packetsLost };
-  const receivedDelta = previous ? Math.max(0, packetsReceived - previous.packetsReceived) : packetsReceived;
-  const lostDelta = previous ? Math.max(0, packetsLost - previous.packetsLost) : packetsLost;
-  const total = receivedDelta + lostDelta;
-  const lossRatio = total > 0 ? lostDelta / total : 0;
-  return { bars: qualityBars(Math.max(lossRatio, outboundLoss), rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs, outboundLoss };
-}
-
-export function selectedPairRelayed(report: RTCStatsReport): boolean | null {
+function selectedPair(report: RTCStatsReport): Record<string, unknown> | undefined {
   let pair: Record<string, unknown> | undefined;
   report.forEach((entry: Record<string, unknown>) => {
     if (!pair && entry.type === 'transport' && typeof entry.selectedCandidatePairId === 'string') {
@@ -99,6 +71,68 @@ export function selectedPairRelayed(report: RTCStatsReport): boolean | null {
       }
     });
   }
+  return pair;
+}
+
+function finite(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function pairRoundTrip(pair: Record<string, unknown> | undefined, previous: QualitySample | null): { rttMs: number | null; sample: Pick<QualitySample, 'pairId' | 'rttTotal' | 'rttResponses'> } {
+  if (!pair) {
+    return { rttMs: null, sample: {} };
+  }
+  const pairId = typeof pair.id === 'string' ? pair.id : undefined;
+  const total = finite(pair.totalRoundTripTime);
+  const responses = finite(pair.responsesReceived);
+  const current = finite(pair.currentRoundTripTime);
+  const sample: Pick<QualitySample, 'pairId' | 'rttTotal' | 'rttResponses'> = {};
+  if (pairId !== undefined) {
+    sample.pairId = pairId;
+  }
+  if (total !== null && responses !== null) {
+    sample.rttTotal = total;
+    sample.rttResponses = responses;
+  }
+  const samePair = previous !== null && pairId !== undefined && previous.pairId === pairId;
+  const newResponses = samePair && responses !== null && previous.rttResponses !== undefined ? responses - previous.rttResponses : 0;
+  if (samePair && total !== null && previous.rttTotal !== undefined && newResponses > 0 && total >= previous.rttTotal) {
+    return { rttMs: ((total - previous.rttTotal) / newResponses) * 1000, sample };
+  }
+  return { rttMs: current === null ? null : current * 1000, sample };
+}
+
+export function readQuality(report: RTCStatsReport, previous: QualitySample | null): QualityReading {
+  let packetsReceived = 0;
+  let packetsLost = 0;
+  let jitterMs: number | null = null;
+  let outboundLoss = 0;
+
+  report.forEach((entry: Record<string, unknown>) => {
+    if (entry.type === 'inbound-rtp' && (entry.kind === 'audio' || entry.kind === 'video')) {
+      packetsReceived += typeof entry.packetsReceived === 'number' ? entry.packetsReceived : 0;
+      packetsLost += typeof entry.packetsLost === 'number' ? Math.max(0, entry.packetsLost) : 0;
+      if (entry.kind === 'audio' && typeof entry.jitter === 'number') {
+        jitterMs = Math.max(jitterMs ?? 0, entry.jitter * 1000);
+      }
+    }
+    if (entry.type === 'remote-inbound-rtp' && typeof entry.fractionLost === 'number' && Number.isFinite(entry.fractionLost)) {
+      outboundLoss = Math.max(outboundLoss, Math.min(1, Math.max(0, entry.fractionLost)));
+    }
+  });
+
+  const roundTrip = pairRoundTrip(selectedPair(report), previous);
+  const rttMs = roundTrip.rttMs;
+  const sample: QualitySample = { packetsReceived, packetsLost, ...roundTrip.sample };
+  const receivedDelta = previous ? Math.max(0, packetsReceived - previous.packetsReceived) : packetsReceived;
+  const lostDelta = previous ? Math.max(0, packetsLost - previous.packetsLost) : packetsLost;
+  const total = receivedDelta + lostDelta;
+  const lossRatio = total > 0 ? lostDelta / total : 0;
+  return { bars: qualityBars(Math.max(lossRatio, outboundLoss), rttMs, jitterMs), sample, lossRatio, rttMs, jitterMs, outboundLoss };
+}
+
+export function selectedPairRelayed(report: RTCStatsReport): boolean | null {
+  const pair = selectedPair(report);
   if (!pair) {
     return null;
   }
