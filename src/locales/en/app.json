@@ -444,6 +444,8 @@
       "toggle": "Select message"
     },
     "hideFailed": "Couldn't delete it for you. Try again.",
+    "deleteFailed_one": "Couldn't delete 1 message for everyone.",
+    "deleteFailed_other": "Couldn't delete {{count}} messages for everyone.",
     "translation": {
       "translatedFrom": "Translated from {{language}}",
       "original": "Original message",

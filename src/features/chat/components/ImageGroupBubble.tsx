@@ -97,7 +97,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
               onReply={() => onReply(anchor)}
               onDelete={() => onDelete(images.map((image) => image.id))}
               onForward={() => onForward(images)}
-              onStartSelection={() => onStartSelection(anchor.id)}
+              onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
             />
           )}
           <ImageModal

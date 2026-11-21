@@ -444,6 +444,8 @@
       "toggle": "Selecionar mensagem"
     },
     "hideFailed": "Não foi possível apagar para você. Tente de novo.",
+    "deleteFailed_one": "Não foi possível apagar 1 mensagem para todos.",
+    "deleteFailed_other": "Não foi possível apagar {{count}} mensagens para todos.",
     "translation": {
       "translatedFrom": "Traduzida do {{language}}",
       "original": "Mensagem original",

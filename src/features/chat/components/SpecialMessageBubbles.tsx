@@ -16,7 +16,7 @@ interface DeletedMessageBubbleProps {
   isSelected?: boolean;
   onSelect?: () => void;
   onDelete?: () => void;
-  onStartSelection?: () => void;
+  onStartSelection?: (() => void) | undefined;
 }
 
 export function DeletedMessageBubble({

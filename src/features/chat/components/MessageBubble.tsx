@@ -36,7 +36,7 @@ export interface MessageBubbleActions {
   onDelete: (messageIds: string[]) => void;
   onForward: (messages: ChatMessage[]) => void;
   onRetry: (clientTempId: string) => void;
-  onStartSelection: (messageId: string) => void;
+  onStartSelection?: ((messageId: string) => void) | undefined;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -175,7 +175,7 @@ export const MessageBubble = memo(function MessageBubble({
         isSelected={isSelected}
         onSelect={() => onSelect(message.id)}
         onDelete={() => onDelete([message.id])}
-        onStartSelection={() => onStartSelection(message.id)}
+        onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
       />
     );
   }
@@ -301,7 +301,7 @@ export const MessageBubble = memo(function MessageBubble({
               onReply={() => onReply(message)}
               onDelete={() => onDelete([message.id])}
               onForward={() => onForward([message])}
-              onStartSelection={() => onStartSelection(message.id)}
+              onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
             />
           )}
         </>

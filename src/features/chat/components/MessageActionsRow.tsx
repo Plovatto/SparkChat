@@ -8,7 +8,7 @@ interface MessageActionsRowProps {
   onReply?: () => void;
   onDelete: () => void;
   onForward?: () => void;
-  onStartSelection?: () => void;
+  onStartSelection?: (() => void) | undefined;
 }
 
 export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward, onStartSelection }: MessageActionsRowProps) {
