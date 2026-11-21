@@ -316,6 +316,7 @@
       "attach": "Enviar anexo",
       "record": "Gravar áudio",
       "placeholder": "Digite sua mensagem...",
+      "placeholderShort": "Mensagem",
       "placeholderBlockedBy": "Você foi bloqueado...",
       "placeholderYouBlocked": "Você bloqueou este usuário...",
       "send": "Enviar",
