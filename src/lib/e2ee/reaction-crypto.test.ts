@@ -19,7 +19,10 @@ import { getSodium } from './sodium';
 
 const roomKeys = vi.hoisted(() => new Map<string, { keyId: string; epoch: number; key: Uint8Array }[]>());
 const contactSigningKeys = vi.hoisted(() => new Map<string, string>());
-const groupContext = vi.hoisted(() => ({ current: null as unknown }));
+const groupContext = vi.hoisted(() => {
+  const holder: { current: unknown } = { current: null };
+  return holder;
+});
 
 vi.mock('./room-keys', () => {
   class MissingRoomKeyError extends Error {}
