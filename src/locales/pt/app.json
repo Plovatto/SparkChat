@@ -66,7 +66,8 @@
       "blocked": "Você não pode enviar mensagens nesta conversa devido a bloqueios.",
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
       "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
-      "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo."
+      "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo.",
+      "reactionUnavailable": "Não é possível reagir a esta mensagem."
     },
     "upload": {
       "missingFile_image": "Nenhuma imagem enviada.",
@@ -337,6 +338,8 @@
       "retry": "Falha ao enviar. Toque para reenviar.",
       "reply": "Responder",
       "forward": "Encaminhar",
+      "copy": "Copiar",
+      "copied": "Copiado!",
       "delete": "Excluir",
       "image": "Imagem",
       "audio": "Áudio {{duration}}",
@@ -370,6 +373,23 @@
       "gifExpired": "GIF expirado",
       "gifExpiredHint": "GIFs ficam disponíveis por 30 dias.",
       "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida."
+    },
+    "reactions": {
+      "barLabel": "Reagir à mensagem",
+      "reactWith": "Reagir com {{emoji}}",
+      "removeReaction": "Remover reação {{emoji}}",
+      "more": "Mais emojis",
+      "listLabel": "Reações",
+      "chipTitle_one": "{{names}} reagiu com {{emoji}}",
+      "chipTitle_other": "{{names}} reagiram com {{emoji}}",
+      "chipLabel_one": "{{emoji}}, {{count}} reação. {{names}}",
+      "chipLabel_other": "{{emoji}}, {{count}} reações. {{names}}",
+      "showReactors": "Ver quem reagiu com {{emoji}}",
+      "sheetTitle": "Reações",
+      "all": "Todas",
+      "tapToRemove": "Toque para remover",
+      "close": "Fechar reações",
+      "failed": "Não foi possível reagir a esta mensagem. Tente de novo."
     },
     "fileTypes": {
       "pdf": "PDF",

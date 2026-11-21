@@ -66,7 +66,8 @@
       "blocked": "You can't send messages in this conversation because of a block.",
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
-      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again."
+      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
+      "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
@@ -337,6 +338,8 @@
       "retry": "Failed to send. Tap to resend.",
       "reply": "Reply",
       "forward": "Forward",
+      "copy": "Copy",
+      "copied": "Copied!",
       "delete": "Delete",
       "image": "Image",
       "audio": "Audio {{duration}}",
@@ -370,6 +373,23 @@
       "gifExpired": "GIF expired",
       "gifExpiredHint": "GIFs stay available for 30 days.",
       "fromRemovedMember": "🔒 Message from a former member, not shown."
+    },
+    "reactions": {
+      "barLabel": "React to message",
+      "reactWith": "React with {{emoji}}",
+      "removeReaction": "Remove {{emoji}} reaction",
+      "more": "More emojis",
+      "listLabel": "Reactions",
+      "chipTitle_one": "{{names}} reacted with {{emoji}}",
+      "chipTitle_other": "{{names}} reacted with {{emoji}}",
+      "chipLabel_one": "{{emoji}}, {{count}} reaction. {{names}}",
+      "chipLabel_other": "{{emoji}}, {{count}} reactions. {{names}}",
+      "showReactors": "See who reacted with {{emoji}}",
+      "sheetTitle": "Reactions",
+      "all": "All",
+      "tapToRemove": "Tap to remove",
+      "close": "Close reactions",
+      "failed": "Couldn't react to this message. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",

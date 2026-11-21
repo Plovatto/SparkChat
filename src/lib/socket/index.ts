@@ -13,6 +13,8 @@ export type {
   KtSignedTreeHeadWire,
   MessageFileMeta,
   MessageLinkPreview,
+  MessageReaction,
+  MessageReactionsUpdatedPayload,
   MessageReplySnapshot,
   MessageSender,
   MessageStatus,

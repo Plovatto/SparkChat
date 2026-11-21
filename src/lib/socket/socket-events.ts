@@ -7,6 +7,7 @@ export interface SocketErrorPayload {
   params?: ApiErrorParams;
   clientTempId?: string;
   event?: string;
+  messageId?: string;
 }
 
 export interface KtSignedTreeHeadWire {
@@ -170,6 +171,19 @@ export interface MessageReplySnapshot {
   deleted?: boolean;
 }
 
+export interface MessageReaction {
+  userId: string;
+  emoji: string;
+  updatedAt: string;
+}
+
+export interface MessageReactionsUpdatedPayload {
+  roomId: string;
+  messageId: string;
+  messageTimestamp?: string;
+  reactions: MessageReaction[];
+}
+
 export interface MessageView {
   id: string;
   roomId: string;
@@ -191,6 +205,7 @@ export interface MessageView {
   systemEvent?: SystemEvent | null;
   eventTrust?: 'verified' | 'legacy' | 'unverified' | 'forged';
   unencrypted?: boolean;
+  reactions?: MessageReaction[];
 }
 
 export interface BlockStatusPayload {
@@ -395,6 +410,7 @@ export interface ServerToClientEvents {
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
   'message:updated': (payload: MessageView) => void;
+  'message:reactions-updated': (payload: MessageReactionsUpdatedPayload) => void;
   'call:config': (payload: CallConfigPayload) => void;
   'call:incoming': (payload: { callId: string; roomId: string; kind: CallKindWire; callerId: string; envelope: string; ringExpiresAt: string }) => void;
   'call:accepted': (payload: { callId: string; envelope: string; deviceId: string }) => void;
@@ -500,6 +516,7 @@ export interface ClientToServerEvents {
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
   'message:delete': (payload: { messageId: string }) => void;
+  'message:react': (payload: { roomId: string; messageId: string; emoji: string | null }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;
   'call:start': (payload: { callId: string; roomId: string; kind: CallKindWire; envelope: string }) => void;

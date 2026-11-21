@@ -8,9 +8,11 @@ import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
 import type { IncomingAssessment } from '@lib/translation/incoming';
 import { RoomTranslationContext } from '../hooks/room-translation-context';
+import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
 import { localizeAssistantWelcome } from '../utils/assistant-welcome';
+import { canReactToMessage } from '../utils/reactions';
 import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { resolveLinkPreviewTarget } from '../utils/link-preview-target';
@@ -36,6 +38,7 @@ export interface MessageBubbleActions {
   onDelete: (messageIds: string[]) => void;
   onForward: (messages: ChatMessage[]) => void;
   onRetry: (clientTempId: string) => void;
+  onReact: (messageId: string, emoji: string | null) => void;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -121,6 +124,7 @@ export const MessageBubble = memo(function MessageBubble({
   onForward,
   onAudioPlayed,
   onRetry,
+  onReact,
   entrancePhase = 'none',
   entranceIndex = 0,
 }: MessageBubbleProps) {
@@ -142,6 +146,22 @@ export const MessageBubble = memo(function MessageBubble({
     [reportAssessment, message.id, message.timestamp],
   );
   const handleManualTranslation = useCallback(() => reportManualTranslation(message.id), [reportManualTranslation, message.id]);
+  const dismissActions = useCallback(() => {
+    if (isSelected) {
+      onSelect(message.id);
+    }
+  }, [isSelected, onSelect, message.id]);
+  const reactionUi = useMessageReactionUi({
+    messageId: message.id,
+    reactions: message.reactions,
+    canReact: canReactToMessage(message),
+    isOwn,
+    isSelected,
+    currentUserId,
+    participants,
+    onReact,
+    onDismiss: dismissActions,
+  });
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
     roomId,
@@ -279,9 +299,12 @@ export const MessageBubble = memo(function MessageBubble({
       containerRef={bubbleRef}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
       minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '64px') : undefined}
+      beforeBubble={reactionUi.compact ? reactionUi.quickBar : null}
       afterBubble={
         <>
+          {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
+          {!reactionUi.compact && reactionUi.quickBar}
           {actionsPresence.isPresent && !message.pending && !message.failed && (
             <MessageActionsRow
               isOwn={isOwn}
@@ -289,8 +312,10 @@ export const MessageBubble = memo(function MessageBubble({
               onReply={() => onReply(message)}
               onDelete={() => onDelete([message.id])}
               onForward={() => onForward([message])}
+              copyText={message.type === 'text' ? originalContent : message.caption}
             />
           )}
+          {reactionUi.overlays}
         </>
       }
     >

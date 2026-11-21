@@ -17,9 +17,10 @@ import { markExpiredMediaUrl, resolveDecryptedMediaUrl } from './media-cache';
 import { openAuthenticatedField, parseAuthenticatedField, sealAuthenticatedField } from './authenticated-field';
 import { getCurrentIdentity } from './current-identity';
 import { assessSystemEvent, assessSystemEvents, checkGroupSender, getAttestedNames } from './group-event-trust';
-import { ensureRoomKeyGeneration, lookupContactKey, requireCurrentRoomKey, resolveRoomName } from './room-keys';
+import { openReactions } from './reaction-crypto';
+import { ensureRoomKeyGeneration, requireCurrentRoomKey, resolveRoomName } from './room-keys';
+import { resolveSenderSigningKey } from './sender-signing-key';
 import { deriveSigningKeyPair } from './signing';
-import { getSodium } from './sodium';
 
 const ENCRYPTED_FIELD_PREFIX = 'e2e:';
 
@@ -51,31 +52,6 @@ const ENCRYPTED_MEDIA_PARAM = 'e2e';
 const ATTACHMENT_KEY_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-
-const ownSigningPublicKeys = new WeakMap<Uint8Array, Uint8Array>();
-
-async function resolveOwnSigningPublicKey(privateKey: Uint8Array): Promise<Uint8Array> {
-  const cached = ownSigningPublicKeys.get(privateKey);
-  if (cached) {
-    return cached;
-  }
-  const pair = await deriveSigningKeyPair(privateKey);
-  pair.privateKey.fill(0);
-  ownSigningPublicKeys.set(privateKey, pair.publicKey);
-  return pair.publicKey;
-}
-
-async function resolveSenderSigningKey(socket: AppSocket, senderId: string): Promise<Uint8Array | null> {
-  const sodium = await getSodium();
-  const identity = getCurrentIdentity();
-  if (identity && identity.userId === senderId) {
-    return resolveOwnSigningPublicKey(identity.privateKey);
-  }
-  const trust = await lookupContactKey(socket, senderId);
-  const signingPublicKey = trust?.pin?.signingPublicKey;
-  return signingPublicKey ? sodium.from_base64(signingPublicKey) : null;
-}
 
 async function decryptTextContentIfNeeded(
   socket: AppSocket,
@@ -348,6 +324,7 @@ export function hasUnencryptedFields(message: MessageView): boolean {
 export interface DecryptMessageViewOptions {
   deferGifMedia?: boolean;
   live?: boolean;
+  skipReactions?: boolean;
 }
 
 function isGifImage(type: MessageType, fileMeta: MessageFileMeta | null): boolean {
@@ -369,13 +346,27 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal =
     message.type === 'image' && (Boolean(fileMeta?.thumbnailUrl) || (options.deferGifMedia === true && isGifImage(message.type, fileMeta)));
-  const [content, replyTo, caption, linkPreview] = await Promise.all([
+  const [content, replyTo, caption, linkPreview, reactions] = await Promise.all([
     deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta, source),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
     decryptCaptionIfNeeded(socket, message.caption, message.roomId, source),
     decryptLinkPreviewIfNeeded(socket, message.linkPreview, message.roomId, source, fileMeta?.previewKey),
+    options.skipReactions === true || message.deletedForEveryone
+      ? Promise.resolve([])
+      : openReactions(socket, message.roomId, message.id, message.reactions, { messageTimestamp: message.timestamp }),
   ]);
-  return { ...message, content, replyTo, caption, fileMeta, linkPreview, unencrypted, ...(systemEvent ? { systemEvent } : {}), ...(eventTrust ? { eventTrust } : {}) };
+  return {
+    ...message,
+    content,
+    replyTo,
+    caption,
+    fileMeta,
+    linkPreview,
+    reactions,
+    unencrypted,
+    ...(systemEvent ? { systemEvent } : {}),
+    ...(eventTrust ? { eventTrust } : {}),
+  };
 }
 
 export async function decryptMessageViews(socket: AppSocket, messages: MessageView[]): Promise<MessageView[]> {
@@ -395,7 +386,7 @@ async function withDecryptedName(socket: AppSocket, room: RoomSummary): Promise<
 export async function decryptRoomSummary(socket: AppSocket, room: RoomSummary): Promise<RoomSummary> {
   const [named, lastMessage] = await Promise.all([
     withDecryptedName(socket, room),
-    room.lastMessage ? decryptMessageView(socket, room.lastMessage, { deferGifMedia: true }) : Promise.resolve(null),
+    room.lastMessage ? decryptMessageView(socket, room.lastMessage, { deferGifMedia: true, skipReactions: true }) : Promise.resolve(null),
   ]);
   return { ...named, lastMessage };
 }

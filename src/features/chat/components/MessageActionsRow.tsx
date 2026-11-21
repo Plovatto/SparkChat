@@ -1,6 +1,7 @@
-import { FaReply, FaShare, FaTrash } from 'react-icons/fa';
+import { FaCheck, FaCopy, FaReply, FaShare, FaTrash } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { IconPillButton } from '@components/common/IconPillButton';
+import { useClipboardCopy } from '@hooks/useClipboardCopy';
 
 interface MessageActionsRowProps {
   isOwn: boolean;
@@ -8,14 +9,26 @@ interface MessageActionsRowProps {
   onReply: () => void;
   onDelete: () => void;
   onForward: () => void;
+  copyText?: string | null;
 }
 
-export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward }: MessageActionsRowProps) {
+export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward, copyText }: MessageActionsRowProps) {
   const { t } = useTranslation();
+  const clipboard = useClipboardCopy();
+  const copied = clipboard.isCopied();
   return (
     <div
       className={isExiting ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
-      style={{ display: 'flex', gap: '8px', margin: '8px 0 3px', transformOrigin: isOwn ? 'top right' : 'top left' }}
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: isOwn ? 'flex-end' : 'flex-start',
+        gap: '8px',
+        margin: '8px 0 3px',
+        width: 'max-content',
+        maxWidth: 'calc(100vw - 32px)',
+        transformOrigin: isOwn ? 'top right' : 'top left',
+      }}
     >
       <IconPillButton
         onClick={(event) => {
@@ -36,6 +49,18 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         tone="accent"
         label={t('chat.message.forward')}
       />
+
+      {copyText && (
+        <IconPillButton
+          onClick={(event) => {
+            event.stopPropagation();
+            clipboard.copy(copyText);
+          }}
+          icon={copied ? <FaCheck size={11} /> : <FaCopy size={11} />}
+          tone={copied ? 'success' : 'accent'}
+          label={copied ? t('chat.message.copied') : t('chat.message.copy')}
+        />
+      )}
 
       {isOwn && (
         <IconPillButton
