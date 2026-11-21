@@ -124,9 +124,15 @@ describe('useRoomMessages reactions', () => {
     act(() => result.current.reactToMessage('m1', null));
     expect(reactionsOf(result, 'm1')).toEqual([]);
 
+    expect(result.current.reactionFailure).toBe('');
     act(() => trigger('error', { message: 'nope', code: 'message.reactionUnavailable', event: 'message:react', messageId: 'm1' }));
 
     expect(reactionsOf(result, 'm1')).toEqual([['me', '👍']]);
+    expect(result.current.reactionFailure).not.toBe('');
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(result.current.reactionFailure).toBe('');
   });
 
   it('rolls back when the server never answers, as an older server would', () => {
@@ -140,6 +146,7 @@ describe('useRoomMessages reactions', () => {
     });
 
     expect(reactionsOf(result, 'm1')).toEqual([]);
+    expect(result.current.reactionFailure).not.toBe('');
   });
 
   it('keeps the pending reaction on top of updates from other people and rolls back to the latest server state', () => {

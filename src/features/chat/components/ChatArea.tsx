@@ -343,6 +343,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     retryMessage,
     loadOlderMessages,
     reactToMessage,
+    reactionFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
@@ -1054,6 +1055,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         onDrop={handleDrop}
       >
         <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
+        <div role="status" aria-live="polite" className="sc-reaction-notice-region">
+          {reactionFailure && (
+            <span key={reactionFailure} className="sc-reaction-notice sc-anim-rise-in">
+              <FaExclamationTriangle size={13} aria-hidden="true" />
+              {reactionFailure}
+            </span>
+          )}
+        </div>
         {isDraggingFile && (
           <div
             className="sc-drop-zone sc-anim-fade-in"

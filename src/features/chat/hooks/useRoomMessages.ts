@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
+import { translateErrorPayload } from '@lib/api/api-error';
+import { translate } from '@lib/i18n/app-i18n';
 import { forgetTranslation } from '@lib/translation';
 import {
   useSocket,
@@ -57,6 +59,7 @@ export interface RoomMessagesState {
   retryMessage: (clientTempId: string) => void;
   loadOlderMessages: () => void;
   reactToMessage: (messageId: string, emoji: string | null) => void;
+  reactionFailure: string;
 }
 
 interface PendingReaction {
@@ -68,6 +71,8 @@ interface PendingReaction {
 
 const PENDING_TIMEOUT_MS = 10000;
 const REACTION_TIMEOUT_MS = 10000;
+const REACTION_FAILURE_VISIBLE_MS = 4500;
+const REACTION_FAILED_KEY = 'chat.reactions.failed';
 const REACT_EVENT = 'message:react';
 const MESSAGES_PAGE_SIZE = 10;
 
@@ -131,6 +136,15 @@ export function useRoomMessages(
   const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialPageRef = useRef(false);
   const pendingReactionsRef = useRef(new Map<string, PendingReaction>());
+  const [reactionFailure, setReactionFailure] = useState('');
+
+  useEffect(() => {
+    if (!reactionFailure) {
+      return;
+    }
+    const timer = setTimeout(() => setReactionFailure(''), REACTION_FAILURE_VISIBLE_MS);
+    return () => clearTimeout(timer);
+  }, [reactionFailure]);
 
   const clearPendingReactions = useCallback(() => {
     for (const pending of pendingReactionsRef.current.values()) {
@@ -149,11 +163,12 @@ export function useRoomMessages(
   }, []);
 
   const rollbackReaction = useCallback(
-    (messageId: string) => {
+    (messageId: string, reason?: string) => {
       const pending = settlePendingReaction(messageId);
       if (!pending) {
         return;
       }
+      setReactionFailure(reason ?? translate(REACTION_FAILED_KEY));
       setMessages((previous) =>
         mapChanged(previous, (message) => (message.id === messageId ? { ...message, reactions: pending.baseline } : message)),
       );
@@ -220,6 +235,7 @@ export function useRoomMessages(
     clearLoadOlderTimeout();
     setTypingUserIds([]);
     setRecordingUserIds([]);
+    setReactionFailure('');
     for (const timeoutId of pendingTimeoutsRef.current.values()) {
       clearTimeout(timeoutId);
     }
@@ -347,9 +363,10 @@ export function useRoomMessages(
       }
     };
 
-    const handleSendError = ({ clientTempId, event, messageId }: SocketErrorPayload) => {
+    const handleSendError = (payload: SocketErrorPayload) => {
+      const { clientTempId, event, messageId } = payload;
       if (event === REACT_EVENT && messageId) {
-        rollbackReaction(messageId);
+        rollbackReaction(messageId, payload.code ? translateErrorPayload(payload, REACTION_FAILED_KEY) : translate(REACTION_FAILED_KEY));
         return;
       }
       if (!clientTempId) {
@@ -603,5 +620,6 @@ export function useRoomMessages(
     retryMessage,
     loadOlderMessages,
     reactToMessage,
+    reactionFailure,
   };
 }

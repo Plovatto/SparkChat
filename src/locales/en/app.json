@@ -66,7 +66,8 @@
       "blocked": "You can't send messages in this conversation because of a block.",
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
-      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again."
+      "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
+      "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
       "missingFile_image": "No image was sent.",
@@ -387,7 +388,8 @@
       "sheetTitle": "Reactions",
       "all": "All",
       "tapToRemove": "Tap to remove",
-      "close": "Close reactions"
+      "close": "Close reactions",
+      "failed": "Couldn't react to this message. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",
