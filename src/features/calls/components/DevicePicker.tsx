@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaExclamationTriangle, FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { LuX } from 'react-icons/lu';
 import { useTheme } from '@features/theme';
 import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
@@ -101,12 +101,11 @@ interface AudioOptionProps {
   id: string;
   label: string;
   description: string;
-  warning?: string | undefined;
   checked: boolean;
   onChange: () => void;
 }
 
-function AudioOption({ id, label, description, warning, checked, onChange }: AudioOptionProps) {
+function AudioOption({ id, label, description, checked, onChange }: AudioOptionProps) {
   const { theme } = useTheme();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -116,12 +115,6 @@ function AudioOption({ id, label, description, warning, checked, onChange }: Aud
         </span>
         <span id={id + '-hint'} style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.3 }}>
           {description}
-          {warning && (
-            <span className="sc-call-option-warning" data-active={checked}>
-              <FaExclamationTriangle size={11} aria-hidden="true" />
-              <span>{warning}</span>
-            </span>
-          )}
         </span>
       </div>
       <Switch checked={checked} onChange={onChange} aria-labelledby={id} aria-describedby={id + '-hint'} />
@@ -384,7 +377,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
           <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
           <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
           {voiceIsolation && (
-            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} warning={t('calls.audio.isolationWarning')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
           )}
         </div>
       );

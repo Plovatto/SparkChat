@@ -289,32 +289,6 @@
   box-shadow: 0 0 0 4px var(--sc-accent-soft);
 }
 
-.sc-call-option-warning {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 5px 8px;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--sc-text-secondary);
-  font-size: 0.75rem;
-  line-height: 1.3;
-  transition: background-color 200ms var(--sc-ease-enter), color 200ms var(--sc-ease-enter);
-}
-
-.sc-call-option-warning svg {
-  flex-shrink: 0;
-  margin-top: 2px;
-  color: var(--sc-warning-text, var(--sc-warning));
-}
-
-.sc-call-option-warning[data-active='true'] {
-  background: var(--sc-warning-soft);
-  color: var(--sc-warning-text, var(--sc-text-primary));
-  animation: scCallFadeRise 200ms var(--sc-ease-enter);
-}
-
 @media (max-width: 599.98px) {
   .sc-call-panel {
     position: fixed;
@@ -408,8 +382,7 @@
   .sc-call-panel,
   .sc-call-tab-content,
   .sc-call-reveal,
-  .sc-call-segmented button[data-tab='broadcast'],
-  .sc-call-option-warning[data-active='true'] {
+  .sc-call-segmented button[data-tab='broadcast'] {
     animation-name: scCallFadeIn;
   }
 
@@ -420,7 +393,6 @@
   .sc-call-segmented__indicator,
   .sc-call-segmented button,
   .sc-call-panel__close,
-  .sc-call-option-warning,
   .sc-call-range::-webkit-slider-thumb,
   .sc-call-range::-moz-range-thumb {
     transition: none;

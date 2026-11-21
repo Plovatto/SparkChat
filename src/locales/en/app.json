@@ -70,7 +70,7 @@
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
       "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
-      "hideMixedRooms": "You can only delete messages for yourself from one conversation at a time.",
+      "hideMixedRooms": "Delete for yourself one chat at a time.",
       "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
@@ -485,7 +485,7 @@
       "all": "All",
       "tapToRemove": "Tap to remove",
       "close": "Close reactions",
-      "failed": "Couldn't react to this message. Try again."
+      "failed": "Couldn't react. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -592,7 +592,7 @@
     },
     "hideFailed": "Couldn't delete it for you. Try again.",
     "deleteFailed_one": "Couldn't delete 1 message for everyone.",
-    "deleteFailed_other": "Couldn't delete {{count}} messages for everyone.",
+    "deleteFailed_other": "Couldn't delete {{count}} messages.",
     "translation": {
       "translatedFrom": "Translated from {{language}}",
       "original": "Original message",
@@ -600,7 +600,7 @@
       "showTranslation": "Show translation",
       "translating": "Translating…",
       "translate": "Translate",
-      "suggestTitle": "This conversation is in {{language}}. Translate automatically?",
+      "suggestTitle": "Chat in {{language}}. Always translate?",
       "suggestAccept": "Translate automatically",
       "suggestDismiss": "Not now",
       "autoRoomTitle": "Translate messages automatically",
@@ -811,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connectionProblem": "Connection problem. Check your internet, we keep trying to reconnect.",
+    "connectionProblem": "No connection. Reconnecting…",
     "deepLink": {
       "joinTitle": "Join group?",
       "joinMessage": "A link invited you to join a group. Do you want to join?",
@@ -886,7 +886,7 @@
     "relayDegraded": "Video turned off to save data on the relayed connection.",
     "videoDegraded": "Video quality reduced.",
     "otherTab": "Call in another tab",
-    "otherTabHint": "Use the tab where the call is happening.",
+    "otherTabHint": "Continue in the call tab.",
     "status": {
       "calling": "Calling…",
       "ringing": "Ringing…",
@@ -983,7 +983,6 @@
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds.",
-      "isolationWarning": "May make your voice quieter for the listener",
       "volumeSection": "Volume",
       "processingSection": "Processing",
       "micVolume": "Microphone volume",
@@ -1071,7 +1070,7 @@
       "duckLevelHint": "0% mutes it, 100% keeps it as is. Only for you"
     },
     "otherDevice": "In a call on another device",
-    "otherDeviceHint": "Keep talking on the device where you answered.",
+    "otherDeviceHint": "Continue on the device you answered.",
     "otherDeviceEnd": "End call",
     "transferHere": "Switch to this device",
     "keyChangedTitle": "Security key changed"

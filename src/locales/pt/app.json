@@ -70,7 +70,7 @@
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
       "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
       "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo.",
-      "hideMixedRooms": "Só é possível apagar para você mensagens de uma mesma conversa por vez.",
+      "hideMixedRooms": "Apague para você uma conversa por vez.",
       "reactionUnavailable": "Não é possível reagir a esta mensagem."
     },
     "upload": {
@@ -485,7 +485,7 @@
       "all": "Todas",
       "tapToRemove": "Toque para remover",
       "close": "Fechar reações",
-      "failed": "Não foi possível reagir a esta mensagem. Tente de novo."
+      "failed": "Não deu para reagir. Tente de novo."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -590,9 +590,9 @@
       "delete": "Apagar",
       "toggle": "Selecionar mensagem"
     },
-    "hideFailed": "Não foi possível apagar para você. Tente de novo.",
-    "deleteFailed_one": "Não foi possível apagar 1 mensagem para todos.",
-    "deleteFailed_other": "Não foi possível apagar {{count}} mensagens para todos.",
+    "hideFailed": "Não deu para apagar. Tente de novo.",
+    "deleteFailed_one": "Falha ao apagar 1 mensagem para todos.",
+    "deleteFailed_other": "Falha ao apagar {{count}} mensagens.",
     "translation": {
       "translatedFrom": "Traduzida do {{language}}",
       "original": "Mensagem original",
@@ -600,7 +600,7 @@
       "showTranslation": "Ver tradução",
       "translating": "Traduzindo…",
       "translate": "Traduzir",
-      "suggestTitle": "Esta conversa está em {{language}}. Traduzir automaticamente?",
+      "suggestTitle": "Conversa em {{language}}. Traduzir sempre?",
       "suggestAccept": "Traduzir automaticamente",
       "suggestDismiss": "Agora não",
       "autoRoomTitle": "Traduzir mensagens automaticamente",
@@ -811,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
-    "connectionProblem": "Problema de conexão. Verifique sua internet, seguimos tentando reconectar.",
+    "connectionProblem": "Sem conexão. Tentando reconectar…",
     "deepLink": {
       "joinTitle": "Entrar no grupo?",
       "joinMessage": "Um link convidou você para entrar em um grupo. Quer entrar?",
@@ -886,7 +886,7 @@
     "relayDegraded": "Vídeo desligado para economizar dados na conexão retransmitida.",
     "videoDegraded": "Qualidade de vídeo reduzida.",
     "otherTab": "Chamada em outra aba",
-    "otherTabHint": "Use a aba onde a chamada está ocorrendo.",
+    "otherTabHint": "Continue na aba da chamada.",
     "status": {
       "calling": "Chamando…",
       "ringing": "Tocando…",
@@ -912,7 +912,7 @@
       "media-attach-failed": "Não foi possível enviar seu áudio ou vídeo na chamada."
     },
     "notice": {
-      "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
+      "media-denied": "Libere o microfone para ligar.",
       "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
       "unverifiable": "Não foi possível verificar este contato para chamadas.",
       "other-tab": "Já existe uma chamada em outra aba.",
@@ -921,7 +921,7 @@
       "server-error": "Não foi possível completar a chamada.",
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
       "screen-failed": "Não foi possível compartilhar a tela.",
-      "transferred": "Chamada transferida para outro aparelho",
+      "transferred": "Chamada movida para outro aparelho",
       "transfer-failed": "Não foi possível trocar de aparelho"
     },
     "callBack": "Ligar de volta",
@@ -983,7 +983,6 @@
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons.",
-      "isolationWarning": "Pode deixar sua voz mais baixa para quem ouve",
       "volumeSection": "Volume",
       "processingSection": "Processamento",
       "micVolume": "Volume do microfone",
@@ -1071,7 +1070,7 @@
       "duckLevelHint": "0% silencia, 100% não abaixa. Só vale para você"
     },
     "otherDevice": "Em chamada em outro aparelho",
-    "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
+    "otherDeviceHint": "Continue no aparelho onde atendeu.",
     "otherDeviceEnd": "Encerrar",
     "transferHere": "Trocar para este aparelho",
     "keyChangedTitle": "Chave de segurança alterada"
