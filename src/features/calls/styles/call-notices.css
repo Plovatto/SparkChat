@@ -1,0 +1,295 @@
+.sc-call-toast-region {
+  --sc-call-toast-top: calc(env(safe-area-inset-top, 0px) + 76px);
+  position: fixed;
+  top: var(--sc-call-toast-top);
+  left: 50%;
+  z-index: 1070;
+  width: min(420px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.sc-call-toast-region[data-below-bar='true'] {
+  top: calc(var(--sc-call-toast-top) + 70px);
+}
+
+@media (min-width: 600px) {
+  .sc-call-toast-region {
+    left: auto;
+    right: 20px;
+    width: min(400px, calc(100vw - 40px));
+    transform: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .sc-call-toast-region {
+    --sc-call-toast-top: calc(max(5vh, 50vh - 450px) + 88px);
+  }
+}
+
+.sc-call-toast {
+  --sc-toast-tone: var(--sc-accent);
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 12px;
+  width: 100%;
+  padding: 14px 14px 14px 14px;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: auto;
+  border-radius: 18px;
+  color: var(--sc-text-primary);
+  background: color-mix(in srgb, var(--sc-surface-elevated) 88%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.16);
+  animation: scCallToastIn 420ms var(--sc-ease-spring-soft) both;
+}
+
+.sc-call-toast::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--sc-toast-tone) 22%, transparent) 0%, transparent 55%);
+}
+
+.sc-call-toast[data-tone='danger'] {
+  --sc-toast-tone: var(--sc-danger);
+}
+
+.sc-call-toast[data-tone='warning'] {
+  --sc-toast-tone: var(--sc-warning);
+}
+
+.sc-call-toast__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sc-toast-tone);
+  background: color-mix(in srgb, var(--sc-toast-tone) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sc-toast-tone) 28%, transparent);
+}
+
+.sc-call-toast[data-tone='info'] .sc-call-toast__icon {
+  color: var(--sc-on-gradient);
+  background: var(--sc-gradient);
+  border-color: transparent;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--sc-accent) 35%, transparent);
+}
+
+.sc-call-toast__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 36px;
+  grid-column: 2 / 4;
+}
+
+.sc-call-toast:has(.sc-call-toast__close) .sc-call-toast__body {
+  grid-column: 2;
+}
+
+.sc-call-toast__title {
+  font-size: 0.93rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sc-call-toast__text {
+  font-size: 0.86rem;
+  line-height: 1.42;
+  color: var(--sc-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.sc-call-toast__body > .sc-call-toast__text:only-child {
+  color: var(--sc-text-primary);
+}
+
+.sc-call-toast__close {
+  grid-column: 3;
+  width: 32px;
+  height: 32px;
+  margin: -2px -4px 0 0;
+  border-radius: 50%;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--sc-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--sc-dur-fast) ease, color var(--sc-dur-fast) ease;
+}
+
+.sc-call-toast__close:hover {
+  background: color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  color: var(--sc-text-primary);
+}
+
+.sc-call-toast__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sc-call-toast__action {
+  flex: 1 0 auto;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--sc-dur-fast) var(--sc-ease-standard), filter var(--sc-dur-fast) ease, background-color var(--sc-dur-fast) ease;
+}
+
+.sc-call-toast__action span {
+  white-space: nowrap;
+}
+
+.sc-call-toast__action svg {
+  flex-shrink: 0;
+}
+
+.sc-call-toast__action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sc-call-toast__action:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.sc-call-toast__action:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.sc-call-toast__action--primary {
+  flex-grow: 3;
+  background: var(--sc-gradient);
+  color: var(--sc-on-gradient);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--sc-accent) 32%, transparent);
+}
+
+.sc-call-toast__action--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.sc-call-toast__action--danger {
+  background: color-mix(in srgb, var(--sc-danger) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sc-danger) 30%, transparent);
+  color: var(--sc-danger-text);
+}
+
+.sc-call-toast__action--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--sc-danger) 22%, transparent);
+}
+
+.sc-call-toast__close:focus-visible,
+.sc-call-toast__action:focus-visible {
+  outline: 2px solid var(--sc-focus-ring, var(--sc-accent));
+  outline-offset: 2px;
+}
+
+.sc-call-toast[data-state='exiting'] {
+  animation: scCallToastOut 200ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+@keyframes scCallToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallToastOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+
+@media (min-width: 600px) {
+  .sc-call-toast {
+    animation-name: scCallToastInSide;
+  }
+
+  .sc-call-toast[data-state='exiting'] {
+    animation-name: scCallToastOutSide;
+  }
+}
+
+@keyframes scCallToastInSide {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallToastOutSide {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-toast {
+    animation: scCallToastFade 160ms linear both;
+  }
+
+  .sc-call-toast[data-state='exiting'] {
+    animation: scCallToastFade 120ms linear reverse forwards;
+  }
+
+  .sc-call-toast__action,
+  .sc-call-toast__close {
+    transition: none;
+  }
+}
+
+@keyframes scCallToastFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

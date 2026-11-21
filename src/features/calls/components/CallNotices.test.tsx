@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CallContext, type CallApi } from '../call-context';
 import { EMPTY_CALL_SNAPSHOT, type CallSnapshot } from '../lib/call-controller';
@@ -46,5 +46,61 @@ describe('CallNotices screen paused toast', () => {
     resumed.unmount();
     const stopped = renderNotices({ screenSharing: false, screenPaused: true });
     expect(stopped.container.textContent).toBe('');
+  });
+});
+
+function renderWith(patch: Partial<CallSnapshot>, extra: Partial<CallApi> = {}) {
+  const api = {
+    snapshot: { ...EMPTY_CALL_SNAPSHOT, ...patch },
+    minimized: false,
+    hasStatusBar: false,
+    dismissNotice: vi.fn(),
+    transferHere: vi.fn(),
+    endOtherDeviceCall: vi.fn(),
+    ...extra,
+  } as unknown as CallApi;
+  const view = render(
+    <CallContext value={api}>
+      <CallNotices />
+    </CallContext>,
+  );
+  return { api, view };
+}
+
+describe('CallNotices toasts', () => {
+  it('shows the security warning with a title and a labelled close button', () => {
+    const { api } = renderWith({ notice: { kind: 'key-changed' } });
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('calls.keyChangedTitle');
+    expect(alert.textContent).toContain('calls.notice.key-changed');
+    expect(alert.getAttribute('data-tone')).toBe('warning');
+    fireEvent.click(screen.getByRole('button', { name: 'calls.close' }));
+    expect(api.dismissNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces a transfer politely as a status', () => {
+    renderWith({ notice: { kind: 'transferred' } });
+    expect(screen.getByRole('status').textContent).toContain('calls.notice.transferred');
+  });
+
+  it('offers both actions for a call answered on another device', () => {
+    const { api } = renderWith({ otherDevice: { callId: 'c', peerId: 'p', kind: 'voice', roomId: 'r', role: 'caller', answeredAt: '2026-01-01T00:00:00.000Z' } });
+    const status = screen.getByRole('status');
+    expect(status.textContent).toContain('calls.otherDevice');
+    expect(status.textContent).toContain('calls.otherDeviceHint');
+    fireEvent.click(screen.getByRole('button', { name: 'calls.transferHere' }));
+    fireEvent.click(screen.getByRole('button', { name: 'calls.otherDeviceEnd' }));
+    expect(api.transferHere).toHaveBeenCalledTimes(1);
+    expect(api.endOtherDeviceCall).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the transfer while one is in flight', () => {
+    renderWith({ transferring: true, otherDevice: { callId: 'c', peerId: 'p', kind: 'voice', roomId: 'r', role: 'caller', answeredAt: '2026-01-01T00:00:00.000Z' } });
+    expect(screen.getByRole('button', { name: 'calls.transferHere' })).toHaveProperty('disabled', true);
+  });
+
+  it('moves below the minimized call bar when the chat shows one', () => {
+    const { view } = renderWith({ screenSharing: true, screenPaused: true }, { minimized: true, hasStatusBar: true });
+    expect(view.container.querySelector('.sc-call-toast-region')?.getAttribute('data-below-bar')).toBe('true');
   });
 });

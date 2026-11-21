@@ -982,10 +982,13 @@
       "hidePreview": "Ocultar prévia",
       "showPreview": "Mostrar prévia",
       "streamVolume": "Volume da transmissão",
-      "openWindow": "Abrir em nova janela"
+      "openWindow": "Abrir em nova janela",
+      "hideParticipants": "Ocultar participantes",
+      "showParticipants": "Mostrar participantes"
     },
     "unstable": "Conexão instável",
     "you": "Você",
+    "endedDuration": "Duração: {{time}}",
     "pip": {
       "open": "Abrir em janela flutuante",
       "close": "Fechar janela flutuante",
@@ -1028,7 +1031,8 @@
     "otherDevice": "Em chamada em outro aparelho",
     "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
     "otherDeviceEnd": "Encerrar",
-    "transferHere": "Trocar para este aparelho"
+    "transferHere": "Trocar para este aparelho",
+    "keyChangedTitle": "Chave de segurança alterada"
   },
   "pwa": {
     "installApp": "Instalar app",

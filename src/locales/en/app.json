@@ -982,10 +982,13 @@
       "hidePreview": "Hide preview",
       "showPreview": "Show preview",
       "streamVolume": "Stream volume",
-      "openWindow": "Open in a new window"
+      "openWindow": "Open in a new window",
+      "hideParticipants": "Hide participants",
+      "showParticipants": "Show participants"
     },
     "unstable": "Unstable connection",
     "you": "You",
+    "endedDuration": "Duration: {{time}}",
     "pip": {
       "open": "Open floating window",
       "close": "Close floating window",
@@ -1028,7 +1031,8 @@
     "otherDevice": "In a call on another device",
     "otherDeviceHint": "Keep talking on the device where you answered.",
     "otherDeviceEnd": "End call",
-    "transferHere": "Switch to this device"
+    "transferHere": "Switch to this device",
+    "keyChangedTitle": "Security key changed"
   },
   "pwa": {
     "installApp": "Install app",
