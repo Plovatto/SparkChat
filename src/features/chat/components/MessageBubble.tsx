@@ -316,7 +316,6 @@ export const MessageBubble = memo(function MessageBubble({
         <>
           {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {!reactionUi.compact && reactionUi.quickBar}
           {actionsPresence.isPresent && !message.pending && !message.failed && (
             <MessageActionsRow
               isOwn={isOwn}
@@ -324,6 +323,10 @@ export const MessageBubble = memo(function MessageBubble({
               onReply={() => onReply(message)}
               onDelete={() => onDelete([message.id])}
               onForward={() => onForward([message])}
+              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+              reactButtonRef={reactionUi.reactButtonRef}
+              isReactionOpen={reactionUi.isReactionOpen}
+              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
               onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
               copyText={message.type === 'text' ? originalContent : message.caption}
             />

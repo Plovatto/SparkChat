@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { EmojiPickerPopover } from '@features/emoji';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -22,6 +22,10 @@ interface ReactionUiOptions {
 
 export interface ReactionUi {
   compact: boolean;
+  canReact: boolean;
+  isReactionOpen: boolean;
+  reactButtonRef: RefObject<HTMLButtonElement | null>;
+  onReactButton: () => void;
   quickBar: ReactNode;
   chips: ReactNode;
   overlays: ReactNode;
@@ -39,11 +43,21 @@ export function useMessageReactionUi({
   onDismiss,
 }: ReactionUiOptions): ReactionUi {
   const compact = useMediaQuery(REACTION_COMPACT_QUERY);
-  const barPresence = usePresence(isSelected && canReact, MOTION_DURATION_MS.fast);
+  const [isBarRequested, setIsBarRequested] = useState(false);
+  const [wasSelected, setWasSelected] = useState(isSelected);
+  if (wasSelected !== isSelected) {
+    setWasSelected(isSelected);
+    if (!isSelected) {
+      setIsBarRequested(false);
+    }
+  }
+  const barPresence = usePresence(isSelected && canReact && (compact || isBarRequested), MOTION_DURATION_MS.fast);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [sheetEmoji, setSheetEmoji] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const reactButtonRef = useRef<HTMLButtonElement>(null);
+  const pickerAnchorRef = useRef<HTMLElement | null>(null);
   const ownEmoji = currentUserId ? findOwnReaction(reactions, currentUserId) : null;
 
   const choose = useCallback(
@@ -62,7 +76,18 @@ export function useMessageReactionUi({
   );
 
   const closePicker = useCallback(() => setIsPickerOpen(false), []);
-  const togglePicker = useCallback(() => setIsPickerOpen((open) => !open), []);
+  const togglePicker = useCallback(() => {
+    pickerAnchorRef.current = moreButtonRef.current;
+    setIsPickerOpen((open) => !open);
+  }, []);
+  const onReactButton = useCallback(() => {
+    if (compact) {
+      pickerAnchorRef.current = reactButtonRef.current;
+      setIsPickerOpen((open) => !open);
+      return;
+    }
+    setIsBarRequested((open) => !open);
+  }, [compact]);
   const showReactors = useCallback((emoji: string) => {
     setSheetEmoji(emoji);
     setIsSheetOpen(true);
@@ -100,7 +125,7 @@ export function useMessageReactionUi({
       <span data-no-long-press onClick={(event) => event.stopPropagation()} style={{ display: 'contents' }}>
         <EmojiPickerPopover
           open={isPickerOpen}
-          anchorRef={moreButtonRef}
+          anchorRef={pickerAnchorRef}
           placement={compact ? 'top' : 'bottom'}
           onClose={closePicker}
           onSelect={(emoji) => {
@@ -124,5 +149,7 @@ export function useMessageReactionUi({
     </>
   );
 
-  return { compact, quickBar, chips, overlays };
+  const isReactionOpen = compact ? isPickerOpen : isBarRequested;
+
+  return { compact, canReact, isReactionOpen, reactButtonRef, onReactButton, quickBar, chips, overlays };
 }

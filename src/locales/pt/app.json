@@ -374,7 +374,10 @@
       "gifExpired": "GIF expirado",
       "gifExpiredHint": "GIFs ficam disponíveis por 30 dias.",
       "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida.",
-      "select": "Selecionar"
+      "select": "Selecionar",
+      "actionsLabel": "Ações da mensagem",
+      "moreActions": "Mais ações",
+      "react": "Reagir"
     },
     "reactions": {
       "barLabel": "Reagir à mensagem",

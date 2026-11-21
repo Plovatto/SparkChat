@@ -114,7 +114,6 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
         <>
           {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {!reactionUi.compact && reactionUi.quickBar}
           {actionsPresence.isPresent && !images.some((image) => image.pending || image.failed) && (
             <MessageActionsRow
               isOwn={isOwn}
@@ -122,6 +121,10 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
               onReply={() => onReply(anchor)}
               onDelete={() => onDelete(images.map((image) => image.id))}
               onForward={() => onForward(images)}
+              onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+              reactButtonRef={reactionUi.reactButtonRef}
+              isReactionOpen={reactionUi.isReactionOpen}
+              reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
               onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
             />
           )}
