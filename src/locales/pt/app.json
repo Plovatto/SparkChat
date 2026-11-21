@@ -67,6 +67,7 @@
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
       "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
       "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo.",
+      "hideMixedRooms": "Só é possível apagar para você mensagens de uma mesma conversa por vez.",
       "reactionUnavailable": "Não é possível reagir a esta mensagem."
     },
     "upload": {
@@ -340,7 +341,7 @@
       "forward": "Encaminhar",
       "copy": "Copiar",
       "copied": "Copiado!",
-      "delete": "Excluir",
+      "delete": "Apagar",
       "image": "Imagem",
       "audio": "Áudio {{duration}}",
       "video": "Vídeo",
@@ -372,7 +373,8 @@
       "sentGif": "GIF enviado",
       "gifExpired": "GIF expirado",
       "gifExpiredHint": "GIFs ficam disponíveis por 30 dias.",
-      "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida."
+      "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida.",
+      "select": "Selecionar"
     },
     "reactions": {
       "barLabel": "Reagir à mensagem",
@@ -445,10 +447,26 @@
       "none": "Nenhum"
     },
     "assistantStatus": "100% pilha, 0% sono 🔋",
-    "deleteTitle_one": "Deletar mensagem",
-    "deleteTitle_other": "Deletar {{count}} mensagens",
-    "deleteConfirm_one": "Tem certeza que deseja deletar esta mensagem para todos?",
-    "deleteConfirm_other": "Tem certeza que deseja deletar estas {{count}} mensagens para todos?",
+    "deleteDialog": {
+      "title_one": "Apagar mensagem?",
+      "title_other": "Apagar mensagens?",
+      "bodyBoth_one": "Apagar para todos remove a mensagem da conversa de todo mundo. Apagar só para mim remove apenas da sua tela.",
+      "bodyBoth_other": "Apagar para todos remove as mensagens da conversa de todo mundo. Apagar só para mim remove apenas da sua tela.",
+      "bodyForMe_one": "Apagar só para mim remove a mensagem apenas da sua tela. As outras pessoas continuam vendo.",
+      "bodyForMe_other": "Apagar só para mim remove as {{count}} mensagens apenas da sua tela. As outras pessoas continuam vendo.",
+      "forEveryone": "Apagar para todos",
+      "forMe": "Apagar só para mim"
+    },
+    "selection": {
+      "count_one": "{{count}} selecionada",
+      "count_other": "{{count}} selecionadas",
+      "cancel": "Cancelar seleção",
+      "delete": "Apagar",
+      "toggle": "Selecionar mensagem"
+    },
+    "hideFailed": "Não foi possível apagar para você. Tente de novo.",
+    "deleteFailed_one": "Não foi possível apagar 1 mensagem para todos.",
+    "deleteFailed_other": "Não foi possível apagar {{count}} mensagens para todos.",
     "translation": {
       "translatedFrom": "Traduzida do {{language}}",
       "original": "Mensagem original",

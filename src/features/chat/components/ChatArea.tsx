@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import { isSameDay } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle } from 'react-icons/fa';
-import { ConfirmDialog } from '@components/common/ConfirmDialog';
+import { FaArrowDown, FaBan, FaComments, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import { Spinner } from '@components/common/Spinner';
 import type { User } from '@features/auth';
 import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
@@ -19,6 +18,8 @@ import { isGifMimeType } from '@lib/media/media-type';
 import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
+import { useDeleteForEveryone } from '../hooks/useDeleteForEveryone';
+import { useMessageSelection } from '../hooks/useMessageSelection';
 import { useRoomMessages } from '../hooks/useRoomMessages';
 import { useRoomTranslationPreferences } from '../hooks/useRoomTranslationPreferences';
 import type { ChatMessage } from '../types';
@@ -26,6 +27,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
+import { isSelectableMessage, resolveDeleteOptions } from '../utils/delete-options';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
 import type { CurrentAudioRef } from './AudioMessageContent';
@@ -33,11 +35,13 @@ import { AutoTranslateBanner } from './AutoTranslateBanner';
 import { ChatHeader } from './ChatHeader';
 import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
+import { DeleteMessageDialog } from './DeleteMessageDialog';
 import { EmptyChatState } from './EmptyChatState';
 import { ForwardMessageModal } from './ForwardMessageModal';
 import { ImageGroupBubble } from './ImageGroupBubble';
 import { MessageBubble } from './MessageBubble';
 import { MessageListSkeleton } from './MessageListSkeleton';
+import { ComposerSlot, SelectableMessageRow, SelectionBar } from './MessageSelection';
 import {
   MessageInput,
   type AudioSendPayload,
@@ -156,6 +160,12 @@ function renderItemFirstMessage(item: RenderItem): ChatMessage {
 function renderItemAnchorMessage(item: RenderItem): ChatMessage {
   return item.kind === 'single' ? item.message : (item.messages[item.messages.length - 1] ?? item.messages[0]);
 }
+
+function renderItemMessages(item: RenderItem): ChatMessage[] {
+  return item.kind === 'single' ? [item.message] : item.messages;
+}
+
+const FAILURE_NOTICE_MS = 5000;
 
 function renderItemKey(item: RenderItem): string {
   return item.kind === 'single' ? item.message.id : `group-${item.messages[0].id}`;
@@ -342,6 +352,9 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     sendMessage,
     retryMessage,
     loadOlderMessages,
+    hideMessages,
+    hideFailure,
+    dismissHideFailure,
     reactToMessage,
     reactionFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
@@ -394,6 +407,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   const [forwardingMessages, setForwardingMessages] = useState<ChatMessage[] | null>(null);
   const [repliedMessage, setRepliedMessage] = useState<MessageView | null>(null);
   const [uploadingMediaType, setUploadingMediaType] = useState<AttachmentMessageType | 'audio' | 'gif' | null>(null);
@@ -715,6 +729,80 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
+  const roomId = room?.id ?? null;
+  const { deleteForEveryone, deleteFailure, dismissDeleteFailure } = useDeleteForEveryone(roomId);
+  const presentMessageIds = useMemo(() => messages.filter(isSelectableMessage).map((message) => message.id), [messages]);
+  const isDeleteDialogOpen = messageIdsPendingDelete !== null;
+  const { selectionIds, selectedIds, isSelecting, startSelection: beginSelection, toggleSelection, clearSelection } = useMessageSelection({
+    presentIds: presentMessageIds,
+    resetKey: roomId,
+    escapeEnabled: !isDeleteDialogOpen,
+  });
+
+  useEffect(() => {
+    setMessageIdsPendingDelete(null);
+    setIsRecordingAudio(false);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (!hideFailure) {
+      return;
+    }
+    const timer = setTimeout(dismissHideFailure, FAILURE_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [hideFailure, dismissHideFailure]);
+
+  useEffect(() => {
+    if (!deleteFailure) {
+      return;
+    }
+    const timer = setTimeout(dismissDeleteFailure, FAILURE_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [deleteFailure, dismissDeleteFailure]);
+
+  const itemIdsByAnchor = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const item of renderItems) {
+      map.set(renderItemAnchorMessage(item).id, renderItemMessages(item).map((message) => message.id));
+    }
+    return map;
+  }, [renderItems]);
+
+  const startSelection = useCallback(
+    (anchorId: string) => {
+      setSelectedMessageId(null);
+      beginSelection(itemIdsByAnchor.get(anchorId) ?? [anchorId]);
+    },
+    [itemIdsByAnchor, beginSelection],
+  );
+
+  const pendingDeleteMessages = useMemo(() => {
+    if (!messageIdsPendingDelete) {
+      return [];
+    }
+    const ids = new Set(messageIdsPendingDelete);
+    return messages.filter((message) => ids.has(message.id) && !message.exiting);
+  }, [messageIdsPendingDelete, messages]);
+  const deleteOptions = resolveDeleteOptions(pendingDeleteMessages, user.id);
+
+  useEffect(() => {
+    if (messageIdsPendingDelete !== null && pendingDeleteMessages.length === 0) {
+      setMessageIdsPendingDelete(null);
+    }
+  }, [messageIdsPendingDelete, pendingDeleteMessages.length]);
+
+  const failureText = hideFailure
+    ? hideFailure.code === 'message.hideMixedRooms'
+      ? t('errors.message.hideMixedRooms')
+      : t('chat.hideFailed')
+    : deleteFailure
+      ? t('chat.deleteFailed', { count: deleteFailure.count })
+      : null;
+  const dismissFailure = () => {
+    dismissHideFailure();
+    dismissDeleteFailure();
+  };
+
   const toggleSelectedMessage = useCallback((messageId: string) => {
     setSelectedMessageId((current) => (current === messageId ? null : messageId));
   }, []);
@@ -887,11 +975,14 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
   };
 
   const handleRecordingStart = () => {
+    setIsRecordingAudio(true);
+    clearSelection();
     recordingRoomIdRef.current = room.id;
     socket?.emit('recording:start', { roomId: room.id });
   };
 
   const handleRecordingStop = () => {
+    setIsRecordingAudio(false);
     const recordingRoomId = recordingRoomIdRef.current;
     recordingRoomIdRef.current = null;
     if (recordingRoomId) {
@@ -972,11 +1063,19 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
     : theme.canvas;
   const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
 
-  const confirmDeleteMessage = () => {
-    for (const messageId of messageIdsPendingDelete ?? []) {
-      socket?.emit('message:delete', { messageId });
-    }
+  const finishDelete = () => {
     setSelectedMessageId(null);
+    clearSelection();
+  };
+
+  const confirmDeleteForEveryone = () => {
+    deleteForEveryone(pendingDeleteMessages.map((message) => message.id));
+    finishDelete();
+  };
+
+  const confirmDeleteForMe = () => {
+    hideMessages(pendingDeleteMessages.map((message) => message.id));
+    finishDelete();
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -1190,9 +1289,22 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                         const itemKey = renderItemKey(item);
                         const entrancePhase = getEntrancePhase();
                         const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
+                        const itemMessages = renderItemMessages(item);
+                        const itemIds = itemMessages.map((message) => message.id);
+                        const isExiting = itemMessages.every((message) => message.exiting);
+                        const isSelectable = isSelecting && itemMessages.every(isSelectableMessage);
+                        const isChecked = isSelectable && selectionIds !== null && itemIds.every((id) => selectionIds.has(id));
 
                         return (
-                          <div key={itemKey} style={{ width: '100%', display: 'flex', justifyContent: isOwn ? 'flex-end' : 'flex-start' }}>
+                          <SelectableMessageRow
+                            key={itemKey}
+                            isOwn={isOwn}
+                            isSelecting={isSelecting}
+                            isSelectable={isSelectable}
+                            isChecked={isChecked}
+                            isExiting={isExiting}
+                            onToggle={() => toggleSelection(itemIds)}
+                          >
                             {item.kind === 'single' ? (
                               <MessageBubble
                                 message={item.message}
@@ -1213,6 +1325,7 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onForward={handleForward}
                                 onAudioPlayed={handleAudioPlayed}
                                 onRetry={retryMessage}
+                                onStartSelection={isRecordingAudio ? undefined : startSelection}
                                 onReact={reactToMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
@@ -1233,12 +1346,13 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
                                 onDelete={handleDeleteRequest}
                                 onForward={handleForward}
                                 onRetry={retryMessage}
+                                onStartSelection={isRecordingAudio ? undefined : startSelection}
                                 onReact={reactToMessage}
                                 entrancePhase={entrancePhase}
                                 entranceIndex={entranceIndex}
                               />
                             )}
-                          </div>
+                          </SelectableMessageRow>
                         );
                       })}
                     </div>
@@ -1344,28 +1458,44 @@ export function ChatArea({ room, rooms, user, onBack }: ChatAreaProps) {
         />
       )}
 
-      <MessageInput
-        key={`input-${room.id}`}
-        ref={messageInputRef}
-        onSend={handleSend}
-        onSendAudio={(payload) => void handleSendAudio(payload)}
-        onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
-        onTyping={handleComposerTyping}
-        onRecordingStart={handleRecordingStart}
-        onRecordingStop={handleRecordingStop}
-        isBlockedBy={room.isBlockedBy}
-        userBlocked={room.userBlocked}
-        mentionCandidates={mentionCandidates}
-        maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
-        auth={auth}
-      />
+      {failureText && (
+        <div className="sc-notice sc-notice--danger sc-anim-rise-in" role="alert" style={{ margin: '0 12px 8px', alignItems: 'center' }}>
+          <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{failureText}</span>
+          <button type="button" onClick={dismissFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
+            <FaTimes size={12} />
+          </button>
+        </div>
+      )}
 
-      <ConfirmDialog
-        isOpen={messageIdsPendingDelete !== null}
-        title={t('chat.deleteTitle', { count: messageIdsPendingDelete?.length ?? 1 })}
-        message={t('chat.deleteConfirm', { count: messageIdsPendingDelete?.length ?? 1 })}
-        onConfirm={confirmDeleteMessage}
-        onCancel={() => setMessageIdsPendingDelete(null)}
+      <ComposerSlot
+        isSelecting={isSelecting}
+        bar={<SelectionBar count={selectedIds.length} onCancel={clearSelection} onDelete={() => handleDeleteRequest(selectedIds)} />}
+      >
+        <MessageInput
+          key={`input-${room.id}`}
+          ref={messageInputRef}
+          onSend={handleSend}
+          onSendAudio={(payload) => void handleSendAudio(payload)}
+          onSendGif={isAssistantRoom(room) ? undefined : (blob) => void handleSendGif(blob)}
+          onTyping={handleComposerTyping}
+          onRecordingStart={handleRecordingStart}
+          onRecordingStop={handleRecordingStop}
+          isBlockedBy={room.isBlockedBy}
+          userBlocked={room.userBlocked}
+          mentionCandidates={mentionCandidates}
+          maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+          auth={auth}
+        />
+      </ComposerSlot>
+
+      <DeleteMessageDialog
+        isOpen={messageIdsPendingDelete !== null && pendingDeleteMessages.length > 0}
+        count={deleteOptions.count}
+        canDeleteForEveryone={deleteOptions.canDeleteForEveryone}
+        onDeleteForEveryone={confirmDeleteForEveryone}
+        onDeleteForMe={confirmDeleteForMe}
+        onClose={() => setMessageIdsPendingDelete(null)}
       />
 
       <ForwardMessageModal

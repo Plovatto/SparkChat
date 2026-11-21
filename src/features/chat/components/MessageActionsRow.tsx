@@ -1,4 +1,4 @@
-import { FaCheck, FaCopy, FaReply, FaShare, FaTrash } from 'react-icons/fa';
+import { FaCheck, FaCheckCircle, FaCopy, FaReply, FaShare, FaTrash } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { IconPillButton } from '@components/common/IconPillButton';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -6,13 +6,14 @@ import { useClipboardCopy } from '@hooks/useClipboardCopy';
 interface MessageActionsRowProps {
   isOwn: boolean;
   isExiting?: boolean;
-  onReply: () => void;
+  onReply?: () => void;
   onDelete: () => void;
-  onForward: () => void;
+  onForward?: () => void;
+  onStartSelection?: (() => void) | undefined;
   copyText?: string | null;
 }
 
-export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward, copyText }: MessageActionsRowProps) {
+export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete, onForward, onStartSelection, copyText }: MessageActionsRowProps) {
   const { t } = useTranslation();
   const clipboard = useClipboardCopy();
   const copied = clipboard.isCopied();
@@ -30,25 +31,29 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         transformOrigin: isOwn ? 'top right' : 'top left',
       }}
     >
-      <IconPillButton
-        onClick={(event) => {
-          event.stopPropagation();
-          onReply();
-        }}
-        icon={<FaReply size={11} />}
-        tone="accent"
-        label={t('chat.message.reply')}
-      />
+      {onReply && (
+        <IconPillButton
+          onClick={(event) => {
+            event.stopPropagation();
+            onReply();
+          }}
+          icon={<FaReply size={11} />}
+          tone="accent"
+          label={t('chat.message.reply')}
+        />
+      )}
 
-      <IconPillButton
-        onClick={(event) => {
-          event.stopPropagation();
-          onForward();
-        }}
-        icon={<FaShare size={11} />}
-        tone="accent"
-        label={t('chat.message.forward')}
-      />
+      {onForward && (
+        <IconPillButton
+          onClick={(event) => {
+            event.stopPropagation();
+            onForward();
+          }}
+          icon={<FaShare size={11} />}
+          tone="accent"
+          label={t('chat.message.forward')}
+        />
+      )}
 
       {copyText && (
         <IconPillButton
@@ -62,17 +67,27 @@ export function MessageActionsRow({ isOwn, isExiting = false, onReply, onDelete,
         />
       )}
 
-      {isOwn && (
+      {onStartSelection && (
         <IconPillButton
           onClick={(event) => {
             event.stopPropagation();
-            onDelete();
+            onStartSelection();
           }}
-          icon={<FaTrash size={11} />}
-          tone="danger"
-          label={t('chat.message.delete')}
+          icon={<FaCheckCircle size={11} />}
+          tone="accent"
+          label={t('chat.message.select')}
         />
       )}
+
+      <IconPillButton
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
+        icon={<FaTrash size={11} />}
+        tone="danger"
+        label={t('chat.message.delete')}
+      />
     </div>
   );
 }

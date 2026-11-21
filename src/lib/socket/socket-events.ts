@@ -8,6 +8,15 @@ export interface SocketErrorPayload {
   clientTempId?: string;
   event?: string;
   messageId?: string;
+  messageIds?: string[];
+}
+
+export interface MessageHiddenPayload {
+  roomId: string;
+  messageIds: string[];
+  lastMessage?: MessageView | null;
+  unreadCount?: number;
+  mentionCount?: number;
 }
 
 export interface KtSignedTreeHeadWire {
@@ -409,6 +418,7 @@ export interface ServerToClientEvents {
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
+  'message:hidden': (payload: MessageHiddenPayload) => void;
   'message:updated': (payload: MessageView) => void;
   'message:reactions-updated': (payload: MessageReactionsUpdatedPayload) => void;
   'call:config': (payload: CallConfigPayload) => void;
@@ -515,7 +525,8 @@ export interface ClientToServerEvents {
   'recording:start': (payload: { roomId: string }) => void;
   'recording:stop': (payload: { roomId: string }) => void;
   'audio:played': (payload: { messageId: string }) => void;
-  'message:delete': (payload: { messageId: string }) => void;
+  'message:delete': (payload: { messageId: string } | { messageIds: string[] }) => void;
+  'message:hide': (payload: { messageIds: string[] }) => void;
   'message:react': (payload: { roomId: string; messageId: string; emoji: string | null }) => void;
   'room:view-start': (payload: { roomId: string }) => void;
   'room:view-stop': (payload: { roomId: string }) => void;

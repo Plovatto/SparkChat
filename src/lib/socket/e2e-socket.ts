@@ -39,6 +39,7 @@ import type { AppSocket } from './socket-client';
 import type {
   BlockStatusPayload,
   ClientToServerEvents,
+  MessageHiddenPayload,
   MessageReactionsUpdatedPayload,
   MessageView,
   RoomParticipant,
@@ -94,6 +95,7 @@ const DECRYPT_EVENTS = new Set([
   'message:new',
   'messages:list',
   'message:updated',
+  'message:hidden',
   'message:reactions-updated',
   'room:created',
   'room:joined',
@@ -136,6 +138,13 @@ async function transformPayload(socket: AppSocket, event: string, payload: unkno
     case 'message:new':
     case 'message:updated':
       return decryptMessageView(socket, payload as MessageView, { deferGifMedia: previewOnly, live: event === 'message:new' });
+
+    case 'message:hidden': {
+      const typed = payload as MessageHiddenPayload;
+      return typed.lastMessage
+        ? { ...typed, lastMessage: await decryptMessageView(socket, typed.lastMessage, { deferGifMedia: previewOnly, live: false }) }
+        : typed;
+    }
 
     case 'message:reactions-updated': {
       const typed = payload as MessageReactionsUpdatedPayload;

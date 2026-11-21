@@ -22,6 +22,7 @@ const fakeSocket = vi.hoisted(() => {
 
 vi.mock('@lib/socket', () => ({
   useSocket: () => ({ socket: fakeSocket, connected: true }),
+  markPreviewOnlyHandler: <T,>(handler: T) => handler,
 }));
 
 vi.mock('@lib/e2ee', () => ({
