@@ -130,7 +130,11 @@ export function MessageBubbleShell({
           borderRadius: isOwn
             ? `${cornerRadius}px ${cornerRadius}px 4px ${cornerRadius}px`
             : `${cornerRadius}px ${cornerRadius}px ${cornerRadius}px 4px`,
-          boxShadow: isOwn ? theme.shadowMd : theme.shadowSm,
+          boxShadow: isSelected
+            ? `0 0 0 1.5px ${theme.messageSelectedRing}, ${theme.shadowMd}`
+            : isOwn
+              ? theme.shadowMd
+              : theme.shadowSm,
           backdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           WebkitBackdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           display: 'flex',
