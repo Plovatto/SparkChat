@@ -495,7 +495,9 @@ export function Sidebar({
           </div>
         ) : rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
-            <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
+            <span className="sc-empty-icon" style={{ marginBottom: '15px' }}>
+              <FaComments size={50} className="animate-float" style={{ opacity: 0.3 }} />
+            </span>
             <p className="sc-anim-rise-in sc-stagger" style={{ fontSize: '0.9rem', margin: '5px 0', '--sc-stagger-index': 1 } as CSSProperties}>
               {t('sidebar.noConversations')}
             </p>
