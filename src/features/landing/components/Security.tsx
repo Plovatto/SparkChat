@@ -1,6 +1,7 @@
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaFileAlt } from 'react-icons/fa';
-import { SECURITY_STEP_IDS } from '../constants/content';
+import { FaLock } from 'react-icons/fa';
+import { COVERED_ITEMS, SECURITY_STEP_IDS } from '../constants/content';
 import { ScrambleText } from './ScrambleText';
 
 export function Security() {
@@ -24,9 +25,39 @@ export function Security() {
             </li>
           ))}
         </ol>
-        <div className="sc-notice sc-notice--info lp-security__note">
-          <FaFileAlt size={16} aria-hidden="true" />
-          <p>{t('security.recoveryNote')}</p>
+        <div className="lp-vault">
+          <div className="lp-vault__hero">
+            <span className="lp-vault__lock" aria-hidden="true">
+              <span className="lp-vault__ring" />
+              <span className="lp-vault__ring lp-vault__ring--inner" />
+              <span className="lp-vault__core">
+                <FaLock size={30} />
+              </span>
+            </span>
+            <h3 className="lp-vault__title">{t('security.coveredTitle')}</h3>
+            <p className="lp-vault__text">{t('security.coveredText')}</p>
+          </div>
+          <ul className="lp-vault__list">
+            {COVERED_ITEMS.map((item, position) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.id} className="lp-vault__item" style={{ '--lp-lock-index': position } as CSSProperties}>
+                  <span className="lp-vault__icon" aria-hidden="true">
+                    <Icon size={15} />
+                  </span>
+                  <span className="lp-vault__body">
+                    <span className="lp-vault__label">{t(`security.covered.${item.id}`)}</span>
+                    <span className="lp-vault__cipher" aria-hidden="true">
+                      {item.cipher}
+                    </span>
+                  </span>
+                  <span className="lp-vault__check" aria-hidden="true">
+                    <FaLock size={9} />
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
       </div>
     </section>

@@ -3,14 +3,17 @@ import { useTranslation } from 'react-i18next';
 import {
   FaArrowLeft,
   FaCheckDouble,
+  FaDownload,
   FaFilePdf,
   FaLock,
   FaMicrophone,
   FaPaperclip,
   FaPlay,
+  FaPhoneAlt,
   FaPlus,
   FaThumbtack,
-  FaUser,
+  FaUsers,
+  FaVideo,
 } from 'react-icons/fa';
 import { DemoAvatar } from './DemoAvatar';
 
@@ -19,9 +22,9 @@ interface AppWindowPreviewProps {
 }
 
 interface DemoConversation {
-  avatar: string;
+  avatar: string | null;
   name: string;
-  preview: 'assistant' | 'marina' | 'camila' | 'rafael';
+  preview: 'assistant' | 'marina' | 'camila' | 'group';
   time: string;
   pinned?: boolean;
   selected?: boolean;
@@ -51,12 +54,15 @@ const CONVERSATIONS: DemoConversation[] = [
     unread: 2,
   },
   {
-    avatar: 'Crown',
-    name: 'Rafael',
-    preview: 'rafael',
+    avatar: null,
+    name: 'group',
+    preview: 'group',
     time: '17:40',
+    unread: 5,
   },
 ];
+
+const BURST = [0, 45, 90, 135, 180, 225, 270, 315];
 
 const WAVEFORM = [6, 12, 18, 9, 22, 14, 8, 19, 24, 11, 16, 7, 20, 13, 9, 17, 23, 10, 15, 6, 18, 12];
 
@@ -102,12 +108,18 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
               </div>
               <span className="lp-window__list-label">{t('preview.conversations')}</span>
               <ul className="lp-window__list">
-                {CONVERSATIONS.map((conversation) => (
-                  <li key={conversation.name} className="lp-window__item" data-selected={conversation.selected ? 'true' : undefined}>
-                    <DemoAvatar name={conversation.avatar} size={36} online />
+                {CONVERSATIONS.map((conversation, position) => (
+                  <li key={conversation.name} className="lp-window__item" style={{ '--lp-item-index': position } as CSSProperties} data-selected={conversation.selected ? 'true' : undefined}>
+                    {conversation.avatar ? (
+                      <DemoAvatar name={conversation.avatar} size={36} online />
+                    ) : (
+                      <span className="lp-window__group-avatar">
+                        <FaUsers size={15} />
+                      </span>
+                    )}
                     <div className="lp-window__item-text">
                       <span className="lp-window__item-top">
-                        <strong>{conversation.name}</strong>
+                        <strong>{conversation.avatar ? conversation.name : t('preview.groupName')}</strong>
                         <span>
                           {conversation.pinned && <FaThumbtack size={9} />} {conversation.time}
                         </span>
@@ -130,12 +142,13 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                 <DemoAvatar name="Ghost" size={38} online />
                 <div className="lp-window__chat-title">
                   <strong>Marina</strong>
-                  <span>
-                    <span className="lp-window__online-dot" /> {t('preview.online')}
-                  </span>
+                  <span className="lp-window__status">{t('preview.marinaStatus')}</span>
                 </div>
-                <span className="lp-window__round lp-window__round--end">
-                  <FaUser size={12} />
+                <span className="lp-window__round lp-window__round--end" title={t('preview.voiceCall')}>
+                  <FaPhoneAlt size={11} />
+                </span>
+                <span className="lp-window__round" title={t('preview.videoCall')}>
+                  <FaVideo size={12} />
                 </span>
               </div>
 
@@ -155,20 +168,51 @@ export function AppWindowPreview({ wallpaper }: AppWindowPreviewProps) {
                   {t('preview.chat.question')}
                   <span className="lp-bubble__meta">19:08</span>
                 </div>
-                <div className="lp-bubble sc-anim-rise-in sc-stagger" data-own="true" style={stagger(3)}>
+                <div className="lp-bubble lp-bubble--reacted sc-anim-rise-in sc-stagger" data-own="true" style={stagger(3)}>
                   {t('preview.chat.answer')}
                   <span className="lp-bubble__meta">
                     19:12 <FaCheckDouble size={11} className="lp-bubble__read" />
                   </span>
+                  <span className="lp-react-chip lp-react-chip--hero">
+                    ❤️
+                    <span className="lp-burst">
+                      {BURST.map((angle) => (
+                        <span key={angle} style={{ '--lp-angle': `${angle}deg` } as CSSProperties} />
+                      ))}
+                    </span>
+                  </span>
                 </div>
                 <div className="lp-bubble lp-bubble--file sc-anim-rise-in sc-stagger" data-own="false" style={stagger(5)}>
-                  <span className="lp-bubble__file">
-                    <span className="lp-bubble__file-icon">
-                      <FaFilePdf size={16} />
+                  <span className="lp-pdf">
+                    <span className="lp-pdf__thumb" aria-hidden="true">
+                      <span className="lp-pdf__page">
+                        <span className="lp-pdf__band" />
+                        <span className="lp-pdf__title">{t('preview.pdfTitle')}</span>
+                        <span className="lp-pdf__row">
+                          <span className="lp-pdf__lines">
+                            <span />
+                            <span />
+                            <span />
+                          </span>
+                          <span className="lp-pdf__map">
+                            <span className="lp-pdf__route" />
+                            <span className="lp-pdf__pin" />
+                            <span className="lp-pdf__pin lp-pdf__pin--end" />
+                          </span>
+                        </span>
+                      </span>
                     </span>
-                    <span>
-                      <strong>{t('preview.pdfName')}</strong>
-                      <span>{t('preview.page')}</span>
+                    <span className="lp-bubble__file">
+                      <span className="lp-bubble__file-icon">
+                        <FaFilePdf size={16} />
+                      </span>
+                      <span className="lp-pdf__info">
+                        <strong>{t('preview.pdfName')}</strong>
+                        <span>{t('preview.page')} · 248 KB</span>
+                      </span>
+                      <span className="lp-pdf__download">
+                        <FaDownload size={10} />
+                      </span>
                     </span>
                   </span>
                   <span className="lp-bubble__meta">19:16</span>

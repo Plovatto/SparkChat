@@ -1,9 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { buildTheme } from '@features/theme/build-theme';
+import { CallsShowcase } from './components/CallsShowcase';
 import { Faq } from './components/Faq';
 import { Features } from './components/Features';
 import { Hero } from './components/Hero';
-import { Screenshots } from './components/Screenshots';
 import { Security } from './components/Security';
 import { SiteFooter } from './components/SiteFooter';
 import { SiteHeader } from './components/SiteHeader';
@@ -16,7 +16,8 @@ export function Landing() {
   const { t } = useTranslation('landing');
   const { theme, select } = useLandingTheme();
   useScrollReveal();
-  const isDark = buildTheme(theme.base, theme.color).tokens.kind === 'dark';
+  const tokens = buildTheme(theme.base, theme.color).tokens;
+  const isDark = tokens.kind === 'dark';
   const wallpaper = findLandingWallpaper(theme.wallpaper)?.background ?? null;
 
   return (
@@ -25,11 +26,16 @@ export function Landing() {
         {t('skipLink')}
       </a>
       <SiteHeader isDark={isDark} onToggleMode={() => select({ base: isDark ? 'light' : 'dark' })} />
-      <main id="conteudo">
-        <Hero wallpaper={wallpaper} />
+      <div className="lp-morph" aria-hidden="true">
+        <span className="lp-morph__shape lp-morph__shape--a" />
+        <span className="lp-morph__shape lp-morph__shape--b" />
+        <span className="lp-morph__shape lp-morph__shape--c" />
+      </div>
+      <main id="conteudo" className="lp-main">
+        <Hero wallpaper={wallpaper} inkColor={tokens.onGradient} accentColor={tokens.accentText} />
         <Features />
+        <CallsShowcase />
         <ThemeStudio theme={theme} onSelect={select} />
-        <Screenshots />
         <Security />
         <Faq />
       </main>
