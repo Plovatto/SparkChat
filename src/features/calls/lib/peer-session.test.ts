@@ -888,7 +888,8 @@ describe('control channel', () => {
     expect(h.controls).toEqual([{ t: 'hangup' }]);
 
     expect(h.session.sendControl({ t: 'mute', on: true })).toBe(true);
-    expect(channel.sent).toEqual(['{"t":"caps","screen":true}', '{"t":"mute","on":true}']);
+    expect(channel.sent[0]).toBe('{"t":"caps","screen":true}');
+    expect(channel.sent.at(-1)).toBe('{"t":"mute","on":true}');
     channel.readyState = 'connecting';
     expect(h.session.sendControl({ t: 'hangup' })).toBe(false);
   });
@@ -916,7 +917,7 @@ describe('control channel', () => {
     h.session.setMuted(true);
 
     expect(stream.getAudioTracks()[0]?.enabled).toBe(false);
-    expect(h.connection.channels[0]?.sent).toEqual(['{"t":"caps","screen":true}', '{"t":"mute","on":true}']);
+    expect(h.connection.channels[0]?.sent.at(-1)).toBe('{"t":"mute","on":true}');
   });
 });
 
@@ -1412,15 +1413,45 @@ describe('screen share capabilities', () => {
     return h;
   }
 
-  it('announces its own screen capability only after verification', async () => {
-    const h = build('caller');
+  it('announces its own screen capability and media state only after verification', async () => {
+    const stream = localStream(['audio', 'video']);
+    const h = build('caller', { localStream: stream });
     h.session.start();
     await settle();
     expect(h.connection.channels[0]?.sent).toEqual([]);
 
     await verify(h);
+    await settle();
 
-    expect(h.connection.channels[0]?.sent).toEqual(['{"t":"caps","screen":true}']);
+    const sent = h.connection.channels[0]?.sent ?? [];
+    expect(sent[0]).toBe('{"t":"caps","screen":true}');
+    expect(sent.at(-2)).toBe('{"t":"camera","on":true}');
+    expect(sent.at(-1)).toBe('{"t":"mute","on":false}');
+  });
+
+  it('announces the camera as off when the call has no camera track', async () => {
+    const h = build('caller', { localStream: localStream(['audio']) });
+    h.session.start();
+    await settle();
+    await verify(h);
+    await settle();
+
+    expect(h.connection.channels[0]?.sent.at(-2)).toBe('{"t":"camera","on":false}');
+  });
+
+  it('re-sends the current camera state when the control channel reopens', async () => {
+    const stream = localStream(['audio', 'video']);
+    const h = build('caller', { localStream: stream });
+    h.session.start();
+    await settle();
+    await verify(h);
+    await settle();
+    const channel = h.connection.channels[0] as unknown as { onopen?: () => void; sent: string[] };
+    channel.sent.length = 0;
+
+    channel.onopen?.();
+
+    expect(channel.sent).toEqual(['{"t":"caps","screen":true}', '{"t":"camera","on":true}', '{"t":"mute","on":false}']);
   });
 
   it('announces again when the control channel opens after verification', async () => {

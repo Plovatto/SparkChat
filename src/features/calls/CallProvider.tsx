@@ -32,6 +32,7 @@ import './styles/call-bar.css';
 
 interface CallProviderProps {
   rooms: RoomSummary[];
+  onScreenCoverChange?: (covering: boolean) => void;
 }
 
 const noopSubscribe = () => () => undefined;
@@ -41,7 +42,7 @@ function isBlocked(room: RoomSummary): boolean {
   return room.userBlocked || room.isBlockedBy || room.isMutuallyBlocked;
 }
 
-export function CallProvider({ rooms, children }: PropsWithChildren<CallProviderProps>) {
+export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWithChildren<CallProviderProps>) {
   const { socket } = useSocket();
   const [controller, setController] = useState<CallController | null>(null);
   const [minimized, setMinimized] = useState(false);
@@ -106,6 +107,12 @@ export function CallProvider({ rooms, children }: PropsWithChildren<CallProvider
 
   const snapshot = useSyncExternalStore(controller ? controller.subscribe : noopSubscribe, controller ? controller.getSnapshot : emptySnapshot);
   const phase = snapshot.state.phase;
+  const coversChat = !minimized && phase !== 'idle' && phase !== 'incoming-ringing';
+
+  useEffect(() => {
+    onScreenCoverChange?.(coversChat);
+  }, [coversChat, onScreenCoverChange]);
+
   const localSpeaking = showSelfSpeaking(useSpeaking(snapshot.localStream, (phase === 'active' || phase === 'reconnecting') && !snapshot.muted), snapshot.muted);
 
   useEffect(() => {

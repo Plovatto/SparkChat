@@ -312,6 +312,11 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const soundPreference = useSoundPreference();
   const { mutedRoomIds, toggleMuted } = useMutedRooms(user.id);
   useAudioContextPrimer();
+  const callCoversChatRef = useRef(false);
+  const isChatCoveredByCall = useCallback(() => callCoversChatRef.current, []);
+  const handleCallCoverChange = useCallback((covering: boolean) => {
+    callCoversChatRef.current = covering;
+  }, []);
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
 
   useMessageNotifications(
@@ -323,6 +328,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     soundPreference.isEnabled,
     setSelectedRoomId,
     notificationContentPreference.isContentHidden,
+    isChatCoveredByCall,
   );
   useUnreadBadge(totalUnread);
   useChatTriggerEffects(selectedRoomId, user.id, soundPreference.isEnabled);
@@ -494,7 +500,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   }
 
   return (
-    <CallProvider rooms={rooms}>
+    <CallProvider rooms={rooms} onScreenCoverChange={handleCallCoverChange}>
     <PwaCallBridge />
     <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>

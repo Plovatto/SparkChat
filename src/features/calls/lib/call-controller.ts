@@ -230,6 +230,7 @@ interface Session {
   shareAudio: ShareAudio | null;
   screenInfo: ScreenInfo | null;
   screenPaused: boolean;
+  screenDetached: boolean;
   screenCleanup: (() => void) | null;
   instability: InstabilityState;
   transferDeviceId: string | null;
@@ -524,6 +525,7 @@ export class CallController {
         shareAudio: null,
         screenInfo: null,
         screenPaused: false,
+        screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
         transferDeviceId: null,
@@ -620,6 +622,7 @@ export class CallController {
         shareAudio: null,
         screenInfo: null,
         screenPaused: false,
+        screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
         transferDeviceId: null,
@@ -1308,6 +1311,7 @@ export class CallController {
         shareAudio: null,
         screenInfo: null,
         screenPaused: false,
+        screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
         transferDeviceId: deviceId,
@@ -1454,10 +1458,7 @@ export class CallController {
       session.statsSample = null;
       session.relay = RELAY_UNKNOWN;
       session.instability = STABLE;
-      if (session.screen) {
-        this.releaseScreen(session);
-        this.update({ screenSharing: false, localScreenStream: null, shareAudio: false, screenPaused: false, notice: { kind: 'screen-failed' } });
-      }
+      session.screenDetached = session.screen !== null;
       this.machine.dispatch({ type: 'peer-transfer', callId: session.callId });
       this.update({ remoteStream: null, remoteMuted: false, remoteCameraOn: false, remoteScreenOn: false, remoteScreenStream: null, remoteScreenSurface: null, remoteScreenLabel: null, remoteScreenAudio: false, remoteScreenMovie: false, remoteScreenPaused: false, canShareScreen: false });
       this.deps.socket.emit('call:transfer-accept', { callId: session.callId, envelope: reply });
@@ -1692,8 +1693,33 @@ export class CallController {
       this.update({ remoteScreenMovie: message.on && message.movie === true, remoteScreenAudio: message.on && message.audio === true, remoteScreenOn: message.on, remoteScreenPaused: message.on && message.paused === true, remoteScreenSurface: message.on ? (message.surface ?? null) : null, remoteScreenLabel: message.on ? (message.label ?? null) : null });
     } else if (message.t === 'caps') {
       this.update({ canShareScreen: session.peerSession?.canShareScreen() ?? false });
+      if (session.screenDetached) {
+        void this.reattachScreen(session);
+      }
     } else if (message.t === 'camera') {
       this.update({ remoteCameraOn: message.on });
+    }
+  }
+
+  private async reattachScreen(session: Session): Promise<void> {
+    const peer = session.peerSession;
+    const stream = session.screen;
+    session.screenDetached = false;
+    if (!peer || !stream) {
+      return;
+    }
+    const video = stream.getVideoTracks()[0];
+    let ok = false;
+    if (video && video.readyState !== 'ended' && peer.canShareScreen()) {
+      await peer.setMovieMode(this.snapshot.movieMode).catch(() => undefined);
+      ok = await peer.setScreenTracks(video, session.shareAudio?.track ?? null, session.screenInfo).catch(() => false);
+    }
+    if (this.session !== session || session.screen !== stream || session.peerSession !== peer) {
+      return;
+    }
+    if (!ok) {
+      this.releaseScreen(session);
+      this.update({ screenSharing: false, localScreenStream: null, shareAudio: false, screenPaused: false, notice: { kind: 'screen-failed' } });
     }
   }
 

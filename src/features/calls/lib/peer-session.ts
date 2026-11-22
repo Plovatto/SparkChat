@@ -624,6 +624,7 @@ export class PeerSession {
       }
     }
     await this.applyCaps();
+    this.announceMedia();
   }
 
   private async replaceWithRetry(sender: RTCRtpSender, track: MediaStreamTrack): Promise<boolean> {
@@ -1067,7 +1068,7 @@ export class PeerSession {
       this.exposeRemoteScreen();
     }
     void this.attachLocalTracks();
-    this.announceCaps();
+    this.announceState();
     const state = this.connection.iceConnectionState;
     if (state === 'connected' || state === 'completed') {
       this.options.onConnection('connected');
@@ -1092,13 +1093,26 @@ export class PeerSession {
       }
       this.options.onControl(message);
     };
-    channel.onopen = () => this.announceCaps();
+    channel.onopen = () => this.announceState();
     this.control = channel;
   }
 
-  private announceCaps(): void {
-    if (this.verified && !this.closed) {
-      this.sendControl({ t: 'caps', screen: this.screenTransceiver() !== undefined });
+  private announceState(): void {
+    if (!this.verified || this.closed) {
+      return;
+    }
+    this.sendControl({ t: 'caps', screen: this.screenTransceiver() !== undefined });
+    this.announceMedia();
+  }
+
+  private announceMedia(): void {
+    if (!this.verified || this.closed) {
+      return;
+    }
+    this.sendControl({ t: 'camera', on: Boolean(this.cameraTransceiver()?.sender.track) });
+    const audio = this.options.localStream?.getAudioTracks()[0];
+    if (audio) {
+      this.sendControl({ t: 'mute', on: !audio.enabled });
     }
   }
 

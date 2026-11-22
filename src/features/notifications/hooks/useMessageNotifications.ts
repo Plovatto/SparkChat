@@ -13,6 +13,7 @@ export function useMessageNotifications(
   isSoundEnabled: boolean,
   onNotificationClick: (roomId: string) => void,
   isContentHidden = true,
+  isChatCovered: () => boolean = () => false,
 ): void {
   const { socket } = useSocket();
   const isContentHiddenRef = useRef(isContentHidden);
@@ -23,6 +24,8 @@ export function useMessageNotifications(
   mutedRoomIdsRef.current = mutedRoomIds;
   const selectedRoomIdRef = useRef(selectedRoomId);
   selectedRoomIdRef.current = selectedRoomId;
+  const isChatCoveredRef = useRef(isChatCovered);
+  isChatCoveredRef.current = isChatCovered;
 
   useEffect(() => {
     if (!socket || (!isNotificationEnabled && !isSoundEnabled)) {
@@ -35,7 +38,7 @@ export function useMessageNotifications(
       }
 
       const isActivelyViewingRoom =
-        document.hasFocus() && document.visibilityState === 'visible' && selectedRoomIdRef.current === message.roomId;
+        document.hasFocus() && document.visibilityState === 'visible' && selectedRoomIdRef.current === message.roomId && !isChatCoveredRef.current();
       if (isActivelyViewingRoom || mutedRoomIdsRef.current.has(message.roomId)) {
         return;
       }
