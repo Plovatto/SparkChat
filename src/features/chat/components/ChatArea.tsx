@@ -5,7 +5,7 @@ import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
-import { MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
+import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translateError } from '@lib/api/api-error';
@@ -199,32 +199,38 @@ interface ChatStatusPillProps {
   italicWeight?: number;
   maxWidth?: string;
   isExiting?: boolean;
+  alignEnd?: boolean;
 }
 
-function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%', isExiting = false }: ChatStatusPillProps) {
+const STATUS_PILL_COLLAPSE_STYLE = { '--sc-collapse-gap': '10px' } as CSSProperties;
+
+function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%', isExiting = false, alignEnd = false }: ChatStatusPillProps) {
   const { theme } = useTheme();
 
   return (
-    <div
-      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        padding: '12px 15px',
-        background: theme.surfaceElevated,
-        border: `1px solid ${theme.borderSubtle}`,
-        borderRadius: '15px',
-        width: 'fit-content',
-        maxWidth,
-        boxShadow: theme.shadowSm,
-      }}
-    >
-      {indicator}
-      <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', fontWeight: italicWeight, whiteSpace: 'nowrap' }}>
-        {text}
-      </span>
-    </div>
+    <Collapse isExiting={isExiting} animateEnter={false} style={STATUS_PILL_COLLAPSE_STYLE}>
+      <div
+        className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+        style={{
+          marginLeft: alignEnd ? 'auto' : undefined,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '12px 15px',
+          background: theme.surfaceElevated,
+          border: `1px solid ${theme.borderSubtle}`,
+          borderRadius: '15px',
+          width: 'fit-content',
+          maxWidth,
+          boxShadow: theme.shadowSm,
+        }}
+      >
+        {indicator}
+        <span style={{ fontSize: '0.85rem', color: theme.textSecondary, fontStyle: 'italic', fontWeight: italicWeight, whiteSpace: 'nowrap' }}>
+          {text}
+        </span>
+      </div>
+    </Collapse>
   );
 }
 
@@ -242,23 +248,25 @@ function BlockedBanner({ tone, icon, text, isExiting = false }: BlockedBannerPro
   const borderColor = tone === 'warning' ? theme.warning : theme.danger;
 
   return (
-    <div
-      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
-      inert={isExiting}
-      style={{
-        background,
-        color,
-        padding: '12px 18px',
-        borderTop: `2px solid ${borderColor}`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        fontSize: '0.9rem',
-      }}
-    >
-      {icon}
-      <strong>{text}</strong>
-    </div>
+    <Collapse isExiting={isExiting}>
+      <div
+        className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+        inert={isExiting}
+        style={{
+          background,
+          color,
+          padding: '12px 18px',
+          borderTop: `2px solid ${borderColor}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          fontSize: '0.9rem',
+        }}
+      >
+        {icon}
+        <strong>{text}</strong>
+      </div>
+    </Collapse>
   );
 }
 
@@ -501,9 +509,21 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       });
     };
 
+    let lastClientHeight = container.clientHeight;
+    const keepBottomPinned = () => {
+      const wasPinned = container.scrollHeight - container.scrollTop - lastClientHeight < 2;
+      lastClientHeight = container.clientHeight;
+      if (wasPinned && isAtBottomRef.current) {
+        container.scrollTop = container.scrollHeight;
+      }
+    };
+
     updateButtonPosition();
     window.addEventListener('resize', updateButtonPosition);
-    const resizeObserver = new ResizeObserver(updateButtonPosition);
+    const resizeObserver = new ResizeObserver(() => {
+      keepBottomPinned();
+      updateButtonPosition();
+    });
     resizeObserver.observe(container);
 
     return () => {
@@ -1124,15 +1144,17 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
         </div>
         {translationSuggestionPresence.isPresent && (
-          <AutoTranslateBanner
-            isExiting={translationSuggestionPresence.isExiting}
-            language={oppositeLanguage(appLanguage)}
-            onAccept={() => {
-              changeAutoTranslate(room.id, true);
-              dismissSuggestion(room.id);
-            }}
-            onDismiss={() => dismissSuggestion(room.id)}
-          />
+          <Collapse isExiting={translationSuggestionPresence.isExiting}>
+            <AutoTranslateBanner
+              isExiting={translationSuggestionPresence.isExiting}
+              language={oppositeLanguage(appLanguage)}
+              onAccept={() => {
+                changeAutoTranslate(room.id, true);
+                dismissSuggestion(room.id);
+              }}
+              onDismiss={() => dismissSuggestion(room.id)}
+            />
+          </Collapse>
         )}
 
         <div
@@ -1419,14 +1441,13 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
               )}
 
               {uploadingPresence.value && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <ChatStatusPill
-                    isExiting={uploadingPresence.isExiting}
-                    indicator={<Spinner size={16} />}
-                    text={t(`chat.uploading.${uploadingPresence.value}`)}
-                    maxWidth="220px"
-                  />
-                </div>
+                <ChatStatusPill
+                  isExiting={uploadingPresence.isExiting}
+                  indicator={<Spinner size={16} />}
+                  text={t(`chat.uploading.${uploadingPresence.value}`)}
+                  maxWidth="220px"
+                  alignEnd
+                />
               )}
             </div>
             <button
@@ -1477,28 +1498,32 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         )}
 
         {replyPresence.isPresent && replyPreviewMessage && (
-          <ReplyPreviewBar
-            key={replyPreviewMessage.id}
-            message={replyPreviewMessage}
-            currentUserId={user.id}
-            isExiting={replyPresence.isExiting}
-            onCancel={() => setRepliedMessage(null)}
-          />
+          <Collapse isExiting={replyPresence.isExiting}>
+            <ReplyPreviewBar
+              key={replyPreviewMessage.id}
+              message={replyPreviewMessage}
+              currentUserId={user.id}
+              isExiting={replyPresence.isExiting}
+              onCancel={() => setRepliedMessage(null)}
+            />
+          </Collapse>
         )}
 
         {failurePresence.value && (
-          <div
-            className={`sc-notice sc-notice--danger ${failurePresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
-            role={failurePresence.isExiting ? undefined : 'alert'}
-            inert={failurePresence.isExiting}
-            style={{ margin: '0 12px 8px', alignItems: 'center' }}
-          >
-            <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1 }}>{failurePresence.value}</span>
-            <button type="button" onClick={dismissFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
-              <FaTimes size={12} />
-            </button>
-          </div>
+          <Collapse isExiting={failurePresence.isExiting}>
+            <div
+              className={`sc-notice sc-notice--danger ${failurePresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
+              role={failurePresence.isExiting ? undefined : 'alert'}
+              inert={failurePresence.isExiting}
+              style={{ margin: '0 12px 8px', alignItems: 'center' }}
+            >
+              <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1 }}>{failurePresence.value}</span>
+              <button type="button" onClick={dismissFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
+                <FaTimes size={12} />
+              </button>
+            </div>
+          </Collapse>
         )}
 
         <ComposerSlot

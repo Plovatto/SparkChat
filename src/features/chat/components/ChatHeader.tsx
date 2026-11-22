@@ -128,7 +128,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
             >
               {!statusText && (
                 <span
-                  key={isOnline ? 'online' : 'offline'}
+                  key={isOnline ? 'dot-online' : 'dot-offline'}
                   className="sc-anim-badge-pop"
                   style={{
                     width: '8px',
@@ -141,7 +141,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                 />
               )}
               <span
-                key={statusText || (isOnline ? 'online' : 'offline')}
+                key={`text-${statusText || (isOnline ? 'online' : 'offline')}`}
                 className="sc-anim-fade-in"
                 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
               >
