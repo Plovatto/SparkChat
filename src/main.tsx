@@ -6,6 +6,7 @@ import { AppProvider } from '@app/provider';
 import { installInviteFragmentCapture } from '@app/invite-fragment';
 import { startPwa } from '@features/pwa';
 import { restoreThemeColorMeta } from '@features/theme/theme-css-vars';
+import { refuseFraming } from '@lib/frame-guard';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@/styles/globals.css';
@@ -15,20 +16,26 @@ import '@/styles/motion.css';
 import '@/styles/reactions.css';
 import '@/styles/responsive.css';
 
-restoreThemeColorMeta();
-installInviteFragmentCapture();
-startPwa();
+function boot(): void {
+  restoreThemeColorMeta();
+  installInviteFragmentCapture();
+  startPwa();
 
-const rootElement = document.getElementById('root');
+  const rootElement = document.getElementById('root');
 
-if (!rootElement) {
-  throw new Error('Root element not found');
+  if (!rootElement) {
+    throw new Error('Root element not found');
+  }
+
+  createRoot(rootElement).render(
+    <StrictMode>
+      <AppProvider>
+        <App />
+      </AppProvider>
+    </StrictMode>,
+  );
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <AppProvider>
-      <App />
-    </AppProvider>
-  </StrictMode>,
-);
+if (!refuseFraming(window)) {
+  boot();
+}
