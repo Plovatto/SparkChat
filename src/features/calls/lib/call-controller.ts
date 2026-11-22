@@ -44,9 +44,10 @@ export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const OTHER_DEVICE_RECHECK_MS = 15_000;
 export const HANGUP_RETRY_MS = 25_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
-export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
+export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200, 2400, 4800];
 export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
 export const CALL_RECONNECT_MAX_MS = 180_000;
+export const CALL_OFFLINE_MAX_MS = CALL_RECONNECT_MAX_MS;
 export const ROOM_WAIT_ATTEMPTS = 30;
 export const ROOM_WAIT_INTERVAL_MS = 100;
 export const NOTIFICATION_ACTION_TTL_MS = 60_000;
@@ -130,6 +131,7 @@ export interface PeerSessionLike {
   setMovieMode: (movie: boolean) => Promise<void>;
   setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
+  refreshBandwidth?: () => Promise<void>;
   getStats: () => Promise<RTCStatsReport>;
   isIceHealthy: () => boolean;
   dropRelayCredentials: () => void;
@@ -359,6 +361,7 @@ export class CallController {
   private lastPhase = IDLE_CALL_STATE.phase;
   private reconnectingSince: number | null = null;
   private reconnectVerdict: string | null = null;
+  private offlineSince: number | null = null;
   private disposed = false;
   private otherDeviceRecheck: ReturnType<typeof setTimeout> | null = null;
   private hangupRetries = new Map<string, ReturnType<typeof setTimeout>>();
@@ -380,7 +383,8 @@ export class CallController {
     this.machine = createCallMachine({
       onEffect: (effect) => this.handleEffect(effect),
       onChange: (state) => this.handleChange(state),
-      extendReconnect: (state) => this.keepReconnecting(state),
+      extendReconnect: (state) => this.keepCallAlive(state, 'reconnecting'),
+      extendConnect: (state) => this.keepCallAlive(state, 'connecting'),
     });
     this.bindSocket();
     this.detach.push(
@@ -434,9 +438,14 @@ export class CallController {
     }
     this.detach.push((this.deps.onPageResume ?? onPageResume)(() => this.resumeFromBackground()));
     if (typeof window !== 'undefined') {
-      const online = () => this.session?.peerSession?.recoverIfUnhealthy('online');
+      const online = () => this.onNetworkChange();
       window.addEventListener('online', online);
       this.detach.push(() => window.removeEventListener('online', online));
+      const connection = (navigator as Navigator & { connection?: EventTarget }).connection;
+      if (connection && typeof connection.addEventListener === 'function') {
+        connection.addEventListener('change', online);
+        this.detach.push(() => connection.removeEventListener('change', online));
+      }
     }
   }
 
@@ -1989,20 +1998,16 @@ export class CallController {
   }
 
   private async createPeer(session: Session): Promise<void> {
-    let result: CallIceServersResult | null = null;
+    let result: CallIceServersResult | null;
     await this.waitForAcceptConfirmation(session);
     if (this.session !== session) {
       return;
     }
     try {
       result = await this.requestIceWithRetry(session);
-    } catch (error) {
-      const code = error instanceof Error ? error.message : 'call.error';
-      if (code === 'call.invalidState') {
-        this.update({ notice: { kind: 'server-error', code } });
-        this.machine.dispatch({ type: 'failure', callId: session.callId, detail: code });
-        return;
-      }
+    } catch {
+      result = null;
+      this.requestSync();
     }
     if (this.session !== session) {
       return;
@@ -2166,6 +2171,23 @@ export class CallController {
     return session.relay.pending === null ? session.relay.relayed : null;
   }
 
+  private onNetworkChange(): void {
+    const state = this.machine.getState();
+    const peer = this.session?.peerSession;
+    if (!state.callId || !isCallLive(state)) {
+      return;
+    }
+    peer?.recoverIfUnhealthy('online');
+    if (this.deps.socket.connected === false) {
+      this.deps.socket.connect?.();
+      return;
+    }
+    if (hasCallMedia(state)) {
+      this.sendHeartbeat(state.callId);
+    }
+    this.requestSync();
+  }
+
   private resumeFromBackground(): void {
     const state = this.machine.getState();
     if (!state.callId || !isCallLive(state)) {
@@ -2218,6 +2240,7 @@ export class CallController {
           if (unstable !== wasUnstable) {
             void peer.setNetworkUnstable(unstable);
           }
+          void peer.refreshBandwidth?.().catch(() => undefined);
         })
         .catch(() => undefined);
     }, STATS_INTERVAL_MS);
@@ -2230,19 +2253,29 @@ export class CallController {
     }
   }
 
-  private keepReconnecting(state: CallState): boolean {
-    if (!state.callId || state.phase !== 'reconnecting' || this.disposed) {
+  private isOffline(): boolean {
+    if (this.deps.socket.connected === false) {
+      return true;
+    }
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  private keepCallAlive(state: CallState, phase: 'connecting' | 'reconnecting'): boolean {
+    if (!state.callId || state.phase !== phase || this.disposed) {
       return false;
     }
-    const since = this.reconnectingSince ?? this.deps.now();
-    if (this.deps.now() - since >= CALL_RECONNECT_MAX_MS) {
-      return false;
+    const now = this.deps.now();
+    if (this.isOffline()) {
+      this.offlineSince ??= this.reconnectingSince ?? now;
+      return now - this.offlineSince < CALL_OFFLINE_MAX_MS;
     }
-    if (this.pageHidden() || this.deps.socket.connected === false) {
+    this.offlineSince = null;
+    if (this.pageHidden()) {
       return true;
     }
     this.reconnectVerdict = state.callId;
     this.requestSync();
+    this.session?.peerSession?.recoverIfUnhealthy('resync');
     return true;
   }
 
@@ -2252,13 +2285,13 @@ export class CallController {
       return;
     }
     this.reconnectVerdict = null;
-    if (state.phase !== 'reconnecting' || payload.peerLive === true) {
+    if ((state.phase !== 'reconnecting' && state.phase !== 'connecting') || payload.peerLive !== false) {
       return;
     }
-    if (this.pageHidden() || this.deps.socket.connected === false) {
+    if (this.pageHidden() || this.isOffline()) {
       return;
     }
-    this.machine.dispatch({ type: 'timeout', callId: payload.callId, timer: 'reconnect' });
+    this.machine.dispatch({ type: 'timeout', callId: payload.callId, timer: state.phase === 'connecting' ? 'connect' : 'reconnect' });
   }
 
   private pageHidden(): boolean {
@@ -2271,11 +2304,12 @@ export class CallController {
   private handleChange(state: CallState): void {
     const previous = this.lastPhase;
     this.lastPhase = state.phase;
-    if (state.phase === 'reconnecting') {
+    if (state.phase === 'reconnecting' || state.phase === 'connecting') {
       this.reconnectingSince ??= this.deps.now();
     } else {
       this.reconnectingSince = null;
       this.reconnectVerdict = null;
+      this.offlineSince = null;
     }
     const patch: Partial<CallSnapshot> = { state };
     if (state.phase === 'ended' && previous !== 'ended') {

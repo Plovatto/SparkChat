@@ -114,6 +114,8 @@ export const AUDIO_MAX_BITRATE = 32_000;
 export const VIDEO_MAX_BITRATE = 1_500_000;
 export const VIDEO_DEGRADED_MAX_BITRATE = 600_000;
 export const VIDEO_UNSTABLE_MAX_BITRATE = 350_000;
+export const VIDEO_MIN_ADAPTIVE_BITRATE = 150_000;
+const UPLINK_CHANGE_RATIO = 0.2;
 export const SCREEN_MAX_BITRATE = 2_500_000;
 export const SCREEN_DEGRADED_MAX_BITRATE = 1_000_000;
 export const SCREEN_AUDIO_MAX_BITRATE = 64_000;
@@ -482,6 +484,7 @@ export class PeerSession {
   private probeInterval = 0;
   private relayCredentialsDropped = false;
   private relayRefresh: Promise<void> | null = null;
+  private uplinkBps: number | null = null;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -1266,6 +1269,31 @@ export class PeerSession {
     await this.applyCaps();
   }
 
+  async refreshBandwidth(): Promise<void> {
+    if (this.closed || !this.verified) {
+      return;
+    }
+    const estimate = await this.uplinkEstimate();
+    if (estimate === null || this.closed) {
+      return;
+    }
+    const previous = this.uplinkBps;
+    if (previous !== null && Math.abs(estimate - previous) < previous * UPLINK_CHANGE_RATIO) {
+      return;
+    }
+    this.uplinkBps = estimate;
+    await this.applyCaps();
+  }
+
+  private fitToUplink(cap: number, sharingScreen: boolean): number {
+    if (this.uplinkBps === null) {
+      return cap;
+    }
+    const share = sharingScreen ? 0.25 : 0.75;
+    const available = Math.floor(this.uplinkBps * share) - AUDIO_MAX_BITRATE;
+    return Math.min(cap, Math.max(VIDEO_MIN_ADAPTIVE_BITRATE, available));
+  }
+
   private async uplinkEstimate(): Promise<number | null> {
     try {
       const report = await this.connection.getStats();
@@ -1323,8 +1351,9 @@ export class PeerSession {
       return;
     }
     const lowerCamera = degradeVideo || this.unstable;
+    const cameraCap = this.unstable ? VIDEO_UNSTABLE_MAX_BITRATE : degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE;
     await this.setSenderCap(videoSender, {
-      maxBitrate: this.unstable ? VIDEO_UNSTABLE_MAX_BITRATE : degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE,
+      maxBitrate: this.fitToUplink(cameraCap, Boolean(screenSender?.track)),
       scaleResolutionDownBy: lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1,
       degradationPreference: 'maintain-framerate',
     });

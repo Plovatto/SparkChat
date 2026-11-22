@@ -18,6 +18,7 @@ import {
   CREDENTIAL_REFRESH_MS,
   DISCONNECTED_RESTART_DELAY_MS,
   DTLS_VERIFY_TIMEOUT_MS,
+  VIDEO_MIN_ADAPTIVE_BITRATE,
   MAX_REMOTE_CANDIDATES,
   PeerSession,
   SCREEN_DEGRADED_MAX_BITRATE,
@@ -935,6 +936,32 @@ describe('bitrate caps and degrade', () => {
   function bitrate(h: Harness, kind: string): unknown {
     return h.connection.transceivers.find((transceiver) => transceiver.receiver.track.kind === kind)?.sender.parameters.encodings[0]?.maxBitrate;
   }
+
+  it('fits the camera into the measured uplink and gives the quality back when the link recovers', async () => {
+    const h = await connected();
+    const uplink = (bps: number) =>
+      h.connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local', availableOutgoingBitrate: bps });
+
+    uplink(500_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(Math.floor(500_000 * 0.75) - AUDIO_MAX_BITRATE);
+
+    uplink(520_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(Math.floor(500_000 * 0.75) - AUDIO_MAX_BITRATE);
+
+    uplink(4_000_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(VIDEO_MAX_BITRATE);
+  });
+
+  it('never squeezes the camera below a usable floor on a very slow uplink', async () => {
+    const h = await connected();
+    h.connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local', availableOutgoingBitrate: 60_000 });
+    await h.session.refreshBandwidth();
+
+    expect(bitrate(h, 'video')).toBe(VIDEO_MIN_ADAPTIVE_BITRATE);
+  });
 
   it('caps audio at 32 kbps and video at 1.5 Mbps', async () => {
     const h = await connected();
