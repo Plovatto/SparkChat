@@ -36,12 +36,6 @@ export function nextOwnReaction(current: string | null, chosen: string): string 
   return current === chosen ? null : chosen;
 }
 
-export function sameReactions(left: readonly MessageReaction[] | undefined, right: readonly MessageReaction[] | undefined): boolean {
-  const a = left ?? [];
-  const b = right ?? [];
-  return a.length === b.length && a.every((reaction, index) => reaction.userId === b[index]?.userId && reaction.emoji === b[index]?.emoji);
-}
-
 export function summarizeReactions(reactions: readonly MessageReaction[] | undefined, currentUserId: string | undefined): ReactionSummary[] {
   const byEmoji = new Map<string, ReactionSummary>();
   for (const reaction of reactions ?? []) {
