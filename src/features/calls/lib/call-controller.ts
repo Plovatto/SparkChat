@@ -57,6 +57,9 @@ const PORT_53 = /:53(?:\?|$)/;
 
 export type CallNoticeKind =
   | 'media-denied'
+  | 'media-busy'
+  | 'no-microphone'
+  | 'camera-degraded'
   | 'key-changed'
   | 'unverifiable'
   | 'other-tab'
@@ -121,7 +124,7 @@ export interface PeerSessionLike {
   recoverIfUnhealthy: (reason: 'online' | 'resync') => void;
   sendControl: (message: ControlMessage) => boolean;
   setMuted: (muted: boolean) => void;
-  setVideoTrack: (track: MediaStreamTrack | null) => Promise<void>;
+  setVideoTrack: (track: MediaStreamTrack | null) => Promise<boolean | void>;
   setAudioTrack: (track: MediaStreamTrack) => Promise<void>;
   canShareScreen: () => boolean;
   setScreenTracks: (video: MediaStreamTrack | null, audio?: MediaStreamTrack | null, info?: ScreenInfo | null) => Promise<boolean>;
@@ -280,6 +283,17 @@ function toScreenInfo(stream: MediaStream): ScreenInfo | null {
   } catch {
     return null;
   }
+}
+
+export function mediaErrorNotice(error: unknown): CallNoticeKind {
+  const name = error instanceof Error || (typeof error === 'object' && error !== null && 'name' in error) ? String((error as { name?: unknown }).name) : '';
+  if (name === 'NotReadableError' || name === 'AbortError' || name === 'TrackStartError') {
+    return 'media-busy';
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
+    return 'no-microphone';
+  }
+  return 'media-denied';
 }
 
 export function sanitizeEndReason(reason: unknown): CallEndReason {
@@ -678,8 +692,8 @@ export class CallController {
       }
       try {
         media = await this.deps.acquireMedia(input.kind);
-      } catch {
-        this.update({ notice: { kind: 'media-denied' } });
+      } catch (error) {
+        this.update({ notice: { kind: mediaErrorNotice(error) } });
         return;
       }
       const callId = await newCallId();
@@ -768,8 +782,8 @@ export class CallController {
       }
       try {
         media = await this.deps.acquireMedia(session.kind);
-      } catch {
-        this.update({ notice: { kind: 'media-denied' } });
+      } catch (error) {
+        this.update({ notice: { kind: mediaErrorNotice(error) } });
         return;
       }
       ek = await generateEphemeralKeyPair();
@@ -915,12 +929,20 @@ export class CallController {
       this.update({ cameraFailed: true });
       return;
     }
+    let sent: boolean | void;
     try {
-      await peer.setVideoTrack(track);
+      sent = await peer.setVideoTrack(track);
     } catch {
       track.stop();
       if (!stale()) {
         this.update({ cameraOn: false, cameraFailed: true });
+      }
+      return;
+    }
+    if (sent === false) {
+      track.stop();
+      if (!stale()) {
+        this.update({ cameraOn: false, notice: { kind: 'camera-degraded' } });
       }
       return;
     }
@@ -965,15 +987,36 @@ export class CallController {
       this.deps.stopMedia(stream);
       return;
     }
+    let endedDuringSetup = false;
+    const onEndedDuringSetup = () => {
+      endedDuringSetup = true;
+    };
+    video.addEventListener('ended', onEndedDuringSetup, { once: true });
     const movie = this.deps.getMovieMode();
-    await this.deps.applyShareConstraints(stream, movie);
-    await peer.setMovieMode(movie);
-    const rawAudio = stream.getAudioTracks()[0] ?? null;
+    let shareAudio: ShareAudio | null = null;
+    let info: ScreenInfo | null = null;
+    let ok: boolean;
+    try {
+      await this.deps.applyShareConstraints(stream, movie);
+      await peer.setMovieMode(movie);
+      const rawAudio = stream.getAudioTracks()[0] ?? null;
+      const volume = this.deps.getShareVolume();
+      shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
+      const described = withMovie(toScreenInfo(stream), movie);
+      info = described ? { ...described, audio: shareAudio !== null } : null;
+      ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
+    } catch {
+      ok = false;
+    } finally {
+      video.removeEventListener('ended', onEndedDuringSetup);
+    }
     const volume = this.deps.getShareVolume();
-    const shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
-    const described = withMovie(toScreenInfo(stream), movie);
-    const info = described ? { ...described, audio: shareAudio !== null } : null;
-    const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
+    if (ok && (endedDuringSetup || video.readyState === 'ended')) {
+      shareAudio?.stop();
+      this.deps.stopMedia(stream);
+      await peer.setScreenTracks(null).catch(() => false);
+      return;
+    }
     if (!ok || this.session !== session || !this.isConnected()) {
       shareAudio?.stop();
       this.deps.stopMedia(stream);
@@ -1586,8 +1629,8 @@ export class CallController {
       const mediaKind: CallKind = carried ? (carried.camera ? 'video' : 'voice') : other.kind;
       try {
         media = await this.deps.acquireMedia(mediaKind);
-      } catch {
-        this.update({ notice: { kind: 'media-denied' } });
+      } catch (error) {
+        this.update({ notice: { kind: mediaErrorNotice(error) } });
         return;
       }
       ek = await generateEphemeralKeyPair();
@@ -2063,6 +2106,16 @@ export class CallController {
       this.releaseScreen(session);
       this.update({ screenSharing: false, localScreenStream: null, shareAudio: false, screenPaused: false, notice: { kind: 'screen-degraded' } });
     }
+    if (step === 'audio-only-relay' && this.snapshot.cameraOn && session.media) {
+      const stream = session.media.stream;
+      for (const track of stream.getVideoTracks()) {
+        track.stop();
+        stream.removeTrack(track);
+      }
+      this.cameraEpoch += 1;
+      this.update({ cameraOn: false, localStream: stream, notice: { kind: 'camera-degraded' } });
+      this.reportMediaChange();
+    }
   }
 
   private startHeartbeat(callId: string): void {
@@ -2255,6 +2308,8 @@ export class CallController {
       void this.deps.tabs.claimRingtone().then((claimed) => {
         if (claimed && this.machine.getState().phase === 'outgoing-ringing') {
           this.deps.startRingtone('outgoing');
+        } else if (claimed) {
+          this.deps.tabs.releaseRingtone();
         }
       });
     }

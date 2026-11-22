@@ -922,6 +922,9 @@
     },
     "notice": {
       "media-denied": "Allow microphone access to make calls.",
+      "media-busy": "Your microphone or camera is being used by another app. Close it and try again.",
+      "no-microphone": "No microphone was found on this device.",
+      "camera-degraded": "Your camera was turned off to keep the call going on this slow connection.",
       "key-changed": "This contact's security key changed. Confirm the new key before calling.",
       "unverifiable": "This contact could not be verified for calls.",
       "other-tab": "There is already a call in another tab.",

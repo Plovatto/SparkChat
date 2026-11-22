@@ -731,25 +731,36 @@ describe('dtls fail closed', () => {
     expect(h.fatals).toEqual(['fingerprint-mismatch']);
   });
 
-  it('fails when ICE connects and no dtls transport can be located', async () => {
+  it('waits for the dtls transport instead of ending the call when it cannot be located yet', async () => {
     const h = await negotiated();
     h.connection.hasTransport = false;
 
     h.connection.setIce('connected');
     await settle();
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS);
+    expect(h.fatals).toEqual([]);
+    expect(h.statuses).toEqual([]);
 
-    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+    h.connection.hasTransport = true;
+    h.connection.setDtls('connected');
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS);
+    expect(h.fatals).toEqual([]);
+    expect(h.statuses).toContain('connected');
   });
 
-  it('fails when the dtls transport is not verified within 10 seconds of ICE connecting', async () => {
+  it('keeps waiting instead of reporting a false security failure when the dtls handshake is slow', async () => {
     const h = await negotiated();
+    h.connection.ontrack?.({ streams: [{ id: 'remote' } as unknown as MediaStream], track: {} });
     h.connection.setIce('connected');
-    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS - 1);
+    await vi.advanceTimersByTimeAsync(DTLS_VERIFY_TIMEOUT_MS * 3);
+
     expect(h.fatals).toEqual([]);
+    expect(h.streams).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(1);
-
-    expect(h.fatals).toEqual(['fingerprint-mismatch']);
+    h.connection.setDtls('connected');
+    await settle();
+    expect(h.fatals).toEqual([]);
+    expect(h.statuses).toContain('connected');
   });
 
   it('clears the watchdog after a successful verification and on close', async () => {
@@ -962,6 +973,32 @@ describe('bitrate caps and degrade', () => {
     expect(h.degrades).toContain('audio-only-relay');
   });
 
+  it('clears the degrade once the call is no longer relayed so screen sharing comes back', async () => {
+    const h = build('caller', { degrade: 'audio-only-relay' });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    await verify(h);
+    expect(h.degrades.at(-1)).toBe('audio-only-relay');
+
+    h.connection.stats.clear();
+    h.connection.setIce('completed');
+    await settle();
+
+    expect(h.degrades.at(-1)).toBeNull();
+  });
+
+  it('reports that the camera was not sent while audio-only-relay applies on a relayed path', async () => {
+    const h = build('caller', { degrade: 'audio-only-relay' });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    await verify(h);
+
+    expect(await h.session.setVideoTrack({ kind: 'video' } as unknown as MediaStreamTrack)).toBe(false);
+    expect(await h.session.setVideoTrack(null)).toBe(true);
+  });
+
   it('keeps video for audio-only-relay when the path is direct', async () => {
     const h = await connected({ degrade: 'audio-only-relay' });
 
@@ -997,6 +1034,23 @@ describe('credential refresh', () => {
 
     await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
     expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops refreshing for good when the call closes while a refresh is in flight', async () => {
+    let release: (value: null) => void = () => undefined;
+    const refresh = vi.fn(() => new Promise<null>((resolve) => (release = resolve)));
+    const h = build('caller', { refreshIceServers: refresh });
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    h.session.close();
+    release(null);
+    await settle();
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS * 3);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it('refreshes six times over a four hour call without restarting ice', async () => {

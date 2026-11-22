@@ -1195,6 +1195,103 @@ function screenStream(withAudio = true) {
   return { stream, video, audio, end: () => fire('ended'), mute: () => fire('mute'), unmute: () => fire('unmute') };
 }
 
+describe('low severity call fixes', () => {
+  it('tells apart a busy, a missing and a denied microphone', async () => {
+    const cases: Array<[string, string]> = [
+      ['NotReadableError', 'media-busy'],
+      ['AbortError', 'media-busy'],
+      ['NotFoundError', 'no-microphone'],
+      ['NotAllowedError', 'media-denied'],
+    ];
+    for (const [name, kind] of cases) {
+      const w = await world({ alice: { acquireMedia: () => Promise.reject(new DOMException('x', name)) } });
+      await w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+      expect(w.a.controller.getSnapshot().notice).toEqual({ kind });
+    }
+  });
+
+  it('stops the screen share when the browser ends it while the share is still being set up', async () => {
+    const screen = screenStream();
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(screen.stream), stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const original = peer.setMovieMode.bind(peer);
+    peer.setMovieMode = (movie) => {
+      screen.end();
+      return original(movie);
+    };
+
+    await w.a.controller.toggleScreenShare();
+
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+    expect(screen.video.stopped).toBe(true);
+    expect(peer.screenTracks.at(-1)).toEqual({ video: null, audio: null });
+  });
+
+  it('releases the screen stream when applying the share constraints fails', async () => {
+    const screen = screenStream();
+    const w = await world({
+      alice: {
+        acquireScreen: () => Promise.resolve(screen.stream),
+        applyShareConstraints: () => Promise.reject(new Error('constraints')),
+        stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } },
+      },
+    });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+
+    await expect(w.a.controller.toggleScreenShare()).resolves.toBeUndefined();
+
+    expect(screen.video.stopped).toBe(true);
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+  });
+
+  it('gives the ringtone back when the outgoing ring ended before the claim was granted', async () => {
+    const w = await world();
+    let grant: (claimed: boolean) => void = () => undefined;
+    const release = vi.fn();
+    w.a.deps.tabs.claimRingtone = () => new Promise<boolean>((resolve) => (grant = resolve));
+    w.a.deps.tabs.releaseRingtone = release;
+    w.a.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        w.a.socket.receive('call:ended', { callId: payload.callId, reason: 'busy', endedAt: 1 });
+      }
+    };
+
+    await w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    const before = release.mock.calls.length;
+    grant(true);
+    await settle();
+
+    expect(release.mock.calls.length).toBe(before + 1);
+    expect(w.a.rings).not.toContain('outgoing');
+  });
+
+  it('turns the camera off and stops it when audio-only-relay keeps video from being sent', async () => {
+    const stopped: string[] = [];
+    const camera = { kind: 'video', readyState: 'live', stop: () => stopped.push('cam') };
+    const tracks: unknown[] = [];
+    const stream = {
+      getTracks: () => [...tracks],
+      getAudioTracks: () => [],
+      getVideoTracks: () => tracks.filter((track) => (track as { kind: string }).kind === 'video'),
+      addTrack: (track: unknown) => void tracks.push(track),
+      removeTrack: (track: unknown) => void tracks.splice(tracks.indexOf(track), 1),
+    } as unknown as MediaStream;
+    const w = await world({ alice: { acquireMedia: () => Promise.resolve({ stream, cameraFailed: false }), acquireCamera: () => Promise.resolve(camera as unknown as MediaStreamTrack) } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    peer.setVideoTrack = () => Promise.resolve(false as unknown as void);
+
+    await w.a.controller.toggleCamera();
+
+    expect(stopped).toEqual(['cam']);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, notice: { kind: 'camera-degraded' } });
+  });
+});
+
 describe('screen share', () => {
   async function activeCall(acquireScreen: () => Promise<MediaStream | null>) {
     const w = await world({ alice: { acquireScreen, stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
