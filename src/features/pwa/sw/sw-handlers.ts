@@ -11,7 +11,7 @@ import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '../../profile
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
-  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string }
+  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string; e?: number }
   | { t: 'call-end'; callId: string; reason: string }
   | { t: 'msg'; roomId: string; preview?: PushMessagePreview };
 
@@ -131,7 +131,14 @@ export function parsePushMessage(raw: unknown): PushMessage | null {
   switch (value.t) {
     case 'call':
       if (isSafeId(value.callId) && isSafeId(value.roomId) && (value.kind === 'voice' || value.kind === 'video')) {
-        return { t: 'call', callId: value.callId, roomId: value.roomId, kind: value.kind, ...(isDeclineToken(value.d) ? { d: value.d } : {}) };
+        return {
+          t: 'call',
+          callId: value.callId,
+          roomId: value.roomId,
+          kind: value.kind,
+          ...(isDeclineToken(value.d) ? { d: value.d } : {}),
+          ...(typeof value.e === 'number' && Number.isFinite(value.e) ? { e: value.e } : {}),
+        };
       }
       return null;
     case 'call-end':
@@ -223,7 +230,7 @@ async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language
     renotify: true,
     requireInteraction: true,
     vibrate: CALL_VIBRATION,
-    data: { kind: 'call', callId: message.callId, roomId: message.roomId, ...(message.d ? { declineToken: message.d } : {}) },
+    data: { kind: 'call', callId: message.callId, roomId: message.roomId, ...(message.d ? { declineToken: message.d } : {}), ...(message.e ? { ringExpiresAt: message.e } : {}) },
   };
   if (env.maxActions() >= 2) {
     options.actions = [
@@ -232,6 +239,16 @@ async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language
     ];
   }
   await env.showNotification(strings.incomingCall, options);
+}
+
+async function closeExpiredCalls(env: WorkerEnvironment): Promise<void> {
+  const notifications = await env.getNotifications('').catch(() => []);
+  for (const notification of notifications) {
+    const data = readNotificationData(notification.data);
+    if (data.kind === 'call' && data.ringExpiresAt !== undefined && data.ringExpiresAt <= env.now()) {
+      notification.close();
+    }
+  }
 }
 
 async function showCallEnd(env: WorkerEnvironment, strings: WorkerStrings, language: 'pt' | 'en', message: Extract<PushMessage, { t: 'call-end' }>): Promise<void> {
@@ -318,6 +335,7 @@ export async function handlePush(env: WorkerEnvironment, state: WorkerState, raw
   try {
     switch (message?.t) {
       case 'call':
+        await closeExpiredCalls(env);
         await showCall(env, strings, language, message);
         return;
       case 'call-end':
@@ -338,7 +356,7 @@ function pickClient(clients: WorkerWindowClient[]): WorkerWindowClient | undefin
   return clients.find((client) => client.focused) ?? clients.find((client) => client.visibilityState === 'visible') ?? clients[0];
 }
 
-function readNotificationData(data: unknown): { kind?: string; callId?: string; roomId?: string; declineToken?: string } {
+function readNotificationData(data: unknown): { kind?: string; callId?: string; roomId?: string; declineToken?: string; ringExpiresAt?: number } {
   if (typeof data !== 'object' || data === null) {
     return {};
   }
@@ -348,13 +366,19 @@ function readNotificationData(data: unknown): { kind?: string; callId?: string; 
     callId: isSafeId(value.callId) ? value.callId : undefined,
     roomId: isSafeId(value.roomId) ? value.roomId : undefined,
     declineToken: isDeclineToken(value.declineToken) ? value.declineToken : undefined,
+    ringExpiresAt: typeof value.ringExpiresAt === 'number' ? value.ringExpiresAt : undefined,
   };
 }
 
 export async function handleNotificationClick(env: WorkerEnvironment, notification: WorkerNotification, action: string): Promise<void> {
   notification.close();
-  const data = readNotificationData(notification.data);
+  const read = readNotificationData(notification.data);
+  const expired = read.kind === 'call' && read.ringExpiresAt !== undefined && read.ringExpiresAt <= env.now();
+  const data = expired ? { kind: 'msg', roomId: read.roomId } : read;
   const clients = await env.windowClients();
+  if (expired && action === NOTIFICATION_ACTION_DECLINE) {
+    return;
+  }
 
   if (data.kind === 'call' && action === NOTIFICATION_ACTION_DECLINE) {
     if (data.callId) {

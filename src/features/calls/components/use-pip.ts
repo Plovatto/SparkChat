@@ -26,6 +26,8 @@ export function usePip({ mode, videoFor, active, auto, onUserClose }: UsePipOpti
   onUserCloseRef.current = onUserClose;
   const windowRef = useRef<Window | null>(null);
   const closingRef = useRef(false);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   const close = useCallback(() => {
     const current = windowRef.current;
@@ -60,6 +62,10 @@ export function usePip({ mode, videoFor, active, auto, onUserClose }: UsePipOpti
       }
       try {
         const opened = await host.requestWindow({ ...PIP_WINDOW_SIZE });
+        if (!activeRef.current) {
+          opened.close();
+          return;
+        }
         copyStyles(document, opened.document);
         opened.addEventListener(
           'pagehide',
@@ -86,6 +92,10 @@ export function usePip({ mode, videoFor, active, auto, onUserClose }: UsePipOpti
       }
       try {
         await video.requestPictureInPicture();
+        if (!activeRef.current) {
+          void document.exitPictureInPicture().catch(() => undefined);
+          return;
+        }
         setVideoOpen(true);
         video.addEventListener(
           'leavepictureinpicture',
