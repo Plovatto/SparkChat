@@ -19,6 +19,7 @@ import { AvatarPicker } from '@features/auth/components/AvatarPicker';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { removeMyPhoto, uploadMyPhoto, useUserPhoto } from '@features/profile-photos';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
 import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
@@ -302,6 +303,7 @@ export function EditProfileModal({
 
   const hasProfileFieldChanges = nickname !== user.nickname || avatar !== user.avatar;
   const hasChanges = hasProfileFieldChanges || photo.saveAction !== 'none';
+  const saveBarPresence = usePresence(hasChanges, MOTION_DURATION_MS.fast);
   const isNicknameChanging = isNicknameChange(user.nickname, nickname);
   const saveProfileDisabled = (isNicknameChanging && !profilePassword) || isDeriving || isSavingPhoto;
 
@@ -547,8 +549,12 @@ export function EditProfileModal({
 
           {profileError && <small key={profileError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
-          {hasChanges && (
-            <div style={{ display: 'flex', gap: '12px' }}>
+          {saveBarPresence.isPresent && (
+            <div
+              className={saveBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+              inert={saveBarPresence.isExiting}
+              style={{ display: 'flex', gap: '12px' }}
+            >
               <button
                 onClick={() => {
                   setNickname(user.nickname);
