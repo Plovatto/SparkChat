@@ -2011,6 +2011,19 @@ describe('running in the background', () => {
     expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
   });
 
+  it('measures the offline window from when the network dropped, not from when reconnecting started', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS + 10_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 2);
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+  });
+
   it('keeps reconnecting against a server that does not report the peer while the network works', async () => {
     const w = await interruptedCall();
     w.a.socket.onEmit = (event) => {
@@ -2058,6 +2071,7 @@ describe('running in the background', () => {
     w.b.socket.connected = true;
     await connectCall(w);
     w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
 
     await vi.advanceTimersByTimeAsync(CALL_OFFLINE_MAX_MS - CALL_CONNECT_TIMEOUT_MS);
     expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
@@ -2110,6 +2124,7 @@ describe('running in the background', () => {
     const w = await interruptedCall();
     doc.visibilityState = 'hidden';
     w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
 
     await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
@@ -2137,6 +2152,7 @@ describe('running in the background', () => {
     const w = await interruptedCall();
     w.a.socket.onEmit = null;
     w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
 
     await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');

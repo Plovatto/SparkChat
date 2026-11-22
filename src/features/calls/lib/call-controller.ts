@@ -439,7 +439,11 @@ export class CallController {
       ['call:state', (payload: CallStatePayload | null) => void this.onServerState(payload)],
       ['call:ice-servers-result', (payload: CallIceServersResult) => this.onIceResult(payload)],
       ['error', (payload: SocketErrorPayload) => this.onSocketError(payload)],
-      ['connect', () => this.requestSync()],
+      ['connect', () => {
+        this.offlineSince = null;
+        this.requestSync();
+      }],
+      ['disconnect', () => this.noteOffline()],
       ['user:resumed', () => this.requestSync()],
       ['user:registered', () => this.requestSync()],
     ];
@@ -2306,6 +2310,13 @@ export class CallController {
     }
   }
 
+  private noteOffline(): void {
+    const state = this.machine.getState();
+    if (state.callId && isCallLive(state)) {
+      this.offlineSince ??= this.deps.now();
+    }
+  }
+
   private isOffline(): boolean {
     if (this.deps.socket.connected === false) {
       return true;
@@ -2319,7 +2330,7 @@ export class CallController {
     }
     const now = this.deps.now();
     if (this.isOffline()) {
-      this.offlineSince ??= this.reconnectingSince ?? now;
+      this.offlineSince ??= now;
       return now - this.offlineSince < CALL_OFFLINE_MAX_MS;
     }
     this.offlineSince = null;
