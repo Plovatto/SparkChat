@@ -342,6 +342,7 @@ export interface CallStatePayload {
   role: 'caller' | 'callee';
   answeredAt?: string | null;
   transferable?: boolean;
+  resumable?: boolean;
   peerLive?: boolean;
   media?: CallMediaStateWire;
 }

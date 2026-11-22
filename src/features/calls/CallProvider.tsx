@@ -29,6 +29,7 @@ import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
 import { subscribeNotificationCallActions } from './lib/notification-actions';
+import { tabDeviceToken } from './lib/tab-device';
 import './styles/calls.css';
 import './styles/incoming-call.css';
 import './styles/call-bar.css';
@@ -100,6 +101,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
       acquireWakeLock: () => void acquireWakeLock(),
       releaseWakeLock,
       now: () => Date.now(),
+      tabDevice: () => tabDeviceToken(),
     });
     setController(instance);
     return () => {
