@@ -1093,3 +1093,61 @@ html.sc-theme-transition *::after {
     transform: none;
   }
 }
+
+@keyframes scCollapseOpen {
+  from {
+    grid-template-rows: 0fr;
+    margin-top: calc(-1 * var(--sc-collapse-gap, 0px));
+  }
+  to {
+    grid-template-rows: 1fr;
+    margin-top: 0;
+  }
+}
+
+@keyframes scCollapseClose {
+  from {
+    grid-template-rows: 1fr;
+    margin-top: 0;
+  }
+  to {
+    grid-template-rows: 0fr;
+    margin-top: calc(-1 * var(--sc-collapse-gap, 0px));
+  }
+}
+
+.sc-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  min-width: 0;
+}
+
+.sc-collapse > .sc-collapse__inner {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sc-collapse[data-settled] > .sc-collapse__inner {
+  overflow: visible;
+}
+
+.sc-collapse--enter {
+  animation: scCollapseOpen var(--sc-dur-normal) var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-collapse.is-exiting {
+  animation: scCollapseClose var(--sc-dur-fast) var(--sc-ease-standard) forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-collapse--enter,
+  .sc-collapse.is-exiting {
+    animation: none;
+  }
+
+  .sc-collapse > .sc-collapse__inner {
+    overflow: visible;
+  }
+}
