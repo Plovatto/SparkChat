@@ -25,7 +25,7 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
-import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { useLatchedPresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { useEscapeKey } from '@hooks/useEscapeKey';
@@ -115,7 +115,6 @@ export function Sidebar({
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
   const [isEditingStatus, setIsEditingStatus] = useState(false);
-  const selectionBarPresence = usePresence(isSelectionMode && selectedIds.size > 0, MOTION_DURATION_MS.fast);
   const [statusDraft, setStatusDraft] = useState(user.statusText ?? '');
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -209,6 +208,19 @@ export function Sidebar({
   const allSelectedAreFavorited =
     favoritableSelectedIds.length > 0 && favoritableSelectedIds.every((roomId) => favoriteRoomIds.has(roomId));
   const allSelectedAreMuted = selectedIds.size > 0 && Array.from(selectedIds).every((roomId) => mutedRoomIds.has(roomId));
+  const hasSelectionBar = isSelectionMode && selectedIds.size > 0;
+  const canFavoriteSelection = favoritableSelectedIds.length > 0;
+  const selectionBarActions = useMemo(
+    () =>
+      hasSelectionBar
+        ? { canFavorite: canFavoriteSelection, allFavorited: allSelectedAreFavorited, allMuted: allSelectedAreMuted }
+        : null,
+    [hasSelectionBar, canFavoriteSelection, allSelectedAreFavorited, allSelectedAreMuted],
+  );
+  const selectionBarPresence = useLatchedPresence(selectionBarActions);
+  const showFavoriteAction = selectionBarPresence.value?.canFavorite ?? false;
+  const favoriteActionUndoes = selectionBarPresence.value?.allFavorited ?? false;
+  const muteActionUndoes = selectionBarPresence.value?.allMuted ?? false;
 
   const sortedRooms = useMemo(
     () =>
@@ -531,7 +543,7 @@ export function Sidebar({
             justifyContent: 'center',
           }}
         >
-          {favoritableSelectedIds.length > 0 && (
+          {showFavoriteAction && (
             <IconPillButton
               onClick={handleFavoriteSelected}
               fontSize="0.78rem"
@@ -540,7 +552,7 @@ export function Sidebar({
               withShadow={false}
               icon={<FaStar size={11} />}
               tone="warning"
-              label={allSelectedAreFavorited ? t('sidebar.unfavorite') : t('sidebar.favorite')}
+              label={favoriteActionUndoes ? t('sidebar.unfavorite') : t('sidebar.favorite')}
             />
           )}
           <IconPillButton
@@ -549,9 +561,9 @@ export function Sidebar({
             gap="7px"
             paddingRight="12px"
             withShadow={false}
-            icon={allSelectedAreMuted ? <FaBell size={11} /> : <FaBellSlash size={11} />}
+            icon={muteActionUndoes ? <FaBell size={11} /> : <FaBellSlash size={11} />}
             tone="accent"
-            label={allSelectedAreMuted ? t('sidebar.unmute') : t('sidebar.mute')}
+            label={muteActionUndoes ? t('sidebar.unmute') : t('sidebar.mute')}
           />
           <IconPillButton
             onClick={() => setShowConfirmDelete(true)}
