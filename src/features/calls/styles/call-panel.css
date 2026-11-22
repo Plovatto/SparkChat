@@ -202,8 +202,10 @@
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms ease;
 }
 
-.sc-call-panel-action:hover {
-  opacity: 0.88;
+@media (hover: hover) {
+  .sc-call-panel-action:hover {
+    opacity: 0.88;
+  }
 }
 
 .sc-call-panel-action:active {

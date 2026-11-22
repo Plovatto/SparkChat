@@ -2337,6 +2337,59 @@ describe('live device switching', () => {
     expect(call.log).toEqual(['acquire mic', 'send audio leveled', 'stop mic-a']);
   });
 
+  it('rewires the old microphone into the processing chain when sending the new one fails', async () => {
+    const next = fakeTrack('audio', 'mic-b', []);
+    const inputs: unknown[] = [];
+    const output = { kind: 'audio', label: 'leveled', enabled: true } as unknown as MediaStreamTrack;
+    const leveler: VoiceLeveler = {
+      track: output,
+      processed: true,
+      sendStream: () => ({ getAudioTracks: () => [output], getVideoTracks: () => [], getTracks: () => [output] }) as unknown as MediaStream,
+      setInput: (track) => {
+        inputs.push(track);
+        return output;
+      },
+      setVolume: () => undefined,
+      setMuted: () => undefined,
+      close: () => undefined,
+    };
+    const call = await cameraCall({ mics: [next], leveler });
+    call.peer.setAudioTrack = () => Promise.reject(new Error('replace failed'));
+
+    await call.w.a.controller.switchMicrophone();
+
+    expect(inputs).toEqual([next, call.mic]);
+    expect(next.readyState).toBe('ended');
+    expect(call.mic.readyState).toBe('live');
+    expect(call.media.tracks).toContain(call.mic);
+  });
+
+  it('turns the camera off cleanly when the retry opened a camera but sending it fails', async () => {
+    const next = fakeTrack('video', 'cam-back', []);
+    const call = await cameraCall({ cameras: [null, next] });
+    const original = call.peer.setVideoTrack.bind(call.peer);
+    call.peer.setVideoTrack = (track) => (track ? Promise.reject(new Error('replace failed')) : original(track));
+
+    await call.w.a.controller.switchCamera();
+
+    expect(next.readyState).toBe('ended');
+    expect(call.media.tracks.some((track) => track.kind === 'video')).toBe(false);
+    expect(call.peer.videoTrack).toBeNull();
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, cameraFailed: true });
+  });
+
+  it('keeps the old camera when sending the new one fails and the old one is still open', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const call = await cameraCall({ cameras: [next] });
+    call.peer.setVideoTrack = () => Promise.reject(new Error('replace failed'));
+
+    await call.w.a.controller.switchCamera();
+
+    expect(next.readyState).toBe('ended');
+    expect(call.camera.readyState).toBe('live');
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(true);
+  });
+
   it('keeps the old microphone when no other microphone can be opened even after releasing it', async () => {
     const call = await cameraCall({ mics: [null, null] });
 
@@ -2374,6 +2427,38 @@ describe('changing the shared screen', () => {
     second.end();
     await settle();
     expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+  });
+
+  it('releases the new capture when preparing it throws and allows another try', async () => {
+    const first = screenStream();
+    const second = screenStream();
+    const third = screenStream(false);
+    const screens = [first.stream, second.stream, third.stream];
+    let fail = false;
+    const w = await world({
+      alice: {
+        acquireScreen: () => Promise.resolve(screens.shift() ?? null),
+        applyShareConstraints: () => (fail ? Promise.reject(new Error('constraints')) : Promise.resolve()),
+        stopMedia: (stream) => {
+          for (const track of stream?.getTracks() ?? []) {
+            track.stop();
+          }
+        },
+      },
+    });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+    fail = true;
+
+    await w.a.controller.changeScreenSource();
+
+    expect(second.video.stopped).toBe(true);
+    expect(first.video.stopped).toBe(false);
+    expect(w.a.controller.getSnapshot().localScreenStream).toBe(first.stream);
+    fail = false;
+    await w.a.controller.changeScreenSource();
+    expect(w.a.controller.getSnapshot().localScreenStream).toBe(third.stream);
   });
 
   it('keeps the current share when picking another source is cancelled', async () => {

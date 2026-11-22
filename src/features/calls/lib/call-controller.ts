@@ -1034,7 +1034,7 @@ export class CallController {
       track?.stop();
       return;
     }
-    if (!track) {
+    const dropCamera = async () => {
       for (const old of previous) {
         old.stop();
         stream.removeTrack(old);
@@ -1042,12 +1042,18 @@ export class CallController {
       await peer.setVideoTrack(null).catch(() => undefined);
       this.update({ cameraOn: false, cameraFailed: true, localStream: stream });
       this.reportMediaChange();
+    };
+    if (!track) {
+      await dropCamera();
       return;
     }
     try {
       await peer.setVideoTrack(track);
     } catch {
       track.stop();
+      if (previous.some((old) => old.readyState === 'ended') && this.session === session) {
+        await dropCamera();
+      }
       return;
     }
     if (this.session !== session) {
@@ -1073,10 +1079,15 @@ export class CallController {
     const stream = session.media.stream;
     const previous = stream.getAudioTracks();
     track.enabled = !this.snapshot.muted;
+    const voice = this.voice;
     try {
-      await peer.setAudioTrack(this.voice ? this.voice.setInput(track) : track);
+      await peer.setAudioTrack(voice ? voice.setInput(track) : track);
     } catch {
       track.stop();
+      const restore = previous.find((old) => old.readyState !== 'ended');
+      if (voice && restore && this.voice === voice) {
+        voice.setInput(restore);
+      }
       return;
     }
     if (this.session !== session) {
@@ -1137,38 +1148,55 @@ export class CallController {
       return;
     }
     session.screenPending = true;
-    const stream = await this.deps.acquireScreen().catch(() => null);
-    session.screenPending = false;
-    const video = stream?.getVideoTracks()[0];
-    if (!stream || !video) {
-      if (stream) {
-        this.deps.stopMedia(stream);
+    let stream: MediaStream | null = null;
+    let shareAudio: ShareAudio | null = null;
+    let adopted = false;
+    try {
+      stream = await this.deps.acquireScreen().catch(() => null);
+      const video = stream?.getVideoTracks()[0];
+      const stillCurrent = () => this.session === session && session.screen === current && session.peerSession === peer && this.isConnected();
+      const ended = () => video?.readyState === 'ended';
+      if (!stream || !video || ended() || !stillCurrent()) {
+        return;
       }
-      return;
-    }
-    if (this.session !== session || session.screen !== current || session.peerSession !== peer || !this.isConnected()) {
-      this.deps.stopMedia(stream);
-      return;
-    }
-    const movie = this.snapshot.movieMode;
-    await this.deps.applyShareConstraints(stream, movie);
-    const rawAudio = stream.getAudioTracks()[0] ?? null;
-    const volume = this.deps.getShareVolume();
-    const shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
-    const described = withMovie(toScreenInfo(stream), movie);
-    const info = described ? { ...described, audio: shareAudio !== null } : null;
-    const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
-    if (!ok || this.session !== session || session.screen !== current) {
-      shareAudio?.stop();
-      this.deps.stopMedia(stream);
-      if (ok && this.session === session && session.screen === current) {
-        await peer.setScreenTracks(current.getVideoTracks()[0] ?? null, session.shareAudio?.track ?? null, session.screenInfo).catch(() => false);
+      const movie = this.snapshot.movieMode;
+      await this.deps.applyShareConstraints(stream, movie);
+      const rawAudio = stream.getAudioTracks()[0] ?? null;
+      const volume = this.deps.getShareVolume();
+      shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
+      const described = withMovie(toScreenInfo(stream), movie);
+      const info = described ? { ...described, audio: shareAudio !== null } : null;
+      if (!stillCurrent()) {
+        return;
       }
+      const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
+      if (!ok) {
+        return;
+      }
+      if (!stillCurrent()) {
+        if (this.session === session && session.peerSession === peer && session.screen) {
+          await peer.setScreenTracks(session.screen.getVideoTracks()[0] ?? null, session.shareAudio?.track ?? null, session.screenInfo).catch(() => false);
+        }
+        return;
+      }
+      this.releaseScreen(session);
+      this.adoptScreen(session, stream, shareAudio, info);
+      adopted = true;
+      this.update({ screenSharing: true, screenPaused: false, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume });
+      if (ended()) {
+        void this.stopScreenShare();
+      }
+    } catch {
       return;
+    } finally {
+      session.screenPending = false;
+      if (!adopted) {
+        shareAudio?.stop();
+        if (stream) {
+          this.deps.stopMedia(stream);
+        }
+      }
     }
-    this.releaseScreen(session);
-    this.adoptScreen(session, stream, shareAudio, info);
-    this.update({ screenSharing: true, screenPaused: false, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume });
   }
 
   private adoptScreen(session: Session, stream: MediaStream, shareAudio: ShareAudio | null, info: ScreenInfo | null): void {

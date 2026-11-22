@@ -206,7 +206,6 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
     }
   }, [shareAudioVolume, shareAudioRef]);
 
-
   const statusText = (() => {
     switch (state.phase) {
       case 'outgoing-ringing':

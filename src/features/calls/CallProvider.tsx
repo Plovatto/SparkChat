@@ -38,6 +38,7 @@ interface CallProviderProps {
 }
 
 const noopSubscribe = () => () => undefined;
+const DEVICE_CHANGE_SETTLE_MS = 300;
 const emptySnapshot = () => EMPTY_CALL_SNAPSHOT;
 
 function isBlocked(room: RoomSummary): boolean {
@@ -137,6 +138,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   }, [phase]);
 
   const [outputFallback, setOutputFallback] = useState(false);
+  const mediaRootRef = useRef<HTMLDivElement>(null);
   const callRunning = phase !== 'idle' && phase !== 'ended';
   const outputRef = useRef('');
   outputRef.current = outputFallback ? '' : devicePrefs.get().audioOutput;
@@ -145,7 +147,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
     if (!callRunning) {
       return;
     }
-    const route = routeCallOutput(document.body, () => outputRef.current);
+    const route = routeCallOutput(mediaRootRef.current ?? document.body, () => outputRef.current);
     const stop = devicePrefs.subscribe(() => {
       outputRef.current = outputFallback ? '' : devicePrefs.get().audioOutput;
       route.refresh();
@@ -167,8 +169,17 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
       return;
     }
     let cancelled = false;
-    const check = () => {
-      void listDevices().then((lists) => {
+    let busy = false;
+    let again = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      if (busy) {
+        again = true;
+        return;
+      }
+      busy = true;
+      try {
+        const lists = await listDevices();
         if (cancelled) {
           return;
         }
@@ -176,19 +187,32 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
         const prefs = devicePrefs.get();
         const verdict = deviceFallback(lists, { mic: stream?.getAudioTracks()[0] ?? null, camera: cameraOnRef.current ? (stream?.getVideoTracks()[0] ?? null) : null, prefs });
         setOutputFallback(verdict.output !== prefs.audioOutput);
-        if (verdict.mic) {
-          void controller.switchMicrophone();
+        await Promise.all([verdict.mic ? controller.switchMicrophone() : null, verdict.camera ? controller.switchCamera() : null]);
+      } finally {
+        busy = false;
+        if (again && !cancelled) {
+          again = false;
+          schedule();
         }
-        if (verdict.camera) {
-          void controller.switchCamera();
-        }
-      });
+      }
     };
-    check();
-    navigator.mediaDevices.addEventListener('devicechange', check);
+    const schedule = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        void check();
+      }, DEVICE_CHANGE_SETTLE_MS);
+    };
+    void check();
+    navigator.mediaDevices.addEventListener('devicechange', schedule);
     return () => {
       cancelled = true;
-      navigator.mediaDevices.removeEventListener?.('devicechange', check);
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      navigator.mediaDevices.removeEventListener?.('devicechange', schedule);
     };
   }, [controller, mediaRunning]);
 
@@ -358,7 +382,9 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   return (
     <CallContext value={api}>
       {children}
-      <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
+      <div ref={mediaRootRef} style={{ display: 'contents' }}>
+        <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
+      </div>
       <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
       <CallMiniBar />
       <IncomingCallModal />
