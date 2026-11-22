@@ -520,6 +520,7 @@ export function Sidebar({
       {selectionBarPresence.isPresent && (
         <div
           className={selectionBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+          inert={selectionBarPresence.isExiting}
           style={{
             background: theme.sidebar,
             borderTop: `1px solid ${theme.border}`,

@@ -550,7 +550,11 @@ export function EditProfileModal({
           {profileError && <small key={profileError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
           {saveBarPresence.isPresent && (
-            <div className={saveBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'} style={{ display: 'flex', gap: '12px' }}>
+            <div
+              className={saveBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+              inert={saveBarPresence.isExiting}
+              style={{ display: 'flex', gap: '12px' }}
+            >
               <button
                 onClick={() => {
                   setNickname(user.nickname);
