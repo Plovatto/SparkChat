@@ -1,5 +1,5 @@
 import { LANDING_THEME_STORAGE_KEY, LOGIN_DARK_MODE_STORAGE_KEY } from '@constants/storage-keys';
-import { COLOR_THEMES, type ColorThemeId } from '@features/theme/constants/color-themes';
+import { COLOR_THEMES, DEFAULT_COLOR_THEME, type ColorThemeId } from '@features/theme/constants/color-themes';
 import { THEME_BASES, type ThemeBaseId } from '@features/theme/constants/theme-bases';
 import type { ThemeKind } from '@features/theme/types';
 
@@ -19,7 +19,7 @@ export interface StoredLandingTheme extends LandingThemeChoice {
 
 export const DEFAULT_LANDING_THEME: LandingThemeChoice = {
   base: 'dark',
-  color: 'standard',
+  color: DEFAULT_COLOR_THEME,
   wallpaper: 'unsplash11',
 };
 

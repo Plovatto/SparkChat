@@ -8,6 +8,10 @@ import { Landing } from './Landing';
 import '@/styles/motion.css';
 import '@/styles/theme.css';
 import './styles/landing.css';
+import './styles/showcase.css';
+import './styles/landing-motion.css';
+import './styles/landing-scroll.css';
+import './styles/landing-hero-bg.css';
 
 const rootElement = document.getElementById('root');
 

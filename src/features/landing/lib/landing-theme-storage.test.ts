@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_COLOR_THEME } from '@features/theme/constants/color-themes';
 import {
   DEFAULT_LANDING_THEME,
   LANDING_THEME_KEY,
@@ -25,6 +26,11 @@ function createStorage(): Storage {
 }
 
 describe('parseLandingTheme', () => {
+  it('opens with the same default color theme as the app', () => {
+    expect(DEFAULT_LANDING_THEME.color).toBe(DEFAULT_COLOR_THEME);
+    expect(DEFAULT_LANDING_THEME.color).toBe('duskViolet');
+  });
+
   it('returns null for empty or malformed values', () => {
     expect(parseLandingTheme(null, WALLPAPERS)).toBeNull();
     expect(parseLandingTheme('not json', WALLPAPERS)).toBeNull();

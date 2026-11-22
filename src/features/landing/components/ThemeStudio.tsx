@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildTheme } from '@features/theme/build-theme';
 import { CHAT_BACKGROUNDS } from '@features/theme/constants/chat-backgrounds';
 import { COLOR_THEMES, type ColorThemeId } from '@features/theme/constants/color-themes';
 import { useThemeNames } from '@features/theme/hooks/useThemeNames';
+import { FaChevronDown } from 'react-icons/fa';
 import { APP_URL } from '../constants/content';
 import { LANDING_MODES } from '../constants/modes';
 import { LANDING_WALLPAPERS, findLandingWallpaper } from '../constants/wallpapers';
@@ -21,6 +22,8 @@ const WALLPAPER_TOTAL = CHAT_BACKGROUNDS.filter((background) => background.backg
 export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
   const { t } = useTranslation('landing');
   const names = useThemeNames();
+  const [showAll, setShowAll] = useState(false);
+  const swatchesId = useId();
   const gradients = useMemo(
     () => COLOR_IDS.map((id) => ({ id, gradient: buildTheme(theme.base, id).tokens.gradient })),
     [theme.base],
@@ -31,7 +34,7 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
   const wallpaperName = wallpaper ? names.wallpaper(wallpaper.id) : null;
 
   return (
-    <section id="temas" className="lp-section lp-section--sunken" aria-labelledby="temas-title">
+    <section id="temas" className="lp-section" aria-labelledby="temas-title">
       <div className="lp-container lp-studio">
         <div className="lp-studio__controls">
           <div className="lp-section__intro lp-section__intro--start">
@@ -68,7 +71,7 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
             <span id="studio-color-label" className="lp-studio__label">
               {t('studio.color')} <span className="lp-studio__current">{colorName}</span>
             </span>
-            <div className="lp-swatches">
+            <div id={swatchesId} className="lp-swatches" data-expanded={showAll ? 'true' : undefined}>
               {gradients.map((swatch) => (
                 <button
                   key={swatch.id}
@@ -83,6 +86,10 @@ export function ThemeStudio({ theme, onSelect }: ThemeStudioProps) {
                 />
               ))}
             </div>
+            <button type="button" className="sc-btn sc-btn--ghost lp-swatches__toggle" aria-expanded={showAll} aria-controls={swatchesId} onClick={() => setShowAll((value) => !value)}>
+              {showAll ? t('studio.showLess') : t('studio.showAll', { count: COLOR_IDS.length })}
+              <FaChevronDown size={11} aria-hidden="true" className="lp-swatches__chevron" />
+            </button>
           </div>
 
           <div className="lp-studio__group" role="group" aria-labelledby="studio-wallpaper-label">

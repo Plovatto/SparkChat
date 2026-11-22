@@ -13,6 +13,7 @@ interface SiteHeaderProps {
 
 const NAV_ITEMS = [
   { href: '#recursos', key: 'features' },
+  { href: '#chamadas', key: 'calls' },
   { href: '#temas', key: 'themes' },
   { href: '#seguranca', key: 'security' },
   { href: '#perguntas', key: 'faq' },

@@ -26,7 +26,8 @@ export function PhonePreview({ wallpaper, colorName, modePhrase }: PhonePreviewP
           </div>
         </div>
 
-        <div className="lp-phone__messages" style={wallpaper ? { background: wallpaper, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}>
+        <div className="lp-phone__messages">
+          {wallpaper && <span key={wallpaper} className="lp-phone__wall" style={{ background: wallpaper, backgroundSize: 'cover', backgroundPosition: 'center' }} />}
           <div className="lp-bubble" data-own="false">
             {t('preview.phoneWelcome')}
             <span className="lp-bubble__meta">09:41</span>

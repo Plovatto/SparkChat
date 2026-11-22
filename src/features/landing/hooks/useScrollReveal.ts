@@ -2,12 +2,16 @@ import { useLayoutEffect } from 'react';
 
 const REVEAL_SELECTOR = [
   '.lp-section__intro',
-  '.lp-feature',
+  '.lp-bento__card',
+  '.lp-more',
+  '.lp-calls__tabs',
+  '.lp-calls__visual',
+  '.lp-calls__caption',
+  '.lp-calls__facts',
   '.lp-studio__controls',
   '.lp-studio__preview',
-  '.lp-shot',
   '.lp-step',
-  '.lp-security__note',
+  '.lp-vault',
   '.lp-faq > *',
   '.lp-cta__inner',
 ].join(',');
