@@ -25,6 +25,7 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { useEscapeKey } from '@hooks/useEscapeKey';
@@ -114,6 +115,7 @@ export function Sidebar({
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
   const [isEditingStatus, setIsEditingStatus] = useState(false);
+  const selectionBarPresence = usePresence(isSelectionMode && selectedIds.size > 0, MOTION_DURATION_MS.fast);
   const [statusDraft, setStatusDraft] = useState(user.statusText ?? '');
   const { theme } = useTheme();
   const { socket } = useSocket();
@@ -358,7 +360,7 @@ export function Sidebar({
                 onChange={(event) => setStatusDraft(event.target.value)}
                 onBlur={commitStatusDraft}
                 onKeyDown={handleStatusInputKeyDown}
-                className="sc-input sc-input--header"
+                className="sc-input sc-input--header sc-anim-fade-in"
                 style={{
                   marginTop: '3px',
                   marginLeft: '-6px',
@@ -371,7 +373,7 @@ export function Sidebar({
               <div
                 onClick={handleStartEditStatus}
                 title={t('sidebar.editStatus')}
-                className="sc-header-status"
+                className="sc-header-status sc-anim-fade-in"
                 style={{
                   marginTop: '3px',
                   marginLeft: '-6px',
@@ -515,9 +517,9 @@ export function Sidebar({
 
       <IncomingCallSlot />
 
-      {isSelectionMode && selectedIds.size > 0 && (
+      {selectionBarPresence.isPresent && (
         <div
-          className="sc-anim-rise-in"
+          className={selectionBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
           style={{
             background: theme.sidebar,
             borderTop: `1px solid ${theme.border}`,
