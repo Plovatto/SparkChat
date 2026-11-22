@@ -189,6 +189,8 @@ Toda mudança passa pelas mesmas etapas antes de ir para o ar.
 - [`ci.yml`](.github/workflows/ci.yml) roda o lint, a checagem de tipos e os testes a cada push e pull request na `main`.
 - [`deploy-pages.yml`](.github/workflows/deploy-pages.yml) gera o build e publica o site a cada push na `main`.
 - O [CodeQL](https://github.com/Plovatto/SparkChat/security/code-scanning) analisa o código, e o [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/Plovatto/SparkChat) roda toda semana.
+- [`lighthouse.yml`](.github/workflows/lighthouse.yml) audita as páginas de apresentação em português e inglês em acessibilidade, boas práticas e SEO.
+- [`pr-title.yml`](.github/workflows/pr-title.yml) confere se o título do pull request segue o formato gitmoji com Conventional Commits.
 - O Dependabot agrupa as atualizações de dependências.
 - Os modelos de tradução são baixados e conferidos por sha256 durante o build.
 
@@ -196,7 +198,7 @@ Toda mudança passa pelas mesmas etapas antes de ir para o ar.
 
 ## Como executar
 
-Requer [Node.js](https://nodejs.org/) 20 ou mais recente e npm. Para testar a experiência completa, mantenha a [SparkChat API](https://github.com/Plovatto/API-SparkChat) rodando também.
+Requer [Node.js](https://nodejs.org/) 20 ou mais recente (o CI usa a versão do [`.nvmrc`](.nvmrc)) e npm. Para testar a experiência completa, mantenha a [SparkChat API](https://github.com/Plovatto/API-SparkChat) rodando também.
 
 1. Clone o repositório e instale as dependências:
 
@@ -339,7 +341,7 @@ No DNS, o subdomínio `sparkchat` é um registro `CNAME` apontando para `plovatt
 
 ## Como contribuir
 
-Issues e pull requests são bem-vindos. Leia o [guia de contribuição](CONTRIBUTING.md) para conhecer as convenções de branch, commit e pull request.
+Issues e pull requests são bem-vindos. Leia o [guia de contribuição](CONTRIBUTING.md) para conhecer as convenções de branch, commit e pull request, e siga o [código de conduta](CODE_OF_CONDUCT.md).
 
 ## Segurança
 
@@ -347,7 +349,7 @@ Não abra issues públicas para vulnerabilidades. Relate de forma privada, como 
 
 ## Changelog
 
-As mudanças de cada versão estão na [página de releases](https://github.com/Plovatto/SparkChat/releases).
+As mudanças relevantes ficam no [changelog](CHANGELOG.md), e cada versão é publicada na [página de releases](https://github.com/Plovatto/SparkChat/releases).
 
 ## Autora
 

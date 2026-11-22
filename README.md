@@ -189,6 +189,8 @@ Every change goes through the same steps before it goes live.
 - [`ci.yml`](.github/workflows/ci.yml) runs lint, the type check, and the tests on every push and pull request to `main`.
 - [`deploy-pages.yml`](.github/workflows/deploy-pages.yml) builds and publishes the site on every push to `main`.
 - [CodeQL](https://github.com/Plovatto/SparkChat/security/code-scanning) scans the code, and the [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/Plovatto/SparkChat) runs every week.
+- [`lighthouse.yml`](.github/workflows/lighthouse.yml) audits the Portuguese and English presentation pages for accessibility, best practices, and SEO.
+- [`pr-title.yml`](.github/workflows/pr-title.yml) checks that pull request titles follow the gitmoji and Conventional Commits format.
 - Dependabot groups dependency updates.
 - The translation models are downloaded and verified by sha256 during the build.
 
@@ -196,7 +198,7 @@ Every change goes through the same steps before it goes live.
 
 ## Getting started
 
-Requires [Node.js](https://nodejs.org/) 20 or newer and npm. To test the full experience, keep the [SparkChat API](https://github.com/Plovatto/API-SparkChat) running too.
+Requires [Node.js](https://nodejs.org/) 20 or newer (CI uses the version in [`.nvmrc`](.nvmrc)) and npm. To test the full experience, keep the [SparkChat API](https://github.com/Plovatto/API-SparkChat) running too.
 
 1. Clone the repository and install the dependencies:
 
@@ -339,7 +341,7 @@ In DNS, the `sparkchat` subdomain is a `CNAME` record pointing to `plovatto.gith
 
 ## Contributing
 
-Issues and pull requests are welcome. Read the [contributing guide](CONTRIBUTING.md) for the branch, commit, and pull request conventions.
+Issues and pull requests are welcome. Read the [contributing guide](CONTRIBUTING.md) for the branch, commit, and pull request conventions, and follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Security
 
@@ -347,7 +349,7 @@ Please do not open public issues for vulnerabilities. Report them privately as d
 
 ## Changelog
 
-Notable changes for each release are listed on the [releases page](https://github.com/Plovatto/SparkChat/releases).
+Notable changes are recorded in the [changelog](CHANGELOG.md), and each version is published on the [releases page](https://github.com/Plovatto/SparkChat/releases).
 
 ## Author
 
