@@ -1052,6 +1052,8 @@
       "relay": "Connection through a server (TURN)"
     },
     "broadcast": {
+      "changeSource": "Change what you share",
+      "changeSourceHint": "Pick another screen, window or tab without stopping the share",
       "sending": "You are sharing",
       "receiving": "You are watching",
       "movie": "Movie mode",

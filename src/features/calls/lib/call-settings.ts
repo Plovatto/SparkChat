@@ -12,6 +12,7 @@ const SHARE_MONITOR_VOLUME_KEY = 'chatCallShareMonitorVolume';
 const MIC_VOLUME_KEY = 'chatCallMicVolume';
 const CALL_VOLUME_KEY = 'chatCallVolume';
 const DUCK_LEVEL_KEY = 'chatCallDuckLevel';
+const DEVICES_KEY = 'chatCallDevices';
 
 export interface AudioProcessing {
   noiseSuppression: boolean;
@@ -200,4 +201,68 @@ export function useCallVolume(): [number, (value: number) => number] {
 
 export function useDuckLevel(): [number, (value: number) => number] {
   return useVolumeSetting(duckLevel);
+}
+
+export interface DevicePrefs {
+  audioInput: string;
+  videoInput: string;
+  audioOutput: string;
+  facing: 'user' | 'environment';
+}
+
+export const DEFAULT_DEVICE_PREFS: DevicePrefs = { audioInput: '', videoInput: '', audioOutput: '', facing: 'user' };
+
+const deviceListeners = new Set<Listener>();
+let cachedDevicesRaw: string | null | undefined;
+let cachedDevices: DevicePrefs = DEFAULT_DEVICE_PREFS;
+
+function readDevicePrefs(): DevicePrefs {
+  const stored = getItem<Partial<Record<keyof DevicePrefs, unknown>>>(DEVICES_KEY);
+  const raw = stored === null ? null : JSON.stringify(stored);
+  if (raw === cachedDevicesRaw) {
+    return cachedDevices;
+  }
+  const next = { ...DEFAULT_DEVICE_PREFS };
+  if (stored && typeof stored === 'object') {
+    for (const key of ['audioInput', 'videoInput', 'audioOutput'] as const) {
+      const value = stored[key];
+      if (typeof value === 'string' && value.length <= 512) {
+        next[key] = value;
+      }
+    }
+    if (stored.facing === 'environment' || stored.facing === 'user') {
+      next.facing = stored.facing;
+    }
+  }
+  cachedDevicesRaw = raw;
+  cachedDevices = next;
+  return next;
+}
+
+export const devicePrefs = {
+  get: readDevicePrefs,
+  set: (patch: Partial<DevicePrefs>): DevicePrefs => {
+    setItem(DEVICES_KEY, { ...readDevicePrefs(), ...patch });
+    for (const listener of Array.from(deviceListeners)) {
+      listener();
+    }
+    return readDevicePrefs();
+  },
+  subscribe: (listener: Listener): (() => void) => {
+    deviceListeners.add(listener);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === DEVICES_KEY) {
+        listener();
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => {
+      deviceListeners.delete(listener);
+      window.removeEventListener('storage', onStorage);
+    };
+  },
+};
+
+export function useDevicePrefs(): DevicePrefs {
+  return useSyncExternalStore(devicePrefs.subscribe, devicePrefs.get, () => DEFAULT_DEVICE_PREFS);
 }

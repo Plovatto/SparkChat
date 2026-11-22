@@ -5,6 +5,7 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useCall } from '../call-context';
 import { speakingClass } from '../lib/self-speaking';
 import { isMounted } from '../lib/presence';
+import { useDevicePrefs } from '../lib/call-settings';
 import { usePresence } from './use-presence';
 import { DevicePicker, type BroadcastSettings, type DeviceSelection } from './DevicePicker';
 
@@ -25,7 +26,8 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const [showDevices, setShowDevices] = useState(false);
   const panelStage = usePresence(showDevices, 220, 160);
   const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined);
-  const [selected, setSelected] = useState<DeviceSelection>({ audioInput: '', videoInput: '', audioOutput: '' });
+  const prefs = useDevicePrefs();
+  const selected: DeviceSelection = { audioInput: prefs.audioInput, videoInput: prefs.videoInput, audioOutput: prefs.audioOutput };
   const settingsRef = useRef<HTMLButtonElement>(null);
   const popover = useMediaQuery('(min-width: 600px)');
   const { snapshot } = call;
@@ -138,18 +140,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
             selected={selected}
             maxHeight={panelHeight}
             trigger={settingsRef}
-            onAudioInput={(deviceId) => {
-              setSelected((current) => ({ ...current, audioInput: deviceId }));
-              call.changeAudioInput(deviceId);
-            }}
-            onVideoInput={(deviceId) => {
-              setSelected((current) => ({ ...current, videoInput: deviceId }));
-              call.changeVideoInput(deviceId);
-            }}
-            onAudioOutput={(deviceId) => {
-              setSelected((current) => ({ ...current, audioOutput: deviceId }));
-              onAudioOutput(deviceId);
-            }}
+            onAudioInput={call.changeAudioInput}
+            onVideoInput={call.changeVideoInput}
+            onAudioOutput={onAudioOutput}
             onClose={closeDevices}
           />
         )}

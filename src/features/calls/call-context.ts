@@ -46,6 +46,8 @@ export interface CallApi {
   transferHere: () => void;
   changeAudioInput: (deviceId: string) => void;
   changeVideoInput: (deviceId: string) => void;
+  changeAudioOutput: (deviceId: string) => void;
+  changeScreenSource: () => void;
   changeAudioProcessing: (patch: Partial<AudioProcessing>) => void;
   primePlayback: () => void;
   hasStatusBar: boolean;
