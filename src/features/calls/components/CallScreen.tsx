@@ -254,6 +254,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
   const bannerStage = usePresence(snapshot.screenSharing && layout.main !== 'local-screen', 240, 180);
   const me = useMemo(() => (hidden ? null : getStoredSession()), [hidden]);
   const meAvatar = me && AVATARS[me.avatar] ? me.avatar : undefined;
+  const myPhoto = useUserPhoto(me?.id ?? null);
   const ended = state.phase === 'ended';
   const ringing = state.phase === 'outgoing-ringing' || state.phase === 'connecting';
   const reconnecting = state.phase === 'reconnecting';
@@ -589,7 +590,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
             title={localStage ? t('calls.share.yourScreen') : t('calls.share.peerTitle', { name: peerName })}
             detail={localStage ? ownSurfaceText : peerSurfaceText}
             remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? snapshot.remoteStream : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
-            self={snapshot.cameraOn ? { name: t('calls.you'), avatar: undefined, stream: snapshot.localStream, speaking: localSpeaking, muted: snapshot.muted } : null}
+            self={{ name: t('calls.you'), avatar: meAvatar === undefined ? undefined : AVATARS[meAvatar], photo: myPhoto, stream: snapshot.cameraOn ? snapshot.localStream : null, speaking: localSpeaking, muted: snapshot.muted }}
             myScreen={layout.localScreenTile ? snapshot.localScreenStream : null}
             stageRef={stageRef}
             streamVideoRef={screenRef}
