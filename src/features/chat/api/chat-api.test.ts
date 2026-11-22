@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@lib/api/api-error';
 import { uploadChatAudio, uploadChatFile, uploadChatImage, uploadLinkPreviewImage } from './chat-api';
 
-const variants = vi.hoisted(() => ({ original: null as Blob | null, thumbnail: null as Blob | null }));
+const variants = vi.hoisted(() => ({ original: null as Blob | null, thumbnail: null as Blob | null, decodable: true }));
 
 vi.mock('@config/env', () => ({ env: { apiUrl: 'https://api.test' } }));
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key, hasTranslation: () => false }));
@@ -19,6 +19,7 @@ vi.mock('@lib/e2ee', () => ({
 }));
 vi.mock('@lib/media/image-compression', () => ({
   buildImageVariants: (file: File) => Promise.resolve({ original: variants.original ?? file, thumbnail: variants.thumbnail }),
+  canDecodeImage: () => Promise.resolve(variants.decodable),
 }));
 
 const auth = { userId: 'user-1', sessionToken: 'token' };
@@ -37,6 +38,7 @@ beforeEach(() => {
   sealed.length = 0;
   variants.original = null;
   variants.thumbnail = null;
+  variants.decodable = true;
   nextResponse = (index) =>
     Response.json(
       { url: `https://cdn.test/uploads/x/${index}.bin?e2e=1`, name: 'server-name.exe', mimeType: 'text/html' },
@@ -140,6 +142,48 @@ describe('chat attachment uploads', () => {
       payload: { code: 'upload.invalidType', params: { kind: 'audio' } },
     });
     expect(uploads).toHaveLength(0);
+  });
+
+  it('refuses an image the browser cannot decode without uploading anything', async () => {
+    variants.decodable = false;
+
+    await expect(uploadChatImage(new File(['just text'], 'fake.jpg', { type: 'image/jpeg' }), auth, TARGET)).rejects.toMatchObject({
+      fallbackKey: 'chat.upload.imageUnreadable',
+    });
+    expect(uploads).toHaveLength(0);
+    expect(sealed).toHaveLength(0);
+  });
+
+  it('still sends a decodable image when only the thumbnail could not be built', async () => {
+    const uploaded = await uploadChatImage(new File(['png'], 'photo.png', { type: 'image/png' }), auth, TARGET);
+
+    expect(uploads).toHaveLength(1);
+    expect(uploaded.thumbnailUrl).toBeUndefined();
+  });
+
+  it('refuses attachments over the server limits before encrypting them', async () => {
+    const oversized = (bytes: number) => new Uint8Array(bytes);
+    await expect(uploadChatFile(new File([oversized(50 * 1024 * 1024 + 1)], 'big.pdf', { type: 'application/pdf' }), auth, TARGET)).rejects.toMatchObject({
+      payload: { code: 'upload.tooLarge', params: { kind: 'file', maxSize: '50MB' } },
+    });
+    variants.thumbnail = new Blob(['thumb'], { type: 'image/webp' });
+    await expect(uploadChatImage(new File([oversized(5 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' }), auth, TARGET)).rejects.toMatchObject({
+      payload: { code: 'upload.tooLarge', params: { kind: 'image', maxSize: '5MB' } },
+    });
+    await expect(uploadChatAudio(new Blob([oversized(8 * 1024 * 1024 + 1)]), 'audio/webm', auth, TARGET)).rejects.toMatchObject({
+      payload: { code: 'upload.tooLarge', params: { kind: 'audio', maxSize: '8MB' } },
+    });
+    expect(uploads).toHaveLength(0);
+    expect(sealed).toHaveLength(0);
+  });
+
+  it('accepts an image whose compressed version fits the limit', async () => {
+    variants.original = new Blob(['small'], { type: 'image/webp' });
+    variants.thumbnail = new Blob(['thumb'], { type: 'image/webp' });
+
+    await uploadChatImage(new File([new Uint8Array(6 * 1024 * 1024)], 'huge.png', { type: 'image/png' }), auth, TARGET);
+
+    expect(uploads).toHaveLength(2);
   });
 
   it('surfaces the server error payload when the upload fails', async () => {

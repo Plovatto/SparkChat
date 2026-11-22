@@ -3,7 +3,7 @@ import { ApiError, toApiError } from '@lib/api/api-error';
 import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
 import { sealAttachment, type AttachmentBinding } from '@lib/e2ee';
 import { GifTooLargeError, padGif } from '@lib/media/gif-padding';
-import { buildImageVariants } from '@lib/media/image-compression';
+import { buildImageVariants, canDecodeImage } from '@lib/media/image-compression';
 import { buildGifMimeType, isGifMediaType } from '@lib/media/media-type';
 
 export interface SealedUpload {
@@ -57,6 +57,14 @@ const ALLOWED_MIME_TYPES: Record<UploadKind, ReadonlySet<string>> = {
 
 const ALLOWED_FILE_EXTENSIONS = new Set(['pdf', 'mp4', 'webm', 'mov', 'avi', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt', 'csv']);
 
+const MEGABYTE = 1024 * 1024;
+
+const MAX_UPLOAD_MEGABYTES: Record<Exclude<UploadKind, 'gif'>, number> = {
+  image: 5,
+  audio: 8,
+  file: 50,
+};
+
 const FALLBACK_ERROR_KEY: Record<UploadKind, string> = {
   image: 'chat.upload.imageFailed',
   audio: 'chat.upload.audioFailed',
@@ -85,6 +93,13 @@ function assertAllowedType(kind: UploadKind, mimeType: string, name?: string): v
   const allowedExtension = kind !== 'file' || ALLOWED_FILE_EXTENSIONS.has(fileExtension(name ?? ''));
   if (!allowedMime || !allowedExtension) {
     throw new ApiError({ code: 'upload.invalidType', params: { kind } }, FALLBACK_ERROR_KEY[kind]);
+  }
+}
+
+function assertWithinSizeLimit(kind: Exclude<UploadKind, 'gif'>, content: Blob): void {
+  const maxMegabytes = MAX_UPLOAD_MEGABYTES[kind];
+  if (content.size > maxMegabytes * MEGABYTE) {
+    throw new ApiError({ code: 'upload.tooLarge', params: { kind, maxSize: `${maxMegabytes}MB` } }, FALLBACK_ERROR_KEY[kind]);
   }
 }
 
@@ -120,6 +135,10 @@ export async function uploadChatImage(file: File, auth: SessionAuth, target: Att
   const { original, thumbnail } = await buildImageVariants(file);
   const mimeType = original === file ? file.type : original.type;
   assertAllowedType('image', mimeType);
+  if (!thumbnail && !(await canDecodeImage(original))) {
+    throw new ApiError({}, 'chat.upload.imageUnreadable');
+  }
+  assertWithinSizeLimit('image', original);
 
   const [content, preview] = await Promise.all([
     uploadEncryptedAttachment('image', original, auth, { ...target, slot: 'content' }),
@@ -136,12 +155,14 @@ export async function uploadChatImage(file: File, auth: SessionAuth, target: Att
 
 export async function uploadChatAudio(blob: Blob, mimeType: string, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedMedia> {
   assertAllowedType('audio', mimeType);
+  assertWithinSizeLimit('audio', blob);
   const { url, key } = await uploadEncryptedAttachment('audio', blob, auth, { ...target, slot: 'content' });
   return { url, key, mimeType };
 }
 
 export async function uploadChatFile(file: File, auth: SessionAuth, target: AttachmentTarget): Promise<UploadedFile> {
   assertAllowedType('file', file.type, file.name);
+  assertWithinSizeLimit('file', file);
   const { url, key } = await uploadEncryptedAttachment('file', file, auth, { ...target, slot: 'content' });
   return { url, key, name: file.name, mimeType: file.type, size: file.size };
 }
