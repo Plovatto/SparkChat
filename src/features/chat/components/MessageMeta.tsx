@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { FaCheck, FaExclamationCircle, FaRegClock } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useTheme, type ResolvedBubbleStyle } from '@features/theme';
@@ -31,6 +31,9 @@ export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry, leadi
   const isOverlay = placement === 'overlay';
   const mutedColor = isOverlay ? OVERLAY_TEXT : bubble.mutedTextColor;
   const statusColor = statusInfo?.read ? (isOverlay ? OVERLAY_READ : theme.receiptRead) : mutedColor;
+  const tickState = statusInfo ? (statusInfo.read ? 'read' : statusInfo.icon) : 'none';
+  const mountedTickStateRef = useRef(tickState);
+  const tickAnimation = tickState !== mountedTickStateRef.current ? tickState : undefined;
 
   const status = message.pending ? (
     <FaRegClock size={10} color={mutedColor} className="sc-anim-pulse-soft" />
@@ -48,7 +51,7 @@ export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry, leadi
     </button>
   ) : (
     statusInfo && (
-      <span key={statusInfo.icon + String(statusInfo.read)} className="sc-meta__ticks sc-anim-badge-pop">
+      <span key={tickState} className="sc-meta__ticks" data-animate={tickAnimation}>
         <FaCheck size={10} color={statusColor} />
         {statusInfo.icon === 'double' && <FaCheck size={10} color={statusColor} style={{ marginLeft: '-5px' }} />}
       </span>

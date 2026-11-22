@@ -543,6 +543,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               lg={4}
               md={5}
               xs={12}
+              className={isWideLayout ? undefined : 'sc-pane-list'}
               style={{
                 padding: 0,
                 height: '100%',
@@ -587,6 +588,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               lg={8}
               md={7}
               xs={12}
+              className={isWideLayout ? undefined : 'sc-pane-chat'}
               style={{
                 padding: 0,
                 height: '100%',

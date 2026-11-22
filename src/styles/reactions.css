@@ -609,3 +609,103 @@ button.sc-reactors-row:active {
     transform: none;
   }
 }
+
+@keyframes scReactionEmojiBurst {
+  0% {
+    transform: scale(0.6) rotate(-12deg);
+  }
+  45% {
+    transform: scale(1.38) rotate(6deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes scReactionRing {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.45);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@keyframes scReactionSparks {
+  0% {
+    opacity: 1;
+    transform: scale(0.35);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.sc-reaction-chip__emoji {
+  display: inline-block;
+}
+
+.sc-reaction-chip__emoji--burst {
+  animation: scReactionEmojiBurst 460ms var(--sc-spring-bouncy, var(--sc-ease-spring));
+}
+
+.sc-reaction-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.sc-reaction-burst::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: -16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--sc-accent);
+  opacity: 0;
+  animation: scReactionRing 420ms var(--sc-ease-enter) forwards;
+}
+
+.sc-reaction-burst::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow:
+    0 -22px 0 var(--sc-accent),
+    16px -16px 0 var(--sc-warning),
+    22px 0 0 var(--sc-accent),
+    16px 16px 0 var(--sc-warning),
+    0 22px 0 var(--sc-accent),
+    -16px 16px 0 var(--sc-warning),
+    -22px 0 0 var(--sc-accent),
+    -16px -16px 0 var(--sc-warning);
+  animation: scReactionSparks 520ms var(--sc-ease-enter) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-reaction-chip__emoji--burst,
+  .sc-reaction-burst::before,
+  .sc-reaction-burst::after {
+    animation: none;
+  }
+
+  .sc-reaction-burst {
+    display: none;
+  }
+}
