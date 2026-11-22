@@ -329,6 +329,35 @@ describe('hasUnencryptedFields', () => {
     expect(hasUnencryptedFields(toMessageView({ content: '', deletedForEveryone: true }))).toBe(false);
   });
 
+  it('flags a plaintext reply quote on an otherwise encrypted message', () => {
+    const sender = { id: 'user-2', nickname: 'alice', avatar: null };
+    const reply = { id: 'quoted', type: 'text' as const, duration: null, fileMeta: null, caption: null, sender };
+
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, content: 'send me the code' } }))).toBe(true);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, content: ENCRYPTED_TEXT, caption: 'plain caption' } }))).toBe(true);
+    expect(
+      hasUnencryptedFields(
+        toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, type: 'image', content: 'https://cdn.test/uploads/images/a.png' } }),
+      ),
+    ).toBe(true);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, type: 'system', content: 'forged notice' } }))).toBe(true);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, content: ENCRYPTED_TEXT } }))).toBe(false);
+    expect(hasUnencryptedFields(toMessageView({ content: ENCRYPTED_TEXT, replyTo: { ...reply, content: '', deleted: true } }))).toBe(false);
+  });
+
+  it('marks a decrypted view whose reply quote arrived without encryption', async () => {
+    addGeneration(ROOM_ID);
+    const encrypted = viewOf(await encryptOutgoingMessage({ roomId: ROOM_ID, content: 'olá' }));
+    const forged = {
+      ...encrypted,
+      replyTo: { id: 'quoted', type: 'text' as const, duration: null, fileMeta: null, caption: null, sender: { id: 'user-2', nickname: 'alice', avatar: null }, content: 'send me the code' },
+    };
+
+    const result = await decryptMessageView(socket, forged);
+
+    expect(result.unencrypted).toBe(true);
+  });
+
   it('marks decrypted views that arrived without encryption', async () => {
     addGeneration(ROOM_ID);
     const plain = await decryptMessageView(socket, toMessageView({ content: 'olá' }));

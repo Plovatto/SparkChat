@@ -89,6 +89,7 @@
       "contentMismatch": "O conteúdo do arquivo não corresponde ao tipo declarado.",
       "quotaExceeded": "Limite de armazenamento do servidor atingido. Tente novamente mais tarde.",
       "userQuotaExceeded": "Você atingiu o seu limite de armazenamento. Apague arquivos antigos para enviar novos.",
+      "newAccountQuotaExceeded": "Contas novas têm um limite menor de armazenamento nos primeiros 7 dias. Apague arquivos antigos ou tente novamente depois.",
       "invalidType_avatar": "Formato de foto inválido. Use uma imagem JPEG, PNG ou WEBP.",
       "tooLarge_avatar": "A foto excede o tamanho máximo permitido de {{maxSize}}.",
       "invalidType_gif": "Tipo de GIF inválido. Escolha outro GIF da galeria.",

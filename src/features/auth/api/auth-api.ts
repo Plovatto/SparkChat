@@ -82,6 +82,9 @@ export async function loginWithRecovery({ userId, recoveryKey }: RecoveryLoginIn
 export async function checkNicknameAvailability(nickname: string): Promise<NicknameAvailabilityStatus> {
   const response = await fetch(`${env.apiUrl}/api/users/nickname-availability?nickname=${encodeURIComponent(nickname)}`);
   const data = (await response.json().catch(() => null)) as Partial<NicknameAvailabilityResponse> | null;
+  if (!response.ok) {
+    throw toApiError(data, 'errors.user.nicknameCheckFailed');
+  }
 
   return data?.status ?? 'invalid';
 }
