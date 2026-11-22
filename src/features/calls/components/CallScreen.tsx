@@ -489,7 +489,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
               <span className="sc-call-topbar__name">{peerName}</span>
               <span className="sc-call-topbar__dot" data-live={state.phase === 'active'} aria-hidden="true" />
               <span className="sc-call-topbar__status" aria-live="polite">
-                {state.kind === 'video' ? <LuVideo size={13} aria-hidden="true" /> : <LuPhone size={13} aria-hidden="true" />}
+                {isVideo ? <LuVideo size={13} aria-hidden="true" /> : <LuPhone size={13} aria-hidden="true" />}
                 <span>{statusText}</span>
               </span>
             </div>
