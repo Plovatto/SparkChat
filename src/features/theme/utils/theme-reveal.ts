@@ -5,6 +5,8 @@ const REVEAL_CLASS = 'sc-theme-reveal';
 const REVEAL_DURATION_MS = 560;
 const REVEAL_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
+let activeReveals = 0;
+
 export interface RevealOrigin {
   x: number;
   y: number;
@@ -32,8 +34,10 @@ export function revealThemeChange(origin: RevealOrigin | null, apply: () => void
   const y = origin?.y ?? window.innerHeight / 2;
   const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
   const root = document.documentElement;
+  activeReveals += 1;
   root.classList.add(REVEAL_CLASS);
   const transition = document.startViewTransition(() => flushSync(apply));
+  transition.updateCallbackDone?.catch(() => undefined);
 
   transition.ready
     .then(() => {
@@ -43,5 +47,12 @@ export function revealThemeChange(origin: RevealOrigin | null, apply: () => void
       );
     })
     .catch(() => undefined);
-  transition.finished.finally(() => root.classList.remove(REVEAL_CLASS)).catch(() => undefined);
+  transition.finished
+    .finally(() => {
+      activeReveals -= 1;
+      if (activeReveals === 0) {
+        root.classList.remove(REVEAL_CLASS);
+      }
+    })
+    .catch(() => undefined);
 }

@@ -61,6 +61,29 @@ describe('revealThemeChange', () => {
     delete (document.documentElement as { animate?: unknown }).animate;
   });
 
+  it('keeps the colour transition disabled until the last of overlapping reveals finishes', async () => {
+    const resolvers: (() => void)[] = [];
+    Object.defineProperty(document.documentElement, 'animate', { configurable: true, value: vi.fn() });
+    stubViewTransitions((callback) => {
+      callback();
+      const finished = new Promise<void>((resolve) => {
+        resolvers.push(resolve);
+      });
+      return { ready: Promise.resolve(), finished };
+    });
+
+    revealThemeChange(null, vi.fn());
+    revealThemeChange(null, vi.fn());
+    resolvers[0]?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.documentElement.classList.contains('sc-theme-reveal')).toBe(true);
+
+    resolvers[1]?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.documentElement.classList.contains('sc-theme-reveal')).toBe(false);
+    delete (document.documentElement as { animate?: unknown }).animate;
+  });
+
   it('uses the centre of the element as the origin', () => {
     const element = document.createElement('button');
     vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ left: 10, top: 20, width: 40, height: 20 } as DOMRect);
