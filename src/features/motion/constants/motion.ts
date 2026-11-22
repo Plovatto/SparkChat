@@ -6,4 +6,4 @@ export const MOTION_DURATION_MS = {
   slower: 460,
 } as const;
 
-export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+export { REDUCED_MOTION_QUERY } from '@constants/media-queries';

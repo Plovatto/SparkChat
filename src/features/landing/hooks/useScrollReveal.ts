@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react';
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
 const REVEAL_SELECTOR = [
   '.lp-section__intro',
@@ -17,7 +18,6 @@ const REVEAL_SELECTOR = [
 ].join(',');
 
 const MAX_STAGGER_INDEX = 5;
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 function staggerIndex(element: Element): number {
   const parent = element.parentElement;

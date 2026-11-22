@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { particleAlpha, particleCount, spawnParticle, stepParticle, warpBoost, type WarpParticle } from './splash-warp';
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const MAX_PIXEL_RATIO = 2;
 const MAX_FRAME_MS = 48;
 const CENTER_LIFT_PX = 64;

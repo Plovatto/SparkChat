@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
+import { FINE_POINTER_QUERY, REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
 const MAX_TILT_DEG = 3;
-const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 export function useHeroTilt<TArea extends HTMLElement, TTarget extends HTMLElement>() {
   const areaRef = useRef<TArea>(null);

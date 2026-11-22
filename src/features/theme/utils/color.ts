@@ -1,3 +1,5 @@
+import { clamp } from '@lib/math/clamp';
+
 export interface Rgb {
   r: number;
   g: number;
@@ -11,10 +13,6 @@ export interface Hsl {
 }
 
 const HEX_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 function channelToHex(value: number): string {
   return clamp(Math.round(value), 0, 255).toString(16).padStart(2, '0');
