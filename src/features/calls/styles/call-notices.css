@@ -1,6 +1,6 @@
 .sc-call-toast-region {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
   left: 0;
   right: 0;
   z-index: 1070;
@@ -11,7 +11,7 @@
 }
 
 .sc-call-toast-region[data-over-call='true'] {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 112px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
 }
 
 .sc-call-toast {
