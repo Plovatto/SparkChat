@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in SparkChat is broken or looks wrong.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a problem. Security issues must be reported through the [security policy](https://github.com/Plovatto/SparkChat/security/policy) instead.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open https://sparkchat.plovatto.dev/app/
+        2. Start a video call with a contact
+        3. Switch to screen sharing
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Presentation page
+        - Messages and attachments
+        - Voice and video calls
+        - SparkAI
+        - Themes and wallpapers
+        - Translation
+        - Sign in and account
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: language
+    attributes:
+      label: Interface language
+      options:
+        - Português
+        - English
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      placeholder: Chrome 131 on Android 15
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Optional. Drag files here to attach them. Do not share private messages or keys.

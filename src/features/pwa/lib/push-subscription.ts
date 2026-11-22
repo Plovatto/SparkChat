@@ -134,10 +134,6 @@ export function requestPushConfig(socket: PushSocket, timeoutMs = PUSH_CONFIG_TI
   return request;
 }
 
-export function forgetPushConfig(socket: object): void {
-  configRequests.delete(socket);
-}
-
 function waitForSubscribed(socket: PushSocket, endpoint: string, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
