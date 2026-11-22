@@ -75,7 +75,7 @@ export function DeletedMessageBubble({
         <span>{t('chat.deleted')}</span>
       </div>
       {actionsPresence.isPresent && onDelete && (
-        <MessageActionsRow isOwn={isOwn} isExiting={actionsPresence.isExiting} onDelete={onDelete} onStartSelection={onStartSelection} />
+        <MessageActionsRow isOwn={isOwn} isExiting={actionsPresence.isExiting} onDelete={onDelete} onStartSelection={onStartSelection} onDismiss={onSelect} />
       )}
     </div>
   );

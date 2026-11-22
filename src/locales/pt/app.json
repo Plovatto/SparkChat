@@ -14,6 +14,9 @@
     "file": "Arquivo",
     "loading": "Carregando..."
   },
+  "splash": {
+    "loading": "Carregando"
+  },
   "language": {
     "label": "Idioma"
   },
@@ -67,7 +70,7 @@
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
       "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
       "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo.",
-      "hideMixedRooms": "Só é possível apagar para você mensagens de uma mesma conversa por vez.",
+      "hideMixedRooms": "Apague para você uma conversa por vez.",
       "reactionUnavailable": "Não é possível reagir a esta mensagem."
     },
     "upload": {
@@ -218,7 +221,7 @@
       "passwordPlaceholder": "Sua senha",
       "keyfile": "Arquivo de recuperação",
       "switchToPassword": "Entrar com username e senha",
-      "switchToKeyfile": "Entrar com o arquivo de recuperação?",
+      "switchToKeyfile": "Entrar com o arquivo de recuperação",
       "submitting": "Entrando...",
       "submit": "Entrar",
       "fillFields": "Preencha o username e a senha!",
@@ -246,7 +249,89 @@
       "passwordTooShort": "A senha deve ter pelo menos {{minLength}} caracteres!",
       "passwordsMismatch": "As senhas não coincidem!"
     },
-    "logoAlt": "Logo do SparkChat"
+    "logoAlt": "Logo do SparkChat",
+    "welcome": {
+      "e2ee": "Cifrado de ponta a ponta",
+      "featuresLabel": "Recursos do SparkChat",
+      "features": {
+        "media": "Fotos e arquivos",
+        "calls": "Chamadas",
+        "themes": "Temas"
+      },
+      "bubbles": {
+        "coffee": {
+          "0": "Bora marcar o café?",
+          "1": "Viu a foto que mandei?",
+          "2": "Hoje tem live às 20h!"
+        },
+        "reserved": {
+          "0": "Fechado, reserva feita!",
+          "1": "Combinado, até já!",
+          "2": "Mandei o áudio agora"
+        },
+        "when": {
+          "0": "Bora! Que horas?",
+          "1": "Vi sim, ficou linda!",
+          "2": "Tô dentro!"
+        },
+        "location": {
+          "0": "Manda a localização?",
+          "1": "Partiu viagem!",
+          "2": "Chamada em 5 min?"
+        },
+        "arrived": {
+          "0": "Chegamos! Já vi o quarto",
+          "1": "Que vista incrível!",
+          "2": "Partiu jantar?"
+        },
+        "onMyWay": {
+          "0": "Tô chegando",
+          "1": "Dois minutinhos!",
+          "2": "Já estou na porta"
+        },
+        "pickAvatar": {
+          "0": "Escolhe um avatar!",
+          "1": "Qual vai ser seu nome?",
+          "2": "Capricha na foto!"
+        },
+        "goCat": {
+          "0": "Vou de gato",
+          "1": "Já escolhi o meu!",
+          "2": "Fechou, vou de foguete"
+        },
+        "letsTalk": {
+          "0": "Bora conversar!",
+          "1": "Te chamo já já",
+          "2": "Cria lá que eu te add"
+        },
+        "arrivedHappy": {
+          "0": "Chegou animada",
+          "1": "Boas-vindas!",
+          "2": "Agora sim, completo!"
+        },
+        "backSoFast": {
+          "0": "Oi! Voltou rápido",
+          "1": "Sentimos sua falta!",
+          "2": "Bem na hora!"
+        },
+        "imBack": {
+          "0": "Voltei!",
+          "1": "Cheguei, gente!",
+          "2": "Saudade de vocês"
+        },
+        "goodToSee": {
+          "0": "Que bom te ver!",
+          "1": "Bora pôr o papo em dia?",
+          "2": "Guardei as novidades"
+        },
+        "longTime": {
+          "0": "Quanto tempo!",
+          "1": "Tem fofoca nova!",
+          "2": "Te mandei um áudio"
+        }
+      },
+      "or": "ou"
+    }
   },
   "dates": {
     "today": "Hoje",
@@ -325,6 +410,7 @@
       "microphoneDenied": "Não foi possível acessar o microfone. Verifique as permissões.",
       "removeAttachment": "Remover",
       "discard": "Descartar",
+      "recordingLabel": "Gravando áudio",
       "removePreview": "Remover preview",
       "linkPreview": {
         "generate": "Gerar prévia do link",
@@ -374,6 +460,14 @@
       "gifExpired": "GIF expirado",
       "gifExpiredHint": "GIFs ficam disponíveis por 30 dias.",
       "fromRemovedMember": "🔒 Mensagem de um ex-membro, não exibida.",
+      "copyText": "Copiar texto",
+      "translate": "Traduzir",
+      "deleteAction": "Apagar",
+      "actions": "Ações da mensagem",
+      "react": "Reagir",
+      "more": "Mais opções",
+      "album": "Álbum com {{count}} mídias",
+      "albumMore": "Ver mais {{count}} mídias",
       "select": "Selecionar"
     },
     "reactions": {
@@ -391,7 +485,7 @@
       "all": "Todas",
       "tapToRemove": "Toque para remover",
       "close": "Fechar reações",
-      "failed": "Não foi possível reagir a esta mensagem. Tente de novo."
+      "failed": "Não deu para reagir. Tente de novo."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -412,14 +506,36 @@
       "next": "Próxima imagem",
       "expanded": "Imagem expandida",
       "downloadVideo": "Baixar vídeo",
-      "closeVideo": "Fechar vídeo (ESC)"
+      "closeVideo": "Fechar vídeo (ESC)",
+      "photo": "Foto",
+      "video": "Vídeo",
+      "gif": "GIF",
+      "counter": "{{current}} de {{total}}",
+      "forward": "Encaminhar",
+      "download": "Baixar",
+      "more": "Mais opções",
+      "showInChat": "Ver na conversa",
+      "copyCaption": "Copiar legenda",
+      "captionCopied": "Legenda copiada",
+      "close": "Fechar (ESC)",
+      "thumbnails": "Miniaturas",
+      "previousMedia": "Anterior",
+      "nextMedia": "Próxima",
+      "unavailable": "Não foi possível abrir esta mídia"
     },
     "forward": {
       "title": "Encaminhar mensagem",
       "empty": "Nenhuma conversa disponível",
       "submitCount": "Encaminhar ({{count}})",
       "sending": "Encaminhando...",
-      "failed": "Não foi possível encaminhar a mensagem. Tente novamente."
+      "failed": "Não foi possível encaminhar a mensagem. Tente novamente.",
+      "subtitle": "Escolha para quem enviar",
+      "previewLabel": "Mensagem",
+      "moreMessages": "+{{count}}",
+      "groupMembers_one": "Grupo · {{count}} membro",
+      "groupMembers_other": "Grupo · {{count}} membros",
+      "submitTo_one": "Encaminhar para {{count}} conversa",
+      "submitTo_other": "Encaminhar para {{count}} conversas"
     },
     "gallery": {
       "title": "Mídias ({{count}})",
@@ -446,6 +562,16 @@
       "resetChat": "Restaurar aparência padrão deste chat",
       "none": "Nenhum"
     },
+    "appearanceModal": {
+      "subtitle": "Papel de parede e balões desta conversa",
+      "sent": "Enviadas",
+      "received": "Recebidas",
+      "preview": "Prévia dos balões",
+      "previewIncoming": "Bom dia!",
+      "previewOutgoing": "Tudo certo por aí?",
+      "useAuto": "Usar automático",
+      "resetAll": "Restaurar aparência padrão"
+    },
     "assistantStatus": "100% pilha, 0% sono 🔋",
     "deleteDialog": {
       "title_one": "Apagar mensagem?",
@@ -464,9 +590,9 @@
       "delete": "Apagar",
       "toggle": "Selecionar mensagem"
     },
-    "hideFailed": "Não foi possível apagar para você. Tente de novo.",
-    "deleteFailed_one": "Não foi possível apagar 1 mensagem para todos.",
-    "deleteFailed_other": "Não foi possível apagar {{count}} mensagens para todos.",
+    "hideFailed": "Não deu para apagar. Tente de novo.",
+    "deleteFailed_one": "Falha ao apagar 1 mensagem para todos.",
+    "deleteFailed_other": "Falha ao apagar {{count}} mensagens.",
     "translation": {
       "translatedFrom": "Traduzida do {{language}}",
       "original": "Mensagem original",
@@ -474,11 +600,11 @@
       "showTranslation": "Ver tradução",
       "translating": "Traduzindo…",
       "translate": "Traduzir",
-      "suggestTitle": "Esta conversa está em {{language}}. Traduzir automaticamente?",
+      "suggestTitle": "Conversa em {{language}}. Traduzir sempre?",
       "suggestAccept": "Traduzir automaticamente",
       "suggestDismiss": "Agora não",
       "autoRoomTitle": "Traduzir mensagens automaticamente",
-      "autoRoomCaption": "Mensagens recebidas em outro idioma nesta conversa são traduzidas assim que aparecem, direto no seu dispositivo.",
+      "autoRoomCaption": "Traduz no seu aparelho o que chegar em outro idioma.",
       "languages": {
         "pt": "português",
         "en": "inglês"
@@ -512,15 +638,15 @@
     "renameSave": "Salvar nome",
     "renameCancel": "Cancelar",
     "status": "Status",
-    "unblock": "Desbloquear Usuário",
-    "block": "Bloquear Usuário",
+    "unblock": "Desbloquear usuário",
+    "block": "Bloquear usuário",
     "createdBy": "Criado por",
     "admin": "Administrador",
     "promote": "Promover a administrador",
     "remove": "Remover do grupo",
     "removeTitle": "Remover membro",
     "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o link de convite.",
-    "leave": "Sair do Grupo",
+    "leave": "Sair do grupo",
     "seen": "Visto {{time}}",
     "members_one": "{{count}} membro",
     "members_other": "{{count}} membros",
@@ -535,7 +661,20 @@
     "resetInviteTitle": "Redefinir link de convite?",
     "resetInviteConfirm": "Um novo link e uma nova chave do grupo serão criados. O link atual deixará de funcionar para quem ainda não entrou.",
     "inviteResetDone": "Um novo link de convite foi criado.",
-    "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente."
+    "inviteResetFailed": "Não foi possível redefinir o link de convite. Tente novamente.",
+    "title": "Informações",
+    "invite": "Convite",
+    "search": "Buscar",
+    "media": "Mídia",
+    "seeAll": "Ver tudo",
+    "appearance": "Papel de parede e bolhas",
+    "createdByYou": "criado por você",
+    "createdByName": "criado por {{name}}",
+    "memberOptions": "Opções de {{name}}",
+    "searchPlaceholder": "Buscar nesta conversa",
+    "searchLoadedOnly": "A busca considera as mensagens já carregadas nesta conversa.",
+    "searchEmpty": "Nenhuma mensagem encontrada",
+    "videoCall": "Vídeo"
   },
   "presence": {
     "online": "Online",
@@ -579,31 +718,46 @@
     "deleteTitle": "Excluir Conversas",
     "deleteConfirm_one": "Tem certeza que quer excluir {{count}} conversa?",
     "deleteConfirm_other": "Tem certeza que quer excluir {{count}} conversas?",
-    "emptyHint": "Clique em \"Novo Chat\" para começar"
+    "emptyHint": "Clique em \"Novo Chat\" para começar",
+    "searchPlaceholder": "Buscar conversas",
+    "clearSearch": "Limpar busca",
+    "noResults": "Nenhuma conversa encontrada",
+    "noResultsHint": "Tente outro nome ou filtro",
+    "filters": {
+      "label": "Filtrar conversas",
+      "all": "Todas",
+      "unread": "Não lidas",
+      "groups": "Grupos",
+      "unreadCount_one": "{{count}} conversa não lida",
+      "unreadCount_other": "{{count}} conversas não lidas"
+    }
   },
   "newChat": {
-    "title": "Novo Chat",
-    "private": "Privado",
-    "friendUsername": "Username do Amigo",
-    "friendPlaceholder": "Ex: Ada",
-    "friendHelp": "Digite o username para iniciar uma conversa",
+    "title": "Nova conversa",
+    "private": "Privada",
+    "friendUsername": "Nome de usuário",
+    "friendPlaceholder": "ada",
+    "friendHelp": "Digite o nome de usuário da pessoa para começar.",
     "starting": "Iniciando...",
-    "start": "Iniciar Chat",
+    "start": "Iniciar conversa",
     "joinWithLink": "Para entrar em um grupo existente, abra o link de convite que um membro compartilhou com você.",
-    "createNew": "Criar Nova Sala",
-    "namePlaceholder": "Nome da sala",
-    "nameHelp": "Digite um nome para sua nova sala",
+    "createNew": "Nome do grupo",
+    "namePlaceholder": "Ex: Viagem de fim de ano",
+    "nameHelp": "Escolha um nome com pelo menos 3 letras.",
     "creating": "Criando...",
-    "create": "Criar Sala",
+    "create": "Criar grupo",
     "nameTooShort": "Nome da sala deve ter pelo menos {{minLength}} caracteres",
-    "enterUsername": "Digite o username"
+    "enterUsername": "Digite o username",
+    "subtitle": "Comece um chat privado ou crie um grupo",
+    "recent": "Conversas recentes",
+    "e2ee": "Conversas cifradas de ponta a ponta"
   },
   "themeMenu": {
     "base": "Modo Base",
     "colors": "Tema de Cores"
   },
   "profile": {
-    "title": "Editar Perfil",
+    "title": "Editar perfil",
     "tabs": {
       "profile": "Perfil",
       "security": "Segurança",
@@ -614,11 +768,11 @@
     "passwordChangedSigningOut": "Senha alterada. Encerrando a sessão...",
     "shareText": "Fale comigo no SparkChat! Meu username é {{name}}",
     "newPasswordTooShort": "A nova senha deve ter pelo menos {{minLength}} caracteres.",
-    "username": "Username",
+    "username": "Nome de usuário",
     "usernamePlaceholder": "Digite seu username",
     "linkCopied": "Link copiado!",
-    "shareLink": "Compartilhar link de chat",
-    "avatar": "Avatar",
+    "shareLink": "Compartilhar link de conversa",
+    "avatar": "Escolha seu avatar",
     "saveChanges": "Salvar Alterações",
     "currentPassword": "Senha atual",
     "keyfileNoCurrent": "Você entrou com o arquivo de recuperação — nos primeiros 10 minutos pode trocar a senha uma vez sem informar a atual.",
@@ -627,7 +781,9 @@
     "forgotPassword": "Esqueceu a senha? Saia e entre de novo com o seu arquivo de recuperação — assim você pode trocar a senha sem precisar da atual.",
     "changeLogsOut": "Trocar a senha desconecta todos os dispositivos, inclusive este — você vai precisar entrar de novo.",
     "changePassword": "Trocar senha",
+    "recoveryTitle": "Arquivo de recuperação",
     "downloadRecovery": "Baixar arquivo de recuperação",
+    "appLanguage": "Idioma do app",
     "sounds": "Sons do app",
     "hideNotificationContent": "Ocultar conteúdo nas notificações",
     "activeSessions": "Dispositivos com sessão ativa",
@@ -641,8 +797,9 @@
     "lastUsed": "Último uso: {{date}}",
     "revokeSession": "Encerrar esta sessão",
     "nicknamePasswordHint": "Trocar o username encerra as outras sessões. Confirme com a sua senha atual.",
-    "regeneratePasswordHint": "Gerar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
-    "confirmRegenerate": "Gerar novo arquivo"
+    "regeneratePasswordHint": "Baixar um novo arquivo de recuperação invalida o anterior e encerra as outras sessões. Confirme com a sua senha atual.",
+    "confirmRegenerate": "Gerar novo arquivo",
+    "downloadNewRecovery": "Baixar novo arquivo"
   },
   "notifications": {
     "sentImage": "Enviou uma imagem",
@@ -654,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
-    "connecting": "Conectando ao servidor...",
+    "connectionProblem": "Sem conexão. Tentando reconectar…",
     "deepLink": {
       "joinTitle": "Entrar no grupo?",
       "joinMessage": "Um link convidou você para entrar em um grupo. Quer entrar?",
@@ -729,7 +886,7 @@
     "relayDegraded": "Vídeo desligado para economizar dados na conexão retransmitida.",
     "videoDegraded": "Qualidade de vídeo reduzida.",
     "otherTab": "Chamada em outra aba",
-    "otherTabHint": "Use a aba onde a chamada está ocorrendo.",
+    "otherTabHint": "Continue na aba da chamada.",
     "status": {
       "calling": "Chamando…",
       "ringing": "Tocando…",
@@ -755,7 +912,7 @@
       "media-attach-failed": "Não foi possível enviar seu áudio ou vídeo na chamada."
     },
     "notice": {
-      "media-denied": "Permita o acesso ao microfone para fazer chamadas.",
+      "media-denied": "Libere o microfone para ligar.",
       "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
       "unverifiable": "Não foi possível verificar este contato para chamadas.",
       "other-tab": "Já existe uma chamada em outra aba.",
@@ -764,7 +921,7 @@
       "server-error": "Não foi possível completar a chamada.",
       "screen-degraded": "O compartilhamento de tela foi interrompido para economizar dados nesta conexão.",
       "screen-failed": "Não foi possível compartilhar a tela.",
-      "transferred": "Chamada transferida para outro aparelho",
+      "transferred": "Chamada movida para outro aparelho",
       "transfer-failed": "Não foi possível trocar de aparelho"
     },
     "callBack": "Ligar de volta",
@@ -777,6 +934,11 @@
       "outgoing": "Você ligou",
       "incoming": "Ligou para você",
       "answered": "Atendida",
+      "declinedShort": "Recusada",
+      "missedTitle": {
+        "voice": "Chamada perdida",
+        "video": "Chamada de vídeo perdida"
+      },
       "outcome": {
         "missed": {
           "outgoing": "Sem resposta",
@@ -821,7 +983,6 @@
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",
       "isolationHint": "Mantém só a sua voz, removendo outras vozes e sons.",
-      "isolationWarning": "Pode deixar sua voz mais baixa para quem ouve",
       "volumeSection": "Volume",
       "processingSection": "Processamento",
       "micVolume": "Volume do microfone",
@@ -860,10 +1021,13 @@
       "hidePreview": "Ocultar prévia",
       "showPreview": "Mostrar prévia",
       "streamVolume": "Volume da transmissão",
-      "openWindow": "Abrir em nova janela"
+      "openWindow": "Abrir em nova janela",
+      "hideParticipants": "Ocultar participantes",
+      "showParticipants": "Mostrar participantes"
     },
     "unstable": "Conexão instável",
     "you": "Você",
+    "endedDuration": "Duração: {{time}}",
     "pip": {
       "open": "Abrir em janela flutuante",
       "close": "Fechar janela flutuante",
@@ -906,9 +1070,10 @@
       "duckLevelHint": "0% silencia, 100% não abaixa. Só vale para você"
     },
     "otherDevice": "Em chamada em outro aparelho",
-    "otherDeviceHint": "Continue a conversa no aparelho onde você atendeu.",
+    "otherDeviceHint": "Continue no aparelho onde atendeu.",
     "otherDeviceEnd": "Encerrar",
-    "transferHere": "Trocar para este aparelho"
+    "transferHere": "Trocar para este aparelho",
+    "keyChangedTitle": "Chave de segurança alterada"
   },
   "pwa": {
     "installApp": "Instalar app",
@@ -942,15 +1107,9 @@
       "description": "Chamadas e mensagens mesmo com o app fechado.",
       "blocked": "As notificações estão bloqueadas neste navegador. Para liberar, toque no cadeado ou no ícone de ajustes ao lado do endereço, permita Notificações e recarregue a página. No app instalado, libere em Ajustes do sistema > Notificações > SparkChat.",
       "unsupported": "Este navegador não aceita notificações com o app fechado.",
-      "iosNeedsInstall": "No iPhone e no iPad, instale o app na Tela de Início para receber notificações.",
       "serverDisabled": "As notificações com o app fechado ainda não estão disponíveis neste servidor.",
       "checking": "Verificando…",
-      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes.",
-      "desktopHelpTitle": "Não está chegando no computador?",
-      "desktopHelpBrowser": "Deixe o Chrome ou o Edge rodando em segundo plano: em Configurações > Sistema, ative \"Continuar executando apps em segundo plano quando o navegador estiver fechado\". Com o navegador totalmente fechado, nenhum aviso chega.",
-      "desktopHelpSystem": "Permita os avisos no sistema: no Windows, em Configurações > Sistema > Notificações, ative o Chrome ou o Edge e o SparkChat; no Mac, em Ajustes do Sistema > Notificações.",
-      "desktopHelpFocus": "Desligue o Não Perturbar ou o Assistente de Foco, que escondem os avisos.",
-      "desktopHelpOpen": "Se o SparkChat estiver aberto e visível em alguma janela, o aviso aparece dentro do app em vez de no sistema."
+      "error": "Não deu para ativar as notificações agora. Tente de novo em instantes."
     },
     "update": {
       "message": "Nova versão disponível",
@@ -1000,6 +1159,7 @@
     "viewMine": "Ver minha foto",
     "view": "Ver foto",
     "downloadName": "foto-sparkchat",
+    "viewerTitle": "Foto de perfil",
     "uploading": "Salvando foto...",
     "group": {
       "change": "Trocar foto do grupo",
@@ -1045,6 +1205,14 @@
     "mediaFailed": "Não foi possível carregar este GIF.",
     "untitled": "GIF sem título",
     "notReady": "Aguarde o GIF aparecer para enviar."
+  },
+  "colorPicker": {
+    "area": "Saturação e brilho",
+    "areaValue": "Saturação {{saturation}}%, brilho {{brightness}}%",
+    "hue": "Matiz",
+    "hex": "Hex",
+    "presets": "Cores sugeridas",
+    "eyedropper": "Escolher cor da tela"
   },
   "emoji": {
     "open": "Abrir emojis",

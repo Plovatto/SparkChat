@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { EmojiPickerPopover } from '@features/emoji';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -18,10 +18,16 @@ interface ReactionUiOptions {
   participants: RoomParticipant[];
   onReact: (messageId: string, emoji: string | null) => void;
   onDismiss: () => void;
+  showCount?: boolean;
+  chipBackground?: string;
 }
 
 export interface ReactionUi {
   compact: boolean;
+  canReact: boolean;
+  isReactionOpen: boolean;
+  reactButtonRef: RefObject<HTMLButtonElement | null>;
+  onReactButton: () => void;
   quickBar: ReactNode;
   chips: ReactNode;
   overlays: ReactNode;
@@ -37,13 +43,31 @@ export function useMessageReactionUi({
   participants,
   onReact,
   onDismiss,
+  showCount = true,
+  chipBackground,
 }: ReactionUiOptions): ReactionUi {
   const compact = useMediaQuery(REACTION_COMPACT_QUERY);
-  const barPresence = usePresence(isSelected && canReact, MOTION_DURATION_MS.fast);
+  const [isBarRequested, setIsBarRequested] = useState(false);
+  const [wasSelected, setWasSelected] = useState(isSelected);
+  const [wasCompact, setWasCompact] = useState(compact);
+  if (wasSelected !== isSelected) {
+    setWasSelected(isSelected);
+    if (!isSelected) {
+      setIsBarRequested(false);
+    }
+  }
+  if (wasCompact !== compact) {
+    setWasCompact(compact);
+    setIsBarRequested(false);
+  }
+  const barPresence = usePresence(isSelected && canReact && (compact || isBarRequested), MOTION_DURATION_MS.fast);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [pickerSource, setPickerSource] = useState<'bar' | 'react'>('bar');
   const [sheetEmoji, setSheetEmoji] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const reactButtonRef = useRef<HTMLButtonElement>(null);
+  const toggleRefs = useMemo(() => [moreButtonRef, reactButtonRef], []);
   const ownEmoji = currentUserId ? findOwnReaction(reactions, currentUserId) : null;
 
   const choose = useCallback(
@@ -61,8 +85,35 @@ export function useMessageReactionUi({
     [choose, onDismiss],
   );
 
-  const closePicker = useCallback(() => setIsPickerOpen(false), []);
-  const togglePicker = useCallback(() => setIsPickerOpen((open) => !open), []);
+  const closePicker = useCallback(
+    (outsideTarget?: unknown) => {
+      setIsPickerOpen(false);
+      if (compact && outsideTarget instanceof Element && !outsideTarget.closest('.sc-actions-sheet, .sc-actions-sheet-backdrop')) {
+        onDismiss();
+      }
+    },
+    [compact, onDismiss],
+  );
+  const togglePicker = useCallback(() => {
+    if (isPickerOpen) {
+      setIsPickerOpen(false);
+      return;
+    }
+    setPickerSource('bar');
+    setIsPickerOpen(true);
+  }, [isPickerOpen]);
+  const onReactButton = useCallback(() => {
+    if (!compact) {
+      setIsBarRequested((open) => !open);
+      return;
+    }
+    if (isPickerOpen) {
+      setIsPickerOpen(false);
+      return;
+    }
+    setPickerSource('react');
+    setIsPickerOpen(true);
+  }, [compact, isPickerOpen]);
   const showReactors = useCallback((emoji: string) => {
     setSheetEmoji(emoji);
     setIsSheetOpen(true);
@@ -89,6 +140,8 @@ export function useMessageReactionUi({
       participants={participants}
       isOwn={isOwn}
       compact={compact}
+      showCount={showCount}
+      background={chipBackground}
       disabled={!canReact}
       onToggle={choose}
       onShowReactors={showReactors}
@@ -100,7 +153,9 @@ export function useMessageReactionUi({
       <span data-no-long-press onClick={(event) => event.stopPropagation()} style={{ display: 'contents' }}>
         <EmojiPickerPopover
           open={isPickerOpen}
-          anchorRef={moreButtonRef}
+          anchorRef={pickerSource === 'react' ? reactButtonRef : moreButtonRef}
+          toggleRefs={toggleRefs}
+          elevated={compact}
           placement={compact ? 'top' : 'bottom'}
           onClose={closePicker}
           onSelect={(emoji) => {
@@ -124,5 +179,7 @@ export function useMessageReactionUi({
     </>
   );
 
-  return { compact, quickBar, chips, overlays };
+  const isReactionOpen = compact ? isPickerOpen : isBarRequested;
+
+  return { compact, canReact, isReactionOpen, reactButtonRef, onReactButton, quickBar, chips, overlays };
 }

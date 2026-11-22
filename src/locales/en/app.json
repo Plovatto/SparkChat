@@ -14,6 +14,9 @@
     "file": "File",
     "loading": "Loading..."
   },
+  "splash": {
+    "loading": "Loading"
+  },
   "language": {
     "label": "Language"
   },
@@ -67,7 +70,7 @@
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
       "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
-      "hideMixedRooms": "You can only delete messages for yourself from one conversation at a time.",
+      "hideMixedRooms": "Delete for yourself one chat at a time.",
       "reactionUnavailable": "You can't react to this message."
     },
     "upload": {
@@ -218,7 +221,7 @@
       "passwordPlaceholder": "Your password",
       "keyfile": "Recovery file",
       "switchToPassword": "Sign in with username and password",
-      "switchToKeyfile": "Use your recovery file instead?",
+      "switchToKeyfile": "Sign in with your recovery file",
       "submitting": "Signing in...",
       "submit": "Sign in",
       "fillFields": "Enter your username and password!",
@@ -246,7 +249,89 @@
       "passwordTooShort": "Your password must be at least {{minLength}} characters long!",
       "passwordsMismatch": "The passwords don't match!"
     },
-    "logoAlt": "SparkChat logo"
+    "logoAlt": "SparkChat logo",
+    "welcome": {
+      "e2ee": "End-to-end encrypted",
+      "featuresLabel": "SparkChat features",
+      "features": {
+        "media": "Photos & files",
+        "calls": "Calls",
+        "themes": "Themes"
+      },
+      "bubbles": {
+        "coffee": {
+          "0": "Coffee later?",
+          "1": "Did you see my photo?",
+          "2": "Live stream at 8pm!"
+        },
+        "reserved": {
+          "0": "Done, table booked!",
+          "1": "Deal, see you soon!",
+          "2": "Just sent the voice note"
+        },
+        "when": {
+          "0": "Sure! What time?",
+          "1": "Saw it, looks great!",
+          "2": "I'm in!"
+        },
+        "location": {
+          "0": "Send me the location?",
+          "1": "Road trip time!",
+          "2": "Call in 5 min?"
+        },
+        "arrived": {
+          "0": "We're here! Love the room",
+          "1": "What a view!",
+          "2": "Dinner time?"
+        },
+        "onMyWay": {
+          "0": "On my way",
+          "1": "Two minutes!",
+          "2": "At the door now"
+        },
+        "pickAvatar": {
+          "0": "Pick an avatar!",
+          "1": "What will your name be?",
+          "2": "Choose a great photo!"
+        },
+        "goCat": {
+          "0": "Going with the cat",
+          "1": "Already picked mine!",
+          "2": "Rocket for me"
+        },
+        "letsTalk": {
+          "0": "Let's chat!",
+          "1": "I'll message you soon",
+          "2": "Sign up and I'll add you"
+        },
+        "arrivedHappy": {
+          "0": "Look who's here",
+          "1": "Welcome aboard!",
+          "2": "Now the gang's all here"
+        },
+        "backSoFast": {
+          "0": "Hi! Back so soon",
+          "1": "We missed you!",
+          "2": "Right on time!"
+        },
+        "imBack": {
+          "0": "I'm back!",
+          "1": "Hey everyone!",
+          "2": "Missed you all"
+        },
+        "goodToSee": {
+          "0": "Good to see you!",
+          "1": "Shall we catch up?",
+          "2": "Saved the news for you"
+        },
+        "longTime": {
+          "0": "Long time no see!",
+          "1": "There's news!",
+          "2": "Sent you a voice note"
+        }
+      },
+      "or": "or"
+    }
   },
   "dates": {
     "today": "Today",
@@ -325,6 +410,7 @@
       "microphoneDenied": "Couldn't access the microphone. Please check your permissions.",
       "removeAttachment": "Remove",
       "discard": "Discard",
+      "recordingLabel": "Recording audio",
       "removePreview": "Remove preview",
       "linkPreview": {
         "generate": "Generate link preview",
@@ -374,6 +460,14 @@
       "gifExpired": "GIF expired",
       "gifExpiredHint": "GIFs stay available for 30 days.",
       "fromRemovedMember": "🔒 Message from a former member, not shown.",
+      "copyText": "Copy text",
+      "translate": "Translate",
+      "deleteAction": "Delete",
+      "actions": "Message actions",
+      "react": "React",
+      "more": "More options",
+      "album": "Album with {{count}} items",
+      "albumMore": "See {{count}} more items",
       "select": "Select"
     },
     "reactions": {
@@ -391,7 +485,7 @@
       "all": "All",
       "tapToRemove": "Tap to remove",
       "close": "Close reactions",
-      "failed": "Couldn't react to this message. Try again."
+      "failed": "Couldn't react. Try again."
     },
     "fileTypes": {
       "pdf": "PDF",
@@ -412,14 +506,36 @@
       "next": "Next image",
       "expanded": "Expanded image",
       "downloadVideo": "Download video",
-      "closeVideo": "Close video (ESC)"
+      "closeVideo": "Close video (ESC)",
+      "photo": "Photo",
+      "video": "Video",
+      "gif": "GIF",
+      "counter": "{{current}} of {{total}}",
+      "forward": "Forward",
+      "download": "Download",
+      "more": "More options",
+      "showInChat": "Show in chat",
+      "copyCaption": "Copy caption",
+      "captionCopied": "Caption copied",
+      "close": "Close (ESC)",
+      "thumbnails": "Thumbnails",
+      "previousMedia": "Previous",
+      "nextMedia": "Next",
+      "unavailable": "This media could not be opened"
     },
     "forward": {
       "title": "Forward message",
       "empty": "No conversations available",
       "submitCount": "Forward ({{count}})",
       "sending": "Forwarding...",
-      "failed": "Couldn't forward the message. Please try again."
+      "failed": "Couldn't forward the message. Please try again.",
+      "subtitle": "Choose who to send it to",
+      "previewLabel": "Message",
+      "moreMessages": "+{{count}}",
+      "groupMembers_one": "Group · {{count}} member",
+      "groupMembers_other": "Group · {{count}} members",
+      "submitTo_one": "Forward to {{count}} conversation",
+      "submitTo_other": "Forward to {{count}} conversations"
     },
     "gallery": {
       "title": "Media ({{count}})",
@@ -446,6 +562,16 @@
       "resetChat": "Reset this chat's appearance",
       "none": "None"
     },
+    "appearanceModal": {
+      "subtitle": "Wallpaper and bubbles for this chat",
+      "sent": "Sent",
+      "received": "Received",
+      "preview": "Bubble preview",
+      "previewIncoming": "Good morning!",
+      "previewOutgoing": "All good over there?",
+      "useAuto": "Use automatic",
+      "resetAll": "Reset to default appearance"
+    },
     "assistantStatus": "100% charged, 0% sleepy 🔋",
     "deleteDialog": {
       "title_one": "Delete message?",
@@ -466,7 +592,7 @@
     },
     "hideFailed": "Couldn't delete it for you. Try again.",
     "deleteFailed_one": "Couldn't delete 1 message for everyone.",
-    "deleteFailed_other": "Couldn't delete {{count}} messages for everyone.",
+    "deleteFailed_other": "Couldn't delete {{count}} messages.",
     "translation": {
       "translatedFrom": "Translated from {{language}}",
       "original": "Original message",
@@ -474,11 +600,11 @@
       "showTranslation": "Show translation",
       "translating": "Translating…",
       "translate": "Translate",
-      "suggestTitle": "This conversation is in {{language}}. Translate automatically?",
+      "suggestTitle": "Chat in {{language}}. Always translate?",
       "suggestAccept": "Translate automatically",
       "suggestDismiss": "Not now",
       "autoRoomTitle": "Translate messages automatically",
-      "autoRoomCaption": "Messages you receive in another language in this conversation are translated as they appear, right on your device.",
+      "autoRoomCaption": "Translates other languages on your device.",
       "languages": {
         "pt": "Portuguese",
         "en": "English"
@@ -512,15 +638,15 @@
     "renameSave": "Save name",
     "renameCancel": "Cancel",
     "status": "Status",
-    "unblock": "Unblock User",
-    "block": "Block User",
+    "unblock": "Unblock user",
+    "block": "Block user",
     "createdBy": "Created by",
     "admin": "Admin",
     "promote": "Make admin",
     "remove": "Remove from group",
     "removeTitle": "Remove member",
     "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite link.",
-    "leave": "Leave Group",
+    "leave": "Leave group",
     "seen": "Seen {{time}}",
     "members_one": "{{count}} member",
     "members_other": "{{count}} members",
@@ -535,7 +661,20 @@
     "resetInviteTitle": "Reset invite link?",
     "resetInviteConfirm": "A new link and a new group key will be created. The current link stops working for anyone who has not joined yet.",
     "inviteResetDone": "A new invite link was created.",
-    "inviteResetFailed": "Couldn't reset the invite link. Please try again."
+    "inviteResetFailed": "Couldn't reset the invite link. Please try again.",
+    "title": "Info",
+    "invite": "Invite",
+    "search": "Search",
+    "media": "Media",
+    "seeAll": "See all",
+    "appearance": "Wallpaper and bubbles",
+    "createdByYou": "created by you",
+    "createdByName": "created by {{name}}",
+    "memberOptions": "Options for {{name}}",
+    "searchPlaceholder": "Search this chat",
+    "searchLoadedOnly": "Search covers the messages already loaded in this chat.",
+    "searchEmpty": "No messages found",
+    "videoCall": "Video"
   },
   "presence": {
     "online": "Online",
@@ -579,24 +718,39 @@
     "deleteTitle": "Delete Conversations",
     "deleteConfirm_one": "Are you sure you want to delete {{count}} conversation?",
     "deleteConfirm_other": "Are you sure you want to delete {{count}} conversations?",
-    "emptyHint": "Click \"New Chat\" to get started"
+    "emptyHint": "Click \"New Chat\" to get started",
+    "searchPlaceholder": "Search conversations",
+    "clearSearch": "Clear search",
+    "noResults": "No conversations found",
+    "noResultsHint": "Try another name or filter",
+    "filters": {
+      "label": "Filter conversations",
+      "all": "All",
+      "unread": "Unread",
+      "groups": "Groups",
+      "unreadCount_one": "{{count}} unread conversation",
+      "unreadCount_other": "{{count}} unread conversations"
+    }
   },
   "newChat": {
-    "title": "New Chat",
+    "title": "New chat",
     "private": "Private",
-    "friendUsername": "Friend's Username",
-    "friendPlaceholder": "E.g. Ada",
-    "friendHelp": "Type the username to start a conversation",
+    "friendUsername": "Username",
+    "friendPlaceholder": "ada",
+    "friendHelp": "Type the person's username to get started.",
     "starting": "Starting...",
-    "start": "Start Chat",
+    "start": "Start chat",
     "joinWithLink": "To join an existing group, open the invite link a member shared with you.",
-    "createNew": "Create New Group",
-    "namePlaceholder": "Group name",
-    "nameHelp": "Type a name for your new group",
+    "createNew": "Group name",
+    "namePlaceholder": "E.g. End-of-year trip",
+    "nameHelp": "Pick a name with at least 3 letters.",
     "creating": "Creating...",
-    "create": "Create Group",
+    "create": "Create group",
     "nameTooShort": "Group names must be at least {{minLength}} characters long",
-    "enterUsername": "Type the username"
+    "enterUsername": "Type the username",
+    "subtitle": "Start a private chat or create a group",
+    "recent": "Recent chats",
+    "e2ee": "End-to-end encrypted chats"
   },
   "themeMenu": {
     "base": "Base Mode",
@@ -618,7 +772,7 @@
     "usernamePlaceholder": "Type your username",
     "linkCopied": "Link copied!",
     "shareLink": "Share chat link",
-    "avatar": "Avatar",
+    "avatar": "Choose your avatar",
     "saveChanges": "Save Changes",
     "currentPassword": "Current password",
     "keyfileNoCurrent": "You signed in with your recovery file — for the first 10 minutes you can change your password once without entering the current one.",
@@ -627,7 +781,9 @@
     "forgotPassword": "Forgot your password? Sign out and sign back in with your recovery file — then you can change your password without the current one.",
     "changeLogsOut": "Changing your password signs out every device, including this one — you'll need to sign in again.",
     "changePassword": "Change password",
+    "recoveryTitle": "Recovery file",
     "downloadRecovery": "Download recovery file",
+    "appLanguage": "App language",
     "sounds": "App sounds",
     "hideNotificationContent": "Hide message content in notifications",
     "activeSessions": "Devices with an active session",
@@ -642,7 +798,8 @@
     "revokeSession": "Sign out this session",
     "nicknamePasswordHint": "Changing your username signs out your other sessions. Confirm with your current password.",
     "regeneratePasswordHint": "A new recovery file invalidates the previous one and signs out your other sessions. Confirm with your current password.",
-    "confirmRegenerate": "Generate new file"
+    "confirmRegenerate": "Generate new file",
+    "downloadNewRecovery": "Download new file"
   },
   "notifications": {
     "sentImage": "Sent an image",
@@ -654,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connecting": "Connecting to the server...",
+    "connectionProblem": "No connection. Reconnecting…",
     "deepLink": {
       "joinTitle": "Join group?",
       "joinMessage": "A link invited you to join a group. Do you want to join?",
@@ -729,7 +886,7 @@
     "relayDegraded": "Video turned off to save data on the relayed connection.",
     "videoDegraded": "Video quality reduced.",
     "otherTab": "Call in another tab",
-    "otherTabHint": "Use the tab where the call is happening.",
+    "otherTabHint": "Continue in the call tab.",
     "status": {
       "calling": "Calling…",
       "ringing": "Ringing…",
@@ -777,6 +934,11 @@
       "outgoing": "You called",
       "incoming": "Called you",
       "answered": "Answered",
+      "declinedShort": "Declined",
+      "missedTitle": {
+        "voice": "Missed call",
+        "video": "Missed video call"
+      },
       "outcome": {
         "missed": {
           "outgoing": "No answer",
@@ -821,7 +983,6 @@
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",
       "isolationHint": "Keeps only your voice and removes other voices and sounds.",
-      "isolationWarning": "May make your voice quieter for the listener",
       "volumeSection": "Volume",
       "processingSection": "Processing",
       "micVolume": "Microphone volume",
@@ -860,10 +1021,13 @@
       "hidePreview": "Hide preview",
       "showPreview": "Show preview",
       "streamVolume": "Stream volume",
-      "openWindow": "Open in a new window"
+      "openWindow": "Open in a new window",
+      "hideParticipants": "Hide participants",
+      "showParticipants": "Show participants"
     },
     "unstable": "Unstable connection",
     "you": "You",
+    "endedDuration": "Duration: {{time}}",
     "pip": {
       "open": "Open floating window",
       "close": "Close floating window",
@@ -906,9 +1070,10 @@
       "duckLevelHint": "0% mutes it, 100% keeps it as is. Only for you"
     },
     "otherDevice": "In a call on another device",
-    "otherDeviceHint": "Keep talking on the device where you answered.",
+    "otherDeviceHint": "Continue on the device you answered.",
     "otherDeviceEnd": "End call",
-    "transferHere": "Switch to this device"
+    "transferHere": "Switch to this device",
+    "keyChangedTitle": "Security key changed"
   },
   "pwa": {
     "installApp": "Install app",
@@ -942,15 +1107,9 @@
       "description": "Calls and messages even when the app is closed.",
       "blocked": "Notifications are blocked in this browser. To allow them, tap the lock or settings icon next to the address, allow Notifications and reload the page. In the installed app, allow them in System Settings > Notifications > SparkChat.",
       "unsupported": "This browser does not support notifications while the app is closed.",
-      "iosNeedsInstall": "On iPhone and iPad, add the app to your Home Screen to get notifications.",
       "serverDisabled": "Notifications with the app closed are not available on this server yet.",
       "checking": "Checking…",
-      "error": "Could not turn on notifications right now. Try again in a moment.",
-      "desktopHelpTitle": "Not arriving on your computer?",
-      "desktopHelpBrowser": "Keep Chrome or Edge running in the background: in Settings > System, turn on \"Continue running background apps when the browser is closed\". With the browser fully closed, no notification can arrive.",
-      "desktopHelpSystem": "Allow notifications in your system: on Windows, in Settings > System > Notifications, turn on Chrome or Edge and SparkChat; on a Mac, in System Settings > Notifications.",
-      "desktopHelpFocus": "Turn off Do Not Disturb or Focus Assist, which hide notifications.",
-      "desktopHelpOpen": "If SparkChat is open and visible in a window, the alert shows inside the app instead of in the system."
+      "error": "Could not turn on notifications right now. Try again in a moment."
     },
     "update": {
       "message": "A new version is available",
@@ -1000,6 +1159,7 @@
     "viewMine": "View my photo",
     "view": "View photo",
     "downloadName": "sparkchat-photo",
+    "viewerTitle": "Profile photo",
     "uploading": "Saving photo...",
     "group": {
       "change": "Change group photo",
@@ -1045,6 +1205,14 @@
     "mediaFailed": "Could not load this GIF.",
     "untitled": "Untitled GIF",
     "notReady": "Wait for the GIF to appear before sending."
+  },
+  "colorPicker": {
+    "area": "Saturation and brightness",
+    "areaValue": "Saturation {{saturation}}%, brightness {{brightness}}%",
+    "hue": "Hue",
+    "hex": "Hex",
+    "presets": "Suggested colors",
+    "eyedropper": "Pick a color from the screen"
   },
   "emoji": {
     "open": "Open emoji picker",

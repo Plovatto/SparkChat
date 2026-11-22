@@ -3,7 +3,7 @@ import type { MessageReaction, MessageType, RoomParticipant } from '@lib/socket'
 
 export const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🙏', '👍'] as const;
 
-export const REACTION_COMPACT_QUERY = '(max-width: 768px)';
+export const REACTION_COMPACT_QUERY = '(max-width: 767.98px), (hover: none)';
 
 export interface ReactionSummary {
   emoji: string;

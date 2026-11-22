@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, Col, Container, Row } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
+import { LuWifiOff } from 'react-icons/lu';
 import { LoadingScreen } from '@components/common/LoadingScreen';
 import { RecoveryFileDownloadDialog } from '@components/common/RecoveryFileDownloadDialog';
-import { Spinner } from '@components/common/Spinner';
 import { minWidthQuery, SPLIT_LAYOUT_MIN_WIDTH_PX } from '@constants/breakpoints';
 import {
   ChatArea,
@@ -36,6 +36,8 @@ import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardin
 import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
+import { useSplashPresence } from '@hooks/useSplashPresence';
+import { useSustainedFlag } from '@hooks/useSustainedFlag';
 import { useViewportHeight } from '@hooks/useViewportHeight';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
@@ -47,6 +49,7 @@ import { hasDeepLinkParams, readDeepLinkIntents, withInviteIntent, withoutFirstI
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
+const CONNECTION_PROBLEM_DELAY_MS = 10000;
 const PREFERENCES_RESET_DELAY_MS = 350;
 
 interface RecoveryFilePrompt {
@@ -228,6 +231,8 @@ function AuthGate({
   useThemeSync();
   useChatSettingsSync();
 
+  const splash = useSplashPresence(isRestoring || (user !== null && !isSocketReady));
+
   const currentSessionToken = user?.sessionToken;
   const handleUserLogout = useCallback(() => {
     if (currentUserId && currentSessionToken) {
@@ -238,17 +243,17 @@ function AuthGate({
     onLogout();
   }, [socket, onLogout, currentUserId, currentSessionToken]);
 
-  if (isRestoring) {
-    return <LoadingScreen theme={theme} />;
-  }
-
   return (
     <AppBackground theme={user ? theme : loginTheme.theme}>
-      {!user ? (
-        <LoginScreen loginTheme={loginTheme} onRegister={onRegisterStart} onLogin={onLogin} registerError={registerError} />
-      ) : !isSocketReady ? (
-        <LoadingScreen theme={theme} />
-      ) : (
+      {isRestoring ? null : !user ? (
+        <LoginScreen
+          loginTheme={loginTheme}
+          onRegister={onRegisterStart}
+          onLogin={onLogin}
+          registerError={registerError}
+          entranceReady={!splash.mounted || splash.leaving}
+        />
+      ) : !isSocketReady ? null : (
         <ChatShell user={user} onUserUpdate={onUserUpdate} onLogout={handleUserLogout} />
       )}
       <RecoveryFileDownloadDialog
@@ -263,6 +268,7 @@ function AuthGate({
       <UpdateToast />
       <KeyTransparencyBanner />
       <PendingPhotoFailedToast />
+      {splash.mounted && <LoadingScreen theme={theme} leaving={splash.leaving} />}
     </AppBackground>
   );
 }
@@ -280,6 +286,7 @@ function lastRoomStorageKey(userId: string): string {
 function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { t } = useTranslation();
   const { socket, connected } = useSocket();
+  const connectionLost = useSustainedFlag(!connected, CONNECTION_PROBLEM_DELAY_MS);
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => {
     try {
@@ -289,6 +296,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     }
   });
   const isWideLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
+  const [isInfoColumnOpen, setIsInfoColumnOpen] = useState(false);
+  const isSidebarCollapsed = isWideLayout && isInfoColumnOpen;
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
@@ -489,8 +498,9 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     <PwaCallBridge />
     <Container fluid className="chat-shell-container" style={{ padding: 0 }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {!connected && (
+        {connectionLost && (
           <div
+            role="status"
             className="chat-connection-banner sc-anim-drop-in"
             style={{
               display: 'flex',
@@ -508,8 +518,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
               flexShrink: 0,
             }}
           >
-            <Spinner size={14} />
-            {t('app.connecting')}
+            <LuWifiOff size={15} color={theme.warningText} aria-hidden="true" style={{ flexShrink: 0 }} />
+            {t('app.connectionProblem')}
           </div>
         )}
         <Card className="chat-shell-card" style={{ flex: 1, minHeight: 0, border: 'none', overflow: 'hidden', background: theme.canvas, boxShadow: theme.shadowLg }}>
@@ -522,8 +532,17 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 padding: 0,
                 height: '100%',
                 display: !selectedRoom || isWideLayout ? 'block' : 'none',
-                ...(isWideLayout ? { minWidth: '360px' } : { flex: '0 0 100%', maxWidth: '100%' }),
+                ...(isWideLayout
+                  ? {
+                      minWidth: isSidebarCollapsed ? 0 : '360px',
+                      ...(isSidebarCollapsed ? { width: 0, flexBasis: 0, maxWidth: 0, opacity: 0, pointerEvents: 'none' as const } : {}),
+                      overflow: 'hidden',
+                      transition: 'width 420ms var(--sc-ease-spring-soft), min-width 420ms var(--sc-ease-spring-soft), max-width 420ms var(--sc-ease-spring-soft), flex-basis 420ms var(--sc-ease-spring-soft), opacity 260ms ease',
+                    }
+                  : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
+              aria-hidden={isSidebarCollapsed || undefined}
+              inert={isSidebarCollapsed || undefined}
             >
               <Sidebar
                 user={user}
@@ -560,12 +579,12 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
                 ...(isWideLayout ? { flex: '1 1 0', minWidth: 0, width: 'auto', maxWidth: 'none' } : { flex: '0 0 100%', maxWidth: '100%' }),
               }}
             >
-              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} />
+              <ChatArea room={selectedRoom} rooms={rooms} user={user} onBack={() => setSelectedRoomId(null)} onInfoColumnChange={setIsInfoColumnOpen} />
             </Col>
           </Row>
         </Card>
       </div>
-      <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} />
+      <NewChatModal isOpen={isNewChatOpen} onClose={() => setIsNewChatOpen(false)} rooms={rooms} currentUserId={user.id} />
       <DeepLinkConfirmDialog
         intent={deepLinkIntents[0] ?? null}
         canConfirm={socket !== null}

@@ -3,7 +3,7 @@ export { useTheme } from './theme-context';
 export { useThemeSync } from './hooks/useThemeSync';
 export { useChatSettingsSync } from './hooks/useChatSettingsSync';
 export { CHAT_BACKGROUNDS } from './constants/chat-backgrounds';
-export { COLOR_THEMES } from './constants/color-themes';
+export { COLOR_THEMES, DEFAULT_COLOR_THEME } from './constants/color-themes';
 export type { ColorThemeId } from './constants/color-themes';
 export { THEME_BASES } from './constants/theme-bases';
 export type { ThemeBaseId } from './constants/theme-bases';

@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ImageModal } from '@features/chat/components/ImageModal';
+import { MediaViewer } from '@features/chat/components/media-viewer/MediaViewer';
+import type { MediaViewerItem } from '@features/chat/components/media-viewer/media-viewer-items';
 
 interface ProfilePhotoViewerProps {
   photoUrl: string | null;
@@ -8,6 +10,31 @@ interface ProfilePhotoViewerProps {
 
 export function ProfilePhotoViewer({ photoUrl, onClose }: ProfilePhotoViewerProps) {
   const { t } = useTranslation();
+  const title = t('profilePhotos.viewerTitle');
+  const downloadName = t('profilePhotos.downloadName');
+  const items = useMemo<MediaViewerItem[]>(
+    () =>
+      photoUrl
+        ? [
+            {
+              id: `profile-photo-${photoUrl}`,
+              kind: 'image',
+              content: photoUrl,
+              roomId: '',
+              fileMeta: null,
+              caption: null,
+              senderId: '',
+              senderName: title,
+              senderAvatar: undefined,
+              timestamp: '',
+              isGif: false,
+              directUrl: photoUrl,
+              downloadName,
+            },
+          ]
+        : [],
+    [photoUrl, title, downloadName],
+  );
 
-  return <ImageModal isOpen={photoUrl !== null} images={photoUrl ? [photoUrl] : []} fileNames={[t('profilePhotos.downloadName')]} onClose={onClose} />;
+  return <MediaViewer isOpen={photoUrl !== null} items={items} startIndex={0} onClose={onClose} />;
 }

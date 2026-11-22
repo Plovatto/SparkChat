@@ -13,17 +13,17 @@ import { useMessageTranslation } from '../hooks/useMessageTranslation';
 import type { ChatMessage } from '../types';
 import { localizeAssistantWelcome } from '../utils/assistant-welcome';
 import { canReactToMessage } from '../utils/reactions';
-import { removeFirstUrl } from '../utils/extract-first-url';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
-import { resolveLinkPreviewTarget } from '../utils/link-preview-target';
+import { hasDisplayableLinkPreviewImage } from '../utils/link-preview-target';
+import { renderRichText } from '../utils/rich-text';
 import { truncateLongText } from '../utils/truncate-long-text';
 import { AudioMessageContent, type CurrentAudioRef } from './AudioMessageContent';
 import { FileMessageContent } from './FileMessageContent';
 import { ImageMessageContent } from './ImageMessageContent';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { MessageActionsRow } from './MessageActionsRow';
-import { MessageBubbleShell } from './MessageBubbleShell';
-import { MessageMeta } from './MessageMeta';
+import { MessageBubbleShell, type BubbleRunPosition, type BubbleVariant } from './MessageBubbleShell';
+import { MessageMeta, MessageMetaSpacer, type MessageMetaPlacement } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 import { MessageReplyQuote } from './MessageReplyQuote';
 import { DeletedMessageBubble, ErrorMessageBubble, SystemMessageBubble } from './SpecialMessageBubbles';
@@ -40,6 +40,7 @@ export interface MessageBubbleActions {
   onRetry: (clientTempId: string) => void;
   onStartSelection?: ((messageId: string) => void) | undefined;
   onReact: (messageId: string, emoji: string | null) => void;
+  onCopyText?: (text: string) => void;
 }
 
 interface MessageBubbleProps extends MessageBubbleActions {
@@ -57,45 +58,26 @@ interface MessageBubbleProps extends MessageBubbleActions {
   onAudioPlayed: (messageId: string) => void;
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
+  run?: BubbleRunPosition;
 }
 
 const LINK_PREVIEW_BUBBLE_WIDTH = 300;
-const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
 
-const MEDIA_CAPTION_STYLE: CSSProperties = { padding: '4px 12px 0', width: 0, minWidth: '100%', boxSizing: 'border-box' };
+const MEDIA_CAPTION_STYLE: CSSProperties = { width: 0, minWidth: '100%', boxSizing: 'border-box' };
 
 const MESSAGE_TEXT_STYLE: CSSProperties = {
   margin: 0,
   fontSize: '0.95rem',
   lineHeight: 1.5,
   whiteSpace: 'pre-wrap',
-  fontWeight: 500,
+  fontWeight: 400,
   wordBreak: 'break-word',
   overflowWrap: 'anywhere',
 };
 
-function renderMessageContent(text: string, participants: RoomParticipant[], accentColor: string): ReactNode {
-  if (participants.length === 0 || !text.includes('@')) {
-    return text;
-  }
-
-  const nicknames = new Set(participants.map((participant) => participant.nickname.toLowerCase()));
-
-  return text.split(MENTION_TOKEN_PATTERN).map((part, index) => {
-    if (part.startsWith('@') && nicknames.has(part.slice(1).toLowerCase())) {
-      return (
-        <span key={index} style={{ fontWeight: 700, color: accentColor }}>
-          {part}
-        </span>
-      );
-    }
-    return part;
-  });
-}
-
-function resolveBubblePadding(message: ChatMessage, isVideoFile: boolean): string {
-  if (message.type === 'image' || isVideoFile) {
-    return '8px 0 10px';
+function resolveBubblePadding(message: ChatMessage, variant: BubbleVariant): string {
+  if (variant !== 'bubble') {
+    return '0';
   }
   if (message.type === 'audio') {
     return '8px 0 6px';
@@ -103,7 +85,7 @@ function resolveBubblePadding(message: ChatMessage, isVideoFile: boolean): strin
   if (message.type === 'file') {
     return '10px 0 6px';
   }
-  return '6px 0';
+  return '0';
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -127,8 +109,10 @@ export const MessageBubble = memo(function MessageBubble({
   onRetry,
   onStartSelection,
   onReact,
+  onCopyText,
   entrancePhase = 'none',
   entranceIndex = 0,
+  run,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
@@ -153,6 +137,7 @@ export const MessageBubble = memo(function MessageBubble({
       onSelect(message.id);
     }
   }, [isSelected, onSelect, message.id]);
+  const reactionChipBackground = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn).background;
   const reactionUi = useMessageReactionUi({
     messageId: message.id,
     reactions: message.reactions,
@@ -163,6 +148,8 @@ export const MessageBubble = memo(function MessageBubble({
     participants,
     onReact,
     onDismiss: dismissActions,
+    showCount: isGroupChat,
+    chipBackground: reactionChipBackground,
   });
   const originalContent = (isAssistantRoom && !isOwn ? localizeAssistantWelcome(message.content, language) : null) ?? message.content;
   const contentTranslation = useMessageTranslation({
@@ -214,13 +201,16 @@ export const MessageBubble = memo(function MessageBubble({
   const isAudioMessage = message.type === 'audio';
   const isFileMessage = message.type === 'file';
   const isVideoFile = isFileMessage && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
+  const isVisualMedia = isImageMessage || isVideoFile;
   const content = contentTranslation.text || originalContent;
   const caption = captionTranslation.text || message.caption;
   const truncatedContent = message.type === 'text' && !isExpanded ? truncateLongText(content) : null;
   const displayContent = truncatedContent ?? content;
-  const hasLinkPreview = message.type === 'text' && Boolean(message.linkPreview);
-  const linkPreviewOpensUrl = Boolean(message.linkPreview && resolveLinkPreviewTarget(message.linkPreview.url, originalContent));
-  const linkPreviewCaption = hasLinkPreview ? (linkPreviewOpensUrl ? removeFirstUrl(content) : content) : '';
+  const linkPreview = message.type === 'text' ? message.linkPreview : undefined;
+  const hasLinkPreview = Boolean(linkPreview);
+  const hasFlushLinkPreview = Boolean(linkPreview && hasDisplayableLinkPreviewImage(linkPreview.imageUrl));
+  const hasMediaChrome = Boolean(caption || message.replyTo || message.unencrypted);
+  const variant: BubbleVariant = isVisualMedia ? (hasMediaChrome ? 'media-caption' : 'media') : hasFlushLinkPreview ? 'media-caption' : 'bubble';
   const badgeTranslation = message.type === 'text' ? contentTranslation : caption ? captionTranslation : null;
   const metaBadge =
     badgeTranslation && translationMode !== 'off' && canTranslate ? (
@@ -232,7 +222,9 @@ export const MessageBubble = memo(function MessageBubble({
         bubble={bubbleStyle}
       />
     ) : null;
+  const isBadgeVisible = Boolean(metaBadge && badgeTranslation && badgeTranslation.control !== 'none');
   const textAccentColor = bubbleStyle.accentColor;
+  const senderAvatar = participants.find((participant) => participant.id === message.sender.id)?.avatar;
 
   const handleRetry = () => {
     if (message.clientTempId) {
@@ -240,9 +232,50 @@ export const MessageBubble = memo(function MessageBubble({
     }
   };
 
+  const meta = (placement: MessageMetaPlacement) => (
+    <MessageMeta
+      message={message}
+      isOwn={isOwn}
+      bubble={bubbleStyle}
+      statusInfo={statusInfo}
+      onRetry={handleRetry}
+      leading={isBadgeVisible ? metaBadge : undefined}
+      placement={isBadgeVisible && placement === 'inline' ? 'row' : placement}
+    />
+  );
+
+  const textBlock = (text: ReactNode, withReadMore: boolean) => (
+    <div className="sc-bubble-text">
+      <p style={MESSAGE_TEXT_STYLE}>
+        {text}
+        {withReadMore && truncatedContent !== null && (
+          <>
+            {'… '}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsExpanded(true);
+              }}
+              className="sc-read-more"
+              style={{ color: textAccentColor }}
+            >
+              {t('chat.message.readMore')}
+            </button>
+          </>
+        )}
+        {!isBadgeVisible && <MessageMetaSpacer isOwn={isOwn} />}
+      </p>
+      {meta('inline')}
+    </div>
+  );
+
   const renderBody = () => {
     if (isImageMessage) {
-      return <ImageMessageContent message={message} />;
+      return <ImageMessageContent message={message} flush />;
+    }
+    if (isVideoFile) {
+      return <VideoMessageContent message={message} flush />;
     }
     if (isAudioMessage) {
       return (
@@ -256,38 +289,28 @@ export const MessageBubble = memo(function MessageBubble({
         />
       );
     }
-    if (isVideoFile) {
-      return <VideoMessageContent message={message} />;
-    }
     if (isFileMessage) {
       return <FileMessageContent message={message} bubble={bubbleStyle} fileTypeIcon={getFileTypeIcon(message.fileMeta?.mimeType ?? '')} />;
     }
-    if (hasLinkPreview) {
-      return null;
-    }
+    return null;
+  };
 
+  const renderFooter = () => {
+    if (message.type === 'text') {
+      return textBlock(renderRichText(displayContent, participants, textAccentColor), true);
+    }
+    if (isVisualMedia) {
+      return caption ? (
+        <div style={MEDIA_CAPTION_STYLE}>{textBlock(renderRichText(caption, participants, textAccentColor), false)}</div>
+      ) : (
+        meta(hasMediaChrome ? 'row' : 'overlay')
+      );
+    }
     return (
-      <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-        <p style={MESSAGE_TEXT_STYLE}>
-          {renderMessageContent(displayContent, participants, textAccentColor)}
-          {truncatedContent !== null && (
-            <>
-              {'… '}
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setIsExpanded(true);
-                }}
-                className="sc-read-more"
-                style={{ color: textAccentColor }}
-              >
-                {t('chat.message.readMore')}
-              </button>
-            </>
-          )}
-        </p>
-      </div>
+      <>
+        {caption && <div style={MEDIA_CAPTION_STYLE}>{textBlock(renderRichText(caption, participants, textAccentColor), false)}</div>}
+        {!caption && meta('row')}
+      </>
     );
   };
 
@@ -299,35 +322,55 @@ export const MessageBubble = memo(function MessageBubble({
       messageId={message.id}
       senderId={message.sender.id}
       senderNickname={message.sender.unknown ? t('common.unknownUser') : message.sender.nickname}
+      senderAvatar={senderAvatar}
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(message.id)}
       onOpenActions={() => onOpenActions(message.id)}
       allowCustomContextMenu={!message.pending && !message.failed}
-      padding={resolveBubblePadding(message, isVideoFile)}
-      cornerRadius={isImageMessage || isVideoFile ? 20 : 16}
+      padding={resolveBubblePadding(message, variant)}
+      variant={variant}
+      run={run}
+      cornerRadius={variant === 'bubble' ? 12 : 14}
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
       containerRef={bubbleRef}
       extraClassName={isAudioMessage ? ' is-audio' : ''}
-      minWidth={message.type === 'text' ? (message.linkPreview ? `${LINK_PREVIEW_BUBBLE_WIDTH}px` : '64px') : undefined}
-      beforeBubble={reactionUi.compact ? reactionUi.quickBar : null}
+      minWidth={message.type === 'text' ? (hasLinkPreview ? `min(${LINK_PREVIEW_BUBBLE_WIDTH}px, 100%)` : '0') : undefined}
+      reactions={reactionUi.chips}
+      bubbleSide={
+        actionsPresence.isPresent && !message.pending && !message.failed ? (
+          <MessageActionsRow
+            isOwn={isOwn}
+            isExiting={actionsPresence.isExiting}
+            canDelete
+            canCopy={message.type === 'text' || Boolean(message.caption)}
+            canTranslate={canTranslate && Boolean(badgeTranslation)}
+            onReply={() => onReply(message)}
+            onDelete={() => onDelete([message.id])}
+            onForward={() => onForward([message])}
+            onCopy={() => {
+              const text = message.type === 'text' ? originalContent : (message.caption ?? '');
+              if (onCopyText) {
+                onCopyText(text);
+              } else {
+                void navigator.clipboard?.writeText(text);
+              }
+            }}
+            onTranslate={() => badgeTranslation?.requestTranslation()}
+            onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
+            onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+            reactButtonRef={reactionUi.reactButtonRef}
+            isReactionOpen={reactionUi.isReactionOpen}
+            reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+            sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
+            onDismiss={() => onSelect(message.id)}
+          />
+        ) : null
+      }
       afterBubble={
         <>
-          {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {!reactionUi.compact && reactionUi.quickBar}
-          {actionsPresence.isPresent && !message.pending && !message.failed && (
-            <MessageActionsRow
-              isOwn={isOwn}
-              isExiting={actionsPresence.isExiting}
-              onReply={() => onReply(message)}
-              onDelete={() => onDelete([message.id])}
-              onForward={() => onForward([message])}
-              onStartSelection={onStartSelection ? () => onStartSelection(message.id) : undefined}
-              copyText={message.type === 'text' ? originalContent : message.caption}
-            />
-          )}
           {reactionUi.overlays}
         </>
       }
@@ -335,30 +378,21 @@ export const MessageBubble = memo(function MessageBubble({
       {message.unencrypted && <UnencryptedNotice />}
 
       {message.replyTo && (
-        <MessageReplyQuote replyTo={message.replyTo} parentType={message.type} isOwn={isOwn} bubble={bubbleStyle} currentUserId={currentUserId} />
+        <div className={variant === 'bubble' ? undefined : 'sc-bubble-quote-pad'}>
+          <MessageReplyQuote replyTo={message.replyTo} parentType={message.type} isOwn={isOwn} bubble={bubbleStyle} currentUserId={currentUserId} />
+        </div>
+      )}
+
+      {linkPreview && (
+        <div className={hasFlushLinkPreview ? 'sc-link-preview-flush' : 'sc-link-preview-inset'}>
+          <LinkPreviewCard preview={linkPreview} variant="bubble" bubble={bubbleStyle} messageText={originalContent} flush={hasFlushLinkPreview} />
+        </div>
       )}
 
       {renderBody()}
 
-      {hasLinkPreview && message.linkPreview && (
-        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-          <LinkPreviewCard preview={message.linkPreview} variant="bubble" bubble={bubbleStyle} messageText={originalContent} />
-        </div>
-      )}
-
-      {hasLinkPreview && linkPreviewCaption && (
-        <div style={{ padding: '4px 12px 0', minWidth: 0 }}>
-          <p style={MESSAGE_TEXT_STYLE}>{linkPreviewCaption}</p>
-        </div>
-      )}
-
-      {message.type !== 'text' && caption && (
-        <div style={MEDIA_CAPTION_STYLE}>
-          <p style={MESSAGE_TEXT_STYLE}>{renderMessageContent(caption, participants, textAccentColor)}</p>
-        </div>
-      )}
-
-      <MessageMeta message={message} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} leading={metaBadge} />
+      {renderFooter()}
+      {metaBadge && !isBadgeVisible && metaBadge}
     </MessageBubbleShell>
   );
 });

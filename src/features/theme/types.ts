@@ -46,6 +46,7 @@ export interface ThemeTokens {
   accentSecondary: string;
 
   gradient: string;
+  pageGradient: string;
   gradientHover: string;
   gradientPressed: string;
   onGradient: string;

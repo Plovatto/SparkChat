@@ -4,13 +4,13 @@ import {
   FaBell,
   FaBellSlash,
   FaCheck,
-  FaCheckCircle,
   FaCheckSquare,
   FaCircle,
   FaComments,
   FaCopy,
   FaPalette,
   FaPlus,
+  FaSearch,
   FaSignOutAlt,
   FaSquare,
   FaStar,
@@ -28,13 +28,13 @@ import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { useEscapeKey } from '@hooks/useEscapeKey';
-import { useAppLanguage } from '@lib/i18n/app-i18n';
-import { LanguageMenuButton } from '@lib/i18n/LanguageMenuButton';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { InstallAppButton } from '@features/pwa/components/InstallAppButton';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
 import { EditProfileModal } from './EditProfileModal';
+import { countUnreadRooms, filterRooms, type RoomFilter } from '../utils/room-filters';
 import { RoomListItem } from './RoomListItem';
+import { RoomListToolbar } from './RoomListToolbar';
 import { ThemeMenu } from './ThemeMenu';
 
 const ROOM_CASCADE_MAX_INDEX = 8;
@@ -107,7 +107,6 @@ export function Sidebar({
   listHeader,
 }: SidebarProps) {
   const { t } = useTranslation();
-  const { language, changeLanguage } = useAppLanguage();
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -164,6 +163,9 @@ export function Sidebar({
     [assistantRoomId],
   );
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roomFilter, setRoomFilter] = useState<RoomFilter>('all');
+  const unreadRoomCount = useMemo(() => countUnreadRooms(rooms), [rooms]);
   const selectableRooms = rooms.filter((room) => !isAssistantRoom(room));
   const allSelectableSelected = selectableRooms.length > 0 && selectedIds.size === selectableRooms.length;
 
@@ -222,6 +224,8 @@ export function Sidebar({
     [rooms, favoriteRoomIds],
   );
 
+  const visibleRooms = useMemo(() => filterRooms(sortedRooms, roomFilter, searchQuery, user.id), [sortedRooms, roomFilter, searchQuery, user.id]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
@@ -234,15 +238,15 @@ export function Sidebar({
         activeElement instanceof HTMLTextAreaElement ||
         (activeElement instanceof HTMLElement && activeElement.isContentEditable);
 
-      if (isEditable || sortedRooms.length === 0) {
+      if (isEditable || visibleRooms.length === 0) {
         return;
       }
 
       event.preventDefault();
-      const currentIndex = sortedRooms.findIndex((room) => room.id === selectedRoomId);
+      const currentIndex = visibleRooms.findIndex((room) => room.id === selectedRoomId);
       const delta = event.key === 'ArrowDown' ? 1 : -1;
-      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + delta + sortedRooms.length) % sortedRooms.length;
-      const nextRoom = sortedRooms[nextIndex];
+      const nextIndex = currentIndex === -1 ? 0 : (currentIndex + delta + visibleRooms.length) % visibleRooms.length;
+      const nextRoom = visibleRooms[nextIndex];
       if (nextRoom) {
         onSelectRoom(nextRoom);
       }
@@ -250,7 +254,7 @@ export function Sidebar({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [sortedRooms, selectedRoomId, onSelectRoom]);
+  }, [visibleRooms, selectedRoomId, onSelectRoom]);
 
   const hasPresetAvatar = AVATARS[user.avatar] !== undefined;
 
@@ -320,7 +324,7 @@ export function Sidebar({
             />
           </Avatar>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
               <h5
                 style={{
                   margin: 0,
@@ -387,13 +391,6 @@ export function Sidebar({
           </div>
 
           <div className="sidebar-header-actions">
-            <LanguageMenuButton
-              value={language}
-              onChange={changeLanguage}
-              label={t('language.label')}
-              className="sc-icon-btn sc-icon-btn--header sidebar-header-btn"
-            />
-
             <HeaderIconButton onClick={handleThemeButtonClick} title={t('sidebar.themes')}>
               <FaPalette size={16} />
             </HeaderIconButton>
@@ -433,81 +430,53 @@ export function Sidebar({
         </button>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '10px 12px',
-          borderBottom: `1px solid ${theme.borderSubtle}`,
-          background: isSelectionMode ? theme.surfaceSelected : theme.sidebar,
-          flexShrink: 0,
-          gap: '8px',
-          minHeight: '48px',
-          boxSizing: 'border-box',
-          transition: 'background var(--sc-dur-normal) var(--sc-ease-standard)',
-        }}
-      >
-        {isSelectionMode ? (
-          <>
-            <div className="sc-anim-swap-in-left" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <RoomListToolbar
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        filter={roomFilter}
+        onFilterChange={setRoomFilter}
+        unreadCount={unreadRoomCount}
+        canSelect={selectableRooms.length > 0}
+        onEnterSelection={toggleSelectionMode}
+        selectionBar={
+          isSelectionMode ? (
+            <div className="sc-room-selection">
+              <div className="sc-anim-swap-in-left" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={toggleSelectionMode}
+                  title={t('sidebar.closeSelection')}
+                  className="sc-icon-btn sc-icon-btn--ghost"
+                  style={{ width: '30px', height: '30px', color: theme.textPrimary }}
+                >
+                  <FaTimes size={13} />
+                </button>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textPrimary }}>
+                  {selectedIds.size > 0 ? t('sidebar.selected', { count: selectedIds.size }) : t('sidebar.selectConversations')}
+                </span>
+              </div>
+
               <button
-                onClick={toggleSelectionMode}
-                title={t('sidebar.closeSelection')}
-                className="sc-icon-btn sc-icon-btn--ghost"
-                style={{ width: '30px', height: '30px', color: theme.textPrimary }}
+                onClick={toggleSelectAll}
+                title={allSelectableSelected ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
+                className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
+                style={{ width: '30px', height: '30px', color: allSelectableSelected ? theme.accentText : theme.textPrimary }}
               >
-                <FaTimes size={13} />
+                {allSelectableSelected ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
               </button>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: theme.textPrimary }}>
-                {selectedIds.size > 0 ? t('sidebar.selected', { count: selectedIds.size }) : t('sidebar.selectConversations')}
-              </span>
             </div>
-
-            <button
-              onClick={toggleSelectAll}
-              title={allSelectableSelected ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
-              className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
-              style={{ width: '30px', height: '30px', color: allSelectableSelected ? theme.accentText : theme.textPrimary }}
-            >
-              {allSelectableSelected ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
-            </button>
-          </>
-        ) : (
-          <>
-            <h6
-              className="sc-anim-swap-in-left"
-              style={{
-                padding: '5px 12px',
-                fontSize: '0.7rem',
-                textTransform: 'uppercase',
-                color: theme.textSecondary,
-                letterSpacing: '1px',
-                fontWeight: 700,
-                margin: 0,
-              }}
-            >
-              {t('sidebar.conversations')}
-            </h6>
-
-            {rooms.length > 0 && (
-              <button
-                onClick={toggleSelectionMode}
-                title={t('sidebar.enterSelection')}
-                className="sc-btn sc-btn--ghost-border sc-anim-swap-in-right"
-                style={{ borderRadius: '999px', padding: '6px 14px', fontSize: '0.75rem', fontWeight: 700, gap: '6px' }}
-              >
-                <FaCheckCircle size={12} />
-                {t('sidebar.select')}
-              </button>
-            )}
-          </>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 8px' }}>
         {listHeader}
-        {rooms.length === 0 ? (
+        {rooms.length > 0 && visibleRooms.length === 0 ? (
+          <div className="sc-room-empty-search sc-anim-rise-in">
+            <FaSearch className="sc-room-empty-search__icon" aria-hidden="true" />
+            <p style={{ fontSize: '0.92rem', margin: '0 0 4px', color: theme.textPrimary, fontWeight: 600 }}>{t('sidebar.noResults')}</p>
+            <p style={{ fontSize: '0.84rem', margin: 0, color: theme.textMuted }}>{t('sidebar.noResultsHint')}</p>
+          </div>
+        ) : rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
             <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
             <p className="sc-anim-rise-in sc-stagger" style={{ fontSize: '0.9rem', margin: '5px 0', '--sc-stagger-index': 1 } as CSSProperties}>
@@ -522,7 +491,7 @@ export function Sidebar({
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {sortedRooms.map((room, index) => (
+            {visibleRooms.map((room, index) => (
               <RoomListItem
                 key={room.id}
                 entranceIndex={Math.min(index, ROOM_CASCADE_MAX_INDEX)}

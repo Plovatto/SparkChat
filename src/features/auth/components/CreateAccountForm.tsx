@@ -1,30 +1,25 @@
-import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
-import { Card, Form } from 'react-bootstrap';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaCheckCircle, FaLock, FaPalette, FaPencilAlt, FaTimesCircle } from 'react-icons/fa';
+import { FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { LuLock, LuPalette, LuPencilLine } from 'react-icons/lu';
 import { Spinner } from '@components/common/Spinner';
-import { PhotoPickerTile } from '@features/profile-photos/components/PhotoPickerTile';
 import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
 import { usePhotoPicker } from '@features/profile-photos/hooks/usePhotoPicker';
 import { withAlpha, type ThemeTokens } from '@features/theme';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { prepareRegistrationCredentials } from '@lib/e2ee';
-import { translate, useOnLanguageChange } from '@lib/i18n/app-i18n';
-import { AVATARS } from '../constants/avatars';
+import { useOnLanguageChange } from '@lib/i18n/app-i18n';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '../constants/validation';
 import { useNicknameAvailability, type NicknameCheckState } from '../hooks/useNicknameAvailability';
-import { useResponsiveAvatarSize } from '../hooks/useResponsiveAvatarSize';
 import { getPasswordMatchStatus } from '../lib/password-match';
 import type { PendingRegistration } from '../types';
-import { AuthBackButton } from './AuthBackButton';
 import { AuthErrorAlert } from './AuthErrorAlert';
-import { AUTH_HEADER_CONTROLS_SPACE, AuthLanguageSwitch } from './AuthLanguageSwitch';
+import { AvatarPicker } from './AvatarPicker';
 import { AutofillDecoyFields } from './AutofillDecoyFields';
-import { PasswordField, PasswordFieldHint } from './PasswordField';
-import { ThemeToggleButton } from './ThemeToggleButton';
-
-const AVATAR_GRID_COLUMN_GAP = 'clamp(8px, 2.5vw, 20px)';
-const AVATAR_GRID_COLUMNS = `repeat(auto-fill, minmax(max(44px, calc((100% - 4 * ${AVATAR_GRID_COLUMN_GAP}) / 5)), 1fr))`;
+import { PasswordField } from './PasswordField';
+import { WelcomeHint } from './welcome-form-parts';
+import { stagger } from './welcome-stagger';
+import { WelcomeFormHero } from './WelcomeControls';
 
 interface CreateAccountFormProps {
   darkMode: boolean;
@@ -34,6 +29,8 @@ interface CreateAccountFormProps {
   onSubmit: (input: PendingRegistration) => void;
   registerError?: string;
 }
+
+const AVATAR_TILE_SIZE = { avatarSize: 52, iconSize: 22 };
 
 type ResolvedNicknameCheckState = Exclude<NicknameCheckState, 'idle'>;
 
@@ -61,7 +58,7 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
   }, [registerError]);
 
   const nicknameStatus = useNicknameAvailability(nickname);
-  const { avatarSize, iconSize } = useResponsiveAvatarSize();
+  const { avatarSize, iconSize } = AVATAR_TILE_SIZE;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -109,287 +106,150 @@ export function CreateAccountForm({ darkMode, theme, onToggleTheme, onBack, onSu
     invalid: theme.dangerText,
   };
 
-  const labelStyle: CSSProperties = {
-    fontWeight: 700,
-    fontSize: 'clamp(0.95rem, 3vw, 1.05rem)',
-    color: theme.textPrimary,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '6px',
-  };
+  const confirmMatch = getPasswordMatchStatus(confirmPassword, password);
 
   return (
-    <div
-      style={{
-        minHeight: 'var(--app-height)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'clamp(0px, 10px, 20px)',
-        position: 'relative',
-      }}
-    >
-      <div
-        className="sc-anim-hero-in auth-container--form"
-        style={{
-          width: '90%',
-          maxWidth: '600px',
-        }}
-      >
-        <Card
-          className="hover-lift"
-          style={{
-            borderRadius: '28px',
-            boxShadow: theme.shadowLg,
-            border: `1px solid ${theme.borderSubtle}`,
-            background: theme.surfaceElevated,
-            overflow: 'hidden',
-            transition: 'all 0.3s ease',
-            display: 'flex',
-            flexDirection: 'column',
-            maxHeight: '94vh',
-          }}
-        >
-          <AuthLanguageSwitch top="15px" right="15px" />
-          <ThemeToggleButton darkMode={darkMode} onToggle={onToggleTheme} top="15px" right="15px" />
+    <section className="welcome-card welcome-card--form welcome-card--register" aria-labelledby="register-title">
+      <WelcomeFormHero
+        darkMode={darkMode}
+        onToggleTheme={onToggleTheme}
+        onBack={onBack}
+        titleId="register-title"
+        title={t('auth.register.title')}
+        subtitle={t('auth.register.subtitle')}
+      />
 
-          <div
-            className="auth-form-header"
-            style={{
-              background: theme.gradient,
-              padding: 'clamp(28px, 4vw, 32px) clamp(25px, 5vw, 32px)',
-              paddingRight: AUTH_HEADER_CONTROLS_SPACE,
-              color: theme.onGradient,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'clamp(12px, 3vw, 18px)',
-            }}
-          >
-            <AuthBackButton onClick={onBack} />
-            <div style={{ flex: 1 }}>
-              <h2
-                style={{
-                  margin: '0 0 0 10px',
-                  fontSize: 'clamp(1.3rem, 4vw, 1.8rem)',
-                  fontWeight: 800,
-                  letterSpacing: '-0.5px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
+      <div className="welcome-body welcome-body--form">
+        <form className="welcome-form" onSubmit={(event) => void handleSubmit(event)} autoComplete="off">
+          <AutofillDecoyFields />
+
+          <div className="welcome-field-group" style={stagger(0)}>
+            <span className="welcome-label" id="register-avatar-label">
+              <LuPalette size={15} aria-hidden="true" />
+              {t('auth.register.avatar')}
+            </span>
+            <AvatarPicker
+              selectedAvatar={selectedAvatar}
+              onSelectAvatar={(index) => {
+                setSelectedAvatar(index);
+                photo.selectPreset();
+              }}
+              photoUrl={photo.photoUrl}
+              isPhotoSelected={photo.isSelected}
+              isPhotoBusy={photoPicker.isPreparing}
+              onChoosePhoto={photoPicker.open}
+              onSelectPhoto={photo.selectPhoto}
+              onRemovePhoto={photo.remove}
+              labelledBy="register-avatar-label"
+              kind={darkMode ? 'dark' : 'light'}
+              tileSize={avatarSize}
+              iconSize={iconSize}
+              entranceDelayMs={640}
+            />
+            {photoPicker.error && (
+              <small key={photoPicker.error} role="alert" className="welcome-field-error sc-anim-shake">
+                {photoPicker.error}
+              </small>
+            )}
+            {photoPicker.element}
+          </div>
+
+          <div className="welcome-field-group" style={stagger(1)}>
+            <label className="welcome-label" htmlFor="register-username">
+              <LuPencilLine size={15} aria-hidden="true" />
+              {t('auth.register.username')}
+            </label>
+            <div className="welcome-input-wrap">
+              <input
+                id="register-username"
+                type="text"
+                placeholder={t('auth.register.usernamePlaceholder')}
+                value={nickname}
+                onChange={(event) => setNickname(sanitizeNicknameInput(event.target.value))}
+                maxLength={NICKNAME_MAX_LENGTH}
+                autoComplete="one-time-code"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                name="sparkchat-field-a"
+                data-valid={nicknameStatus === 'available'}
+                data-invalid={nicknameStatus === 'taken' || nicknameStatus === 'invalid'}
+                aria-describedby="register-username-status"
+                className="welcome-input"
+                style={{ paddingRight: '44px' }}
+              />
+              {nickname.trim().length > 0 && (
+                <span className="welcome-input-adornment" key={nicknameStatus}>
+                  {nicknameStatus === 'checking' && <Spinner size={16} />}
+                  {nicknameStatus === 'available' && <FaCheckCircle size={17} color={theme.successText} />}
+                  {(nicknameStatus === 'taken' || nicknameStatus === 'invalid') && <FaTimesCircle size={17} color={theme.dangerText} />}
+                </span>
+              )}
+            </div>
+            <div className="welcome-hint" id="register-username-status" aria-live="polite">
+              <span
+                key={nicknameStatus}
+                className="welcome-hint__status"
+                style={{ color: nicknameStatus === 'idle' ? 'transparent' : nicknameStatusColor[nicknameStatus] }}
               >
-                {t('auth.register.title')}
-              </h2>
-              <p style={{ margin: '5px 0 0 10px', color: theme.onGradientMuted, fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', fontWeight: 300 }}>
-                {t('auth.register.subtitle')}
-              </p>
+                {nicknameStatus === 'idle' ? '' : t(`auth.register.${nicknameStatus}`)}
+              </span>
+              <span className="welcome-hint__count">
+                {nickname.length}/{NICKNAME_MAX_LENGTH}
+              </span>
             </div>
           </div>
 
-          <Card.Body
-            style={{
-              padding: 'clamp(25px, 5vw, 32px)',
-              background: theme.surfaceElevated,
-              overflowY: 'auto',
-              flex: '0 1 auto',
-              minHeight: 0,
-              scrollbarGutter: 'stable both-edges',
-            }}
+          <div className="welcome-field-group" style={stagger(2)}>
+            <label className="welcome-label" htmlFor="register-password">
+              <LuLock size={15} aria-hidden="true" />
+              {t('auth.register.password')}
+            </label>
+            <PasswordField
+              id="register-password"
+              appearance="welcome"
+              value={password}
+              onChange={setPassword}
+              placeholder={t('auth.register.passwordPlaceholder')}
+            />
+            <WelcomeHint length={password.length} maxLength={PASSWORD_MIN_LENGTH} />
+          </div>
+
+          {password.length > 0 && (
+            <div className="welcome-field-group welcome-field-group--reveal">
+              <label className="welcome-label" htmlFor="register-confirm">
+                <LuLock size={15} aria-hidden="true" />
+                {t('auth.register.confirmPassword')}
+              </label>
+              <PasswordField
+                id="register-confirm"
+                appearance="welcome"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                placeholder={t('auth.register.confirmPlaceholder')}
+                matchStatus={confirmMatch}
+              />
+              <WelcomeHint length={confirmPassword.length} maxLength={PASSWORD_MIN_LENGTH} matchStatus={confirmMatch} />
+            </div>
+          )}
+
+          {error && <AuthErrorAlert key={error} message={error} marginBottom="16px" />}
+
+          <button
+            type="submit"
+            disabled={isPreparing}
+            className="welcome-cta welcome-cta--primary welcome-cta--submit"
+            style={{ ...stagger(3), cursor: isPreparing ? 'wait' : undefined }}
           >
-            <Form onSubmit={(event) => void handleSubmit(event)} autoComplete="off">
-              <AutofillDecoyFields />
-              <Form.Group style={{ marginBottom: '18px' }}>
-                <Form.Label style={{ ...labelStyle, marginBottom: '10px' }}>
-                  <FaPalette size={18} />
-                  {t('auth.register.avatar')}
-                </Form.Label>
-                <div
-                  className="sc-card"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: AVATAR_GRID_COLUMNS,
-                    justifyContent: 'center',
-                    justifyItems: 'center',
-                    columnGap: AVATAR_GRID_COLUMN_GAP,
-                    rowGap: 'clamp(15px, 3vw, 22px)',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    scrollbarGutter: 'stable both-edges',
-                    padding: '16px',
-                    borderRadius: '18px',
-                  }}
-                >
-                  <PhotoPickerTile
-                    size={avatarSize}
-                    iconSize={iconSize}
-                    photoUrl={photo.photoUrl}
-                    isSelected={photo.isSelected}
-                    isBusy={photoPicker.isPreparing}
-                    onChoose={photoPicker.open}
-                    onSelect={photo.selectPhoto}
-                    onRemove={photo.remove}
-                    className={photo.isSelected ? undefined : 'sc-anim-tile-in sc-stagger'}
-                    style={{ width: '100%', maxWidth: `${avatarSize}px`, '--sc-stagger-index': 0, '--sc-stagger-step': '22ms' } as CSSProperties}
-                  />
-                  {AVATARS.map((avatar, index) => {
-                    const IconComponent = avatar.icon;
-                    const isSelected = !photo.isSelected && selectedAvatar === index;
-
-                    return (
-                      <button
-                        type="button"
-                        key={avatar.name}
-                        onClick={() => {
-                          setSelectedAvatar(index);
-                          photo.selectPreset();
-                        }}
-                        data-selected={isSelected}
-                        title={translate(`avatars.${avatar.name}`)}
-                        aria-label={translate(`avatars.${avatar.name}`)}
-                        className={`sc-avatar-option${isSelected ? '' : ' sc-anim-tile-in sc-stagger'}`}
-                        style={
-                          {
-                            width: '100%',
-                            maxWidth: `${avatarSize}px`,
-                            aspectRatio: '1 / 1',
-                            justifySelf: 'center',
-                            '--avatar-gradient': avatar.bgGradient,
-                            '--avatar-color': avatar.color,
-                            '--sc-stagger-index': Math.min(index + 1, 11),
-                            '--sc-stagger-step': '22ms',
-                          } as CSSProperties
-                        }
-                      >
-                        <IconComponent size={iconSize} />
-                      </button>
-                    );
-                  })}
-                </div>
-                {photoPicker.error && (
-                  <small key={photoPicker.error} role="alert" className="sc-anim-shake" style={{ display: 'block', marginTop: '8px', color: theme.dangerText, fontWeight: 600 }}>
-                    {photoPicker.error}
-                  </small>
-                )}
-                {photoPicker.element}
-              </Form.Group>
-
-              <Form.Group style={{ marginBottom: nicknameStatus === 'idle' ? '0px' : '10px' }}>
-                <Form.Label style={labelStyle}>
-                  <FaPencilAlt size={18} />
-                  {t('auth.register.username')}
-                </Form.Label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    placeholder={t('auth.register.usernamePlaceholder')}
-                    value={nickname}
-                    onChange={(event) => setNickname(sanitizeNicknameInput(event.target.value))}
-                    maxLength={NICKNAME_MAX_LENGTH}
-                    autoComplete="one-time-code"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    name="sparkchat-field-a"
-                    data-valid={nicknameStatus === 'available'}
-                    data-invalid={nicknameStatus === 'taken' || nicknameStatus === 'invalid'}
-                    className="sc-input"
-                    style={{
-                      padding: 'clamp(12px, 2vw, 16px) clamp(14px, 3vw, 22px)',
-                      paddingRight: '46px',
-                      fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
-                      borderRadius: '14px',
-                      borderWidth: '2px',
-                      fontWeight: 500,
-                      marginBottom: '2px',
-                    }}
-                  />
-                  {nickname.trim().length > 0 && (
-                    <div style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center' }}>
-                      {nicknameStatus === 'checking' && <Spinner size={16} />}
-                      {nicknameStatus === 'available' && <FaCheckCircle size={18} color={theme.successText} />}
-                      {(nicknameStatus === 'taken' || nicknameStatus === 'invalid') && <FaTimesCircle size={18} color={theme.dangerText} />}
-                    </div>
-                  )}
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '10px',
-                    marginTop: '2px',
-                    paddingLeft: '3px',
-                    paddingRight: '4px',
-                  }}
-                >
-                  <Form.Text
-                    style={{
-                      margin: 0,
-                      fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-                      color: nicknameStatus === 'idle' ? 'transparent' : nicknameStatusColor[nicknameStatus],
-                      fontWeight: 600,
-                    }}
-                  >
-                    {nicknameStatus === 'idle' ? '' : t(`auth.register.${nicknameStatus}`)}
-                  </Form.Text>
-                  <Form.Text style={{ margin: 0, fontSize: '0.78rem', color: theme.textMuted, fontWeight: 600 }}>
-                    {nickname.length}/{NICKNAME_MAX_LENGTH}
-                  </Form.Text>
-                </div>
-              </Form.Group>
-
-              <Form.Group style={{ marginTop: '-4px', marginBottom: password ? '2px' : '14px' }}>
-                <Form.Label style={labelStyle}>
-                  <FaLock size={16} />
-                  {t('auth.register.password')}
-                </Form.Label>
-                <PasswordField value={password} onChange={setPassword} placeholder={t('auth.register.passwordPlaceholder')} />
-                <PasswordFieldHint length={password.length} maxLength={PASSWORD_MIN_LENGTH} />
-              </Form.Group>
-
-              {password.length > 0 && (
-                <Form.Group style={{ marginBottom: '14px' }} className="sc-anim-rise-in">
-                  <Form.Label style={labelStyle}>
-                    <FaLock size={16} />
-                    {t('auth.register.confirmPassword')}
-                  </Form.Label>
-                  <PasswordField
-                    value={confirmPassword}
-                    onChange={setConfirmPassword}
-                    placeholder={t('auth.register.confirmPlaceholder')}
-                    matchStatus={getPasswordMatchStatus(confirmPassword, password)}
-                  />
-                  <PasswordFieldHint
-                    length={confirmPassword.length}
-                    maxLength={PASSWORD_MIN_LENGTH}
-                    matchStatus={getPasswordMatchStatus(confirmPassword, password)}
-                  />
-                </Form.Group>
-              )}
-
-              {error && <AuthErrorAlert key={error} message={error} marginBottom="20px" />}
-
-              <button
-                type="submit"
-                disabled={isPreparing}
-                className="sc-btn sc-btn--gradient sc-btn--lift"
-                style={{
-                  width: '100%',
-                  padding: 'clamp(14px, 3vw, 18px)',
-                  fontSize: 'clamp(0.95rem, 3vw, 1.15rem)',
-                  fontWeight: 700,
-                  borderRadius: '14px',
-                  gap: 'clamp(8px, 2vw, 10px)',
-                  cursor: isPreparing ? 'wait' : undefined,
-                }}
-              >
-                {isPreparing ? <Spinner size={18} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} /> : <FaCheckCircle size={18} />}
-                {isPreparing ? t('auth.register.submitting') : t('auth.register.submit')}
-              </button>
-            </Form>
-          </Card.Body>
-        </Card>
+            {isPreparing ? (
+              <Spinner size={18} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />
+            ) : (
+              <FaCheckCircle size={17} aria-hidden="true" />
+            )}
+            <span>{isPreparing ? t('auth.register.submitting') : t('auth.register.submit')}</span>
+          </button>
+        </form>
       </div>
-    </div>
+    </section>
   );
 }

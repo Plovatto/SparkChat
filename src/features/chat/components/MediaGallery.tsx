@@ -6,6 +6,7 @@ import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import type { MessageView } from '@lib/socket';
 import type { ChatMessage } from '../types';
+import { getGalleryMedia } from '../utils/gallery-media';
 import { GalleryMediaTile } from './GalleryMediaTile';
 
 interface MediaGalleryProps {
@@ -24,12 +25,7 @@ export function MediaGallery({ messages, messagesLoaded, onSelectMedia }: MediaG
   const isWide = useMediaQuery(minWidthQuery(WIDE_GALLERY_MIN_WIDTH_PX));
   const columns = isWide ? WIDE_COLUMNS : NARROW_COLUMNS;
 
-  const mediaMessages = messages
-    .filter(
-      (message) =>
-        (message.type === 'image' || message.type === 'file') && !message.deletedForEveryone && !message.pending && !message.failed,
-    )
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const mediaMessages = getGalleryMedia(messages);
 
   if (!messagesLoaded) {
     return (

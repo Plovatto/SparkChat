@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaExclamationTriangle, FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaTimes, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { LuX } from 'react-icons/lu';
 import { useTheme } from '@features/theme';
 import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
 import { Switch } from '@components/common/Switch';
@@ -15,6 +16,7 @@ import { DUCK_LEVEL } from '../lib/ducking';
 import type { ShareMonitorSupport } from '../lib/share-monitor';
 import { isOutside } from './call-hooks';
 import { panelTabs, rangeFill, resolveTab, stepTab, toPercent, type PanelTab } from './settings-tabs';
+import '../styles/call-panel.css';
 
 export interface SharerSettings {
   movieMode: boolean;
@@ -99,12 +101,11 @@ interface AudioOptionProps {
   id: string;
   label: string;
   description: string;
-  warning?: string | undefined;
   checked: boolean;
   onChange: () => void;
 }
 
-function AudioOption({ id, label, description, warning, checked, onChange }: AudioOptionProps) {
+function AudioOption({ id, label, description, checked, onChange }: AudioOptionProps) {
   const { theme } = useTheme();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -114,12 +115,6 @@ function AudioOption({ id, label, description, warning, checked, onChange }: Aud
         </span>
         <span id={id + '-hint'} style={{ fontSize: '0.74rem', color: theme.textSecondary, lineHeight: 1.3 }}>
           {description}
-          {warning && (
-            <span className="sc-call-option-warning" data-active={checked}>
-              <FaExclamationTriangle size={11} aria-hidden="true" />
-              <span>{warning}</span>
-            </span>
-          )}
         </span>
       </div>
       <Switch checked={checked} onChange={onChange} aria-labelledby={id} aria-describedby={id + '-hint'} />
@@ -191,7 +186,6 @@ function PanelNote({ children }: { children: ReactNode }) {
 
 export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput, onVideoInput, onAudioOutput, onClose, maxHeight, bottom, trigger, stage = 'open', broadcast = null }: DevicePickerProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const call = useCall();
   const [processing] = useAudioProcessing();
   const [micLevel, setMicLevel] = useMicVolume();
@@ -383,7 +377,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
           <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
           <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
           {voiceIsolation && (
-            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} warning={t('calls.audio.isolationWarning')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
+            <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
           )}
         </div>
       );
@@ -433,18 +427,14 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
       data-state={stage}
       style={{ ...(maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : {}), ...(bottom !== undefined ? { bottom: `${bottom}px` } : {}) }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '12px 16px 10px' }}>
-        <strong id={titleId} style={{ fontSize: '1rem' }}>
+      <span className="sc-call-panel__handle" aria-hidden="true" />
+      <span className="sc-call-panel__caret" aria-hidden="true" />
+      <div className="sc-call-panel__head">
+        <strong id={titleId} className="sc-call-panel__title">
           {t('calls.settings')}
         </strong>
-        <button
-          type="button"
-          onClick={() => onClose(true)}
-          aria-label={t('calls.closeDevices')}
-          title={t('calls.closeDevices')}
-          style={{ width: '30px', height: '30px', flexShrink: 0, borderRadius: '50%', border: 'none', background: theme.surfaceSunken, color: theme.textSecondary, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <FaTimes size={13} />
+        <button type="button" className="sc-call-panel__close" onClick={() => onClose(true)} aria-label={t('calls.closeDevices')} title={t('calls.closeDevices')}>
+          <LuX size={16} />
         </button>
       </div>
       <div

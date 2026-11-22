@@ -1,5 +1,7 @@
 import { memo, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { IconType } from 'react-icons';
+import { LuPhoneIncoming, LuPhoneMissed, LuPhoneOutgoing, LuVideo, LuVideoOff } from 'react-icons/lu';
 import { MdGif } from 'react-icons/md';
 import {
   FaAt,
@@ -28,12 +30,24 @@ import { localizeAssistantWelcome } from '@features/chat/utils/assistant-welcome
 import { Avatar, type AvatarProps } from '@features/profile-photos/components/Avatar';
 import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
-import { formatAudioTime, formatTime, getDisplayName, resolveActiveUserNames, systemMessageSegments } from '@lib/format';
+import {
+  describeCallPreview,
+  formatAudioTime,
+  formatTime,
+  getDisplayName,
+  isCallEvent,
+  resolveActiveUserNames,
+  systemMessageSegments,
+  type CallPreview,
+  type CallPreviewGlyph,
+  type SystemEvent,
+} from '@lib/format';
 import { translate, useAppLanguage } from '@lib/i18n/app-i18n';
 import { isGifMimeType } from '@lib/media/media-type';
 import { getMessageStatus } from '@lib/message-status';
 import type { RoomSummary } from '@lib/socket';
 import { getOtherParticipant, getRoomDisplayName } from '../utils/room-display';
+import '../styles/room-call-preview.css';
 
 interface RoomListItemProps {
   room: RoomSummary;
@@ -159,6 +173,38 @@ function ActivityPreview({
   );
 }
 
+const CALL_PREVIEW_ICONS: Record<CallPreviewGlyph, IconType> = {
+  'voice-outgoing': LuPhoneOutgoing,
+  'voice-incoming': LuPhoneIncoming,
+  'voice-missed': LuPhoneMissed,
+  video: LuVideo,
+  'video-off': LuVideoOff,
+};
+
+function CallEventPreviewContent({ preview }: { preview: CallPreview }) {
+  const Icon = CALL_PREVIEW_ICONS[preview.glyph];
+
+  return (
+    <span className="sc-call-preview__body" title={preview.fullText}>
+      <span className="sc-call-preview__glyph" aria-hidden="true">
+        <Icon />
+      </span>
+      <span className="sc-call-preview__text" aria-hidden="true">
+        <span className="sc-call-preview__label">{preview.label}</span>
+        {preview.detail && <span className="sc-call-preview__detail"> · {preview.detail}</span>}
+      </span>
+      <span className="sc-sr-only">{preview.fullText}</span>
+    </span>
+  );
+}
+
+function resolveCallPreview(message: { type: string; systemEvent?: SystemEvent | null }, userId: string): CallPreview | null {
+  if (message.type !== 'system' || !message.systemEvent || !isCallEvent(message.systemEvent)) {
+    return null;
+  }
+  return describeCallPreview(message.systemEvent, userId);
+}
+
 function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -213,7 +259,13 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
     </span>
   );
 
+  const callPreview = resolveCallPreview(message, user.id);
+
   const renderContent = () => {
+    if (callPreview) {
+      return <CallEventPreviewContent preview={callPreview} />;
+    }
+
     if (message.type === 'system' || message.type === 'error') {
       return (
         <span style={{ fontStyle: 'italic', color: theme.textMuted, lineHeight: 1.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -286,8 +338,13 @@ function LastMessagePreview({ room, user }: { room: RoomSummary; user: User }) {
   const checkColor = statusInfo?.read ? theme.receiptRead : theme.textMuted;
 
   return (
-    <p className="sc-anim-fade-in" style={previewStyle}>
-      {statusInfo && (
+    <p
+      className={callPreview ? 'sc-call-preview' : 'sc-anim-fade-in'}
+      data-tone={callPreview?.tone}
+      data-missed={callPreview ? String(callPreview.missed) : undefined}
+      style={previewStyle}
+    >
+      {statusInfo && !callPreview && (
         <span style={{ display: 'flex', alignItems: 'center', gap: '0px', flexShrink: 0, lineHeight: 1, width: statusInfo.icon === 'double' ? '19px' : '12px' }}>
           {statusInfo.icon === 'double' ? (
             <>

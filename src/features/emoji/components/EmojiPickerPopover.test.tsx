@@ -115,6 +115,28 @@ describe('EmojiPickerPopover', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('leaves pointer downs on the toggle buttons to their own click handlers', async () => {
+    const onClose = vi.fn();
+    const anchorRef = createRef<HTMLButtonElement>();
+    const otherRef = createRef<HTMLButtonElement>();
+    render(
+      <div>
+        <button type="button" ref={anchorRef}>
+          anchor
+        </button>
+        <button type="button" ref={otherRef}>
+          other toggle
+        </button>
+        <EmojiPickerPopover open anchorRef={anchorRef} toggleRefs={[anchorRef, otherRef]} onSelect={vi.fn()} onClose={onClose} />
+      </div>,
+    );
+    await screen.findByTestId('fake-panel');
+
+    fireEvent.pointerDown(screen.getByText('other toggle'));
+
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('leaves Escape to whoever handled it first and does not stop it from bubbling', async () => {
     const { onClose } = setup(true);
     await screen.findByTestId('fake-panel');

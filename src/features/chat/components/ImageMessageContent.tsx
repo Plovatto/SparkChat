@@ -8,9 +8,11 @@ import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, CHAT_GIF_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageMessageContentProps {
   message: ChatMessage;
+  flush?: boolean;
 }
 
 export function GifExpiredBlock() {
@@ -47,12 +49,13 @@ export function GifExpiredBlock() {
   );
 }
 
-export function ImageMessageContent({ message }: ImageMessageContentProps) {
+export function ImageMessageContent({ message, flush = false }: ImageMessageContentProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [isLoaded, setIsLoaded] = useState(false);
   const [displayHeight, setDisplayHeight] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const mediaViewer = useMediaViewer();
   const isGif = isGifMimeType(message.fileMeta?.mimeType);
   const maxWidth = isGif ? CHAT_GIF_MAX_WIDTH : CHAT_ATTACHMENT_MAX_WIDTH;
   const localSource = toLocalMediaUrl(message.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(message.content);
@@ -67,7 +70,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
         data-testid={isGif ? 'gif-message' : undefined}
         style={{
           position: 'relative',
-          padding: '0 10px',
+          padding: flush ? 0 : '0 10px',
           width: isLoaded ? `${maxWidth}px` : undefined,
           maxWidth: '100%',
           height: displayHeight ?? undefined,
@@ -81,8 +84,8 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
             style={
               {
                 position: 'absolute',
-                inset: '0 10px',
-                borderRadius: '16px',
+                inset: flush ? 0 : '0 10px',
+                borderRadius: flush ? 0 : '16px',
                 '--shimmer-a': theme.skeleton,
               } as CSSProperties
             }
@@ -98,7 +101,9 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
           }}
           onClick={(event) => {
             event.stopPropagation();
-            setIsModalOpen(true);
+            if (!mediaViewer?.open(message.id)) {
+              setIsModalOpen(true);
+            }
           }}
           className="sc-media-thumb"
           style={{
@@ -108,7 +113,7 @@ export function ImageMessageContent({ message }: ImageMessageContentProps) {
             objectFit: isLoaded ? 'cover' : undefined,
             maxWidth: isLoaded ? undefined : `min(100%, ${maxWidth}px)`,
             maxHeight: isLoaded ? undefined : '320px',
-            borderRadius: '16px',
+            borderRadius: flush ? 0 : '16px',
             opacity: isLoaded ? 1 : 0,
           }}
         />

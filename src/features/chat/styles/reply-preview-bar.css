@@ -1,0 +1,195 @@
+.sc-reply-bar-wrap {
+  flex: 0 0 auto;
+  padding: 8px 16px 0;
+  min-width: 0;
+}
+
+.sc-reply-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 8px 6px 17px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sc-input) 70%, var(--sc-canvas));
+  box-sizing: border-box;
+  animation: scReplyBarIn 220ms var(--sc-ease-spring-soft) both;
+}
+
+.sc-reply-bar.is-exiting {
+  animation: scReplyBarOut 140ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+.sc-reply-bar__accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--sc-border-focus);
+}
+
+.sc-reply-bar__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+}
+
+.sc-reply-bar__ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-reply-bar__title {
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 700;
+  color: var(--sc-accent-text);
+}
+
+.sc-reply-bar__preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sc-text-secondary);
+}
+
+.sc-reply-bar__inline-icon {
+  flex-shrink: 0;
+}
+
+.sc-reply-bar__thumb {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--sc-skeleton);
+}
+
+.sc-reply-bar__thumb--video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sc-text-secondary);
+}
+
+.sc-reply-bar__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sc-text-secondary);
+  cursor: pointer;
+  transition: transform 160ms var(--sc-ease-spring-soft), background-color 160ms ease, color 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sc-reply-bar__close:active {
+  transform: scale(0.92);
+}
+
+.sc-reply-bar__close:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sc-reply-bar__close:hover {
+    background: var(--sc-surface-hover);
+    color: var(--sc-text-primary);
+  }
+}
+
+@media (max-width: 600px) {
+  .sc-reply-bar-wrap {
+    padding: 6px 10px 0;
+  }
+
+  .sc-reply-bar {
+    padding-right: 6px;
+    gap: 8px;
+  }
+
+  .sc-reply-bar__close {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@keyframes scReplyBarIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scReplyBarOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes scReplyBarFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scReplyBarFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-reply-bar {
+    animation: scReplyBarFadeIn 160ms ease-out both;
+  }
+
+  .sc-reply-bar.is-exiting {
+    animation: scReplyBarFadeOut 120ms ease-in forwards;
+  }
+
+  .sc-reply-bar__close {
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+
+  .sc-reply-bar__close:active {
+    transform: none;
+  }
+}

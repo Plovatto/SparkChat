@@ -1,0 +1,300 @@
+.sc-composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--sc-surface);
+  border-top: 1px solid var(--sc-border-subtle);
+}
+
+.sc-composer-pill {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 8%, transparent);
+  background: var(--sc-input);
+  transition:
+    border-color 180ms ease,
+    box-shadow 220ms ease;
+}
+
+.sc-composer-pill:focus-within {
+  border-color: color-mix(in srgb, var(--sc-border-focus) 70%, transparent);
+  box-shadow: 0 0 0 3px var(--sc-focus-ring);
+}
+
+.sc-composer-pill[data-disabled] {
+  opacity: 0.6;
+}
+
+.sc-composer-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sc-text-primary);
+  font-size: 0.95rem;
+}
+
+.sc-composer-input::placeholder {
+  color: var(--sc-text-muted);
+  opacity: 1;
+}
+
+.sc-composer-pill .sc-emoji-btn {
+  color: var(--sc-text-secondary);
+}
+
+.sc-composer-pill .sc-emoji-btn[aria-expanded='true'] {
+  color: var(--sc-text-primary);
+}
+
+.sc-composer-pill .sc-gif-btn {
+  width: 38px !important;
+  height: 34px !important;
+  margin-right: 6px;
+  background: transparent;
+}
+
+.sc-composer-pill .sc-gif-btn.sc-icon-btn.sc-icon-btn--muted {
+  color: var(--sc-text-secondary);
+}
+
+.sc-composer-pill .sc-gif-btn.sc-icon-btn.sc-icon-btn--muted:hover:not(:disabled) {
+  color: var(--sc-text-primary);
+}
+
+.sc-composer-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sc-text-secondary);
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    transform 200ms var(--sc-ease-spring-soft);
+}
+
+.sc-composer-icon:hover:not(:disabled) {
+  color: var(--sc-text-primary);
+  background: color-mix(in srgb, var(--sc-border-focus) 14%, transparent);
+  transform: rotate(-12deg);
+}
+
+.sc-composer-icon:disabled {
+  cursor: not-allowed;
+}
+
+.sc-composer-icon:focus-visible,
+.sc-composer-action:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-composer-action {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--sc-accent) 90%, #2f5bd8), var(--sc-accent-secondary));
+  color: var(--sc-on-gradient);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--sc-accent) 85%, transparent);
+  cursor: pointer;
+  transition:
+    transform 220ms var(--sc-ease-spring-soft),
+    box-shadow 200ms ease,
+    filter 200ms ease;
+}
+
+.sc-composer-action:hover:not(:disabled) {
+  transform: scale(1.06);
+  filter: brightness(1.08);
+  box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--sc-accent) 95%, transparent);
+}
+
+.sc-composer-action:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.sc-composer-action:disabled {
+  filter: grayscale(0.6);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 479.98px) {
+  .sc-composer {
+    gap: 8px;
+  }
+
+  .sc-composer-pill {
+    padding: 0 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-composer-icon:hover:not(:disabled),
+  .sc-composer-action:hover:not(:disabled),
+  .sc-composer-action:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+@keyframes scRecordingDot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sc-danger) 55%, transparent);
+  }
+  60% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--sc-danger) 0%, transparent);
+  }
+}
+
+@keyframes scRecordingIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.sc-recording {
+  animation: scRecordingIn 260ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-recording__discard {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sc-danger) 14%, transparent);
+  color: var(--sc-danger-text);
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    transform 200ms var(--sc-ease-spring-soft);
+}
+
+.sc-recording__discard:hover {
+  background: color-mix(in srgb, var(--sc-danger) 24%, transparent);
+}
+
+.sc-recording__discard:active {
+  transform: scale(0.92);
+}
+
+.sc-recording__discard:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-recording__pill {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sc-accent) 35%, transparent);
+  background: var(--sc-input);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc-accent) 12%, transparent);
+}
+
+.sc-recording__dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--sc-danger);
+  animation: scRecordingDot 1.4s ease-out infinite;
+}
+
+.sc-recording__time {
+  flex: none;
+  min-width: 34px;
+  color: var(--sc-text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-recording__wave {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  min-width: 0;
+  height: 30px;
+  overflow: hidden;
+}
+
+.sc-recording__bar {
+  flex: 0 0 3px;
+  min-height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--sc-accent-secondary), var(--sc-accent));
+  transition: height 90ms var(--sc-ease-standard);
+}
+
+.sc-recording__bar[data-quiet] {
+  height: 3px;
+  min-height: 3px;
+  background: color-mix(in srgb, var(--sc-text-primary) 22%, transparent);
+}
+
+.sc-recording__send:disabled {
+  filter: grayscale(0.4);
+  opacity: 0.5;
+}
+
+@media (max-width: 479.98px) {
+  .sc-recording__discard {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sc-recording__pill {
+    gap: 10px;
+    padding: 0 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-recording,
+  .sc-recording__dot {
+    animation: none;
+  }
+
+  .sc-recording__bar {
+    transition: none;
+  }
+}

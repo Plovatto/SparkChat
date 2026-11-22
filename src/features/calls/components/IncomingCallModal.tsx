@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FocusEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { FaPhone, FaVideo, FaVolumeMute } from 'react-icons/fa';
-import { MdCallEnd } from 'react-icons/md';
+import { LuBellOff, LuPhone, LuPhoneOff, LuVideo } from 'react-icons/lu';
 import { Avatar } from '@features/profile-photos/components/Avatar';
-import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translate } from '@lib/i18n/app-i18n';
 import type { CallKind } from '@lib/e2ee/call-crypto';
@@ -29,9 +27,18 @@ export function IncomingCallSlot() {
 
 const getServerSlot = () => null;
 
+function Sonar({ className }: { className: string }) {
+  return (
+    <>
+      <span className={`${className} ${className}--1`} aria-hidden="true" />
+      <span className={`${className} ${className}--2`} aria-hidden="true" />
+      <span className={`${className} ${className}--3`} aria-hidden="true" />
+    </>
+  );
+}
+
 export function IncomingCallModal() {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const call = useCall();
   const { state } = call.snapshot;
   const answerRef = useRef<HTMLButtonElement>(null);
@@ -42,7 +49,7 @@ export function IncomingCallModal() {
   const [slotVisible, setSlotVisible] = useState(() => isSlotVisible(slot));
   useEffect(() => watchSlotVisibility(slot, setSlotVisible), [slot]);
   const docked = wide && slotVisible && slot !== null;
-  const stage = usePresence(ringing, 240, 180);
+  const stage = usePresence(ringing, 420, 200);
   const lastRef = useRef<{ kind: CallKind; peerId: string | null } | null>(null);
   if (ringing && state.kind) {
     lastRef.current = { kind: state.kind, peerId: state.peerId };
@@ -52,7 +59,11 @@ export function IncomingCallModal() {
     if (!ringing) {
       return;
     }
-    answerRef.current?.focus({ preventScroll: true });
+    const answerButton = answerRef.current;
+    if (answerButton) {
+      answerButton.focus({ preventScroll: true });
+      answerButton.dataset.autofocus = 'true';
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         silence();
@@ -71,9 +82,13 @@ export function IncomingCallModal() {
   const titleId = 'sc-incoming-title';
   const kindId = 'sc-incoming-kind';
   const kindLabel = translate(`calls.incomingKind.${shown.kind}`);
+  const KindIcon = shown.kind === 'video' ? LuVideo : LuPhone;
   const answer = () => {
     call.primePlayback();
     call.accept();
+  };
+  const clearAutofocus = (event: FocusEvent<HTMLButtonElement>) => {
+    delete event.currentTarget.dataset.autofocus;
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' && event.target === event.currentTarget) {
@@ -83,31 +98,44 @@ export function IncomingCallModal() {
 
   if (wide) {
     const card = (
-      <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className={`sc-incoming-card${docked ? ' sc-incoming-card--docked' : ''}`} data-state={visualStage} onKeyDown={onKeyDown}>
-        <div className="sc-incoming-card__row">
-          <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={48} iconSize={24} className="sc-incoming-card__avatar" style={{ width: undefined, height: undefined }} />
-          <div className="sc-incoming-card__text">
-            <h2 id={titleId} className="sc-incoming-card__name" title={peer?.name ?? ''}>
+      <div
+        role="alertdialog"
+        aria-labelledby={titleId}
+        aria-describedby={kindId}
+        className={`sc-ring-card${docked ? ' sc-ring-card--docked' : ''}`}
+        data-state={visualStage}
+        data-kind={shown.kind}
+        onKeyDown={onKeyDown}
+      >
+        <span className="sc-ring-card__tint" aria-hidden="true" />
+        <div className="sc-ring-card__head">
+          <span className="sc-ring-card__halo">
+            <Sonar className="sc-ring-card__wave" />
+            <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={52} iconSize={24} className="sc-ring-card__avatar" style={{ width: undefined, height: undefined }} />
+          </span>
+          <div className="sc-ring-card__text">
+            <span id={kindId} className="sc-ring-card__kind">
+              <KindIcon size={13} aria-hidden="true" />
+              <span>{kindLabel}</span>
+            </span>
+            <h2 id={titleId} className="sc-ring-card__name" title={peer?.name ?? ''}>
               {peer?.name ?? ''}
             </h2>
-            <span id={kindId} className="sc-incoming-card__meta">
-              {shown.kind === 'video' ? <FaVideo size={12} aria-hidden="true" /> : <FaPhone size={11} aria-hidden="true" />}
-              <span>
-                {kindLabel} · <span aria-live="polite">{t('calls.status.ringing')}</span>
-              </span>
+            <span className="sc-ring-card__status" aria-live="polite">
+              {t('calls.status.ringing')}
             </span>
           </div>
-          <button type="button" className="sc-incoming-card__mute" onClick={call.silence} title={t('calls.silence')} aria-label={t('calls.silence')}>
-            <FaVolumeMute size={13} />
+          <button type="button" className="sc-ring-card__silence" onClick={call.silence} title={t('calls.silence')} aria-label={t('calls.silence')}>
+            <LuBellOff size={17} aria-hidden="true" />
           </button>
         </div>
-        <div className="sc-incoming-card__actions">
-          <button type="button" className="sc-incoming-card__btn sc-incoming-card__btn--decline" onClick={call.decline}>
-            <MdCallEnd size={18} aria-hidden="true" />
+        <div className="sc-ring-card__actions">
+          <button type="button" className="sc-ring-card__btn sc-ring-card__btn--decline" onClick={call.decline}>
+            <LuPhoneOff size={18} aria-hidden="true" />
             <span>{t('calls.decline')}</span>
           </button>
-          <button ref={answerRef} type="button" className="sc-incoming-card__btn sc-incoming-card__btn--answer" onClick={answer}>
-            <FaPhone size={13} aria-hidden="true" />
+          <button ref={answerRef} type="button" className="sc-ring-card__btn sc-ring-card__btn--answer" onClick={answer} onBlur={clearAutofocus}>
+            <KindIcon size={18} aria-hidden="true" className="sc-ring-card__ring-icon" />
             <span>{t('calls.answer')}</span>
           </button>
         </div>
@@ -117,42 +145,49 @@ export function IncomingCallModal() {
   }
 
   return (
-    <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className="sc-incoming" data-state={visualStage} onKeyDown={onKeyDown}>
-      <div className="sc-incoming__head">
-        <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={124} iconSize={44} className="sc-incoming__avatar" style={{ width: undefined, height: undefined }} />
-        <div className="sc-incoming__text">
-          <h2 id={titleId} className="sc-incoming__name">
-            {peer?.name ?? ''}
-          </h2>
-          <span id={kindId} className="sc-incoming__sub">
-            {kindLabel}
-          </span>
-          <span className="sc-incoming__sub" aria-live="polite">
-            {t('calls.status.ringing')}
-          </span>
-        </div>
+    <div role="alertdialog" aria-labelledby={titleId} aria-describedby={kindId} className="sc-ring" data-state={visualStage} data-kind={shown.kind} onKeyDown={onKeyDown}>
+      <div className="sc-ring__bg" aria-hidden="true">
+        <span className="sc-ring__glow sc-ring__glow--a" />
+        <span className="sc-ring__glow sc-ring__glow--b" />
+        <span className="sc-ring__glow sc-ring__glow--c" />
       </div>
-      <div className="sc-incoming__bottom">
-        <div className="sc-incoming__actions">
-          <button type="button" className="sc-incoming__action" onClick={call.decline}>
-            <span className="sc-incoming__circle" style={{ background: theme.danger }} aria-hidden="true">
-              <MdCallEnd size={30} />
+      <div className="sc-ring__top">
+        <span id={kindId} className="sc-ring__chip">
+          <KindIcon size={15} aria-hidden="true" />
+          <span>{kindLabel}</span>
+        </span>
+      </div>
+      <div className="sc-ring__hero">
+        <span className="sc-ring__halo">
+          <Sonar className="sc-ring__wave" />
+          <Avatar userId={peer ? shown.peerId : null} avatarIndex={peer?.avatar} size={128} iconSize={52} className="sc-ring__avatar" style={{ width: undefined, height: undefined }} />
+        </span>
+        <h2 id={titleId} className="sc-ring__name">
+          {peer?.name ?? ''}
+        </h2>
+        <span className="sc-ring__status" aria-live="polite">
+          {t('calls.status.ringing')}
+        </span>
+      </div>
+      <div className="sc-ring__dock">
+        <div className="sc-ring__actions">
+          <button type="button" className="sc-ring__action sc-ring__action--decline" onClick={call.decline}>
+            <span className="sc-ring__circle" aria-hidden="true">
+              <LuPhoneOff size={30} />
             </span>
-            {t('calls.decline')}
+            <span className="sc-ring__label">{t('calls.decline')}</span>
           </button>
-          <button ref={answerRef} type="button" className="sc-incoming__action" onClick={answer}>
-            <span className="sc-incoming__circle sc-incoming__circle--answer" style={{ background: theme.success }} aria-hidden="true">
-              <FaPhone size={22} />
+          <button ref={answerRef} type="button" className="sc-ring__action sc-ring__action--answer" onClick={answer} onBlur={clearAutofocus}>
+            <span className="sc-ring__circle" aria-hidden="true">
+              <KindIcon size={30} className="sc-ring__ring-icon" />
             </span>
-            {t('calls.answer')}
+            <span className="sc-ring__label">{t('calls.answer')}</span>
           </button>
         </div>
-        <div className="sc-incoming__footer">
-          <button type="button" className="sc-incoming__silence" onClick={call.silence}>
-            <FaVolumeMute size={14} aria-hidden="true" />
-            {t('calls.silence')}
-          </button>
-        </div>
+        <button type="button" className="sc-ring__silence" onClick={call.silence}>
+          <LuBellOff size={16} aria-hidden="true" />
+          {t('calls.silence')}
+        </button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { FaGlobe } from 'react-icons/fa';
 import { LANGUAGE_NATIVE_NAMES, type Language } from './language';
 import { LanguageMenu } from './LanguageMenu';
@@ -10,9 +10,10 @@ interface LanguageMenuButtonProps {
   className: string;
   style?: CSSProperties;
   iconSize?: number;
+  icon?: ReactNode;
 }
 
-export function LanguageMenuButton({ value, onChange, label, className, style, iconSize = 16 }: LanguageMenuButtonProps) {
+export function LanguageMenuButton({ value, onChange, label, className, style, iconSize = 16, icon }: LanguageMenuButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback((restoreFocus: boolean) => {
@@ -39,7 +40,7 @@ export function LanguageMenuButton({ value, onChange, label, className, style, i
           setIsOpen((previous) => !previous);
         }}
       >
-        <FaGlobe size={iconSize} />
+        {icon ?? <FaGlobe size={iconSize} />}
       </button>
       {isOpen && buttonRef.current && (
         <LanguageMenu anchorElement={buttonRef.current} value={value} label={label} onChange={onChange} onClose={close} />

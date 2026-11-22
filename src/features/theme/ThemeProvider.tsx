@@ -3,7 +3,7 @@ import { MOTION_DURATION_MS } from '@features/motion';
 import { buildTheme } from './build-theme';
 import { DEFAULT_CHAT_APPEARANCE, type ChatAppearance, type ChatSettings } from './constants/chat-appearance';
 import { CHAT_BACKGROUNDS, type ChatBackground } from './constants/chat-backgrounds';
-import type { ColorThemeId } from './constants/color-themes';
+import { DEFAULT_COLOR_THEME, type ColorThemeId } from './constants/color-themes';
 import type { ThemeBaseId } from './constants/theme-bases';
 import { ThemeContext, type ThemeContextValue } from './theme-context';
 import { applyThemeCssVars } from './theme-css-vars';
@@ -16,7 +16,7 @@ const GLOBAL_WALLPAPER_STORAGE_KEY = 'chatGlobalWallpaper';
 const APPEARANCE_STORAGE_KEY = 'chatRoomAppearance';
 const GLOBAL_APPEARANCE_STORAGE_KEY = 'chatGlobalAppearance';
 const DEFAULT_BASE: ThemeBaseId = 'dark';
-const DEFAULT_COLOR: ColorThemeId = 'standard';
+const DEFAULT_COLOR: ColorThemeId = DEFAULT_COLOR_THEME;
 const THEME_TRANSITION_CLASS = 'sc-theme-transition';
 const USER_PREFERENCE_STORAGE_KEYS = [
   BASE_STORAGE_KEY,

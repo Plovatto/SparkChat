@@ -1,6 +1,6 @@
 import { clampAspectRatio } from './clamp-aspect-ratio';
 
-export const CHAT_ATTACHMENT_MAX_WIDTH = 260;
+export const CHAT_ATTACHMENT_MAX_WIDTH = 300;
 export const CHAT_GIF_MAX_WIDTH = 180;
 
 const CHAT_ATTACHMENT_MIN_RATIO = 0.75;

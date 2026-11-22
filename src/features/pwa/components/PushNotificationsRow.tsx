@@ -6,18 +6,13 @@ import { Switch } from '@components/common/Switch';
 import { useTheme } from '@features/theme';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { usePushNotifications, type PushStatus } from '../hooks/usePushNotifications';
-import { detectDesktop, openInstallSheet } from '../lib/install-state';
 import '../styles/pwa.css';
 
 const HINT_KEYS = {
   blocked: 'pwa.push.blocked',
   unsupported: 'pwa.push.unsupported',
-  'ios-needs-install': 'pwa.push.iosNeedsInstall',
   'server-disabled': 'pwa.push.serverDisabled',
 } as const satisfies Partial<Record<PushStatus, string>>;
-
-const DESKTOP_HELP_KEYS = ['pwa.push.desktopHelpBrowser', 'pwa.push.desktopHelpSystem', 'pwa.push.desktopHelpFocus', 'pwa.push.desktopHelpOpen'] as const;
-const DESKTOP_HELP_STATUSES: readonly PushStatus[] = ['on', 'off', 'blocked'];
 
 export function PushNotificationsRow() {
   const { t } = useTranslation();
@@ -27,7 +22,6 @@ export function PushNotificationsRow() {
   const { status, busy, error, serverError, enable, disable } = usePushNotifications();
   const isOn = status === 'on';
   const isToggleable = status === 'on' || status === 'off';
-  const showDesktopHelp = DESKTOP_HELP_STATUSES.includes(status) && detectDesktop();
   const hintKey = status in HINT_KEYS ? HINT_KEYS[status as keyof typeof HINT_KEYS] : null;
 
   const handleToggle = () => {
@@ -63,24 +57,9 @@ export function PushNotificationsRow() {
         </span>
       </div>
       {hintKey && (
-        <div key={status} className={`sc-notice pwa-push-notice ${status === 'blocked' ? 'sc-notice--danger' : 'sc-notice--info'}`} role="note" style={{ flexWrap: 'wrap' }}>
-          <span style={{ flex: '1 1 200px', minWidth: 0, overflowWrap: 'anywhere' }}>{t(hintKey)}</span>
-          {status === 'ios-needs-install' && (
-            <button type="button" onClick={openInstallSheet} className="sc-btn sc-btn--text" style={{ padding: '4px 0', fontSize: '0.8rem' }}>
-              {t('pwa.card.iosInstallAction')}
-            </button>
-          )}
-        </div>
-      )}
-      {showDesktopHelp && (
-        <details className="pwa-push-help">
-          <summary style={{ color: theme.accentText }}>{t('pwa.push.desktopHelpTitle')}</summary>
-          <ol style={{ color: theme.textSecondary }}>
-            {DESKTOP_HELP_KEYS.map((key) => (
-              <li key={key}>{t(key)}</li>
-            ))}
-          </ol>
-        </details>
+        <p key={status} className="pwa-push-hint" data-tone={status === 'blocked' ? 'danger' : 'info'} role="note">
+          <span>{t(hintKey)}</span>
+        </p>
       )}
       {error && (
         <div className="sc-notice sc-notice--danger pwa-push-notice" role="alert">

@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { FaTimes } from 'react-icons/fa';
@@ -11,18 +11,22 @@ import { useEscapeKey } from '@hooks/useEscapeKey';
 interface ModalProps {
   isOpen: boolean;
   title?: string;
+  header?: ReactNode;
   onClose: () => void;
   showCloseButton?: boolean;
   children: ReactNode;
   maxWidth?: string;
+  bodyStyle?: CSSProperties;
+  panelClassName?: string;
 }
 
 interface ModalContent {
   title?: string;
+  header?: ReactNode;
   children: ReactNode;
 }
 
-export function Modal({ isOpen, title, onClose, showCloseButton = true, children, maxWidth = '500px' }: ModalProps) {
+export function Modal({ isOpen, title, header, onClose, showCloseButton = true, children, maxWidth = '500px', bodyStyle, panelClassName }: ModalProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.normal);
@@ -32,14 +36,14 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
   const backdropDismissProps = useBackdropDismiss(onClose);
 
   if (isOpen) {
-    lastContentRef.current = { title, children };
+    lastContentRef.current = { title, header, children };
   }
 
   if (!isPresent) {
     return null;
   }
 
-  const content = isOpen ? { title, children } : lastContentRef.current;
+  const content = isOpen ? { title, header, children } : lastContentRef.current;
   const exitClassName = isExiting ? ' is-exiting' : '';
 
   return createPortal(
@@ -61,14 +65,14 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
       />
 
       <div
-        className={`sc-modal-panel${exitClassName}`}
+        className={`sc-modal-panel${panelClassName ? ` ${panelClassName}` : ''}${exitClassName}`}
         style={{
           position: 'fixed',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           zIndex: 10000,
-          width: '90%',
+          width: 'calc(100% - 2 * var(--sc-modal-gutter, 5%))',
           maxWidth,
         }}
       >
@@ -79,15 +83,15 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
             borderRadius: '18px',
             boxShadow: theme.shadowLg,
             overflow: 'hidden',
-            maxHeight: '90vh',
+            maxHeight: 'var(--sc-modal-max-height, 90vh)',
             display: 'flex',
             flexDirection: 'column',
           }}
         >
-          {content.title && (
+          {content.header ?? (content.title && (
             <div
               style={{
-                padding: '20px 24px',
+                padding: 'var(--sc-modal-header-padding, 20px 24px)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -109,16 +113,17 @@ export function Modal({ isOpen, title, onClose, showCloseButton = true, children
                 </button>
               )}
             </div>
-          )}
+          ))}
 
           <div
             style={{
-              padding: '24px',
+              padding: 'var(--sc-modal-padding, 24px)',
               flex: 1,
               overflowY: 'auto',
               overflowX: 'hidden',
               color: theme.textPrimary,
-              scrollbarGutter: 'stable both-edges',
+              scrollbarGutter: 'var(--sc-modal-scrollbar-gutter, stable both-edges)',
+              ...bodyStyle,
             }}
           >
             {content.children}

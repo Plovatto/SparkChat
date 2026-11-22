@@ -1,5 +1,6 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FaPlay } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
@@ -7,14 +8,17 @@ import type { RoomParticipant } from '@lib/socket';
 import { useMessageReactionUi } from '../hooks/useMessageReactionUi';
 import type { ChatMessage } from '../types';
 import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
+import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
 import type { MessageBubbleActions } from './MessageBubble';
-import { MessageBubbleShell } from './MessageBubbleShell';
+import { MessageBubbleShell, type BubbleRunPosition } from './MessageBubbleShell';
 import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 import { UnencryptedNotice } from './UnencryptedNotice';
+import { VideoPreviewModal } from './VideoPreviewModal';
+import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageGroupBubbleProps extends MessageBubbleActions {
   images: ChatMessage[];
@@ -27,9 +31,35 @@ interface ImageGroupBubbleProps extends MessageBubbleActions {
   receipt: MessageReceiptInfo | null;
   entrancePhase?: EntrancePhase;
   entranceIndex?: number;
+  run?: BubbleRunPosition;
 }
 
 const MAX_GROUP_TILES = 4;
+const VIDEO_TILE_WIDTH = 240;
+
+function isVideoMessage(message: ChatMessage): boolean {
+  return message.type === 'file' && Boolean(message.fileMeta?.mimeType.startsWith('video/'));
+}
+
+function VideoTileImage({ message, alt }: { message: ChatMessage; alt: string }) {
+  const [poster, setPoster] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    renderVideoThumbnail(message.content, VIDEO_TILE_WIDTH)
+      .then((result) => {
+        if (!cancelled) {
+          setPoster(result.dataUrl);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [message.content]);
+
+  return poster ? <img src={poster} alt={alt} /> : null;
+}
 
 export const ImageGroupBubble = memo(function ImageGroupBubble({
   images,
@@ -50,18 +80,24 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   onReact,
   entrancePhase = 'none',
   entranceIndex = 0,
+  run,
 }: ImageGroupBubbleProps) {
   const { t } = useTranslation();
   const { theme, getRoomAppearance } = useTheme();
   const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const [videoMessage, setVideoMessage] = useState<ChatMessage | null>(null);
+  const mediaViewer = useMediaViewer();
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
   const actionsPresence = usePresence(isSelected, MOTION_DURATION_MS.fast);
   const anchor = images[images.length - 1] ?? images[0];
   const bubbleStyle = resolveBubbleStyle(theme, getRoomAppearance(roomId), isOwn);
-  const statusInfo = anchor ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null;
   const visibleTiles = images.slice(0, MAX_GROUP_TILES);
   const extraCount = images.length - visibleTiles.length;
+  const photoMessages = images.filter((image) => !isVideoMessage(image));
+  const senderAvatar = anchor ? participants.find((participant) => participant.id === anchor.sender.id)?.avatar : undefined;
+  const hasPendingOrFailed = images.some((image) => image.pending || image.failed);
+  const statusTileIndex = extraCount > 0 ? visibleTiles.length - 2 : visibleTiles.length - 1;
   const anchorId = anchor?.id ?? '';
   const groupReactions = useMemo(() => mergeGroupReactions(images), [images]);
   const reactionTargetId = (currentUserId ? groupReactions.find((entry) => entry.userId === currentUserId)?.messageId : undefined) ?? anchorId;
@@ -70,6 +106,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       onSelect(anchorId);
     }
   }, [isSelected, onSelect, anchorId]);
+  const reactionChipBackground = bubbleStyle.background;
   const reactionUi = useMessageReactionUi({
     messageId: reactionTargetId,
     reactions: groupReactions,
@@ -80,16 +117,34 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
     participants,
     onReact,
     onDismiss: dismissActions,
+    showCount: isGroupChat,
+    chipBackground: reactionChipBackground,
   });
 
   if (!anchor) {
     return null;
   }
 
-  const handleRetry = () => {
-    if (anchor.clientTempId) {
-      onRetry(anchor.clientTempId);
+  const handleRetry = (message: ChatMessage) => () => {
+    if (message.clientTempId) {
+      onRetry(message.clientTempId);
     }
+  };
+
+  const openTile = (image: ChatMessage, index: number) => {
+    if (mediaViewer?.open(image.id)) {
+      return;
+    }
+    const isLastVisible = index === visibleTiles.length - 1;
+    if (isLastVisible && extraCount > 0) {
+      setModalIndex(Math.max(0, photoMessages.indexOf(image)));
+      return;
+    }
+    if (isVideoMessage(image)) {
+      setVideoMessage(image);
+      return;
+    }
+    setModalIndex(Math.max(0, photoMessages.indexOf(image)));
   };
 
   return (
@@ -100,99 +155,111 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
       messageId={anchor.id}
       senderId={anchor.sender.id}
       senderNickname={anchor.sender.unknown ? t('common.unknownUser') : anchor.sender.nickname}
+      senderAvatar={senderAvatar}
       currentUserId={currentUserId}
       isSelected={isSelected}
       onSelect={() => onSelect(anchor.id)}
       onOpenActions={() => onOpenActions(anchor.id)}
-      allowCustomContextMenu={!images.some((image) => image.pending || image.failed)}
-      padding="4px 0 6px"
+      allowCustomContextMenu={!hasPendingOrFailed}
+      padding="0"
+      variant="media"
+      run={run}
       entrancePhase={entrance}
       entranceIndex={staggerIndex}
-      cornerRadius={20}
-      beforeBubble={reactionUi.compact ? reactionUi.quickBar : null}
+      cornerRadius={14}
+      minWidth="0"
+      reactions={reactionUi.chips}
+      bubbleSide={
+        actionsPresence.isPresent && !hasPendingOrFailed ? (
+          <MessageActionsRow
+            isOwn={isOwn}
+            isExiting={actionsPresence.isExiting}
+            canDelete
+            onReply={() => onReply(anchor)}
+            onDelete={() => onDelete(images.map((image) => image.id))}
+            onForward={() => onForward(images)}
+            onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
+            onReact={reactionUi.canReact ? reactionUi.onReactButton : undefined}
+            reactButtonRef={reactionUi.reactButtonRef}
+            isReactionOpen={reactionUi.isReactionOpen}
+            reactionPopover={reactionUi.compact ? null : reactionUi.quickBar}
+            sheetHeader={reactionUi.compact ? reactionUi.quickBar : null}
+            onDismiss={() => onSelect(anchor.id)}
+          />
+        ) : null
+      }
       afterBubble={
         <>
-          {reactionUi.chips}
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
-          {!reactionUi.compact && reactionUi.quickBar}
-          {actionsPresence.isPresent && !images.some((image) => image.pending || image.failed) && (
-            <MessageActionsRow
-              isOwn={isOwn}
-              isExiting={actionsPresence.isExiting}
-              onReply={() => onReply(anchor)}
-              onDelete={() => onDelete(images.map((image) => image.id))}
-              onForward={() => onForward(images)}
-              onStartSelection={onStartSelection ? () => onStartSelection(anchor.id) : undefined}
-            />
-          )}
           <ImageModal
             isOpen={modalIndex !== null}
-            images={images.map((image) => image.content)}
+            images={photoMessages.map((image) => image.content)}
             roomId={roomId}
-            messageIds={images.map((image) => image.id)}
-            fileMetas={images.map((image) => image.fileMeta)}
+            messageIds={photoMessages.map((image) => image.id)}
+            fileMetas={photoMessages.map((image) => image.fileMeta)}
             startIndex={modalIndex ?? 0}
             onClose={() => setModalIndex(null)}
+          />
+          <VideoPreviewModal
+            isOpen={videoMessage !== null}
+            onClose={() => setVideoMessage(null)}
+            url={videoMessage?.content ?? ''}
+            fileName={videoMessage?.fileMeta?.name ?? t('chat.message.defaultVideoName')}
+            roomId={roomId}
+            messageId={videoMessage?.id}
+            fileMeta={videoMessage?.fileMeta}
           />
           {reactionUi.overlays}
         </>
       }
     >
       {images.some((image) => image.unencrypted) && <UnencryptedNotice />}
-      <div
-        style={{
-          padding: '0 10px',
-          display: 'grid',
-          gridTemplateColumns: visibleTiles.length === 1 ? '1fr' : 'repeat(2, 1fr)',
-          gap: '3px',
-        }}
-      >
+      <div className="sc-album" role="group" aria-label={t('chat.message.album', { count: images.length })}>
         {visibleTiles.map((image, index) => {
           const isLastTile = index === visibleTiles.length - 1;
+          const isVideo = isVideoMessage(image);
+          const showsMore = isLastTile && extraCount > 0;
+          const alt = isVideo ? t('chat.message.video') : t('chat.message.sentImage');
           return (
-            <div
+            <button
+              type="button"
               key={image.id}
+              className="sc-album__tile sc-anim-pop-in"
+              style={{ animationDelay: `${index * 45}ms` }}
+              aria-label={showsMore ? t('chat.message.albumMore', { count: extraCount }) : alt}
               onClick={(event) => {
                 event.stopPropagation();
-                setModalIndex(index);
-              }}
-              className="sc-media-thumb"
-              style={{
-                position: 'relative',
-                aspectRatio: '1',
-                borderRadius: '14px',
-                overflow: 'hidden',
-                background: theme.skeleton,
+                openTile(image, index);
               }}
             >
-              <img
-                src={toLocalMediaUrl(image.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(image.content)}
-                alt={t('chat.message.sentImage')}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              />
-              {isLastTile && extraCount > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: theme.scrim,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: theme.onScrim,
-                    fontSize: '1.3rem',
-                    fontWeight: 700,
-                  }}
-                >
-                  +{extraCount}
-                </div>
+              {isVideo ? (
+                <VideoTileImage message={image} alt={alt} />
+              ) : (
+                <img src={toLocalMediaUrl(image.fileMeta?.thumbnailUrl) ?? toLocalMediaUrl(image.content)} alt={alt} />
               )}
-            </div>
+              {isVideo && !showsMore && (
+                <span className="sc-album__play" aria-hidden="true">
+                  <FaPlay size={13} />
+                </span>
+              )}
+              {showsMore ? (
+                <span className="sc-album__more" aria-hidden="true">
+                  +{extraCount}
+                </span>
+              ) : (
+                <MessageMeta
+                  message={image}
+                  isOwn={isOwn}
+                  bubble={bubbleStyle}
+                  statusInfo={index === statusTileIndex ? getMessageStatus(anchor, isOwn, isGroupChat, participants, currentUserId) : null}
+                  onRetry={handleRetry(image)}
+                  placement="overlay"
+                />
+              )}
+            </button>
           );
         })}
       </div>
-
-      <MessageMeta message={anchor} isOwn={isOwn} bubble={bubbleStyle} statusInfo={statusInfo} onRetry={handleRetry} />
     </MessageBubbleShell>
   );
 });

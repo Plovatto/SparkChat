@@ -1,117 +1,147 @@
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import Logo from '@/assets/Logo.svg';
-import { buildTheme, withAlpha, type ThemeTokens } from '@features/theme';
+import { buildTheme, DEFAULT_COLOR_THEME, withAlpha, type ThemeTokens } from '@features/theme';
+import { SplashWarpField } from './SplashWarpField';
+import './loading-screen.css';
 
-const DEFAULT_LOADING_THEME = buildTheme('dark', 'standard').tokens;
+const DEFAULT_LOADING_THEME = buildTheme('dark', DEFAULT_COLOR_THEME).tokens;
+const BRAND_NAME = 'SparkChat';
+const GLOWS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
+const ORBITS = [1, 2, 3] as const;
+
+const SPARKLES = [
+  { top: '9%', left: '5%', size: 12, delay: 0 },
+  { top: '26%', left: '26%', size: 16, delay: 1.1 },
+  { top: '33%', left: '73%', size: 12, delay: 2.3 },
+  { top: '63%', left: '78%', size: 18, delay: 0.6 },
+  { top: '68%', left: '22%', size: 10, delay: 1.7 },
+  { top: '14%', left: '88%', size: 11, delay: 2.9 },
+  { top: '86%', left: '56%', size: 9, delay: 0.3 },
+];
 
 interface LoadingScreenProps {
   theme?: ThemeTokens;
+  leaving?: boolean;
 }
 
-export function LoadingScreen({ theme = DEFAULT_LOADING_THEME }: LoadingScreenProps) {
-  const { t } = useTranslation();
+function themeVars(theme: ThemeTokens): CSSProperties {
   const ink = theme.onGradient;
+  const isDark = theme.kind === 'dark';
+  const hasPageTone = theme.pageGradient !== theme.gradient;
+  return {
+    '--spl-bg': theme.pageGradient,
+    '--spl-logo': `url("${Logo}")`,
+    '--spl-ink': ink,
+    '--spl-ink-soft': withAlpha(ink, 0.72),
+    '--spl-ink-faint': withAlpha(ink, 0.14),
+    '--spl-ring': withAlpha(ink, isDark ? 0.12 : 0.18),
+    '--spl-glass-strong': withAlpha(ink, isDark ? 0.14 : 0.2),
+    '--spl-glass-border': withAlpha(ink, isDark ? 0.2 : 0.28),
+    '--spl-shade': hasPageTone ? 'transparent' : isDark ? 'rgba(8, 6, 24, 0.52)' : 'rgba(10, 8, 30, 0.34)',
+    '--spl-shade-edge': hasPageTone ? 'rgba(4, 3, 14, 0.3)' : isDark ? 'rgba(4, 3, 14, 0.45)' : 'rgba(6, 5, 20, 0.3)',
+    '--spl-glow-a': withAlpha(theme.accent, 0.85),
+    '--spl-glow-b': withAlpha(theme.accentSecondary, 0.8),
+    '--spl-glow-c': withAlpha(ink, 0.2),
+    '--spl-blend': 'screen',
+  } as CSSProperties;
+}
+
+function Sparkle({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0c.6 6.6 2.9 9.6 12 12-9.1 2.4-11.4 5.4-12 12-.6-6.6-2.9-9.6-12-12C9.1 9.6 11.4 6.6 12 0Z" />
+    </svg>
+  );
+}
+
+export function LoadingScreen({ theme = DEFAULT_LOADING_THEME, leaving = false }: LoadingScreenProps) {
+  const { t } = useTranslation();
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: theme.gradient,
-        overflow: 'hidden',
-      }}
+      className="sc-splash"
+      data-state={leaving ? 'leaving' : 'visible'}
+      style={themeVars(theme)}
+      role="status"
+      aria-live="polite"
+      aria-busy={!leaving}
     >
-      <div
-        className="sc-loading-orb"
-        style={{
-          position: 'absolute',
-          width: '400px',
-          height: '400px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${withAlpha(ink, 0.15)} 0%, ${withAlpha(ink, 0.05)} 100%)`,
-          top: '-150px',
-          left: '-150px',
-        }}
-      />
-      <div
-        className="sc-loading-orb sc-loading-orb--slow"
-        style={{
-          position: 'absolute',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${withAlpha(ink, 0.1)} 0%, ${withAlpha(ink, 0.02)} 100%)`,
-          bottom: '-100px',
-          right: '-100px',
-        }}
-      />
+      <div className="sc-splash__glows" aria-hidden="true">
+        {GLOWS.map((id) => (
+          <span key={id} className={`sc-splash__glow sc-splash__glow--${id}`}>
+            <span className="sc-splash__blob" />
+          </span>
+        ))}
+      </div>
 
-      <div style={{ textAlign: 'center', zIndex: 1 }}>
-        <div style={{ width: '100px', height: '100px', margin: '0 auto 40px', position: 'relative' }}>
-          <div
-            className="loading-spinner"
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              border: `4px solid ${withAlpha(ink, 0.25)}`,
-              borderTop: `4px solid ${withAlpha(ink, 0.85)}`,
-              borderRadius: '50%',
-            }}
-          />
-          <div
-            className="sc-loading-ring-reverse"
-            style={{
-              position: 'absolute',
-              width: '70px',
-              height: '70px',
-              top: '15px',
-              left: '15px',
-              border: `3px solid ${withAlpha(ink, 0.15)}`,
-              borderBottom: `3px solid ${withAlpha(ink, 0.7)}`,
-              borderRadius: '50%',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              width: '12px',
-              height: '12px',
-              background: withAlpha(ink, 0.9),
-              borderRadius: '50%',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              boxShadow: `0 0 20px ${withAlpha(ink, 0.4)}`,
-            }}
-          />
+      <SplashWarpField inkColor={theme.onGradient} accentColor={theme.accentText} leaving={leaving} />
+
+      <div className="sc-splash__sparkles" aria-hidden="true">
+        {SPARKLES.map((sparkle, index) => (
+          <span
+            key={index}
+            className="sc-splash__sparkle"
+            style={{ top: sparkle.top, left: sparkle.left, '--spl-delay': `${sparkle.delay}s` } as CSSProperties}
+          >
+            <Sparkle size={sparkle.size} />
+          </span>
+        ))}
+      </div>
+
+      <span className="sc-splash__veil" aria-hidden="true" />
+
+      <div className="sc-splash__core">
+        <div className="sc-splash__emblem" aria-hidden="true">
+          <div className="sc-splash__rings">
+            <span className="sc-splash__ring sc-splash__ring--1" />
+            <span className="sc-splash__ring sc-splash__ring--2" />
+            <span className="sc-splash__ring sc-splash__ring--3" />
+            <span className="sc-splash__ripple" />
+            <span className="sc-splash__ripple sc-splash__ripple--late" />
+            {ORBITS.map((id) => (
+              <span key={id} className={`sc-splash__orbit sc-splash__orbit--${id}`}>
+                <span className="sc-splash__orbiter" />
+              </span>
+            ))}
+          </div>
+          <span className="sc-splash__halo" />
+          <span className="sc-splash__aura" />
+          <svg className="sc-splash__progress" viewBox="0 0 140 140">
+            <defs>
+              <linearGradient id="sc-splash-arc" gradientUnits="userSpaceOnUse" x1="134" y1="62" x2="44" y2="134">
+                <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+                <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
+              </linearGradient>
+            </defs>
+            <circle className="sc-splash__track" cx="70" cy="70" r="64" />
+            <g className="sc-splash__spinner">
+              <circle className="sc-splash__arc" cx="70" cy="70" r="64" stroke="url(#sc-splash-arc)" />
+              <circle className="sc-splash__comet" cx="51.3" cy="131.2" r="3.5" />
+            </g>
+          </svg>
+          <span className="sc-splash__disc">
+            <span className="sc-splash__bolt">
+              <span className="sc-splash__logo" />
+            </span>
+          </span>
         </div>
 
-        <h2
-          className="sc-loading-pulse"
-          style={{
-            color: ink,
-            fontWeight: 700,
-            marginBottom: '15px',
-            fontSize: '2rem',
-            textShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
-          }}
-        >
-          <img src={Logo} alt="" style={{ width: '2rem', marginRight: '0.5rem' }} />
-          SparkChat
-        </h2>
-        <p
-          className="sc-loading-pulse"
-          style={{
-            color: withAlpha(ink, 0.92),
-            fontSize: '1.1rem',
-            letterSpacing: '0.5px',
-          }}
-        >
-          {t('common.loading')}
+        <h1 className="sc-splash__title" aria-label={BRAND_NAME}>
+          {BRAND_NAME.split('').map((letter, index) => (
+            <span key={index} aria-hidden="true" style={{ '--spl-i': index } as CSSProperties}>
+              {letter}
+            </span>
+          ))}
+        </h1>
+
+        <p className="sc-splash__status">
+          {t('splash.loading')}
+          <span className="sc-splash__dots" aria-hidden="true">
+            <i>.</i>
+            <i>.</i>
+            <i>.</i>
+          </span>
         </p>
       </div>
     </div>

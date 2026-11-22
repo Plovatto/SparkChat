@@ -12,6 +12,7 @@ interface LinkPreviewCardProps {
   messageText?: string;
   imageBlob?: Blob | null;
   onDismiss?: () => void;
+  flush?: boolean;
 }
 
 function useBlobObjectUrl(blob: Blob | null | undefined): string | null {
@@ -33,7 +34,7 @@ function useBlobObjectUrl(blob: Blob | null | undefined): string | null {
   return objectUrl;
 }
 
-export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBlob, onDismiss }: LinkPreviewCardProps) {
+export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBlob, onDismiss, flush = false }: LinkPreviewCardProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const composerImageUrl = useBlobObjectUrl(imageBlob);
@@ -94,6 +95,26 @@ export function LinkPreviewCard({ preview, variant, bubble, messageText, imageBl
       <FaTimes size={14} />
     </button>
   );
+
+  if (imageObjectUrl && !isComposer && flush) {
+    return (
+      <div onClick={openPreview} className={`sc-link-flush${openPreview ? ' sc-bubble-card' : ''}`} style={{ background: cardBackground }}>
+        <img src={imageObjectUrl} alt="" className="sc-link-flush__image" />
+        <div className="sc-link-flush__body">
+          {displayHost && (
+            <span data-testid="link-preview-host" className="sc-link-flush__host" style={{ color: siteNameColor }}>
+              {displayHost}
+            </span>
+          )}
+          {preview.title && (
+            <span className="sc-link-flush__title" style={{ color: titleColor }}>
+              {preview.title}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (imageObjectUrl && !isComposer) {
     return (

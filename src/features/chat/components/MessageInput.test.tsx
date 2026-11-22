@@ -88,7 +88,7 @@ describe('MessageInput composer', () => {
     expect(order).toEqual(['emoji-button', 'message-input', 'gif-button', 'attach-button']);
     const mic = screen.getByTestId('record-button');
     expect(pill.contains(mic)).toBe(false);
-    expect(mic.className).toContain('sc-icon-btn--gradient');
+    expect(mic.className).toContain('sc-composer-action');
     expect(screen.queryByTestId('send-button')).toBeNull();
   });
 

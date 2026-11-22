@@ -1,0 +1,841 @@
+.sc-ring {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  padding: max(20px, env(safe-area-inset-top)) 24px max(28px, calc(env(safe-area-inset-bottom) + 16px));
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--sc-gradient);
+  color: var(--sc-on-gradient);
+  animation: scRingScreenIn 360ms var(--sc-ease-enter) both;
+}
+
+.sc-ring__bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.08) 45%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+.sc-ring__glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(36px);
+  will-change: transform;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.sc-ring__glow--a {
+  width: 120vmin;
+  height: 120vmin;
+  left: -45vmin;
+  top: -30vmin;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sc-accent-secondary) 70%, transparent) 0%, transparent 65%);
+  animation-name: scRingDriftA;
+  animation-duration: 18s;
+}
+
+.sc-ring__glow--b {
+  width: 110vmin;
+  height: 110vmin;
+  right: -50vmin;
+  bottom: -20vmin;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sc-accent) 75%, transparent) 0%, transparent 65%);
+  animation-name: scRingDriftB;
+  animation-duration: 22s;
+}
+
+.sc-ring__glow--c {
+  width: 80vmin;
+  height: 80vmin;
+  left: 20%;
+  top: 18%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--sc-on-gradient) 22%, transparent) 0%, transparent 60%);
+  animation-name: scRingDriftC;
+  animation-duration: 26s;
+}
+
+.sc-ring__top {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding-top: 12px;
+}
+
+.sc-ring__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  animation: scRingRise 420ms var(--sc-ease-enter) 60ms both;
+}
+
+.sc-ring__hero {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  padding-bottom: 6vh;
+  text-align: center;
+}
+
+.sc-ring__halo {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  margin-bottom: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: scRingAvatarIn 520ms var(--sc-ease-spring-soft) 80ms both;
+}
+
+.sc-ring__avatar {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.22), 0 18px 44px rgba(0, 0, 0, 0.32);
+  animation: scRingBreathe 2.4s ease-in-out 600ms infinite;
+}
+
+.sc-ring__wave,
+.sc-ring-card__wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  animation: scRingSonar 2.7s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+
+.sc-ring__wave {
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sc-ring__wave--2,
+.sc-ring-card__wave--2 {
+  animation-delay: 0.9s;
+}
+
+.sc-ring__wave--3,
+.sc-ring-card__wave--3 {
+  animation-delay: 1.8s;
+}
+
+.sc-ring__name {
+  margin: 0;
+  max-width: 100%;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.18);
+  animation: scRingRise 420ms var(--sc-ease-enter) 160ms both;
+}
+
+.sc-ring__status {
+  margin-top: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--sc-on-gradient-muted);
+  animation: scRingRise 420ms var(--sc-ease-enter) 220ms both, scRingStatus 1.8s ease-in-out 900ms infinite;
+}
+
+.sc-ring__dock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+  animation: scRingDockIn 480ms var(--sc-ease-enter) 200ms both;
+}
+
+.sc-ring__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(56px, 22vw, 104px);
+}
+
+.sc-ring__action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  overflow: visible;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sc-ring__action::after {
+  content: none;
+}
+
+.sc-ring__circle {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sc-text-on-accent);
+  transition: transform var(--sc-dur-fast) var(--sc-ease-standard), box-shadow var(--sc-dur-normal) ease;
+}
+
+.sc-ring__action--decline .sc-ring__circle {
+  background: var(--sc-danger);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--sc-danger) 45%, transparent);
+}
+
+.sc-ring__action--answer .sc-ring__circle {
+  background: var(--sc-success);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--sc-success) 45%, transparent);
+  animation: scRingAcceptGlow 2.4s ease-in-out infinite;
+}
+
+.sc-ring__ring-icon,
+.sc-ring-card__ring-icon {
+  transform-origin: 50% 50%;
+  animation: scRingWiggle 2.4s ease-in-out 700ms infinite;
+}
+
+.sc-ring__action:hover .sc-ring__circle {
+  transform: translateY(-2px);
+}
+
+.sc-ring__action:active .sc-ring__circle {
+  transform: scale(0.93);
+}
+
+.sc-ring__action:focus-visible .sc-ring__circle {
+  outline: 3px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 4px;
+}
+
+.sc-ring__action[data-autofocus='true']:focus-visible .sc-ring__circle {
+  outline: none;
+}
+
+.sc-ring__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+}
+
+.sc-ring__silence {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--sc-dur-fast) ease, transform var(--sc-dur-fast) ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sc-ring__silence:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sc-ring__silence:active {
+  transform: scale(0.97);
+}
+
+.sc-ring__silence:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.92);
+  outline-offset: 3px;
+}
+
+.sc-ring[data-state='exiting'] {
+  animation: scRingScreenOut 200ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+@media (max-height: 620px) {
+  .sc-ring__hero {
+    padding-bottom: 0;
+  }
+
+  .sc-ring__halo,
+  .sc-ring__avatar {
+    width: 96px;
+    height: 96px;
+  }
+
+  .sc-ring__halo {
+    margin-bottom: 20px;
+  }
+
+  .sc-ring__name {
+    font-size: 1.6rem;
+  }
+
+  .sc-ring__circle {
+    width: 64px;
+    height: 64px;
+  }
+
+  .sc-ring__dock {
+    gap: 14px;
+  }
+}
+
+.sc-incoming-slot:empty {
+  display: none;
+}
+
+.sc-incoming-slot {
+  flex-shrink: 0;
+  padding: 10px 10px 12px;
+  background: var(--sc-sidebar, transparent);
+}
+
+.sc-ring-card {
+  --sc-ring-card-top: calc(env(safe-area-inset-top, 0px) + 80px);
+  position: fixed;
+  top: var(--sc-ring-card-top);
+  right: 20px;
+  z-index: 10100;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  isolation: isolate;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--sc-surface-elevated) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.18);
+  color: var(--sc-text-primary);
+  animation: scRingCardIn 460ms var(--sc-ease-spring-soft) both;
+}
+
+@media (min-width: 900px) {
+  .sc-ring-card {
+    --sc-ring-card-top: calc(max(5vh, 50vh - 450px) + 88px);
+  }
+}
+
+.sc-ring-card__tint {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 96px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--sc-gradient);
+  opacity: 0.22;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+}
+
+.sc-ring-card--docked {
+  position: relative;
+  top: auto;
+  right: auto;
+  z-index: 1;
+  width: 100%;
+  max-width: none;
+  padding: 14px;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  animation-name: scRingCardRise;
+}
+
+.sc-ring-card__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sc-ring-card__halo {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sc-ring-card__wave {
+  border: 2px solid color-mix(in srgb, var(--sc-success) 70%, transparent);
+  background: color-mix(in srgb, var(--sc-success) 10%, transparent);
+  animation-name: scRingSonarSmall;
+}
+
+.sc-ring-card__avatar {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sc-success) 65%, transparent);
+}
+
+.sc-ring-card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sc-ring-card__kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sc-success);
+}
+
+.sc-ring-card__kind svg {
+  flex-shrink: 0;
+}
+
+.sc-ring-card__kind span,
+.sc-ring-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-ring-card__name {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sc-ring-card__status {
+  font-size: 0.82rem;
+  color: var(--sc-text-secondary);
+  animation: scRingStatus 1.8s ease-in-out 600ms infinite;
+}
+
+.sc-ring-card__silence {
+  align-self: flex-start;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--sc-text-primary) 10%, transparent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--sc-text-primary) 6%, transparent);
+  color: var(--sc-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--sc-dur-fast) ease, color var(--sc-dur-fast) ease, transform var(--sc-dur-fast) ease;
+}
+
+.sc-ring-card__silence:hover {
+  background: color-mix(in srgb, var(--sc-text-primary) 12%, transparent);
+  color: var(--sc-text-primary);
+}
+
+.sc-ring-card__silence:active {
+  transform: scale(0.92);
+}
+
+.sc-ring-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.sc-ring-card__btn {
+  position: relative;
+  height: 46px;
+  min-width: 0;
+  border: none;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--sc-text-on-accent);
+  cursor: pointer;
+  transition: transform var(--sc-dur-fast) var(--sc-ease-standard), filter var(--sc-dur-fast) ease;
+}
+
+.sc-ring-card__btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-ring-card__btn svg {
+  flex-shrink: 0;
+}
+
+.sc-ring-card__btn:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.sc-ring-card__btn:active {
+  transform: scale(0.97);
+}
+
+.sc-ring-card__btn--decline {
+  background: var(--sc-danger);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--sc-danger) 24%, transparent);
+}
+
+.sc-ring-card__btn--answer {
+  background: var(--sc-success);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--sc-success) 24%, transparent);
+  animation: scRingCardGlow 2.4s ease-in-out infinite;
+}
+
+.sc-ring-card__btn:focus-visible,
+.sc-ring-card__silence:focus-visible {
+  outline: 2px solid var(--sc-focus-ring, var(--sc-accent));
+  outline-offset: 3px;
+}
+
+.sc-ring-card__btn[data-autofocus='true']:focus-visible {
+  outline: none;
+}
+
+.sc-ring-card[data-state='exiting'] {
+  animation: scRingCardOut 200ms var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+.sc-ring-card--docked[data-state='exiting'] {
+  animation-name: scRingCardSink;
+}
+
+@keyframes scRingScreenIn {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingScreenOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes scRingRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingDockIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingAvatarIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes scRingSonar {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@keyframes scRingSonarSmall {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+@keyframes scRingStatus {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes scRingAcceptGlow {
+  0%,
+  100% {
+    box-shadow: 0 10px 26px color-mix(in srgb, var(--sc-success) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--sc-success) 55%, transparent);
+  }
+  60% {
+    box-shadow: 0 10px 30px color-mix(in srgb, var(--sc-success) 55%, transparent), 0 0 0 16px color-mix(in srgb, var(--sc-success) 0%, transparent);
+  }
+}
+
+@keyframes scRingCardGlow {
+  0%,
+  100% {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--sc-success) 24%, transparent), 0 0 0 0 color-mix(in srgb, var(--sc-success) 45%, transparent);
+  }
+  60% {
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--sc-success) 34%, transparent), 0 0 0 7px color-mix(in srgb, var(--sc-success) 0%, transparent);
+  }
+}
+
+@keyframes scRingWiggle {
+  0%,
+  40%,
+  100% {
+    transform: rotate(0deg);
+  }
+  5%,
+  15%,
+  25% {
+    transform: rotate(-14deg);
+  }
+  10%,
+  20%,
+  30% {
+    transform: rotate(14deg);
+  }
+}
+
+@keyframes scRingDriftA {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(18vmin, 14vmin, 0) scale(1.12);
+  }
+}
+
+@keyframes scRingDriftB {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.06);
+  }
+  to {
+    transform: translate3d(-20vmin, -16vmin, 0) scale(0.94);
+  }
+}
+
+@keyframes scRingDriftC {
+  from {
+    transform: translate3d(-8vmin, 6vmin, 0) scale(0.95);
+  }
+  to {
+    transform: translate3d(10vmin, -8vmin, 0) scale(1.1);
+  }
+}
+
+@keyframes scRingCardIn {
+  from {
+    opacity: 0;
+    transform: translateX(32px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingCardOut {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px) scale(0.98);
+  }
+}
+
+@keyframes scRingCardRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scRingCardSink {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-ring,
+  .sc-ring__chip,
+  .sc-ring__halo,
+  .sc-ring__name,
+  .sc-ring__dock,
+  .sc-ring-card,
+  .sc-ring-card--docked {
+    animation: scRingFade 160ms linear both;
+  }
+
+  .sc-ring[data-state='exiting'],
+  .sc-ring-card[data-state='exiting'] {
+    animation: scRingFadeOut 120ms linear forwards;
+  }
+
+  .sc-ring__glow,
+  .sc-ring__avatar,
+  .sc-ring__status,
+  .sc-ring-card__status,
+  .sc-ring__ring-icon,
+  .sc-ring-card__ring-icon,
+  .sc-ring__action--answer .sc-ring__circle,
+  .sc-ring-card__btn--answer {
+    animation: none;
+  }
+
+  .sc-ring__wave,
+  .sc-ring-card__wave {
+    animation: none;
+    opacity: 0;
+  }
+
+  .sc-ring__wave--1 {
+    opacity: 0.35;
+    transform: scale(1.18);
+  }
+
+  .sc-ring-card__wave--1 {
+    opacity: 0.45;
+    transform: scale(1.18);
+  }
+
+  .sc-ring__circle,
+  .sc-ring__silence,
+  .sc-ring-card__btn,
+  .sc-ring-card__silence {
+    transition: none;
+  }
+}
+
+@keyframes scRingFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scRingFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}

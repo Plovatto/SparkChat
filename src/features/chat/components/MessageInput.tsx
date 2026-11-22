@@ -11,7 +11,8 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import { FaLink, FaMicrophone, FaPaperclip, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { FaLink, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { LuMic, LuPaperclip, LuTrash2 } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
 import type { SessionAuth } from '@lib/api/session-auth';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -25,6 +26,7 @@ import { useLinkPreview, type LinkPreviewStatus } from '../hooks/useLinkPreview'
 import type { ComposerLinkPreview } from '../utils/composer-link-preview';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { PendingAttachmentTile } from './PendingAttachmentTile';
+import '../styles/composer.css';
 
 export interface MessageInputHandle {
   focus: () => void;
@@ -196,85 +198,45 @@ interface RecordingBarProps {
 
 function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: RecordingBarProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const bars = interpolateLevels(audioLevels);
+  const canSend = recordingTime >= 1;
 
   return (
-    <div
-      className="chat-input-bar sc-anim-fade-in"
-      style={{
-        background: theme.surface,
-        boxShadow: theme.shadowSm,
-        display: 'flex',
-        gap: '12px',
-        alignItems: 'center',
-        borderTop: `1px solid ${theme.border}`,
-      }}
-    >
-      <button type="button" onClick={onCancel} title={t('chat.input.discard')} className="sc-icon-btn sc-icon-btn--danger-soft" style={{ width: '38px', height: '38px' }}>
-        <FaTimes size={15} />
+    <div className="chat-input-bar sc-composer sc-recording" role="group" aria-label={t('chat.input.recordingLabel')}>
+      <button type="button" onClick={onCancel} title={t('chat.input.discard')} aria-label={t('chat.input.discard')} className="sc-recording__discard">
+        <LuTrash2 size={19} aria-hidden="true" />
       </button>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flex: 1,
-          minWidth: 0,
-          background: theme.surfaceSunken,
-          border: `1px solid ${theme.borderSubtle}`,
-          borderRadius: '999px',
-          padding: '8px 16px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          className="sc-anim-blink"
-          style={{
-            width: '8px',
-            height: '8px',
-            borderRadius: '50%',
-            background: theme.danger,
-            flexShrink: 0,
-          }}
-        />
-
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '3px',
-            flex: 1,
-            height: '28px',
-            overflow: 'hidden',
-            minWidth: 0,
-          }}
-        >
-          {bars.map((level, index) => (
-            <div
-              key={index}
-              style={{
-                flex: '0 0 3px',
-                height: `${Math.max(15, Math.min(100, level))}%`,
-                background: theme.accent,
-                borderRadius: '3px',
-                transition: 'height 0.08s var(--sc-ease-standard)',
-              }}
-            />
-          ))}
-        </div>
-
-        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: theme.textPrimary, minWidth: '38px', textAlign: 'right', flexShrink: 0 }}>
+      <div className="sc-recording__pill">
+        <span className="sc-recording__dot" aria-hidden="true" />
+        <span className="sc-recording__time" aria-live="off">
           {formatRecordingTime(recordingTime)}
+        </span>
+        <div className="sc-recording__wave" aria-hidden="true">
+          {bars.map((level, index) => {
+            const quiet = level <= 15;
+            return (
+              <span
+                key={index}
+                className="sc-recording__bar"
+                data-quiet={quiet || undefined}
+                style={{ height: quiet ? undefined : `${Math.min(100, level)}%` }}
+              />
+            );
+          })}
         </div>
       </div>
 
-      {recordingTime >= 1 && (
-        <button type="button" onClick={onSend} title={t('chat.input.send')} className="sc-icon-btn sc-icon-btn--primary sc-anim-pop-in" style={{ width: '38px', height: '38px', fontSize: '0.9rem' }}>
-          <FaPaperPlane />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={onSend}
+        disabled={!canSend}
+        title={t('chat.input.send')}
+        aria-label={t('chat.input.send')}
+        className="sc-composer-action sc-recording__send"
+      >
+        <FaPaperPlane size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -308,7 +270,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   const gifPanelPresence = usePresence(isGifEnabled && isGifPanelOpen && !isBlockedBy && !userBlocked, MOTION_DURATION_MS.fast);
   const { language } = useAppLanguage();
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const composerRowRef = useRef<HTMLDivElement>(null);
+  const composerRowRef = useRef<HTMLFormElement>(null);
   const isComposingRef = useRef(false);
   const [limitNotice, setLimitNotice] = useState(0);
   const [isPillShaking, setIsPillShaking] = useState(false);
@@ -608,15 +570,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
-      <form
-        onSubmit={handleSubmit}
-        className="chat-input-bar sc-composer"
-        style={{
-          background: theme.surface,
-          boxShadow: theme.shadowSm,
-          borderTop: `1px solid ${theme.border}`,
-        }}
-      >
+      <form ref={composerRowRef} onSubmit={handleSubmit} className="chat-input-bar sc-composer">
         <input
           type="file"
           ref={attachmentInputRef}
@@ -625,148 +579,140 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           multiple
           style={{ display: 'none' }}
         />
-        <div ref={composerRowRef} className="sc-composer-row">
-          <div
-            className="sc-composer-pill"
-            data-disabled={isBlocked || undefined}
-            data-shake={isPillShaking || undefined}
-            onAnimationEnd={(event) => {
-              if (event.target === event.currentTarget) {
-                setIsPillShaking(false);
-              }
+        <div
+          className="sc-composer-pill"
+          data-disabled={isBlocked || undefined}
+          data-shake={isPillShaking || undefined}
+          onAnimationEnd={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsPillShaking(false);
+            }
+          }}
+        >
+          {isMentionListOpen && (
+            <div
+              className="sc-anim-rise-in"
+              style={{
+                position: 'absolute',
+                bottom: 'calc(100% + 8px)',
+                left: 0,
+                right: 0,
+                background: theme.surfaceElevated,
+                border: `1px solid ${theme.border}`,
+                borderRadius: '12px',
+                boxShadow: theme.shadowMd,
+                overflow: 'hidden',
+                zIndex: 20,
+                padding: '4px',
+                transformOrigin: 'bottom center',
+              }}
+            >
+              {filteredMentionCandidates.map((candidate, index) => (
+                <div
+                  key={candidate.id}
+                  role="option"
+                  aria-selected={index === mentionActiveIndex}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    selectMentionCandidate(candidate.nickname);
+                  }}
+                  onMouseEnter={() => setMentionActiveIndex(index)}
+                  data-active={index === mentionActiveIndex}
+                  className="sc-menu-item sc-anim-rise-in sc-stagger"
+                  style={
+                    {
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      '--sc-stagger-index': index,
+                      '--sc-stagger-step': '30ms',
+                    } as CSSProperties
+                  }
+                >
+                  @{candidate.nickname}
+                </div>
+              ))}
+            </div>
+          )}
+          <EmojiButton isOpen={isEmojiPickerOpen && !isBlocked} disabled={isBlocked} title={blockedTitle ?? undefined} onToggle={toggleEmojiPicker} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={message}
+            onChange={(event) => {
+              const composerText = event.target.value;
+              setMessage(composerText);
+              setIsGifPanelOpen((open) => keepGifPanelOpen(open, composerText));
+              onTyping();
+              updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
             }}
-          >
-            {isMentionListOpen && (
-              <div
-                className="sc-anim-rise-in"
-                style={{
-                  position: 'absolute',
-                  bottom: 'calc(100% + 8px)',
-                  left: 0,
-                  right: 0,
-                  background: theme.surfaceElevated,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '12px',
-                  boxShadow: theme.shadowMd,
-                  overflow: 'hidden',
-                  zIndex: 20,
-                  padding: '4px',
-                  transformOrigin: 'bottom center',
-                }}
-              >
-                {filteredMentionCandidates.map((candidate, index) => (
-                  <div
-                    key={candidate.id}
-                    role="option"
-                    aria-selected={index === mentionActiveIndex}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      selectMentionCandidate(candidate.nickname);
-                    }}
-                    onMouseEnter={() => setMentionActiveIndex(index)}
-                    data-active={index === mentionActiveIndex}
-                    className="sc-menu-item sc-anim-rise-in sc-stagger"
-                    style={
-                      {
-                        padding: '10px 14px',
-                        borderRadius: '8px',
-                        fontSize: '0.9rem',
-                        fontWeight: 600,
-                        '--sc-stagger-index': index,
-                        '--sc-stagger-step': '30ms',
-                      } as CSSProperties
-                    }
-                  >
-                    @{candidate.nickname}
-                  </div>
-                ))}
-              </div>
-            )}
-            <EmojiButton isOpen={isEmojiPickerOpen && !isBlocked} disabled={isBlocked} title={blockedTitle ?? undefined} onToggle={toggleEmojiPicker} />
-            <input
-              ref={inputRef}
-              type="text"
-              value={message}
-              onChange={(event) => {
-                const composerText = event.target.value;
-                setMessage(composerText);
-                setIsGifPanelOpen((open) => keepGifPanelOpen(open, composerText));
-                onTyping();
-                updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
-              }}
-              onKeyDown={handleInputKeyDown}
-              onPaste={handlePaste}
-              onCompositionStart={() => {
-                isComposingRef.current = true;
-              }}
-              onCompositionEnd={() => {
-                isComposingRef.current = false;
-              }}
-              maxLength={characterLimit(pendingAttachments.length > 0)}
+            onKeyDown={handleInputKeyDown}
+            onPaste={handlePaste}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+            }}
+            maxLength={characterLimit(pendingAttachments.length > 0)}
+            disabled={isBlocked}
+            placeholder={
+              isBlockedBy
+                ? t('chat.input.placeholderBlockedBy')
+                : userBlocked
+                  ? t('chat.input.placeholderYouBlocked')
+                  : isCompactComposer
+                    ? t('chat.input.placeholderShort')
+                    : t('chat.input.placeholder')
+            }
+            aria-label={isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')}
+            autoFocus={shouldAutoFocus}
+            data-testid="message-input"
+            className="sc-composer-input"
+          />
+          {!message.trim() && !(isCompactComposer && pendingAttachments.length > 0) && (
+            <GifButton
+              ref={gifButtonRef}
+              enabled={isGifEnabled}
+              isOpen={isGifPanelOpen}
               disabled={isBlocked}
-              placeholder={
-                isBlockedBy
-                  ? t('chat.input.placeholderBlockedBy')
-                  : userBlocked
-                    ? t('chat.input.placeholderYouBlocked')
-                    : isCompactComposer
-                      ? t('chat.input.placeholderShort')
-                      : t('chat.input.placeholder')
-              }
-              aria-label={isBlockedBy ? t('chat.input.placeholderBlockedBy') : userBlocked ? t('chat.input.placeholderYouBlocked') : t('chat.input.placeholder')}
-              autoFocus={shouldAutoFocus}
-              data-testid="message-input"
-              className="sc-composer-input"
+              onToggle={() => {
+                setIsEmojiPickerOpen(false);
+                setIsGifPanelOpen((open) => !open);
+              }}
             />
-            {!message.trim() && !(isCompactComposer && pendingAttachments.length > 0) && (
-              <GifButton
-                ref={gifButtonRef}
-                enabled={isGifEnabled}
-                isOpen={isGifPanelOpen}
-                disabled={isBlocked}
-                onToggle={() => {
-                  setIsEmojiPickerOpen(false);
-                  setIsGifPanelOpen((open) => !open);
-                }}
-              />
-            )}
-            <button
-              type="button"
-              onClick={() => attachmentInputRef.current?.click()}
-              disabled={isBlocked}
-              title={blockedTitle ?? t('chat.input.attach')}
-              aria-label={t('chat.input.attach')}
-              data-testid="attach-button"
-              className="sc-composer-action"
-            >
-              <FaPaperclip size={18} aria-hidden="true" />
-            </button>
-          </div>
-          {!message.trim() && (
-            <button
-              type="button"
-              onClick={() => void handleMicClick()}
-              disabled={isBlocked}
-              title={blockedTitle ?? t('chat.input.record')}
-              aria-label={t('chat.input.record')}
-              data-testid="record-button"
-              className="sc-composer-round sc-icon-btn sc-icon-btn--gradient sc-anim-pop-in"
-            >
-              <FaMicrophone size={18} aria-hidden="true" />
-            </button>
           )}
-          {(message.trim() || pendingAttachments.length > 0) && (
-            <button
-              type="submit"
-              title={t('chat.input.send')}
-              aria-label={t('chat.input.send')}
-              data-testid="send-button"
-              className="sc-composer-round sc-icon-btn sc-icon-btn--gradient sc-anim-send-in"
-            >
-              <FaPaperPlane size={17} aria-hidden="true" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => attachmentInputRef.current?.click()}
+            disabled={isBlocked}
+            title={blockedTitle ?? t('chat.input.attach')}
+            aria-label={t('chat.input.attach')}
+            data-testid="attach-button"
+            className="sc-composer-icon"
+          >
+            <LuPaperclip size={19} />
+          </button>
         </div>
+        {message.trim() || pendingAttachments.length > 0 ? (
+          <button key="send" type="submit" title={t('chat.input.send')} aria-label={t('chat.input.send')} data-testid="send-button" className="sc-composer-action sc-anim-send-in">
+            <FaPaperPlane size={16} />
+          </button>
+        ) : (
+          <button
+            key="mic"
+            type="button"
+            onClick={() => void handleMicClick()}
+            disabled={isBlocked}
+            title={blockedTitle ?? t('chat.input.record')}
+            aria-label={t('chat.input.record')}
+            data-testid="record-button"
+            className="sc-composer-action sc-anim-pop-in"
+          >
+            <LuMic size={20} />
+          </button>
+        )}
         {limitNotice > 0 && (
           <span key={limitNotice} role="status" className="sc-sr-only">
             {t('chat.input.tooLong')}

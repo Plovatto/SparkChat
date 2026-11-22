@@ -1,0 +1,386 @@
+.sc-cp-trigger {
+  position: relative;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--sc-surface-elevated),
+    0 0 0 3px var(--sc-border-strong);
+  cursor: pointer;
+  transition:
+    background-color 220ms ease,
+    box-shadow 200ms ease,
+    transform 180ms var(--sc-ease-spring-soft);
+}
+
+.sc-cp-trigger[aria-expanded='true'] {
+  box-shadow:
+    0 0 0 2px var(--sc-surface-elevated),
+    0 0 0 4px var(--sc-border-focus);
+}
+
+.sc-cp-trigger:hover {
+  transform: scale(1.08);
+}
+
+.sc-cp-trigger:active {
+  transform: scale(0.92);
+}
+
+.sc-cp-trigger:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 4px;
+}
+
+.sc-cp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  background: var(--sc-overlay);
+  animation: scFadeIn 180ms var(--sc-ease-enter) backwards;
+}
+
+.sc-cp-backdrop.is-exiting {
+  animation: scFadeOut 140ms var(--sc-ease-exit) forwards;
+}
+
+.sc-cp-panel {
+  position: fixed;
+  z-index: 10050;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 244px;
+  padding: 10px;
+  border: 1px solid var(--sc-border-subtle);
+  border-radius: 14px;
+  background: var(--sc-surface-elevated);
+  color: var(--sc-text-primary);
+  box-shadow:
+    0 24px 60px -18px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: scCpIn 220ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-cp-panel[data-ready='false'] {
+  visibility: hidden;
+}
+
+.sc-cp-panel.is-exiting {
+  animation: scCpOut 130ms var(--sc-ease-exit) forwards;
+}
+
+.sc-cp-panel--sheet {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  gap: 14px;
+  padding: 10px 16px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 24px 24px 0 0;
+  border-width: 1px 0 0;
+  animation: scCpSheetIn 340ms var(--sc-ease-spring-soft) backwards;
+}
+
+.sc-cp-panel--sheet.is-exiting {
+  animation: scCpSheetOut 200ms var(--sc-ease-exit) forwards;
+}
+
+.sc-cp-grabber {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sc-border-focus) 55%, transparent);
+}
+
+.sc-cp-area {
+  position: relative;
+  height: 118px;
+  border-radius: 10px;
+  background:
+    linear-gradient(to top, #000000, rgba(0, 0, 0, 0)),
+    linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0)),
+    var(--sc-cp-hue, #ff0000);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.sc-cp-panel--sheet .sc-cp-area {
+  height: 160px;
+}
+
+.sc-cp-area:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-cp-area__thumb {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2.5px solid #ffffff;
+  border-radius: 50%;
+  background: var(--sc-cp-color, transparent);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+  translate: -50% -50%;
+  pointer-events: none;
+}
+
+.sc-cp-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sc-cp-eyedropper {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--sc-border-subtle);
+  border-radius: 8px;
+  background: var(--sc-input);
+  color: var(--sc-text-secondary);
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.sc-cp-eyedropper:hover {
+  color: var(--sc-text-primary);
+  border-color: color-mix(in srgb, var(--sc-border-focus) 60%, transparent);
+}
+
+.sc-cp-eyedropper:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-cp-preview {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 4px 10px -4px rgba(0, 0, 0, 0.5);
+  transition: background-color 120ms linear;
+}
+
+.sc-cp-hue {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sc-cp-hue::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+}
+
+.sc-cp-hue::-moz-range-track {
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+}
+
+.sc-cp-hue::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -4px;
+  border: 2.5px solid #ffffff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 160ms var(--sc-ease-spring-soft);
+}
+
+.sc-cp-hue::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.sc-cp-hue:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.sc-cp-hue:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 3px;
+  border-radius: 999px;
+}
+
+.sc-cp-hex {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sc-cp-hex__label {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sc-text-secondary);
+}
+
+.sc-cp-hex input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1.5px solid color-mix(in srgb, var(--sc-text-primary) 9%, transparent);
+  border-radius: 10px;
+  background: var(--sc-input);
+  color: var(--sc-text-primary);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  text-transform: lowercase;
+  outline: none;
+  transition:
+    border-color 180ms ease,
+    box-shadow 200ms ease;
+}
+
+.sc-cp-hex input:focus {
+  border-color: var(--sc-border-focus);
+  box-shadow: 0 0 0 3px var(--sc-focus-ring);
+}
+
+.sc-cp-hex input[aria-invalid='true'] {
+  border-color: color-mix(in srgb, var(--sc-danger) 75%, transparent);
+}
+
+.sc-cp-presets {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sc-cp-preset {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  animation: scCpChipIn 300ms var(--sc-ease-spring) backwards;
+  animation-delay: calc(60ms + var(--sc-cp-i, 0) * 22ms);
+  transition: transform 180ms var(--sc-ease-spring-soft);
+}
+
+.sc-cp-preset:hover {
+  transform: translateY(-2px) scale(1.05);
+}
+
+.sc-cp-preset:active {
+  transform: scale(0.92);
+}
+
+.sc-cp-preset[data-selected='true'] {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.3),
+    0 0 0 2px var(--sc-surface-elevated),
+    0 0 0 4px var(--sc-border-focus);
+}
+
+.sc-cp-preset:focus-visible {
+  outline: 2px solid var(--sc-border-focus);
+  outline-offset: 2px;
+}
+
+.sc-cp-preset[aria-label='#ffffff'] {
+  color: #1f1b2e;
+}
+
+@keyframes scCpIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCpOut {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@keyframes scCpSheetIn {
+  from {
+    transform: translate3d(0, 100%, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes scCpSheetOut {
+  to {
+    transform: translate3d(0, 100%, 0);
+  }
+}
+
+@keyframes scCpChipIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-cp-panel,
+  .sc-cp-panel--sheet,
+  .sc-cp-preset {
+    animation: scFadeIn 160ms ease backwards;
+  }
+
+  .sc-cp-panel.is-exiting,
+  .sc-cp-panel--sheet.is-exiting {
+    animation: scFadeOut 120ms ease forwards;
+  }
+
+  .sc-cp-trigger:hover,
+  .sc-cp-preset:hover {
+    transform: none;
+  }
+}

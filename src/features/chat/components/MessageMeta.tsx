@@ -6,6 +6,8 @@ import { formatTime } from '@lib/format';
 import type { MessageStatusInfo } from '@lib/message-status';
 import type { ChatMessage } from '../types';
 
+export type MessageMetaPlacement = 'row' | 'inline' | 'overlay';
+
 interface MessageMetaProps {
   message: ChatMessage;
   isOwn: boolean;
@@ -13,45 +15,53 @@ interface MessageMetaProps {
   statusInfo: MessageStatusInfo | null;
   onRetry: () => void;
   leading?: ReactNode;
+  placement?: MessageMetaPlacement;
 }
 
-export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry, leading }: MessageMetaProps) {
+const OVERLAY_TEXT = '#ffffff';
+const OVERLAY_READ = '#9fd0ff';
+
+export function MessageMetaSpacer({ isOwn }: { isOwn: boolean }) {
+  return <span className="sc-meta-spacer" data-own={isOwn} aria-hidden="true" />;
+}
+
+export function MessageMeta({ message, isOwn, bubble, statusInfo, onRetry, leading, placement = 'row' }: MessageMetaProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const statusColor = statusInfo?.read ? theme.receiptRead : bubble.mutedTextColor;
+  const isOverlay = placement === 'overlay';
+  const mutedColor = isOverlay ? OVERLAY_TEXT : bubble.mutedTextColor;
+  const statusColor = statusInfo?.read ? (isOverlay ? OVERLAY_READ : theme.receiptRead) : mutedColor;
+
+  const status = message.pending ? (
+    <FaRegClock size={10} color={mutedColor} className="sc-anim-pulse-soft" />
+  ) : message.failed ? (
+    <button
+      onClick={(event) => {
+        event.stopPropagation();
+        onRetry();
+      }}
+      title={t('chat.message.retry')}
+      className="sc-icon-btn sc-anim-badge-pop"
+      style={{ width: '18px', height: '18px', background: 'transparent', color: isOwn ? bubble.textColor : theme.dangerText }}
+    >
+      <FaExclamationCircle size={11} />
+    </button>
+  ) : (
+    statusInfo && (
+      <span key={statusInfo.icon + String(statusInfo.read)} className="sc-meta__ticks sc-anim-badge-pop">
+        <FaCheck size={10} color={statusColor} />
+        {statusInfo.icon === 'double' && <FaCheck size={10} color={statusColor} style={{ marginLeft: '-5px' }} />}
+      </span>
+    )
+  );
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', padding: '4px 12px 3px' }}>
-      {leading && <div style={{ flex: '1 1 auto', minWidth: 0 }}>{leading}</div>}
-      <span style={{ fontSize: '0.7rem', color: bubble.mutedTextColor, fontWeight: 500 }}>{formatTime(message.timestamp)}</span>
-      {message.pending ? (
-        <FaRegClock size={11} color={bubble.mutedTextColor} className="sc-anim-pulse-soft" />
-      ) : message.failed ? (
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onRetry();
-          }}
-          title={t('chat.message.retry')}
-          className="sc-icon-btn sc-anim-badge-pop"
-          style={{ width: '20px', height: '20px', background: 'transparent', color: isOwn ? bubble.textColor : theme.dangerText }}
-        >
-          <FaExclamationCircle size={12} />
-        </button>
-      ) : (
-        statusInfo && (
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            {statusInfo.icon === 'double' ? (
-              <>
-                <FaCheck size={11} color={statusColor} />
-                <FaCheck size={11} color={statusColor} style={{ marginLeft: '-6px' }} />
-              </>
-            ) : (
-              <FaCheck size={11} color={statusColor} />
-            )}
-          </div>
-        )
-      )}
+    <div className={`sc-meta sc-meta--${placement}`}>
+      {leading && placement === 'row' && <div className="sc-meta__leading">{leading}</div>}
+      <span className="sc-meta__time" style={{ color: mutedColor }}>
+        {formatTime(message.timestamp)}
+      </span>
+      {status}
     </div>
   );
 }

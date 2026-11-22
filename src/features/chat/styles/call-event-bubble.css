@@ -1,0 +1,367 @@
+.sc-call-card-row {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  margin: 0;
+}
+
+.chat-message-row:has(.sc-call-card-row) + .chat-message-row:has(.sc-call-card-row) {
+  margin-top: 6px;
+}
+
+.sc-call-card-row[data-own='true'] {
+  justify-content: flex-end;
+}
+
+.sc-call-card {
+  --cc-bg: var(--sc-message-other);
+  --cc-text: var(--sc-message-other-text);
+  --cc-muted: var(--sc-message-other-muted);
+  --cc-shade: 22%;
+  --cc-tint: var(--cc-muted);
+  --cc-glyph: var(--cc-muted);
+  box-sizing: border-box;
+  width: min(272px, 100%);
+  padding: 8px 8px 10px;
+  border-radius: 16px 16px 16px 4px;
+  background: var(--cc-bg);
+  color: var(--cc-text);
+  box-shadow: var(--sc-shadow-sm);
+}
+
+.sc-call-card[data-own='true'] {
+  --cc-bg: var(--sc-message-own);
+  --cc-text: var(--sc-message-own-text);
+  --cc-muted: var(--sc-message-own-muted);
+  border-radius: 16px 16px 4px 16px;
+  box-shadow: var(--sc-shadow-md);
+}
+
+:root[data-theme='light'] .sc-call-card {
+  --cc-shade: 7%;
+}
+
+:root[data-theme='light'] .sc-call-card[data-own='true'] {
+  --cc-shade: 16%;
+}
+
+.sc-call-card[data-tone='success'] {
+  --cc-tint: var(--sc-success);
+  --cc-glyph: var(--sc-success-text);
+}
+
+.sc-call-card[data-tone='danger'] {
+  --cc-tint: var(--sc-danger);
+  --cc-glyph: var(--sc-danger-text);
+}
+
+.sc-call-card__panel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 10px 10px 9px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #000 var(--cc-shade), var(--cc-bg));
+}
+
+.sc-call-card__halo {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--cc-tint) 38%, transparent);
+  background: color-mix(in srgb, var(--cc-tint) 12%, transparent);
+}
+
+.sc-call-card__halo::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--cc-tint) 55%, transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sc-call-card__halo[data-pulse='true']::after {
+  animation: scCallCardPulse 1.4s var(--sc-ease-enter, cubic-bezier(0.22, 1, 0.36, 1)) 0.35s 1 both;
+}
+
+.sc-call-card__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cc-tint) 22%, transparent);
+  color: var(--cc-glyph);
+  font-size: 16px;
+}
+
+.sc-call-card__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sc-call-card__title,
+.sc-call-card__who {
+  overflow-wrap: anywhere;
+}
+
+.sc-call-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.sc-call-card__who {
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--cc-muted);
+}
+
+.sc-call-card__side {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.sc-call-card__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--cc-muted);
+  background: color-mix(in srgb, var(--cc-muted) 14%, transparent);
+}
+
+.sc-call-card[data-tone='success'] .sc-call-card__pill {
+  color: var(--sc-success-text);
+  background: color-mix(in srgb, var(--sc-success) 15%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-call-card[data-status='missed'] .sc-call-card__pill,
+.sc-call-card[data-status='declined'] .sc-call-card__pill,
+.sc-call-card[data-tone='danger'] .sc-call-card__pill {
+  color: var(--sc-danger-text);
+  background: color-mix(in srgb, var(--sc-danger) 15%, transparent);
+}
+
+.sc-call-card__pill-text {
+  white-space: nowrap;
+}
+
+.sc-call-card__dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sc-success);
+}
+
+.sc-call-card__time {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--cc-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sc-call-card__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 38px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sc-gradient);
+  color: var(--sc-text-on-accent);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform var(--sc-dur-fast, 140ms) var(--sc-ease-standard, ease-out),
+    opacity var(--sc-dur-fast, 140ms) var(--sc-ease-standard, ease-out);
+}
+
+.sc-call-card[data-own='true'] .sc-call-card__action {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--sc-message-own-text);
+}
+
+.sc-call-card__action svg {
+  flex-shrink: 0;
+  font-size: 15px;
+}
+
+.sc-call-card__action:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.sc-call-card__action:focus-visible {
+  outline: 2px solid var(--sc-focus-ring);
+  outline-offset: 2px;
+}
+
+.sc-call-card__action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sc-call-card__action:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+}
+
+@keyframes scCallCardPulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+
+@media (max-width: 600px) {
+  .sc-call-card {
+    width: min(256px, 78%);
+  }
+
+  .sc-call-card__panel {
+    gap: 9px;
+    padding: 9px 10px 9px 9px;
+  }
+
+  .sc-call-card__halo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .sc-call-card__glyph {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+
+  .sc-call-card__title {
+    font-size: 13.5px;
+  }
+
+  .sc-call-card__pill {
+    padding: 2px 6px;
+    font-size: 10.5px;
+  }
+
+  .sc-call-card__who {
+    font-size: 12px;
+  }
+
+  .sc-call-card__action {
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-card__halo[data-pulse='true']::after {
+    animation: none;
+  }
+
+  .sc-call-card__action {
+    transition: opacity var(--sc-dur-fast, 140ms) linear;
+  }
+
+  .sc-call-card__action:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.sc-call-card__panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  column-gap: 0;
+  row-gap: 4px;
+  align-items: center;
+}
+
+.sc-call-card__halo {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  margin-right: 10px;
+}
+
+.sc-call-card__text,
+.sc-call-card__side {
+  display: contents;
+}
+
+.sc-call-card__title {
+  grid-row: 1;
+  grid-column: 2 / 4;
+}
+
+.sc-call-card__who {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+.sc-call-card__time {
+  grid-row: 1;
+  grid-column: 4;
+  justify-self: end;
+  margin-left: 8px;
+}
+
+.sc-call-card__pill {
+  grid-row: 2;
+  grid-column: 3 / 5;
+  justify-self: end;
+  margin-left: 8px;
+}
+
+.sc-call-card__title,
+.sc-call-card__who {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .sc-call-card__panel {
+    padding: 9px 9px 9px 8px;
+  }
+
+  .sc-call-card__halo {
+    margin-right: 8px;
+  }
+
+  .sc-call-card__who {
+    font-size: 11.5px;
+  }
+
+  .sc-call-card__pill {
+    margin-left: 6px;
+  }
+}

@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import ptApp from '../../../locales/pt/app.json';
 
 type Tree = { [key: string]: string | Tree };
@@ -9,88 +9,207 @@ function lookup(key: string): string {
   return typeof value === 'string' ? value : key;
 }
 
+const media = { sheet: false };
+
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => undefined },
   useTranslation: () => ({ t: lookup }),
 }));
 
-vi.mock('@features/theme', () => ({
-  useTheme: () => ({ theme: new Proxy({}, { get: (_target, property) => String(property) }) }),
+vi.mock('@hooks/useMediaQuery', () => ({
+  useMediaQuery: () => media.sheet,
 }));
+
+vi.mock('../styles/message-actions.css', () => ({}));
 
 const { MessageActionsRow } = await import('./MessageActionsRow');
 
-const writeText = vi.fn(() => Promise.resolve());
-
-beforeEach(() => {
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-});
-
 afterEach(() => {
-  writeText.mockClear();
+  media.sheet = false;
 });
 
-describe('MessageActionsRow', () => {
-  it('offers deleting on messages from other people too', () => {
-    const onDelete = vi.fn();
-    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={onDelete} onStartSelection={vi.fn()} />);
+function toolbarLabels() {
+  return Array.from(screen.getByRole('toolbar').querySelectorAll(':scope > button'), (button) => button.getAttribute('aria-label'));
+}
 
-    fireEvent.click(screen.getByRole('button', { name: /Apagar/ }));
+function openMenu() {
+  fireEvent.click(screen.getByRole('button', { name: 'Mais opções' }));
+  return screen.getByRole('menu');
+}
 
-    expect(onDelete).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: /Responder/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Encaminhar/ })).toBeTruthy();
+function menuLabels() {
+  return screen.getAllByRole('menuitem').map((item) => item.textContent);
+}
+
+describe('MessageActionsRow toolbar', () => {
+  it('shows reply, react, forward and more in that order', () => {
+    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onReact={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} />);
+
+    expect(toolbarLabels()).toEqual(['Responder', 'Reagir', 'Encaminhar', 'Mais opções']);
   });
 
-  it('starts the selection mode', () => {
-    const onStartSelection = vi.fn();
-    render(<MessageActionsRow isOwn onDelete={vi.fn()} onStartSelection={onStartSelection} />);
+  it('lists copy, translate, select and delete in the more menu, delete included for other people', () => {
+    render(
+      <MessageActionsRow
+        isOwn={false}
+        canCopy
+        canTranslate
+        onReply={vi.fn()}
+        onForward={vi.fn()}
+        onCopy={vi.fn()}
+        onTranslate={vi.fn()}
+        onStartSelection={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
 
-    fireEvent.click(screen.getByRole('button', { name: /Selecionar/ }));
+    openMenu();
 
-    expect(onStartSelection).toHaveBeenCalledTimes(1);
+    expect(menuLabels()).toEqual(['Copiar texto', 'Traduzir', 'Selecionar', 'Apagar']);
   });
 
-  it('shows only the delete action for a message deleted for everyone', () => {
-    render(<MessageActionsRow isOwn onDelete={vi.fn()} />);
-
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Apagar']);
-  });
-
-  it('keeps every action in order when the message has text', () => {
-    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} onStartSelection={vi.fn()} copyText="oi" />);
-
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Responder', 'Encaminhar', 'Copiar', 'Selecionar', 'Apagar']);
-  });
-});
-
-describe('MessageActionsRow copy action', () => {
-  function renderRow(copyText: string | null) {
+  it('runs actions without bubbling to the message', () => {
     const parentClick = vi.fn();
+    const onDelete = vi.fn();
+    const onStartSelection = vi.fn();
     render(
       <div onClick={parentClick}>
-        <MessageActionsRow isOwn onReply={vi.fn()} onDelete={vi.fn()} onForward={vi.fn()} copyText={copyText} />
+        <MessageActionsRow isOwn onReply={vi.fn()} onForward={vi.fn()} onStartSelection={onStartSelection} onDelete={onDelete} />
       </div>,
     );
-    return { parentClick };
-  }
 
-  it('copies the message text and confirms it without selecting the bubble', async () => {
-    const { parentClick } = renderRow('oi, tudo bem?');
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Selecionar/ }));
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Apagar/ }));
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Copiar/ }));
-      await Promise.resolve();
-    });
-
-    expect(writeText).toHaveBeenCalledWith('oi, tudo bem?');
+    expect(onStartSelection).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledTimes(1);
     expect(parentClick).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /Copiado!/ })).toBeTruthy();
   });
 
-  it('hides the copy action when there is no text to copy', () => {
-    renderRow(null);
-    expect(screen.queryByRole('button', { name: /Copiar/ })).toBeNull();
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['Responder', 'Encaminhar', 'Apagar']);
+  it('shows only the more button for a message deleted for everyone', () => {
+    render(<MessageActionsRow isOwn onDelete={vi.fn()} onStartSelection={vi.fn()} />);
+
+    expect(toolbarLabels()).toEqual(['Mais opções']);
+    openMenu();
+    expect(menuLabels()).toEqual(['Selecionar', 'Apagar']);
+  });
+
+  it('marks the react button expanded and shows the reaction popover', () => {
+    render(<MessageActionsRow isOwn onReact={vi.fn()} isReactionOpen reactionPopover={<button type="button">❤️</button>} onDelete={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Reagir' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('button', { name: '❤️' })).toBeTruthy();
+  });
+
+  it('closes the reaction popover with Escape and returns focus to the react button', () => {
+    const onReact = vi.fn();
+    render(<MessageActionsRow isOwn onReact={onReact} isReactionOpen reactionPopover={<button type="button">❤️</button>} onDelete={vi.fn()} />);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: '❤️' }), { key: 'Escape' });
+
+    expect(onReact).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reagir' }));
+  });
+
+  it('closes the reaction popover when the more menu opens', () => {
+    const onReact = vi.fn();
+    render(<MessageActionsRow isOwn onReact={onReact} isReactionOpen reactionPopover={<div>barra</div>} onDelete={vi.fn()} />);
+
+    openMenu();
+
+    expect(onReact).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('MessageActionsRow sheet', () => {
+  it('keeps every item in one evenly spaced list, delete included, with no extra divider', () => {
+    media.sheet = true;
+    render(<MessageActionsRow isOwn canCopy onReply={vi.fn()} onForward={vi.fn()} onCopy={vi.fn()} onStartSelection={vi.fn()} onDelete={vi.fn()} onDismiss={vi.fn()} />);
+
+    const list = document.querySelector('.sc-actions-sheet__list') as HTMLElement;
+    expect(Array.from(list.children).every((child) => child.classList.contains('sc-actions-sheet__item'))).toBe(true);
+    expect(list.lastElementChild?.getAttribute('data-tone')).toBe('danger');
+  });
+
+  it('closes when the backdrop is pressed and released, but not on a release that started elsewhere', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn onDelete={vi.fn()} onDismiss={onDismiss} />);
+    const backdrop = document.querySelector('.sc-actions-sheet-backdrop') as HTMLElement;
+
+    fireEvent.click(backdrop);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(backdrop);
+    fireEvent.click(backdrop);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  function dragHandle(distance: number) {
+    const handle = document.querySelector('.sc-actions-sheet__handle') as HTMLElement;
+    fireEvent.pointerDown(handle, { pointerId: 1, clientY: 100, pointerType: 'touch' });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 + distance / 2, pointerType: 'touch' });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 + distance, pointerType: 'touch' });
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 100 + distance, pointerType: 'touch' });
+  }
+
+  it('dismisses when the handle is dragged down far enough', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} onDismiss={onDismiss} />);
+
+    dragHandle(200);
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('springs back and stays open after a short drag', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    render(<MessageActionsRow isOwn={false} onReply={vi.fn()} onForward={vi.fn()} onDelete={vi.fn()} onDismiss={onDismiss} />);
+
+    dragHandle(8);
+
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect((document.querySelector('.sc-actions-sheet') as HTMLElement).style.transform).toBe('');
+  });
+
+  it('shows the quick reactions header and every action, dismissing after an action', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    const onReply = vi.fn();
+    render(
+      <MessageActionsRow
+        isOwn
+        canCopy
+        onReply={onReply}
+        onForward={vi.fn()}
+        onCopy={vi.fn()}
+        onStartSelection={vi.fn()}
+        onDelete={vi.fn()}
+        sheetHeader={<div>reações rápidas</div>}
+        onDismiss={onDismiss}
+      />,
+    );
+
+    expect(screen.getByText('reações rápidas')).toBeTruthy();
+    expect(menuLabels()).toEqual(['Responder', 'Encaminhar', 'Copiar texto', 'Selecionar', 'Apagar']);
+    fireEvent.click(screen.getByRole('menuitem', { name: /Responder/ }));
+    expect(onReply).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not dismiss after starting the selection so the message is not selected again', () => {
+    media.sheet = true;
+    const onDismiss = vi.fn();
+    const onStartSelection = vi.fn();
+    render(<MessageActionsRow isOwn onDelete={vi.fn()} onStartSelection={onStartSelection} onDismiss={onDismiss} />);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Selecionar/ }));
+
+    expect(onStartSelection).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
   });
 });

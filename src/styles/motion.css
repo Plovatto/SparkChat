@@ -466,26 +466,6 @@
   }
 }
 
-@keyframes scLoadingPulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-@keyframes scLoadingFloat {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(0, -30px, 0) scale(1.05);
-  }
-}
-
 @keyframes scMessageHighlightFlash {
   0% {
     box-shadow: 0 0 0 3px transparent;
@@ -736,6 +716,16 @@
   pointer-events: none;
 }
 
+@media (max-width: 600px) {
+  .sc-modal-panel {
+    --sc-modal-gutter: 10px;
+    --sc-modal-padding: 16px;
+    --sc-modal-header-padding: 14px 16px;
+    --sc-modal-scrollbar-gutter: auto;
+    --sc-modal-max-height: calc(100dvh - 24px);
+  }
+}
+
 .sc-media-gallery-grid .sc-tile img {
   transition: transform var(--sc-dur-slow) var(--sc-ease-standard);
 }
@@ -766,22 +756,6 @@
 
 .loading-spinner {
   animation: scSpin 1s linear infinite;
-}
-
-.sc-loading-ring-reverse {
-  animation: scSpin 1.5s linear infinite reverse;
-}
-
-.sc-loading-orb {
-  animation: scLoadingFloat 8s var(--sc-ease-standard) infinite;
-}
-
-.sc-loading-orb--slow {
-  animation: scLoadingFloat 10s var(--sc-ease-standard) infinite reverse;
-}
-
-.sc-loading-pulse {
-  animation: scLoadingPulse 2s var(--sc-ease-standard) infinite;
 }
 
 .chat-shake {
@@ -964,18 +938,6 @@ html.sc-theme-transition *::after {
 
   .loading-spinner {
     animation-duration: 2.4s;
-  }
-
-  .sc-loading-ring-reverse {
-    animation-duration: 3.4s;
-  }
-
-  .sc-loading-orb {
-    animation: none;
-  }
-
-  .sc-loading-pulse {
-    animation: scLoadingPulse 3.6s linear infinite;
   }
 
   #root {

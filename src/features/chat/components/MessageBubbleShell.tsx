@@ -1,8 +1,18 @@
 import { useRef, useState, type CSSProperties, type ReactNode, type Ref } from 'react';
 import type { EntrancePhase } from '@features/motion';
+import { Avatar } from '@features/profile-photos/components/Avatar';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { getDisplayName } from '@lib/format';
 import { useLongPress } from '../hooks/useLongPress';
+import { senderNameColor } from '../utils/sender-color';
+import '../styles/chat-bubbles.css';
+
+export type BubbleVariant = 'bubble' | 'media' | 'media-caption';
+
+export interface BubbleRunPosition {
+  isFirstInRun: boolean;
+  isLastInRun: boolean;
+}
 
 interface MessageBubbleShellProps {
   isOwn: boolean;
@@ -11,15 +21,19 @@ interface MessageBubbleShellProps {
   messageId: string;
   senderId: string;
   senderNickname: string;
+  senderAvatar?: number;
   currentUserId: string | undefined;
   isSelected?: boolean;
   onSelect: () => void;
   onOpenActions: () => void;
   allowCustomContextMenu?: boolean;
   padding: string;
+  variant?: BubbleVariant;
+  run?: BubbleRunPosition;
   extraClassName?: string;
   afterBubble?: ReactNode;
-  beforeBubble?: ReactNode;
+  bubbleSide?: ReactNode;
+  reactions?: ReactNode;
   onLongPress?: () => void;
   children: ReactNode;
   minWidth?: string;
@@ -29,6 +43,18 @@ interface MessageBubbleShellProps {
   containerRef?: Ref<HTMLDivElement>;
 }
 
+const SINGLE_RUN: BubbleRunPosition = { isFirstInRun: true, isLastInRun: true };
+const TAIL_RADIUS = 4;
+
+function bubbleCorners(radius: number, isOwn: boolean, isFirstInRun: boolean): string {
+  const joined = isFirstInRun ? radius : TAIL_RADIUS;
+  return isOwn
+    ? `${radius}px ${joined}px ${TAIL_RADIUS}px ${radius}px`
+    : `${joined}px ${radius}px ${radius}px ${TAIL_RADIUS}px`;
+}
+
+const GROUP_AVATAR_SIZE = 30;
+
 export function MessageBubbleShell({
   isOwn,
   isGroupChat,
@@ -36,19 +62,23 @@ export function MessageBubbleShell({
   messageId,
   senderId,
   senderNickname,
+  senderAvatar,
   currentUserId,
   isSelected = false,
   onSelect,
   onOpenActions,
   allowCustomContextMenu = true,
   padding,
+  variant = 'bubble',
+  run = SINGLE_RUN,
   extraClassName = '',
   afterBubble,
-  beforeBubble,
+  bubbleSide,
+  reactions,
   onLongPress,
   children,
   minWidth = '80px',
-  cornerRadius = 16,
+  cornerRadius = 12,
   entrancePhase = 'none',
   entranceIndex = 0,
   containerRef,
@@ -58,7 +88,18 @@ export function MessageBubbleShell({
   const [entrance] = useState(entrancePhase);
   const [staggerIndex] = useState(entranceIndex);
   const lastPointerTypeRef = useRef<string | null>(null);
-  const longPress = useLongPress({ onLongPress: onLongPress ?? onOpenActions, enabled: allowCustomContextMenu });
+  const showGroupChrome = isGroupChat && !isOwn;
+  const showSenderName = showGroupChrome && run.isFirstInRun;
+  const showAvatar = showGroupChrome && run.isLastInRun;
+  const isBareMedia = variant === 'media';
+  const longPress = useLongPress({
+    onLongPress: () => {
+      window.getSelection()?.removeAllRanges();
+      navigator.vibrate?.(12);
+      (onLongPress ?? onOpenActions)();
+    },
+    enabled: allowCustomContextMenu,
+  });
 
   return (
     <div
@@ -67,6 +108,7 @@ export function MessageBubbleShell({
       data-message-root={messageId}
       data-own={isOwn}
       data-live={entrance === 'live'}
+      data-variant={variant}
       className={`${entrance === 'none' ? '' : 'sc-anim-bubble-in sc-stagger '}chat-bubble-wrap${extraClassName}`}
       onClickCapture={(event) => {
         if (longPress.consumeLongPress()) {
@@ -75,8 +117,10 @@ export function MessageBubbleShell({
         }
       }}
       onClick={(event) => {
-        event.stopPropagation();
-        onSelect();
+        if (isSelected) {
+          event.stopPropagation();
+          onSelect();
+        }
       }}
       onPointerDown={(event) => {
         lastPointerTypeRef.current = event.pointerType;
@@ -109,47 +153,68 @@ export function MessageBubbleShell({
       style={
         {
           display: 'flex',
-          flexDirection: 'column',
-          gap: '6px',
-          alignItems: isOwn ? 'flex-end' : 'flex-start',
+          alignItems: 'flex-end',
+          gap: '8px',
           alignSelf: isOwn ? 'flex-end' : 'flex-start',
-          marginBottom: '2px',
+          minWidth: 0,
           '--sc-stagger-index': staggerIndex,
           '--sc-stagger-step': '38ms',
         } as CSSProperties
       }
     >
-      {beforeBubble}
+      {showGroupChrome && (
+        <div className="sc-bubble-avatar-slot" aria-hidden={!showAvatar}>
+          {showAvatar && (
+            <Avatar userId={senderId} avatarIndex={senderAvatar} size={GROUP_AVATAR_SIZE} iconSize={15} tone="soft" className="sc-anim-pop-in" />
+          )}
+        </div>
+      )}
       <div
-        data-message-id={messageId}
-        data-selected={isSelected}
-        className="sc-bubble"
         style={{
-          background: bubbleStyle.background,
-          color: bubbleStyle.textColor,
-          borderRadius: isOwn
-            ? `${cornerRadius}px ${cornerRadius}px 4px ${cornerRadius}px`
-            : `${cornerRadius}px ${cornerRadius}px ${cornerRadius}px 4px`,
-          boxShadow: isOwn ? theme.shadowMd : theme.shadowSm,
-          backdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
-          WebkitBackdropFilter: bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
           display: 'flex',
           flexDirection: 'column',
-          gap: '2px',
-          padding,
-          minWidth,
+          gap: '4px',
+          alignItems: isOwn ? 'flex-end' : 'flex-start',
+          minWidth: 0,
           maxWidth: '100%',
-          cursor: 'pointer',
         }}
       >
-        {!isOwn && isGroupChat && (
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: bubbleStyle.accentColor, padding: '4px 12px 0' }}>
+        {showSenderName && (
+          <div className="sc-bubble-sender" style={{ color: senderNameColor(senderId, theme.kind) }}>
             {getDisplayName(senderId, senderNickname, currentUserId)}
           </div>
         )}
-        {children}
+        <div className="sc-bubble-anchor" data-own={isOwn}>
+        <div
+          data-message-id={messageId}
+          data-selected={isSelected}
+          data-variant={variant}
+          className={`sc-bubble${isBareMedia ? ' sc-bubble--media' : variant === 'media-caption' ? ' sc-bubble--media-caption' : ''}`}
+          style={{
+            background: isBareMedia ? 'transparent' : bubbleStyle.background,
+            color: bubbleStyle.textColor,
+            borderRadius: isBareMedia ? `${cornerRadius}px` : bubbleCorners(cornerRadius, isOwn, run.isFirstInRun),
+            boxShadow: isSelected ? `0 0 0 1.5px ${theme.messageSelectedRing}, ${isBareMedia ? 'none' : theme.shadowSm}`.replace(', none', '') : isBareMedia ? 'none' : theme.shadowSm,
+            backdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
+            WebkitBackdropFilter: !isBareMedia && bubbleStyle.blur > 0 ? `blur(${bubbleStyle.blur}px)` : undefined,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
+            padding,
+            minWidth,
+            maxWidth: '100%',
+            overflow: variant === 'bubble' ? undefined : 'hidden',
+            position: 'relative',
+            cursor: 'pointer',
+          }}
+        >
+          {children}
+        </div>
+        {bubbleSide}
+        </div>
+        {reactions}
+        {afterBubble}
       </div>
-      {afterBubble}
     </div>
   );
 }

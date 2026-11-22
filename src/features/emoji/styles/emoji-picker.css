@@ -539,3 +539,7 @@
     transform: none;
   }
 }
+
+.sc-emoji-sheet-frame.is-elevated {
+  z-index: 10010;
+}

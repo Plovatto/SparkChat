@@ -1,0 +1,78 @@
+.sc-call-preview {
+  animation: scCallPreviewIn 180ms var(--sc-ease-spring-soft) both;
+}
+
+.sc-call-preview__body {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.5;
+}
+
+.sc-call-preview__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  color: var(--sc-call-tone);
+  background: color-mix(in srgb, var(--sc-call-tone) 14%, transparent);
+}
+
+.sc-call-preview__glyph svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.4;
+}
+
+.sc-call-preview[data-tone='success'] {
+  --sc-call-tone: var(--sc-success-text);
+}
+
+.sc-call-preview[data-tone='danger'] {
+  --sc-call-tone: var(--sc-danger-text);
+}
+
+.sc-call-preview[data-tone='muted'] {
+  --sc-call-tone: var(--sc-text-muted);
+}
+
+.sc-call-preview__text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--sc-text-secondary);
+}
+
+.sc-call-preview[data-tone='danger'][data-missed='true'] .sc-call-preview__label {
+  color: var(--sc-danger-text);
+  font-weight: 600;
+}
+
+.sc-call-preview__detail {
+  color: var(--sc-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes scCallPreviewIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-call-preview {
+    animation: scFadeIn 150ms linear both;
+  }
+}

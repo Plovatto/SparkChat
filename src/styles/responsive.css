@@ -1,6 +1,102 @@
 .app-background {
   height: var(--app-height);
   padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.app-background__fx {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--bg-veil);
+  contain: strict;
+}
+
+.app-background__orb {
+  position: absolute;
+  border-radius: 50%;
+  opacity: var(--bg-orb-opacity);
+  will-change: transform;
+  backface-visibility: hidden;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+
+.app-background__orb--a {
+  width: 62vmax;
+  height: 62vmax;
+  left: -18vmax;
+  top: -22vmax;
+  background: radial-gradient(circle at center, var(--bg-orb-a) 0%, transparent 68%);
+  animation-name: appBgDriftA;
+  animation-duration: 38s;
+}
+
+.app-background__orb--b {
+  width: 56vmax;
+  height: 56vmax;
+  right: -20vmax;
+  bottom: -24vmax;
+  background: radial-gradient(circle at center, var(--bg-orb-b) 0%, transparent 68%);
+  animation-name: appBgDriftB;
+  animation-duration: 46s;
+}
+
+.app-background__orb--c {
+  width: 40vmax;
+  height: 40vmax;
+  left: 38%;
+  top: 30%;
+  background: radial-gradient(circle at center, var(--bg-orb-a) 0%, transparent 70%);
+  opacity: calc(var(--bg-orb-opacity) * 0.55);
+  animation-name: appBgDriftC;
+  animation-duration: 54s;
+}
+
+.app-background__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+@keyframes appBgDriftA {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(22vmax, 14vmax, 0) scale(1.12);
+  }
+}
+
+@keyframes appBgDriftB {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(-24vmax, -12vmax, 0) scale(0.94);
+  }
+}
+
+@keyframes appBgDriftC {
+  from {
+    transform: translate3d(-10vmax, 8vmax, 0) scale(0.96);
+  }
+  to {
+    transform: translate3d(12vmax, -10vmax, 0) scale(1.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-background__orb {
+    animation: none;
+  }
 }
 
 .chat-shell-container {

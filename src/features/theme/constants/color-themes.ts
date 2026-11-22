@@ -36,6 +36,64 @@ export interface ColorTheme {
 }
 
 export const COLOR_THEMES = {
+  duskViolet: {
+    id: 'duskViolet',
+    light: {
+      accent: '#4a4fc9',
+      accentHover: '#5a5fd6',
+      accentPressed: '#3d41ad',
+      accentSecondary: '#7e39a8',
+      tint: '#5e40b8',
+      tintStrength: 0.9,
+      onAccent: '#ffffff',
+      gradient: 'linear-gradient(127deg, #3a4db0 0%, #5e40b8 50%, #7e39a8 100%)',
+      onGradient: '#ffffff',
+    },
+    dark: {
+      accent: '#4a4fc9',
+      accentHover: '#5a5fd6',
+      accentPressed: '#3d41ad',
+      accentSecondary: '#7e39a8',
+      tint: '#5e40b8',
+      tintStrength: 1,
+      onAccent: '#ffffff',
+      gradient: 'linear-gradient(127deg, #3a4db0 0%, #5e40b8 50%, #7e39a8 100%)',
+      onGradient: '#ffffff',
+      bubble: '#4a4fc9',
+      neutrals: {
+        sidebar: '#1a1727',
+        canvas: '#14121f',
+        surface: '#1a1727',
+        surfaceElevated: '#1f1b2e',
+        surfaceSunken: '#191626',
+        input: '#2a2540',
+        textPrimary: '#f4f1ff',
+        textSecondary: '#b0a9cc',
+        messageOther: '#272338',
+      },
+      overrides: {
+        pageGradient: 'linear-gradient(127deg, #1d2060 0%, #33257a 50%, #4a2070 100%)',
+        surfaceSelected: '#2b2542',
+        surfaceSelectedHover: '#322b4d',
+        borderFocus: '#8c90f5',
+        focusRing: 'rgba(140, 144, 245, 0.42)',
+        accentText: '#9db8ff',
+        link: '#9db8ff',
+        linkHover: '#b8cbff',
+        infoText: '#9db8ff',
+        messageOtherAccent: '#9db8ff',
+        textMuted: '#a29bc0',
+        placeholder: '#8e87ab',
+        success: '#3dd68c',
+        online: '#3dd68c',
+        danger: '#e2506c',
+        dangerText: '#ff8fa3',
+        warning: '#f5c46a',
+        warningText: '#f5c46a',
+        warningSoft: 'rgba(245, 184, 74, 0.1)',
+      },
+    },
+  },
   standard: {
     id: 'standard',
     light: {
@@ -1294,3 +1352,5 @@ export const COLOR_THEMES = {
 } as const satisfies Record<string, ColorTheme>;
 
 export type ColorThemeId = keyof typeof COLOR_THEMES;
+
+export const DEFAULT_COLOR_THEME: ColorThemeId = 'duskViolet';

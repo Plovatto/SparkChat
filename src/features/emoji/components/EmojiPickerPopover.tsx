@@ -30,11 +30,14 @@ export interface EmojiPickerPopoverProps {
   open: boolean;
   anchorRef: RefObject<HTMLElement | null>;
   onSelect: (emoji: string) => void;
-  onClose: () => void;
+  onClose: (outsideTarget?: Element | null) => void;
   placement?: 'top' | 'bottom';
+  toggleRefs?: readonly RefObject<HTMLElement | null>[];
+  elevated?: boolean;
 }
 
 const COARSE_POINTER_QUERY = '(pointer: coarse)';
+const NO_TOGGLE_REFS: readonly RefObject<HTMLElement | null>[] = [];
 const MODAL_SELECTOR = '.sc-modal-panel, .sc-modal-backdrop, [aria-modal="true"]';
 const FOCUSABLE_SELECTOR = 'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -63,7 +66,7 @@ function hasOpenModal(): boolean {
   return document.querySelector(MODAL_SELECTOR) !== null;
 }
 
-function EmojiPickerSurface({ anchorRef, onSelect, onClose, placement, isExiting }: SurfaceProps) {
+function EmojiPickerSurface({ anchorRef, toggleRefs, elevated, onSelect, onClose, placement, isExiting }: SurfaceProps) {
   const { t } = useTranslation();
   const { language } = useAppLanguage();
   const isSheet = useMediaQuery(EMOJI_SHEET_QUERY);
@@ -134,10 +137,15 @@ function EmojiPickerSurface({ anchorRef, onSelect, onClose, placement, isExiting
     };
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node | null;
-      if (!target || surfaceRef.current?.contains(target) || anchorRef.current?.contains(target)) {
+      if (
+        !target ||
+        surfaceRef.current?.contains(target) ||
+        anchorRef.current?.contains(target) ||
+        toggleRefs.some((ref) => ref.current?.contains(target))
+      ) {
         return;
       }
-      onCloseRef.current();
+      onCloseRef.current(target instanceof Element ? target : null);
     };
     const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
       if (hasOpenModal()) {
@@ -152,7 +160,7 @@ function EmojiPickerSurface({ anchorRef, onSelect, onClose, placement, isExiting
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('pointerdown', handlePointerDown, true);
     };
-  }, [anchorRef, isExiting]);
+  }, [anchorRef, toggleRefs, isExiting]);
 
   useEffect(() => {
     if (!isExiting) {
@@ -204,7 +212,7 @@ function EmojiPickerSurface({ anchorRef, onSelect, onClose, placement, isExiting
       transition: drag.isDragging ? 'none' : undefined,
     };
     return createPortal(
-      <div className={`sc-emoji-sheet-frame${exitingClass}`} style={frameStyle} data-testid="emoji-picker-frame">
+      <div className={`sc-emoji-sheet-frame${exitingClass}${elevated ? ' is-elevated' : ''}`} style={frameStyle} data-testid="emoji-picker-frame">
         <div className={`sc-emoji-backdrop${exitingClass}`} aria-hidden="true" data-testid="emoji-picker-backdrop" />
         <div
           ref={surfaceRef}
@@ -255,7 +263,7 @@ function EmojiPickerSurface({ anchorRef, onSelect, onClose, placement, isExiting
   );
 }
 
-export function EmojiPickerPopover({ open, anchorRef, onSelect, onClose, placement = 'top' }: EmojiPickerPopoverProps): JSX.Element | null {
+export function EmojiPickerPopover({ open, anchorRef, onSelect, onClose, placement = 'top', toggleRefs = NO_TOGGLE_REFS, elevated = false }: EmojiPickerPopoverProps): JSX.Element | null {
   const presence = usePresence(open, MOTION_DURATION_MS.fast);
 
   if (!presence.isPresent || typeof document === 'undefined') {
@@ -265,6 +273,8 @@ export function EmojiPickerPopover({ open, anchorRef, onSelect, onClose, placeme
   return (
     <EmojiPickerSurface
       anchorRef={anchorRef}
+      toggleRefs={toggleRefs}
+      elevated={elevated}
       onSelect={onSelect}
       onClose={onClose}
       placement={placement}

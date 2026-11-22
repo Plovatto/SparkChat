@@ -5,7 +5,8 @@
     "midnight": "Meia-Noite"
   },
   "colors": {
-    "standard": "Padrão",
+    "duskViolet": "Clássico",
+    "standard": "Violeta Noite",
     "black": "Preto",
     "forest": "Floresta",
     "sunset": "Pôr do Sol",
@@ -46,7 +47,7 @@
     "abyss": "Abismo",
     "steel": "Aço",
     "paper": "Papel",
-    "violetNight": "Noite Violeta",
+    "violetNight": "Ametista",
     "jade": "Jade",
     "flamingo": "Flamingo",
     "cherry": "Cereja",
