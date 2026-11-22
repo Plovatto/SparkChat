@@ -257,7 +257,6 @@ export function InstallDemo({ active }: DemoProps) {
             </span>
             <span className="lp-push__answer">
               <FaPhoneAlt size={10} />
-              <span className="lp-sr-only">{t('features.demo.pushAnswer')}</span>
             </span>
           </div>
           <div className="lp-push" data-shown={step >= 2 ? 'true' : undefined}>

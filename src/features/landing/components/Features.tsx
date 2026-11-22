@@ -1,4 +1,4 @@
-import type { ComponentType, CSSProperties } from 'react';
+import { useState, type ComponentType, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FEATURES, MORE_FEATURES, type FeatureId } from '../constants/content';
 import { useInView } from '../hooks/useInView';
@@ -18,6 +18,7 @@ export function Features() {
   const { t } = useTranslation('landing');
   const gridRef = useCardTilt<HTMLUListElement>('.lp-bento__card');
   const { ref: areaRef, inView } = useInView<HTMLDivElement>('120px');
+  const [marqueePaused, setMarqueePaused] = useState(false);
 
   return (
     <section id="recursos" className="lp-section" aria-labelledby="recursos-title">
@@ -48,7 +49,20 @@ export function Features() {
             );
           })}
         </ul>
-        <div className="lp-more" role="region" aria-label={t('features.moreLabel')}>
+        <div
+          className="lp-more"
+          role="region"
+          aria-label={t('features.moreLabel')}
+          tabIndex={0}
+          data-paused={marqueePaused ? 'true' : undefined}
+          onClick={() => setMarqueePaused((value) => !value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setMarqueePaused((value) => !value);
+            }
+          }}
+        >
           {[0, 1].map((copy) => (
             <ul key={copy} className="lp-more__track" aria-hidden={copy === 1 ? true : undefined}>
               {MORE_FEATURES.map((item, position) => {

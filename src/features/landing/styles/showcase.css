@@ -3529,3 +3529,25 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.lp-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.lp-more {
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.lp-more:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--sc-focus-ring);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lp-more[data-paused='true'] .lp-more__track,
+  .lp-more:focus-within .lp-more__track {
+    animation-play-state: paused;
+  }
+}
