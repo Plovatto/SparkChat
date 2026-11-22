@@ -50,6 +50,7 @@ export const CALL_RECONNECT_MAX_MS = 180_000;
 export const ROOM_WAIT_ATTEMPTS = 30;
 export const ROOM_WAIT_INTERVAL_MS = 100;
 export const NOTIFICATION_ACTION_TTL_MS = 60_000;
+export const GLARE_WINDOW_MS = 15_000;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
@@ -191,6 +192,7 @@ export interface CallControllerDeps {
   acquireWakeLock: () => void;
   releaseWakeLock: () => void;
   now: () => number;
+  tabDevice?: () => string;
 }
 
 export interface NotificationCallAction {
@@ -367,6 +369,10 @@ export class CallController {
   private cameraEpoch = 0;
   private pendingAnswer: { callId: string; until: number } | null = null;
   private readonly pendingDeclines = new Map<string, number>();
+  private preparingPeerId: string | null = null;
+  private glareInvite: Parameters<CallController['onIncoming']>[0] | null = null;
+  private glarePeer: { peerId: string; until: number } | null = null;
+  private readonly resumeAttempts = new Set<string>();
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
@@ -443,7 +449,29 @@ export class CallController {
 
   private requestSync(): void {
     const state = this.machine.getState();
-    this.deps.socket.emit('call:sync', { callId: state.callId && isCallLive(state) ? state.callId : null });
+    this.deps.socket.emit('call:sync', { callId: state.callId && isCallLive(state) ? state.callId : null, ...this.deviceField() });
+  }
+
+  private deviceField(): { device?: string } {
+    const device = this.deps.tabDevice?.();
+    return device ? { device } : {};
+  }
+
+  private outgoingPeer(): string | null {
+    if (this.preparing && this.preparingPeerId) {
+      return this.preparingPeerId;
+    }
+    const state = this.machine.getState();
+    return state.phase === 'outgoing-ringing' && this.session?.role === 'caller' ? this.session.peerId : null;
+  }
+
+  private takeGlare(callerId: string): boolean {
+    const glare = this.glarePeer;
+    if (!glare || glare.peerId !== callerId) {
+      return false;
+    }
+    this.glarePeer = null;
+    return glare.until > this.deps.now();
   }
 
   private scheduleOtherDeviceRecheck(): void {
@@ -499,6 +527,9 @@ export class CallController {
   }): Promise<void> {
     const identity = this.deps.getIdentity();
     if (!identity || !this.snapshot.enabled || this.preparing || isCallLive(this.machine.getState())) {
+      if (typeof payload.callerId === 'string' && payload.callerId === this.outgoingPeer()) {
+        this.glareInvite = payload;
+      }
       return;
     }
     if (typeof payload.callId !== 'string' || this.knownCallIds.has(payload.callId)) {
@@ -573,7 +604,7 @@ export class CallController {
         this.decline();
         return;
       }
-      autoAnswer = this.takePendingAnswer(content.callId);
+      autoAnswer = this.takePendingAnswer(content.callId) || this.takeGlare(content.callerId);
     } catch {
       return;
     } finally {
@@ -661,6 +692,8 @@ export class CallController {
       return;
     }
     this.preparing = true;
+    this.preparingPeerId = input.peerId;
+    this.glareInvite = null;
     this.update({ notice: null });
     let owned = false;
     let media: LocalMedia | null = null;
@@ -736,6 +769,7 @@ export class CallController {
       this.update({ notice: { kind: 'interrupted' } });
     } finally {
       this.preparing = false;
+      this.preparingPeerId = null;
       if (media) {
         this.deps.stopMedia(media.stream);
       }
@@ -1482,6 +1516,11 @@ export class CallController {
       return;
     }
     if (event === 'call:start' && session && this.machine.getState().phase === 'outgoing-ringing') {
+      const invite = this.glareInvite?.callerId === session.peerId ? this.glareInvite : null;
+      if (invite || code === 'call.alreadyInCall') {
+        this.resolveGlare(session, invite);
+        return;
+      }
       if (code !== 'call.peerBusy') {
         this.update({ notice: { kind: code === 'call.disabled' ? 'disabled' : 'server-error', code } });
       }
@@ -1525,6 +1564,20 @@ export class CallController {
     this.update({ notice: { kind: 'server-error', code } });
   }
 
+  private resolveGlare(session: Session, invite: Parameters<CallController['onIncoming']>[0] | null): void {
+    this.glareInvite = null;
+    this.glarePeer = { peerId: session.peerId, until: this.deps.now() + GLARE_WINDOW_MS };
+    this.machine.dispatch({ type: 'failure', callId: session.callId, detail: 'glare', reason: 'cancelled' });
+    this.machine.dispatch({ type: 'dismiss' });
+    queueMicrotask(() => {
+      if (invite) {
+        void this.onIncoming(invite);
+      } else {
+        this.requestSync();
+      }
+    });
+  }
+
   private async onServerState(payload: CallStatePayload | null): Promise<void> {
     const state = this.machine.getState();
     if (payload === null) {
@@ -1556,8 +1609,15 @@ export class CallController {
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
       return;
     }
+    const other: OtherDeviceCall = { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null, media: readMediaState(payload.media) };
+    if (payload.resumable === true && !this.resumeAttempts.has(payload.callId) && !isCallLive(this.machine.getState()) && !this.preparing) {
+      this.resumeAttempts.add(payload.callId);
+      this.update({ otherDevice: other });
+      await this.transferHere();
+      return;
+    }
     this.scheduleOtherDeviceRecheck();
-    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null, media: readMediaState(payload.media) } });
+    this.update({ otherDevice: other });
   }
 
   async transferHere(): Promise<void> {
@@ -1655,7 +1715,7 @@ export class CallController {
         track.enabled = !startMuted;
       }
       this.update({ otherDevice: null, muted: startMuted, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
-      this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
+      this.deps.socket.emit('call:transfer', { callId: other.callId, envelope, ...this.deviceField() });
     } catch {
       this.update({ otherDevice: null, notice: { kind: 'transfer-failed' } });
       this.requestSync();
@@ -1839,13 +1899,13 @@ export class CallController {
     switch (effect.type) {
       case 'send-start':
         if (session) {
-          this.deps.socket.emit('call:start', { callId: session.callId, roomId: session.roomId, kind: session.kind, envelope: session.envelope });
+          this.deps.socket.emit('call:start', { callId: session.callId, roomId: session.roomId, kind: session.kind, envelope: session.envelope, ...this.deviceField() });
           this.startHeartbeat(session.callId);
         }
         return;
       case 'send-accept':
         if (session) {
-          this.deps.socket.emit('call:accept', { callId: session.callId, envelope: session.envelope });
+          this.deps.socket.emit('call:accept', { callId: session.callId, envelope: session.envelope, ...this.deviceField() });
           this.startHeartbeat(session.callId);
         }
         return;
@@ -2076,7 +2136,7 @@ export class CallController {
     }
     const relayed = this.reportableRoute(callId);
     const media = this.reportableMedia(callId);
-    this.deps.socket.emit('call:heartbeat', { callId, ...(relayed === null ? {} : { relayed }), ...(media ? { media } : {}) });
+    this.deps.socket.emit('call:heartbeat', { callId, ...(relayed === null ? {} : { relayed }), ...(media ? { media } : {}), ...this.deviceField() });
     if (relayed === false) {
       this.session?.peerSession?.dropRelayCredentials();
     }
