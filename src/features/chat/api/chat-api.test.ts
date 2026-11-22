@@ -177,6 +177,17 @@ describe('chat attachment uploads', () => {
     expect(sealed).toHaveLength(0);
   });
 
+  it('counts the encryption overhead against the server limit', async () => {
+    const limit = 50 * 1024 * 1024;
+    await expect(uploadChatFile(new File([new Uint8Array(limit - 39)], 'edge.pdf', { type: 'application/pdf' }), auth, TARGET)).rejects.toMatchObject({
+      payload: { code: 'upload.tooLarge' },
+    });
+    expect(uploads).toHaveLength(0);
+
+    await uploadChatFile(new File([new Uint8Array(limit - 40)], 'fits.pdf', { type: 'application/pdf' }), auth, TARGET);
+    expect(uploads).toHaveLength(1);
+  });
+
   it('accepts an image whose compressed version fits the limit', async () => {
     variants.original = new Blob(['small'], { type: 'image/webp' });
     variants.thumbnail = new Blob(['thumb'], { type: 'image/webp' });

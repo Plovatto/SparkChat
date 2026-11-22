@@ -58,6 +58,7 @@ const ALLOWED_MIME_TYPES: Record<UploadKind, ReadonlySet<string>> = {
 const ALLOWED_FILE_EXTENSIONS = new Set(['pdf', 'mp4', 'webm', 'mov', 'avi', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'txt', 'csv']);
 
 const MEGABYTE = 1024 * 1024;
+const SEALED_ATTACHMENT_OVERHEAD_BYTES = 24 + 16;
 
 const MAX_UPLOAD_MEGABYTES: Record<Exclude<UploadKind, 'gif'>, number> = {
   image: 5,
@@ -98,7 +99,7 @@ function assertAllowedType(kind: UploadKind, mimeType: string, name?: string): v
 
 function assertWithinSizeLimit(kind: Exclude<UploadKind, 'gif'>, content: Blob): void {
   const maxMegabytes = MAX_UPLOAD_MEGABYTES[kind];
-  if (content.size > maxMegabytes * MEGABYTE) {
+  if (content.size + SEALED_ATTACHMENT_OVERHEAD_BYTES > maxMegabytes * MEGABYTE) {
     throw new ApiError({ code: 'upload.tooLarge', params: { kind, maxSize: `${maxMegabytes}MB` } }, FALLBACK_ERROR_KEY[kind]);
   }
 }
