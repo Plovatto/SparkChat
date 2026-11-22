@@ -383,6 +383,7 @@
     },
     "upload": {
       "imageFailed": "Não foi possível enviar a imagem.",
+      "imageUnreadable": "Não foi possível ler essa imagem. Escolha outro arquivo.",
       "audioFailed": "Não foi possível enviar o áudio.",
       "fileFailed": "Não foi possível enviar o arquivo.",
       "someImageFailed": "Não foi possível enviar uma das imagens. Tente novamente.",

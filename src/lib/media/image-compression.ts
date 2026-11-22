@@ -61,6 +61,20 @@ export async function buildImageVariants(file: File): Promise<ImageVariants> {
   return { original, thumbnail };
 }
 
+export async function canDecodeImage(image: Blob): Promise<boolean> {
+  const url = URL.createObjectURL(image);
+  try {
+    const element = new Image();
+    element.src = url;
+    await element.decode();
+    return element.naturalWidth > 0;
+  } catch {
+    return false;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function buildLinkPreviewThumbnail(image: Blob): Promise<Blob | null> {
   return recompress(image, THUMBNAIL_MAX_DIMENSION, THUMBNAIL_QUALITY);
 }
