@@ -43,6 +43,17 @@ describe('translateErrorPayload', () => {
     );
   });
 
+  it('explains the per-account sign-in delay in both languages', async () => {
+    await appI18n.changeLanguage('en');
+    expect(translateErrorPayload({ code: 'rateLimit.accountAttempts', message: 'server text' }, 'errors.generic')).toBe(
+      'Too many sign-in attempts on this account. Wait a few seconds and try again.',
+    );
+    await appI18n.changeLanguage('pt');
+    expect(translateErrorPayload({ code: 'rateLimit.accountAttempts', message: 'server text' }, 'errors.generic')).toBe(
+      'Muitas tentativas de login nesta conta. Aguarde alguns segundos e tente novamente.',
+    );
+  });
+
   it('picks the wording for the upload kind', () => {
     expect(translateErrorPayload({ code: 'upload.tooLarge', params: { kind: 'image', maxSize: '5MB' } }, 'errors.generic')).toBe(
       'A imagem excede o tamanho máximo permitido de 5MB.',

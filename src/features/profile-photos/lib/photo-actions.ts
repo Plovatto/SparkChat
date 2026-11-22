@@ -116,7 +116,7 @@ function flushPendingPhoto(): void {
 
 export const PENDING_PHOTO_RETRY_DELAYS_MS = [2000, 5000];
 
-const NON_RETRYABLE_CODES = new Set(['upload.invalidType', 'upload.tooLarge', 'upload.userQuotaExceeded', 'upload.quotaExceeded', PROFILE_PHOTO_UNAVAILABLE_CODE]);
+const NON_RETRYABLE_CODES = new Set(['upload.invalidType', 'upload.tooLarge', 'upload.userQuotaExceeded', 'upload.newAccountQuotaExceeded', 'upload.quotaExceeded', PROFILE_PHOTO_UNAVAILABLE_CODE]);
 
 function isCurrentOwner(owner: string): boolean {
   return getCurrentIdentity()?.userId === owner;

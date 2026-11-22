@@ -303,6 +303,23 @@ function isPlaintextMediaUrl(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.length > 0 && !isEncryptedMediaUrl(value);
 }
 
+const MEDIA_MESSAGE_TYPES: ReadonlySet<MessageType> = new Set(['image', 'audio', 'file']);
+
+function hasPlaintextFileMeta(fileMeta: MessageFileMeta | null): boolean {
+  return fileMeta
+    ? [fileMeta.name, fileMeta.mimeType, fileMeta.key, fileMeta.thumbnailKey, fileMeta.previewKey].some(isPlaintextField) ||
+        isPlaintextMediaUrl(fileMeta.thumbnailUrl)
+    : false;
+}
+
+function hasPlaintextReply(reply: MessageReplySnapshot | null): boolean {
+  if (!reply || reply.deleted) {
+    return false;
+  }
+  const contentIsPlain = MEDIA_MESSAGE_TYPES.has(reply.type) ? isPlaintextMediaUrl(reply.content) : isPlaintextField(reply.content);
+  return contentIsPlain || isPlaintextField(reply.caption) || hasPlaintextFileMeta(reply.fileMeta);
+}
+
 export function hasUnencryptedFields(message: MessageView): boolean {
   if (UNENCRYPTED_EXEMPT_TYPES.has(message.type) || message.deletedForEveryone) {
     return false;
@@ -310,15 +327,12 @@ export function hasUnencryptedFields(message: MessageView): boolean {
 
   const { fileMeta, linkPreview } = message;
   const contentIsPlain = message.type === 'text' ? isPlaintextField(message.content) : isPlaintextMediaUrl(message.content);
-  const fileMetaIsPlain = fileMeta
-    ? [fileMeta.name, fileMeta.mimeType, fileMeta.key, fileMeta.thumbnailKey, fileMeta.previewKey].some(isPlaintextField) ||
-      isPlaintextMediaUrl(fileMeta.thumbnailUrl)
-    : false;
+  const fileMetaIsPlain = hasPlaintextFileMeta(fileMeta);
   const linkPreviewIsPlain = linkPreview
     ? [linkPreview.url, linkPreview.title, linkPreview.description, linkPreview.imageUrl, linkPreview.siteName].some(isPlaintextField)
     : false;
 
-  return contentIsPlain || isPlaintextField(message.caption) || fileMetaIsPlain || linkPreviewIsPlain;
+  return contentIsPlain || isPlaintextField(message.caption) || fileMetaIsPlain || linkPreviewIsPlain || hasPlaintextReply(message.replyTo);
 }
 
 export interface DecryptMessageViewOptions {
