@@ -10,9 +10,11 @@ interface SplashWarpFieldProps {
   inkColor: string;
   accentColor: string;
   leaving: boolean;
+  className?: string;
+  paused?: boolean;
 }
 
-export function SplashWarpField({ inkColor, accentColor, leaving }: SplashWarpFieldProps) {
+export function SplashWarpField({ inkColor, accentColor, leaving, className = 'sc-splash__warp', paused = false }: SplashWarpFieldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const leavingSinceRef = useRef<number | null>(null);
 
@@ -22,7 +24,7 @@ export function SplashWarpField({ inkColor, accentColor, leaving }: SplashWarpFi
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || window.matchMedia?.(REDUCED_MOTION_QUERY).matches) {
+    if (!canvas || paused || window.matchMedia?.(REDUCED_MOTION_QUERY).matches) {
       return;
     }
     const context = canvas.getContext('2d');
@@ -89,7 +91,7 @@ export function SplashWarpField({ inkColor, accentColor, leaving }: SplashWarpFi
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', resize);
     };
-  }, [inkColor, accentColor]);
+  }, [inkColor, accentColor, paused]);
 
-  return <canvas ref={canvasRef} className="sc-splash__warp" aria-hidden="true" />;
+  return <canvas ref={canvasRef} className={className} aria-hidden="true" />;
 }
