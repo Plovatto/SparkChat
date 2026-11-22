@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function read(file: string): string {
-  return readFileSync(join(process.cwd(), file), 'utf8');
+  return readFileSync(join(process.cwd(), file), 'utf8').replace(/\r\n/g, '\n');
 }
 
 function rule(file: string, selector: string): string {
@@ -49,5 +49,27 @@ describe('layout guards', () => {
     expect(base).toMatch(/justify-content:\s*center/);
     expect(rule(file, '.sc-profile-share__label')).toMatch(/text-align:\s*center/);
     expect(rule(file, '.sc-profile-share')).toBe('');
+  });
+
+  it('anchors the jump to latest button inside the chat area instead of measuring the viewport', () => {
+    const source = read('src/features/chat/components/ChatArea.tsx');
+    expect(source).not.toMatch(/scrollButtonPosition/);
+    const button = source.slice(source.lastIndexOf('<button', source.indexOf('<FaArrowDown')), source.indexOf('<FaArrowDown'));
+    expect(button).toMatch(/className="sc-icon-btn sc-icon-btn--surface sc-jump-latest"/);
+    expect(button).not.toMatch(/position:/);
+    const jump = rule('src/features/chat/styles/chat-bubbles.css', '.sc-jump-latest');
+    expect(jump).toMatch(/position:\s*absolute/);
+    expect(jump).toMatch(/right:\s*calc\([^;]*env\(safe-area-inset-right/);
+    expect(jump).toMatch(/bottom:\s*\d+px/);
+    expect(jump).not.toMatch(/position:\s*fixed/);
+  });
+
+  it('keeps chat media out of native selection and drag on every pointer while keeping the long press menu', () => {
+    const media = rule('src/features/chat/styles/chat-bubbles.css', '.chat-bubble-wrap .sc-bubble img,\n.chat-bubble-wrap .sc-bubble video');
+    expect(media).toMatch(/-webkit-user-select:\s*none/);
+    expect(media).toMatch(/user-select:\s*none/);
+    expect(media).toMatch(/-webkit-user-drag:\s*none/);
+    expect(media).toMatch(/-webkit-tap-highlight-color:\s*transparent/);
+    expect(media).not.toMatch(/touch-callout:\s*none/);
   });
 });
