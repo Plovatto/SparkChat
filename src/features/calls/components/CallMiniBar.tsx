@@ -1,9 +1,42 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuMic, LuMicOff, LuPhone, LuPhoneOff, LuVideo } from 'react-icons/lu';
 import { formatCallDuration } from '@lib/format';
 import { speakingClass } from '../lib/self-speaking';
 import { useCall } from '../call-context';
+import { FRAME_GAP_PX, FRAME_SELECTOR, frameInsets, type FrameInsets } from '../lib/frame-anchor';
+
+function useFrameInsets(enabled: boolean): FrameInsets | null {
+  const [insets, setInsets] = useState<FrameInsets | null>(null);
+  useLayoutEffect(() => {
+    if (!enabled) {
+      setInsets(null);
+      return;
+    }
+    let frame = document.querySelector<HTMLElement>(FRAME_SELECTOR);
+    if (!frame) {
+      setInsets(null);
+      return;
+    }
+    const measure = () => {
+      if (!frame?.isConnected) {
+        frame = document.querySelector<HTMLElement>(FRAME_SELECTOR);
+      }
+      const root = document.documentElement;
+      const next = frame ? frameInsets(frame.getBoundingClientRect(), { width: root.clientWidth || window.innerWidth, height: root.clientHeight || window.innerHeight }, FRAME_GAP_PX) : null;
+      setInsets((current) => (current?.right === next?.right && current?.bottom === next?.bottom ? current : next));
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(frame);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [enabled]);
+  return insets;
+}
 
 interface CallMiniBarProps {
   attached?: boolean;
@@ -21,6 +54,8 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   const { registerStatusBar, hasStatusBar } = call;
   const [now, setNow] = useState(() => Date.now());
   const live = state.phase !== 'idle' && state.phase !== 'incoming-ringing' && state.phase !== 'ended';
+  const floating = !attached && minimized && live && !hasStatusBar;
+  const insets = useFrameInsets(floating);
 
   useEffect(() => {
     if (!attached) {
@@ -53,6 +88,7 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
       role="status"
       className={`sc-livebar ${attached ? 'sc-livebar--attached' : 'sc-livebar--floating'}`}
       data-connected={connected}
+      style={insets ? ({ '--sc-livebar-right': `${insets.right}px`, '--sc-livebar-bottom': `${insets.bottom}px` } as CSSProperties) : undefined}
       onClick={(event) => {
         if (!(event.target instanceof Element) || event.target.closest('[data-bar-action]') === null) {
           call.setMinimized(false);

@@ -54,8 +54,8 @@
 @media (min-width: 600px) {
   .sc-livebar--floating {
     left: auto;
-    right: 24px;
-    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    right: var(--sc-livebar-right, 24px);
+    bottom: var(--sc-livebar-bottom, calc(24px + env(safe-area-inset-bottom, 0px)));
     width: 360px;
   }
 }
