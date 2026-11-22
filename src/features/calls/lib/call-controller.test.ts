@@ -2953,6 +2953,20 @@ describe('push notification actions', () => {
     expect(w.b.rings).not.toContain('incoming');
   });
 
+  it('applies an answer or a decline that arrives while the invite is still being opened', async () => {
+    const answered = await heldRing();
+    answered.deliver();
+    answered.w.b.controller.handleNotificationAction({ type: 'answer', callId: answered.callId });
+    await settle();
+    expect(answered.w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId: answered.callId })]);
+
+    const declined = await heldRing();
+    declined.deliver();
+    declined.w.b.controller.handleNotificationAction({ type: 'decline', callId: declined.callId });
+    await settle();
+    expect(declined.w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'declined' });
+  });
+
   it('declines a call that is already ringing like the decline button', async () => {
     const { w, callId, deliver } = await heldRing();
     deliver();

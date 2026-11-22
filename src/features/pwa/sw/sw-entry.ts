@@ -1,6 +1,7 @@
 import { openAuthenticatedField } from '../../../lib/e2ee/authenticated-field';
 import { forgetCachedWrappingKey, loadContactPin, loadRoomKeyGenerations } from '../../../lib/e2ee/key-store';
 import { getSodium } from '../../../lib/e2ee/sodium';
+import { armCallAnswer } from '../lib/armed-answer';
 import { readNotificationLanguage, readNotificationMirror, rememberMessageId } from '../lib/notification-mirror';
 import { resolveMessagePreview, type PreviewDeps } from './message-preview';
 import { OFFLINE_PAGE_PATH } from './protocol';
@@ -155,6 +156,7 @@ const env: WorkerEnvironment = {
   saveLanguage,
   now: () => Date.now(),
   declineCall: declineCallOnServer,
+  armCallAnswer: (callId) => armCallAnswer(worker.caches, worker.registration.scope, callId, Date.now()),
   previewMessage: (roomId, preview, strings) => {
     forgetCachedWrappingKey();
     return resolveMessagePreview(roomId, preview, strings, previewDeps);

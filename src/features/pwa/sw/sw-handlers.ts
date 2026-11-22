@@ -64,6 +64,7 @@ export interface WorkerEnvironment {
   previewMessage?: (roomId: string, preview: PushMessagePreview | undefined, strings: WorkerStrings) => Promise<NotificationText | null>;
   roomIcon?: (roomId: string) => Promise<string | null>;
   declineCall?: (callId: string, token: string) => Promise<void>;
+  armCallAnswer?: (callId: string) => Promise<void>;
 }
 
 export interface WorkerState {
@@ -374,6 +375,9 @@ export async function handleNotificationClick(env: WorkerEnvironment, notificati
       client.postMessage({ type: 'sparkchat:open-room', roomId: data.roomId, ...(callId ? { callId } : {}) });
     }
     return;
+  }
+  if (callId && env.armCallAnswer) {
+    await env.armCallAnswer(callId).catch(() => undefined);
   }
   await env.openWindow(buildLaunchUrl(env.scope, { roomId: data.roomId, callId }));
 }

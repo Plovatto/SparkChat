@@ -568,6 +568,11 @@ export class CallController {
         seenTransfers: new Set(),
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
+      if (this.takePendingDecline(content.callId)) {
+        this.pendingAnswer = null;
+        this.decline();
+        return;
+      }
       autoAnswer = this.takePendingAnswer(content.callId);
     } catch {
       return;
@@ -603,7 +608,7 @@ export class CallController {
       void this.accept();
       return;
     }
-    if (isCallLive(state) || this.knownCallIds.has(action.callId)) {
+    if (isCallLive(state)) {
       return;
     }
     this.pendingAnswer = { callId: action.callId, until };

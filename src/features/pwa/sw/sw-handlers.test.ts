@@ -53,6 +53,7 @@ function fakeClient(overrides: Partial<WorkerWindowClient> = {}): FakeClient {
 function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number; language?: 'pt' | 'en'; declineFails?: boolean } = {}) {
   const shown: ShownNotification[] = [];
   const declined: Array<{ callId: string; token: string }> = [];
+  const armed: string[] = [];
   const opened: string[] = [];
   const savedLanguages: string[] = [];
   const env: WorkerEnvironment = {
@@ -89,12 +90,16 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
       return Promise.resolve();
     },
     now: () => 1_000,
+    armCallAnswer: (callId) => {
+      armed.push(callId);
+      return Promise.resolve();
+    },
     declineCall: (callId, token) => {
       declined.push({ callId, token });
       return options.declineFails ? Promise.reject(new Error('offline')) : Promise.resolve();
     },
   };
-  return { env, shown, opened, declined, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
+  return { env, shown, opened, declined, armed, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
 }
 
 describe('resolveWorkerLanguage', () => {
@@ -349,9 +354,10 @@ describe('handleNotificationClick', () => {
   });
 
   it('opens the room with the call id for answer without accepting anything itself', async () => {
-    const { env, opened } = fakeEnv();
+    const { env, opened, armed } = fakeEnv();
     await handleNotificationClick(env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), 'answer');
     expect(opened).toEqual(['https://chat.example/app/?room=r1&call=c1']);
+    expect(armed).toEqual(['c1']);
 
     const client = fakeClient();
     const withWindow = fakeEnv({ clients: [client] });
@@ -360,9 +366,10 @@ describe('handleNotificationClick', () => {
   });
 
   it('opens the room without an answer intent when the call notification body is tapped', async () => {
-    const { env, opened } = fakeEnv();
+    const { env, opened, armed } = fakeEnv();
     await handleNotificationClick(env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), '');
     expect(opened).toEqual(['https://chat.example/app/?room=r1']);
+    expect(armed).toEqual([]);
 
     const client = fakeClient();
     const withWindow = fakeEnv({ clients: [client] });
