@@ -1859,6 +1859,49 @@ describe('connection recovery', () => {
     expect(restarts).toEqual([{ reason: 'online', relay: false }]);
   });
 
+  it('sends the pending offer again when the first one was lost before the call ever connected', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(0);
+    const offers = () => h.signals.filter((signal) => signal.type === 'offer').length;
+    const sent = offers();
+    expect(h.connection.signalingState).toBe('have-local-offer');
+
+    h.session.recoverIfUnhealthy('resync');
+    await settle();
+
+    expect(offers()).toBe(sent + 1);
+  });
+
+  it('keeps resending the pending offer on the retry ladder while the first connection never comes up', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    const offers = () => h.signals.filter((signal) => signal.type === 'offer').length;
+    const sent = offers();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(offers()).toBeGreaterThan(sent + 2);
+  });
+
+  it('never makes the callee negotiate or restart before the first offer arrived, so a late offer still applies', async () => {
+    const h = build('callee');
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(60_000);
+    h.connection.onnegotiationneeded?.();
+    await settle();
+
+    expect(h.signals.filter((signal) => signal.type === 'offer')).toHaveLength(0);
+    expect(h.connection.restartCalls).toBe(0);
+
+    await h.session.receiveSignal('offer', remoteDescription('offer'));
+    await settle();
+    expect(h.signals.filter((signal) => signal.type === 'answer')).toHaveLength(1);
+  });
+
   it('keeps a direct route alive with a control ping every 5 seconds after verification', async () => {
     const h = build('caller');
     h.session.start();

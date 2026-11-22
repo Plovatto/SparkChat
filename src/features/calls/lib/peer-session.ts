@@ -667,7 +667,7 @@ export class PeerSession {
   }
 
   private async negotiate(): Promise<void> {
-    if (this.closed) {
+    if (this.closed || (this.polite && !this.connection.remoteDescription)) {
       return;
     }
     try {
@@ -859,7 +859,7 @@ export class PeerSession {
     if (reason === 'online') {
       this.probeFailures = 0;
     }
-    if (this.closed || !this.connected || this.isIceHealthy() || this.retryTimer !== null) {
+    if (this.closed || this.isIceHealthy() || this.retryTimer !== null) {
       return;
     }
     this.failingSince ??= this.deps.now();
@@ -991,13 +991,27 @@ export class PeerSession {
       return;
     }
     this.lastRestartAt = now;
+    const resent = this.resendPendingOffer();
+    if (this.polite && !this.connection.remoteDescription) {
+      return;
+    }
     this.receivedCandidates = 0;
     this.options.sendSignal('ice-restart', {});
     if (typeof this.connection.restartIce === 'function') {
       this.connection.restartIce();
       return;
     }
-    void this.restartWithOffer();
+    if (!resent) {
+      void this.restartWithOffer();
+    }
+  }
+
+  private resendPendingOffer(): boolean {
+    if (this.connection.signalingState !== 'have-local-offer' || this.makingOffer || !this.connection.localDescription) {
+      return false;
+    }
+    this.sendDescription('offer');
+    return true;
   }
 
   private async restartWithOffer(): Promise<void> {
