@@ -21,6 +21,7 @@ export function AutoTranslateBanner({ language, onAccept, onDismiss, isExiting =
       role="region"
       aria-labelledby={titleId}
       className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+      inert={isExiting}
       style={{
         display: 'flex',
         alignItems: 'center',

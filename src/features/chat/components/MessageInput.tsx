@@ -180,6 +180,7 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
           <div
             key={pendingFileKey(file)}
             className={exitingFiles.has(file) ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
+            inert={exitingFiles.has(file)}
             style={{ display: 'flex', flexShrink: 0 }}
           >
             <PendingAttachmentTile file={file} onRemove={onRemove ? () => removeWithExit(file) : undefined} />
@@ -430,7 +431,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       return;
     }
 
-    setPendingAttachments((previous) => [...previous, ...files]);
+    setPendingAttachments((previous) => [...previous, ...files.filter((file, index) => !previous.includes(file) && files.indexOf(file) === index)]);
   };
 
   useImperativeHandle(ref, () => ({
@@ -625,7 +626,16 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
-      <form ref={composerRowRef} onSubmit={handleSubmit} className={`chat-input-bar sc-composer${hasRecorded ? ' sc-anim-rise-in' : ''}`}>
+      <form
+        ref={composerRowRef}
+        onSubmit={handleSubmit}
+        className={`chat-input-bar sc-composer${hasRecorded ? ' sc-anim-rise-in' : ''}`}
+        onAnimationEnd={(event) => {
+          if (event.target === event.currentTarget && !isRecording) {
+            setHasRecorded(false);
+          }
+        }}
+      >
         <input
           type="file"
           ref={attachmentInputRef}
@@ -647,6 +657,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           {mentionListPresence.value && (
             <div
               className={mentionListPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+              inert={mentionListPresence.isExiting}
               aria-hidden={mentionListPresence.isExiting || undefined}
               style={{
                 position: 'absolute',

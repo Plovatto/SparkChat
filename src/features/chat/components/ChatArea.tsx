@@ -244,6 +244,7 @@ function BlockedBanner({ tone, icon, text, isExiting = false }: BlockedBannerPro
   return (
     <div
       className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+      inert={isExiting}
       style={{
         background,
         color,
@@ -1488,7 +1489,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         {failurePresence.value && (
           <div
             className={`sc-notice sc-notice--danger ${failurePresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
-            role="alert"
+            role={failurePresence.isExiting ? undefined : 'alert'}
+            inert={failurePresence.isExiting}
             style={{ margin: '0 12px 8px', alignItems: 'center' }}
           >
             <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />

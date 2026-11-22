@@ -170,18 +170,15 @@ describe('message selection mode', () => {
     expect(screen.getByTestId('callbacks').textContent).toBe('0');
   });
 
-  it('marks the composer to rise back in after a selection and clears the mark once it played', () => {
+  it('marks the composer to rise back in after a selection and clears the mark once it played', async () => {
     render(<Harness />);
     const slot = screen.getByTestId('composer-slot');
     expect(slot.hasAttribute('data-returning')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar seleção' }));
     expect(slot.hasAttribute('data-returning')).toBe(true);
-    const composer = screen.getByLabelText('mensagem');
-    composer.classList.add('sc-composer');
-    fireEvent.animationEnd(composer);
-    act(() => {
-      composer.dispatchEvent(new Event('webkitAnimationEnd', { bubbles: true }));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
     });
     expect(slot.hasAttribute('data-returning')).toBe(false);
   });
