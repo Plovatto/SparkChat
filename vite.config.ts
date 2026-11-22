@@ -203,12 +203,14 @@ function buildServiceWorker(): Plugin {
   let root = process.cwd();
   let outDir = path.resolve(root, 'dist');
   let version = 'dev';
+  let apiUrl = '';
 
   return {
     name: 'sparkchat:service-worker',
     apply: (_config, { command, isSsrBuild }) => command === 'build' && !isSsrBuild,
     configResolved(config) {
       root = config.root;
+      apiUrl = String(config.env.VITE_API_URL ?? '');
       outDir = path.resolve(config.root, config.build.outDir);
     },
     generateBundle(_options, bundle) {
@@ -220,7 +222,7 @@ function buildServiceWorker(): Plugin {
         root,
         logLevel: 'warn',
         publicDir: false,
-        define: { __SW_VERSION__: JSON.stringify(version) },
+        define: { __SW_VERSION__: JSON.stringify(version), __SW_API_URL__: JSON.stringify(apiUrl) },
         plugins: [workerImportMetaUrl()],
         build: {
           outDir: path.join(outDir, SERVICE_WORKER_OUT_DIR),
