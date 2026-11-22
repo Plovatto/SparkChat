@@ -194,12 +194,14 @@
 
 .sc-call-topbar__meta {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
 .sc-call-topbar__name {
+  min-width: 0;
   font-size: 1.0625rem;
   font-weight: 700;
   line-height: 1.2;
@@ -208,13 +210,27 @@
   white-space: nowrap;
 }
 
+.sc-call-topbar__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--sc-warning);
+  transition: background-color 220ms ease;
+}
+
+.sc-call-topbar__dot[data-live='true'] {
+  background: var(--sc-success);
+}
+
 .sc-call-topbar__status {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.2;
-  color: var(--call-ink-muted);
+  color: var(--call-ink);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
