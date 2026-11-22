@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { monitorSpeaking } from '../lib/audio-level';
 import { autoplay } from '../lib/autoplay';
 
@@ -19,15 +19,25 @@ export function useSpeaking(stream: MediaStream | null, enabled: boolean): boole
   return speaking;
 }
 
+function trackKey(stream: MediaStream | null): string {
+  return stream ? stream.getTracks().map((track) => track.id).join('|') : '';
+}
+
 export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: MediaStream | null): void {
+  const boundKey = useRef('');
   useEffect(() => {
     const element = ref.current;
     if (!element) {
       return;
     }
+    const key = trackKey(stream);
     if (element.srcObject !== stream) {
       element.srcObject = stream;
+    } else if (stream && boundKey.current !== key) {
+      element.srcObject = null;
+      element.srcObject = stream;
     }
+    boundKey.current = key;
     if (stream) {
       autoplay.play(element);
     } else {

@@ -18,6 +18,7 @@ import { useDuckLevel, useShareMonitorVolume } from '../lib/call-settings';
 import { shareAudioTrack, shareMonitorSupport } from '../lib/share-monitor';
 import { CallControls } from './CallControls';
 import type { BroadcastSettings } from './DevicePicker';
+import { supportsOutputSelection } from '../lib/audio-output';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
 import { ShareStage } from './ShareStage';
@@ -31,7 +32,6 @@ import '../styles/call-screen.css';
 
 interface CallScreenProps {
   videoRef: RefObject<HTMLVideoElement | null>;
-  voiceRef: RefObject<HTMLAudioElement | null>;
   shareAudioRef: RefObject<HTMLAudioElement | null>;
   shareMonitorRef: RefObject<HTMLAudioElement | null>;
 }
@@ -91,7 +91,7 @@ function Note({ icon, tone = 'warning', children }: NoteProps) {
   );
 }
 
-export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef }: CallScreenProps) {
+export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScreenProps) {
   const { t } = useTranslation();
   const call = useCall();
   const { snapshot, minimized } = call;
@@ -139,6 +139,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
                 onMonitorVolume: setShareMonitorVolume,
                 duckLevel,
                 onDuckLevel: setDuckLevel,
+                ...(call.canShareScreen ? { onChangeSource: call.changeScreenSource } : {}),
               }
             : null,
           receiver: remoteSharing
@@ -146,7 +147,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
             : null,
         }
       : null;
-  const supportsOutput = typeof HTMLMediaElement !== 'undefined' && 'setSinkId' in HTMLMediaElement.prototype;
+  const supportsOutput = supportsOutputSelection();
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
   const localSpeaking = call.localSpeaking;
   const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume, duckLevel);
@@ -204,12 +205,6 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
       shareAudioRef.current.volume = shareAudioVolume;
     }
   }, [shareAudioVolume, shareAudioRef]);
-
-  const chooseOutput = (deviceId: string) => {
-    for (const element of [voiceRef.current, shareAudioRef.current, shareMonitorRef.current]) {
-      void element?.setSinkId?.(deviceId).catch(() => undefined);
-    }
-  };
 
   const statusText = (() => {
     switch (state.phase) {
@@ -610,7 +605,7 @@ export function CallScreen({ videoRef, voiceRef, shareAudioRef, shareMonitorRef 
 
       {!ended && (
         <footer className="sc-call-dock sc-call-chrome sc-call-chrome--bottom" {...chromeHandlers}>
-          <CallControls supportsOutput={supportsOutput} onAudioOutput={chooseOutput} infoRef={topRef} broadcast={broadcast} onPanelChange={onPanelChange} />
+          <CallControls supportsOutput={supportsOutput} onAudioOutput={call.changeAudioOutput} infoRef={topRef} broadcast={broadcast} onPanelChange={onPanelChange} />
         </footer>
       )}
       {pip.window && (

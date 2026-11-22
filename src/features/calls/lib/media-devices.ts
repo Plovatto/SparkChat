@@ -6,6 +6,7 @@ export interface MediaSelection {
   audioProcessing?: AudioProcessing | undefined;
   audioInputId?: string | undefined;
   videoInputId?: string | undefined;
+  facing?: CameraFacing | undefined;
 }
 
 export interface LocalMedia {
@@ -48,14 +49,46 @@ export function audioConstraints(deviceId?: string, processing: AudioProcessing 
   };
 }
 
-export function videoConstraints(mobile: boolean, deviceId?: string): MediaTrackConstraints {
+export type CameraFacing = 'user' | 'environment';
+
+export function videoConstraints(mobile: boolean, deviceId?: string, facing: CameraFacing = 'user'): MediaTrackConstraints {
   return {
     width: { ideal: mobile ? 640 : 1280 },
     height: { ideal: mobile ? 480 : 720 },
     frameRate: { ideal: 30 },
-    ...(mobile ? { facingMode: 'user' } : {}),
+    ...(mobile && !deviceId ? { facingMode: facing } : {}),
     ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
   };
+}
+
+type GetUserMedia = (constraints: MediaStreamConstraints) => Promise<MediaStream>;
+
+const browserGetUserMedia: GetUserMedia = (constraints) => navigator.mediaDevices.getUserMedia(constraints);
+
+function isMissingDevice(error: unknown): boolean {
+  const name = error instanceof Error ? error.name : '';
+  return name === 'OverconstrainedError' || name === 'NotFoundError';
+}
+
+export async function acquireDeviceTrack(build: (deviceId?: string) => MediaStreamConstraints, deviceId: string | undefined, getUserMedia: GetUserMedia = browserGetUserMedia): Promise<MediaStreamTrack | null> {
+  const attempts = deviceId ? [deviceId, undefined] : [undefined];
+  for (const attempt of attempts) {
+    try {
+      const stream = await getUserMedia(build(attempt));
+      const [track, ...extra] = stream.getTracks();
+      for (const other of extra) {
+        other.stop();
+      }
+      if (track) {
+        return track;
+      }
+    } catch (error) {
+      if (!isMissingDevice(error)) {
+        return null;
+      }
+    }
+  }
+  return null;
 }
 
 export function isMobileDevice(): boolean {
@@ -77,6 +110,17 @@ export function prepareIosAudioSession(): void {
   }
 }
 
+async function withDeviceFallback(open: (selection: MediaSelection) => Promise<MediaStream>, selection: MediaSelection): Promise<MediaStream> {
+  try {
+    return await open(selection);
+  } catch (error) {
+    if ((selection.audioInputId || selection.videoInputId) && isMissingDevice(error)) {
+      return open({ ...selection, audioInputId: undefined, videoInputId: undefined });
+    }
+    throw error;
+  }
+}
+
 export async function acquireLocalMedia(
   kind: CallKind,
   selection: MediaSelection = {},
@@ -84,31 +128,31 @@ export async function acquireLocalMedia(
   mobile: boolean = isMobileDevice(),
 ): Promise<LocalMedia> {
   prepareIosAudioSession();
+  const audioOnly = (current: MediaSelection) => getUserMedia({ audio: audioConstraints(current.audioInputId, current.audioProcessing), video: false });
   if (kind === 'voice') {
-    return { stream: await getUserMedia({ audio: audioConstraints(selection.audioInputId, selection.audioProcessing), video: false }), cameraFailed: false };
+    return { stream: await withDeviceFallback(audioOnly, selection), cameraFailed: false };
   }
   try {
-    const stream = await getUserMedia({
-      audio: audioConstraints(selection.audioInputId, selection.audioProcessing),
-      video: videoConstraints(mobile, selection.videoInputId),
-    });
+    const stream = await withDeviceFallback(
+      (current) =>
+        getUserMedia({
+          audio: audioConstraints(current.audioInputId, current.audioProcessing),
+          video: videoConstraints(mobile, current.videoInputId, current.facing),
+        }),
+      selection,
+    );
     return { stream, cameraFailed: false };
   } catch {
-    const audioOnly = await getUserMedia({ audio: audioConstraints(selection.audioInputId, selection.audioProcessing), video: false });
-    return { stream: audioOnly, cameraFailed: true };
+    return { stream: await withDeviceFallback(audioOnly, selection), cameraFailed: true };
   }
 }
 
-export async function acquireCameraTrack(
-  selection: MediaSelection = {},
-  mobile: boolean = isMobileDevice(),
-): Promise<MediaStreamTrack | null> {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(mobile, selection.videoInputId) });
-    return stream.getVideoTracks()[0] ?? null;
-  } catch {
-    return null;
-  }
+export function acquireCameraTrack(selection: MediaSelection = {}, mobile: boolean = isMobileDevice(), getUserMedia: GetUserMedia = browserGetUserMedia): Promise<MediaStreamTrack | null> {
+  return acquireDeviceTrack((deviceId) => ({ video: videoConstraints(mobile, deviceId, selection.facing) }), selection.videoInputId, getUserMedia);
+}
+
+export function acquireMicrophoneTrack(selection: MediaSelection = {}, getUserMedia: GetUserMedia = browserGetUserMedia): Promise<MediaStreamTrack | null> {
+  return acquireDeviceTrack((deviceId) => ({ audio: audioConstraints(deviceId, selection.audioProcessing) }), selection.audioInputId, getUserMedia);
 }
 
 export function stopStream(stream: MediaStream | null): void {
