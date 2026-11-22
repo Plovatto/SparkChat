@@ -254,9 +254,9 @@
 @keyframes scModalPanelIn {
   0% {
     opacity: 0;
-    transform: translate(-50%, -42%) scale(0.9);
+    transform: translate(-50%, -46%) scale(0.94);
   }
-  55% {
+  40% {
     opacity: 1;
   }
   100% {
@@ -754,7 +754,7 @@
 }
 
 .sc-modal-panel {
-  animation: scModalPanelIn var(--sc-dur-slower) var(--sc-ease-spring) backwards;
+  animation: scModalPanelIn 380ms var(--sc-spring-snappy) backwards;
 }
 
 .sc-modal-panel.is-exiting {
@@ -1330,5 +1330,81 @@ html.sc-theme-transition *::after {
 @media (prefers-reduced-motion: reduce) {
   .sc-toggle-pop {
     animation: scFadeIn var(--sc-dur-instant) linear backwards;
+  }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.sc-theme-reveal.sc-theme-transition,
+html.sc-theme-reveal.sc-theme-transition *,
+html.sc-theme-reveal.sc-theme-transition *::before,
+html.sc-theme-reveal.sc-theme-transition *::after {
+  transition-duration: 0ms !important;
+}
+
+button.sc-btn:not(.sc-call-action, [class*='lp-']):active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: var(--sc-dur-instant);
+}
+
+button.sc-btn--lift:not(.sc-call-action, [class*='lp-']):active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+
+@keyframes scEmptyIconIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes scEmptyHalo {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.sc-empty-icon {
+  position: relative;
+  display: inline-flex;
+  animation: scEmptyIconIn 560ms var(--sc-spring-bouncy) backwards;
+}
+
+.sc-empty-icon::before {
+  content: '';
+  position: absolute;
+  inset: -12%;
+  border-radius: 50%;
+  border: 2px solid var(--sc-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: scEmptyHalo 900ms var(--sc-ease-enter) 180ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.sc-btn:not(.sc-call-action, [class*='lp-']):active:not(:disabled),
+  button.sc-btn--lift:not(.sc-call-action, [class*='lp-']):active:not(:disabled) {
+    transform: none;
+  }
+
+  .sc-empty-icon {
+    animation: scFadeIn var(--sc-dur-instant) linear backwards;
+  }
+
+  .sc-empty-icon::before {
+    animation: none;
   }
 }

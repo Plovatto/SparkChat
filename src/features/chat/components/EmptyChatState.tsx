@@ -21,7 +21,9 @@ export function EmptyChatState() {
         textAlign: 'center',
       }}
     >
-      <FaComments size={100} className="animate-float" style={{ marginBottom: '30px', color: theme.accentText, opacity: 0.35 }} />
+      <span className="sc-empty-icon" style={{ marginBottom: '30px' }}>
+        <FaComments size={100} className="animate-float" style={{ color: theme.accentText, opacity: 0.35 }} />
+      </span>
       <h2
         className="sc-anim-rise-in sc-stagger"
         style={{ fontSize: '2rem', marginBottom: '15px', color: theme.textPrimary, fontWeight: 700, '--sc-stagger-index': 1 } as CSSProperties}

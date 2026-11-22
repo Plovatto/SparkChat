@@ -26,7 +26,7 @@
 }
 
 .pwa-toast-shell {
-  animation: pwaToastIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+  animation: pwaToastIn 380ms var(--sc-spring-lively, var(--sc-ease-enter)) backwards;
 }
 
 .pwa-toast-shell.is-exiting {
@@ -67,7 +67,7 @@
 @keyframes pwaToastIn {
   from {
     opacity: 0;
-    transform: translate3d(0, 16px, 0) scale(0.97);
+    transform: translate3d(0, 22px, 0) scale(0.94);
   }
   to {
     opacity: 1;

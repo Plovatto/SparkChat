@@ -21,7 +21,7 @@
   box-shadow: var(--sc-shadow-lg);
   overflow: hidden;
   color: var(--sc-text-primary);
-  animation: scModalPanelIn var(--sc-dur-slower) var(--sc-ease-spring) backwards;
+  animation: scModalPanelIn 380ms var(--sc-spring-snappy) backwards;
 }
 
 .sc-delete-dialog.is-exiting {
