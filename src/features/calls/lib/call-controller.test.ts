@@ -2083,6 +2083,79 @@ describe('call transfer between devices', () => {
     expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'active', connectedAt });
   });
 
+  async function sharingTransfer() {
+    const share = screenStream();
+    const w = await world({ bob: { acquireScreen: () => Promise.resolve(share.stream), stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    await w.b.controller.toggleScreenShare();
+    expect(w.b.controller.getSnapshot().screenSharing).toBe(true);
+    const callId = w.a.controller.getSnapshot().state.callId!;
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }));
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: new Date(1_000).toISOString() });
+    await settle();
+    await a2.controller.transferHere();
+    await settle();
+    w.b.socket.receive('call:peer-transfer', { callId, from: 'alice', envelope: a2.socket.sent('call:transfer')[0]!.envelope });
+    await settle();
+    return { w, share };
+  }
+
+  it('keeps sharing the screen when the other person moves to another device and re-sends it on the new connection', async () => {
+    const { w, share } = await sharingTransfer();
+    expect(w.b.controller.getSnapshot()).toMatchObject({ screenSharing: true, notice: null });
+    expect(share.video.stopped).toBe(false);
+    const fresh = w.b.peers[1]!;
+    expect(fresh.screenTracks).toEqual([]);
+
+    fresh.options.onControl({ t: 'caps', screen: true });
+    await settle();
+    expect(fresh.screenTracks).toEqual([{ video: share.video, audio: share.audio }]);
+    expect(w.b.controller.getSnapshot().screenSharing).toBe(true);
+
+    fresh.options.onControl({ t: 'caps', screen: true });
+    await settle();
+    expect(fresh.screenTracks).toHaveLength(1);
+  });
+
+  it('does not leave the screen on the new connection when the share is stopped during the reattach', async () => {
+    const { w } = await sharingTransfer();
+    const fresh = w.b.peers[1]!;
+    let release: () => void = () => undefined;
+    fresh.setMovieMode = () => new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    fresh.options.onControl({ t: 'caps', screen: true });
+    await settle();
+    await w.b.controller.toggleScreenShare();
+    release();
+    await settle();
+
+    expect(w.b.controller.getSnapshot().screenSharing).toBe(false);
+    expect(fresh.screenTracks.some((entry) => entry.video !== null)).toBe(false);
+  });
+
+  it('stops the share with a notice when the new device cannot receive screens', async () => {
+    const { w, share } = await sharingTransfer();
+    const fresh = w.b.peers[1]!;
+    fresh.shareable = false;
+
+    fresh.options.onControl({ t: 'caps', screen: false });
+    await settle();
+    expect(w.b.controller.getSnapshot()).toMatchObject({ screenSharing: false, notice: { kind: 'screen-failed' } });
+    expect(share.video.stopped).toBe(true);
+  });
+
+  it('shows the camera of the device that took over once it announces it', async () => {
+    const { w } = await sharingTransfer();
+    expect(w.b.controller.getSnapshot().remoteCameraOn).toBe(false);
+    w.b.peers[1]!.options.onControl({ t: 'camera', on: true });
+    expect(w.b.controller.getSnapshot().remoteCameraOn).toBe(true);
+  });
+
   it('rejects a transfer that is not signed by the pinned peer key', async () => {
     const { w, callId } = await transferWorld();
     const mallory = await makeParty('alice');
