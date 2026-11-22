@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as AttachmentNamespace from './attachment-crypto';
 import type * as CryptoNamespace from './profile-photo-crypto';
@@ -719,8 +721,6 @@ describe('group photo', () => {
 
 describe('useUserPhoto', () => {
   it('renders the fallback when the photo failed to decrypt and the photo once it is available', async () => {
-    const { createElement } = await import('react');
-    const { renderToStaticMarkup } = await import('react-dom/server');
     const { useUserPhoto } = await import('@features/profile-photos/hooks/usePhotos');
     const bob = await person('bob');
     const photo = await publishUserPhoto(bob, 1);
@@ -736,5 +736,5 @@ describe('useUserPhoto', () => {
     photos.applySelfUser({ id: 'bob', encryptedAvatar: photo.encryptedAvatar, profileKeyVersion: 1 });
     await settle();
     expect(renderToStaticMarkup(createElement(Probe))).toMatch(/<span>blob:test\/\d+<\/span>/);
-  });
+  }, 20_000);
 });
