@@ -7,19 +7,32 @@ const FLIP_EASING = 'cubic-bezier(0.25, 1.12, 0.5, 1)';
 const FLIP_SPRING =
   'linear(0, 0.025, 0.088, 0.174, 0.271, 0.372, 0.47, 0.562, 0.646, 0.72, 0.783, 0.837, 0.881, 0.917, 0.945, 0.967, 0.984, 0.996, 1.004, 1.01, 1.013, 1.015, 1.015, 1.015, 1.014, 1.012, 1.011, 1.01, 1)';
 
-function measure(container: HTMLElement | null): Map<string, number> {
+interface Snapshot {
+  tops: Map<string, number>;
+  animatedNames: Map<Element, string[]>;
+}
+
+function measure(container: HTMLElement | null): Snapshot {
   const tops = new Map<string, number>();
+  const animatedNames = new Map<Element, string[]>();
   if (!container) {
-    return tops;
+    return { tops, animatedNames };
   }
   const origin = container.getBoundingClientRect().top;
   container.querySelectorAll<HTMLElement>(`[${FLIP_ATTRIBUTE}]`).forEach((element) => {
     const key = element.getAttribute(FLIP_ATTRIBUTE);
-    if (key !== null) {
-      tops.set(key, element.getBoundingClientRect().top - origin);
+    if (key === null) {
+      return;
     }
+    tops.set(key, element.getBoundingClientRect().top - origin);
+    [element, ...Array.from(element.querySelectorAll('*'))].forEach((node) => {
+      const names = getComputedStyle(node).animationName;
+      if (names && names !== 'none') {
+        animatedNames.set(node, names.split(',').map((name) => name.trim()));
+      }
+    });
   });
-  return tops;
+  return { tops, animatedNames };
 }
 
 function supportsLinearEasing(): boolean {
@@ -44,29 +57,28 @@ function liftedBackground(): string {
   return getComputedStyle(document.documentElement).getPropertyValue('--sc-surface-elevated').trim();
 }
 
-function settleReplayedAnimations(container: HTMLElement, before: Map<string, number>, promotedKey: string | null): void {
-  if (typeof CSSAnimation === 'undefined') {
+function settleReplayedAnimations(container: HTMLElement, animatedNames: Map<Element, string[]>): void {
+  if (typeof CSSAnimation === 'undefined' || typeof container.getAnimations !== 'function') {
     return;
   }
-  container.querySelectorAll<HTMLElement>(`[${FLIP_ATTRIBUTE}]`).forEach((element) => {
-    const key = element.getAttribute(FLIP_ATTRIBUTE);
-    if (key === null || key === promotedKey || !before.has(key) || typeof element.getAnimations !== 'function') {
+  container.getAnimations({ subtree: true }).forEach((animation) => {
+    if (!(animation instanceof CSSAnimation) || animation.effect?.getComputedTiming().iterations === Infinity) {
       return;
     }
-    element.getAnimations({ subtree: true }).forEach((animation) => {
-      if (!(animation instanceof CSSAnimation) || animation.effect?.getComputedTiming().iterations === Infinity) {
-        return;
-      }
+    const target = animation.effect instanceof KeyframeEffect ? animation.effect.target : null;
+    if (target && animatedNames.get(target)?.includes(animation.animationName)) {
       animation.finish();
-    });
+    }
   });
 }
+
+const currentFlips = new WeakMap<HTMLElement, Animation>();
 
 export function useFlipReorder(containerRef: RefObject<HTMLElement | null>, keys: readonly string[], resetKey: unknown = null): void {
   const orderKey = keys.join('\u0000');
   const previousOrderRef = useRef(orderKey);
   const previousResetKeyRef = useRef(resetKey);
-  const snapshotRef = useRef<Map<string, number> | null>(null);
+  const snapshotRef = useRef<Snapshot | null>(null);
 
   if (previousOrderRef.current !== orderKey && snapshotRef.current === null) {
     snapshotRef.current = measure(containerRef.current);
@@ -85,7 +97,7 @@ export function useFlipReorder(containerRef: RefObject<HTMLElement | null>, keys
     const container = containerRef.current;
     const promotedKey = findPromotedKey(previousKeys, keys);
     if (container && before) {
-      settleReplayedAnimations(container, before, promotedKey);
+      settleReplayedAnimations(container, before.animatedNames);
     }
     if (!isSameView || !before || !container || typeof window.matchMedia !== 'function' || window.matchMedia(REDUCED_MOTION_QUERY).matches) {
       return;
@@ -98,15 +110,12 @@ export function useFlipReorder(containerRef: RefObject<HTMLElement | null>, keys
       if (key === null || typeof element.animate !== 'function') {
         return;
       }
-      const previousTop = before.get(key);
+      const previousTop = before.tops.get(key);
       if (previousTop === undefined) {
         return;
       }
-      element.getAnimations?.().forEach((animation) => {
-        if (animation.id === 'sc-flip') {
-          animation.cancel();
-        }
-      });
+      currentFlips.get(element)?.cancel();
+      currentFlips.delete(element);
       const delta = previousTop - (element.getBoundingClientRect().top - origin);
       if (Math.abs(delta) < 1) {
         return;
@@ -127,7 +136,12 @@ export function useFlipReorder(containerRef: RefObject<HTMLElement | null>, keys
       }
       const animation = element.animate(keyframes, { duration: FLIP_DURATION_MS, easing: isPromoted ? FLIP_EASING : easing });
       animation.id = 'sc-flip';
+      currentFlips.set(element, animation);
       const restore = () => {
+        if (currentFlips.get(element) !== animation) {
+          return;
+        }
+        currentFlips.delete(element);
         if (isPromoted) {
           element.style.position = '';
           element.style.zIndex = '';
