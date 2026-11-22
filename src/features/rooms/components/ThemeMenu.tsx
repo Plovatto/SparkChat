@@ -12,6 +12,7 @@ interface ThemeMenuProps {
 }
 
 const MENU_WIDTH_PX = 340;
+const MENU_EDGE_GAP_PX = 10;
 const SWATCH_CASCADE_MAX_INDEX = 11;
 
 export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
@@ -42,15 +43,25 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
     if (!isOpen) {
       return;
     }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
     window.addEventListener('resize', onClose);
-    return () => window.removeEventListener('resize', onClose);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('resize', onClose);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
   }, [isOpen, onClose]);
 
   if (!isPresent) {
     return null;
   }
 
-  const clampedRight = Math.min(Math.max(position.right, 12), window.innerWidth - MENU_WIDTH_PX - 12);
+  const menuWidth = Math.min(MENU_WIDTH_PX, window.innerWidth - MENU_EDGE_GAP_PX * 2);
+  const clampedRight = Math.max(MENU_EDGE_GAP_PX, Math.min(position.right, window.innerWidth - menuWidth - MENU_EDGE_GAP_PX));
 
   const sectionTitleStyle = {
     padding: '8px 12px',
@@ -83,9 +94,8 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
           border: `1px solid ${theme.border}`,
           borderRadius: '14px',
           padding: '8px',
-          width: `${MENU_WIDTH_PX}px`,
-          maxWidth: 'calc(100vw - 20px)',
-          maxHeight: `min(520px, calc(100vh - ${position.top + 16}px))`,
+          width: `${menuWidth}px`,
+          maxHeight: `min(520px, calc(100dvh - ${position.top + 16}px))`,
           overflowY: 'auto',
           zIndex: 99999,
           boxShadow: theme.shadowLg,
@@ -117,6 +127,8 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
                     gap: '8px',
                     fontSize: '0.78rem',
                     fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
                     '--sc-stagger-index': index,
                     '--sc-stagger-step': '45ms',
                   } as CSSProperties
