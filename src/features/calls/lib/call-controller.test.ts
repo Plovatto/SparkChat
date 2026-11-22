@@ -1973,6 +1973,51 @@ describe('running in the background', () => {
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
   });
 
+  it('ends at the longest reconnect window when the server never answers the sync', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(w.a.socket.sent('call:sync').length).toBeGreaterThanOrEqual(5);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+  });
+
+  it('lets the user hang up during an extended reconnect and stops extending', async () => {
+    const w = await interruptedCall();
+    doc.visibilityState = 'hidden';
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 2);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    w.a.controller.hangup();
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'completed' });
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+    expect(w.a.peers[0]!.closed).toBe(true);
+
+    const syncs = w.a.socket.sent('call:sync').length;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+    expect(w.a.socket.sent('call:sync')).toHaveLength(syncs);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('idle');
+  });
+
+  it('does nothing when disposed while a reconnect extension is pending', async () => {
+    const w = await interruptedCall();
+    doc.visibilityState = 'hidden';
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS + 1_000);
+
+    w.a.controller.dispose();
+    const emitted = w.a.socket.emitted.length;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS * 2);
+
+    expect(w.a.socket.emitted.length).toBe(emitted);
+  });
+
   it('does nothing on resume when there is no call', async () => {
     const w = await world({ alice: backgroundDeps() });
     w.a.socket.connected = true;
