@@ -543,9 +543,6 @@
       "submitTo_other": "Forward to {{count}} conversations"
     },
     "gallery": {
-      "title": "Media ({{count}})",
-      "showLess": "Show less",
-      "showAll": "Show all ({{count}})",
       "empty": "No shared media"
     },
     "appearance": {
@@ -556,15 +553,12 @@
       "blur": "Blur",
       "bubbles": "Message bubbles",
       "ownColor": "Sent message color",
-      "own": "Sent messages",
       "otherColor": "Received message color",
-      "other": "Received messages",
       "resetDefault": "Reset to default",
       "transparency": "Transparency",
       "textDim": "Text dimming",
       "auto": "Automatic",
       "bubbleBlur": "Bubble blur (both sides)",
-      "resetChat": "Reset this chat's appearance",
       "none": "None"
     },
     "appearanceModal": {

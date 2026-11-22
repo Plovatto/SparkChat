@@ -772,14 +772,6 @@
   }
 }
 
-.sc-media-gallery-grid .sc-tile img {
-  transition: transform var(--sc-dur-slow) var(--sc-ease-standard);
-}
-
-.sc-media-gallery-grid .sc-tile:hover img {
-  transform: scale(1.08);
-}
-
 .sc-media-nav-btn {
   transform: translateY(-50%);
 }
@@ -1004,10 +996,6 @@ html.sc-theme-transition *::after {
   .sc-media-nav-btn:hover:not(:disabled),
   .sc-media-nav-btn:active:not(:disabled) {
     transform: translateY(-50%);
-  }
-
-  .sc-media-gallery-grid .sc-tile:hover img {
-    transform: none;
   }
 
   .message-highlight-flash {

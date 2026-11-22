@@ -543,9 +543,6 @@
       "submitTo_other": "Encaminhar para {{count}} conversas"
     },
     "gallery": {
-      "title": "Mídias ({{count}})",
-      "showLess": "Ver menos",
-      "showAll": "Ver todas ({{count}})",
       "empty": "Nenhuma mídia compartilhada"
     },
     "appearance": {
@@ -556,15 +553,12 @@
       "blur": "Desfoque",
       "bubbles": "Balões de mensagem",
       "ownColor": "Cor das mensagens enviadas",
-      "own": "Mensagens enviadas",
       "otherColor": "Cor das mensagens recebidas",
-      "other": "Mensagens recebidas",
       "resetDefault": "Restaurar padrão",
       "transparency": "Transparência",
       "textDim": "Escurecimento do texto",
       "auto": "Automático",
       "bubbleBlur": "Desfoque dos balões (ambos os lados)",
-      "resetChat": "Restaurar aparência padrão deste chat",
       "none": "Nenhum"
     },
     "appearanceModal": {
