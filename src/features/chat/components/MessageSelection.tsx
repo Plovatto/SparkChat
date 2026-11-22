@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { MOTION_DURATION_MS } from '@features/motion';
 import { useTranslation } from 'react-i18next';
 import { FaCheck, FaTimes, FaTrash } from 'react-icons/fa';
 import '../styles/delete-messages.css';
@@ -109,10 +110,28 @@ interface ComposerSlotProps {
 }
 
 export function ComposerSlot({ isSelecting, bar, children }: ComposerSlotProps) {
+  const [hasSelected, setHasSelected] = useState(false);
+  if (isSelecting && !hasSelected) {
+    setHasSelected(true);
+  }
+
+  useEffect(() => {
+    if (isSelecting || !hasSelected) {
+      return;
+    }
+    const timer = window.setTimeout(() => setHasSelected(false), MOTION_DURATION_MS.slow);
+    return () => window.clearTimeout(timer);
+  }, [isSelecting, hasSelected]);
+
   return (
     <>
       {isSelecting && bar}
-      <div data-testid="composer-slot" style={{ display: isSelecting ? 'none' : 'contents' }}>
+      <div
+        data-testid="composer-slot"
+        className="sc-composer-slot"
+        data-returning={hasSelected || undefined}
+        style={{ display: isSelecting ? 'none' : 'contents' }}
+      >
         {children}
       </div>
     </>

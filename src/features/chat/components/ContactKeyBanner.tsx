@@ -80,6 +80,7 @@ export function ContactKeyBanner({ room, currentUserId }: ContactKeyBannerProps)
       <>
         <div
           role="alert"
+          className="sc-anim-rise-in"
           style={{
             display: 'flex',
             flexWrap: 'wrap',

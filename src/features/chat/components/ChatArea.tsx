@@ -5,7 +5,7 @@ import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
-import { MOTION_DURATION_MS, useEntranceGate, usePresence } from '@features/motion';
+import { MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translateError } from '@lib/api/api-error';
@@ -167,6 +167,8 @@ function buildVisibleReceipts(
   return visible;
 }
 
+const EMPTY_PARTICIPANTS: RoomParticipant[] = [];
+
 function getRecordingText(recordingUserIds: string[], participants: RoomParticipant[]): string | null {
   const names = resolveActiveUserNames(recordingUserIds, participants);
   if (names.length === 0) {
@@ -196,14 +198,15 @@ interface ChatStatusPillProps {
   text: string;
   italicWeight?: number;
   maxWidth?: string;
+  isExiting?: boolean;
 }
 
-function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%' }: ChatStatusPillProps) {
+function ChatStatusPill({ indicator, text, italicWeight, maxWidth = '100%', isExiting = false }: ChatStatusPillProps) {
   const { theme } = useTheme();
 
   return (
     <div
-      className="sc-anim-rise-in"
+      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -229,9 +232,10 @@ interface BlockedBannerProps {
   tone: 'warning' | 'danger';
   icon: ReactNode;
   text: string;
+  isExiting?: boolean;
 }
 
-function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
+function BlockedBanner({ tone, icon, text, isExiting = false }: BlockedBannerProps) {
   const { theme } = useTheme();
   const background = tone === 'warning' ? theme.warningSoft : theme.dangerSoft;
   const color = tone === 'warning' ? theme.warningText : theme.dangerText;
@@ -239,7 +243,8 @@ function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
 
   return (
     <div
-      className="sc-anim-rise-in"
+      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+      inert={isExiting}
       style={{
         background,
         color,
@@ -836,15 +841,38 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     [appLanguage, setAutoTranslate],
   );
 
+  const roomParticipants = room?.participants ?? EMPTY_PARTICIPANTS;
+  const recordingText = getRecordingText(recordingUserIds, roomParticipants);
+  const typingText = getTypingText(typingUserIds, roomParticipants);
+  const showTranslationSuggestion =
+    room !== null &&
+    shouldShowAutoTranslateBanner({
+      mode: translationMode,
+      dismissed: dismissedRoomIds.has(room.id),
+      triggered: suggestion.triggered,
+    });
+  const recordingPresence = useLatchedPresence(recordingText, MOTION_DURATION_MS.fast, roomId);
+  const typingPresence = useLatchedPresence(typingText, MOTION_DURATION_MS.fast, roomId);
+  const uploadingPresence = useLatchedPresence(uploadingMediaType, MOTION_DURATION_MS.fast, roomId);
+  const failurePresence = useLatchedPresence(failureText, MOTION_DURATION_MS.fast, roomId);
+  const dropZonePresence = usePresence(isDraggingFile, MOTION_DURATION_MS.fast);
+  const userBlockedPresence = useLatchedPresence(room?.userBlocked ?? false, MOTION_DURATION_MS.fast, roomId);
+  const blockedByPresence = useLatchedPresence(room?.isBlockedBy ?? false, MOTION_DURATION_MS.fast, roomId);
+  const translationSuggestionPresence = usePresence(showTranslationSuggestion, MOTION_DURATION_MS.fast);
+  const roomNotice = useMemo(
+    () =>
+      reactionFailure
+        ? { key: reactionFailure, tone: 'danger' as const, text: reactionFailure }
+        : copyNotice > 0
+          ? { key: `copied-${copyNotice}`, tone: 'success' as const, text: t('chat.message.copied') }
+          : null,
+    [reactionFailure, copyNotice, t],
+  );
+  const roomNoticePresence = useLatchedPresence(roomNotice, MOTION_DURATION_MS.fast, roomId);
+
   if (!room) {
     return <EmptyChatState />;
   }
-
-  const showTranslationSuggestion = shouldShowAutoTranslateBanner({
-    mode: translationMode,
-    dismissed: dismissedRoomIds.has(room.id),
-    triggered: suggestion.triggered,
-  });
 
   const beginUpload = (type: AttachmentMessageType | 'audio' | 'gif'): number => {
     uploadsInFlightRef.current += 1;
@@ -1080,9 +1108,6 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     messageInputRef.current?.addFiles(Array.from(event.dataTransfer.files));
   };
 
-  const recordingText = getRecordingText(recordingUserIds, room.participants);
-  const typingText = getTypingText(typingUserIds, room.participants);
-
   if (repliedMessage) {
     lastRepliedMessageRef.current = repliedMessage;
   }
@@ -1098,8 +1123,9 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         <div aria-live="polite" className="sc-sr-only">
           {showTranslationSuggestion ? t('chat.translation.suggestTitle', { language: t(`chat.translation.languages.${oppositeLanguage(appLanguage)}`) }) : ''}
         </div>
-        {showTranslationSuggestion && (
+        {translationSuggestionPresence.isPresent && (
           <AutoTranslateBanner
+            isExiting={translationSuggestionPresence.isExiting}
             language={oppositeLanguage(appLanguage)}
             onAccept={() => {
               changeAutoTranslate(room.id, true);
@@ -1117,23 +1143,23 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         >
           <div style={{ position: 'absolute', inset: 0, background: wallpaperBackground }} />
           <div role="status" aria-live="polite" className="sc-reaction-notice-region">
-            {reactionFailure ? (
-              <span key={reactionFailure} className="sc-reaction-notice sc-anim-rise-in">
-                <FaExclamationTriangle size={13} aria-hidden="true" />
-                {reactionFailure}
-              </span>
-            ) : (
-              copyNotice > 0 && (
-                <span key={`copied-${copyNotice}`} className="sc-reaction-notice sc-reaction-notice--success sc-anim-rise-in">
+            {roomNoticePresence.value && (
+              <span
+                key={roomNoticePresence.value.key}
+                className={`sc-reaction-notice${roomNoticePresence.value.tone === 'success' ? ' sc-reaction-notice--success' : ''} ${roomNoticePresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
+              >
+                {roomNoticePresence.value.tone === 'success' ? (
                   <FaCheck size={12} aria-hidden="true" />
-                  {t('chat.message.copied')}
-                </span>
-              )
+                ) : (
+                  <FaExclamationTriangle size={13} aria-hidden="true" />
+                )}
+                {roomNoticePresence.value.text}
+              </span>
             )}
           </div>
-          {isDraggingFile && (
+          {dropZonePresence.isPresent && (
             <div
-              className="sc-drop-zone sc-anim-fade-in"
+              className={`sc-drop-zone ${dropZonePresence.isExiting ? 'sc-anim-fade-out' : 'sc-anim-fade-in'}`}
               style={{
                 position: 'absolute',
                 inset: '8px',
@@ -1346,8 +1372,9 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                 </>
               )}
 
-              {recordingText && (
+              {recordingPresence.value && (
                 <ChatStatusPill
+                  isExiting={recordingPresence.isExiting}
                   indicator={
                     <div
                       className="sc-anim-blink"
@@ -1360,13 +1387,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                       }}
                     />
                   }
-                  text={recordingText}
+                  text={recordingPresence.value}
                   italicWeight={500}
                 />
               )}
 
-              {typingText && (
+              {typingPresence.value && (
                 <ChatStatusPill
+                  isExiting={typingPresence.isExiting}
                   indicator={
                     <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                       {[0, 1, 2].map((index) => (
@@ -1386,13 +1414,18 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                       ))}
                     </div>
                   }
-                  text={typingText}
+                  text={typingPresence.value}
                 />
               )}
 
-              {uploadingMediaType && (
+              {uploadingPresence.value && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <ChatStatusPill indicator={<Spinner size={16} />} text={t(`chat.uploading.${uploadingMediaType}`)} maxWidth="220px" />
+                  <ChatStatusPill
+                    isExiting={uploadingPresence.isExiting}
+                    indicator={<Spinner size={16} />}
+                    text={t(`chat.uploading.${uploadingPresence.value}`)}
+                    maxWidth="220px"
+                  />
                 </div>
               )}
             </div>
@@ -1425,12 +1458,22 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           </div>
         </div>
 
-        {room.userBlocked && (
-          <BlockedBanner tone="warning" icon={<FaBan size={16} />} text={t('chat.youBlocked')} />
+        {userBlockedPresence.isPresent && (
+          <BlockedBanner
+            tone="warning"
+            icon={<FaBan size={16} />}
+            text={t('chat.youBlocked')}
+            isExiting={userBlockedPresence.isExiting}
+          />
         )}
 
-        {room.isBlockedBy && (
-          <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text={t('chat.blockedYou')} />
+        {blockedByPresence.isPresent && (
+          <BlockedBanner
+            tone="danger"
+            icon={<FaExclamationTriangle size={16} />}
+            text={t('chat.blockedYou')}
+            isExiting={blockedByPresence.isExiting}
+          />
         )}
 
         {replyPresence.isPresent && replyPreviewMessage && (
@@ -1443,10 +1486,15 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           />
         )}
 
-        {failureText && (
-          <div className="sc-notice sc-notice--danger sc-anim-rise-in" role="alert" style={{ margin: '0 12px 8px', alignItems: 'center' }}>
+        {failurePresence.value && (
+          <div
+            className={`sc-notice sc-notice--danger ${failurePresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}`}
+            role={failurePresence.isExiting ? undefined : 'alert'}
+            inert={failurePresence.isExiting}
+            style={{ margin: '0 12px 8px', alignItems: 'center' }}
+          >
             <FaExclamationTriangle size={13} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1 }}>{failureText}</span>
+            <span style={{ flex: 1 }}>{failurePresence.value}</span>
             <button type="button" onClick={dismissFailure} className="sc-icon-btn" aria-label={t('common.close')} style={{ width: '28px', height: '28px' }}>
               <FaTimes size={12} />
             </button>

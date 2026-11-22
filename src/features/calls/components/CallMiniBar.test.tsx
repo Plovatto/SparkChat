@@ -70,3 +70,22 @@ describe('CallMiniBar', () => {
     expect(view.container.querySelector('.sc-livebar--attached')).not.toBeNull();
   });
 });
+
+describe('CallMiniBar placement', () => {
+  it('floats inside the rounded app frame on desktop', () => {
+    const frame = document.createElement('div');
+    frame.className = 'chat-shell-card';
+    frame.getBoundingClientRect = () => ({ right: 1260, bottom: 760, left: 20, top: 40, width: 1240, height: 720, x: 20, y: 40, toJSON: () => ({}) });
+    document.body.append(frame);
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+    Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+    try {
+      renderBar({ phase: 'active', kind: 'voice', connectedAt: Date.now() });
+      const bar = screen.getByRole('status');
+      expect(bar.style.getPropertyValue('--sc-livebar-right')).toBe('36px');
+      expect(bar.style.getPropertyValue('--sc-livebar-bottom')).toBe('56px');
+    } finally {
+      frame.remove();
+    }
+  });
+});

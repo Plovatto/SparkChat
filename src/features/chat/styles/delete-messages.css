@@ -447,11 +447,16 @@
   outline-offset: 2px;
 }
 
+.sc-composer-slot[data-returning] > .sc-composer:not(.sc-recording) {
+  animation: scRiseIn var(--sc-dur-normal) var(--sc-ease-enter) backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sc-delete-dialog,
   .sc-delete-dialog.is-sheet,
   .sc-select-check,
-  .sc-selection-bar {
+  .sc-selection-bar,
+  .sc-composer-slot[data-returning] > .sc-composer:not(.sc-recording) {
     animation-name: scFadeIn;
     animation-duration: var(--sc-dur-instant);
     animation-timing-function: linear;
