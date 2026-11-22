@@ -44,7 +44,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
       return;
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
         onClose();
       }
     };

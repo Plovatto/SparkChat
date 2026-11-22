@@ -123,11 +123,13 @@
     transform 140ms var(--sc-ease-spring-soft);
 }
 
-.sc-profile-share {
+.sc-profile-share__label {
   display: block;
+  min-width: 0;
+  text-align: center;
 }
 
-.sc-profile-share > svg {
+.sc-profile-share__label > svg {
   display: inline-block;
   margin-right: 10px;
   vertical-align: -3px;

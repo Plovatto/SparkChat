@@ -610,7 +610,7 @@
 }
 
 @media (max-height: 480px) {
-  .sc-drawer__footer {
+  .sc-drawer__footer:has(.sc-info-footer-row) {
     position: static;
   }
 }

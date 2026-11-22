@@ -493,8 +493,10 @@ export function EditProfileModal({
             </div>
 
             <button type="button" onClick={handleShare} className="sc-profile-share" data-copied={clipboard.isCopied()}>
-              {clipboard.isCopied() ? <LuCheck size={18} aria-hidden="true" /> : <LuLink size={18} aria-hidden="true" />}
-              {clipboard.isCopied() ? t('profile.linkCopied') : t('profile.shareLink')}
+              <span className="sc-profile-share__label">
+                {clipboard.isCopied() ? <LuCheck size={18} aria-hidden="true" /> : <LuLink size={18} aria-hidden="true" />}
+                {clipboard.isCopied() ? t('profile.linkCopied') : t('profile.shareLink')}
+              </span>
             </button>
           </div>
 

@@ -32,7 +32,7 @@ describe('layout guards', () => {
   });
 
   it('stops pinning the drawer footer on short viewports', () => {
-    expect(read('src/features/chat/styles/room-info-drawer.css')).toMatch(/@media \(max-height: 480px\)\s*\{\s*\.sc-drawer__footer\s*\{\s*position:\s*static/);
+    expect(read('src/features/chat/styles/room-info-drawer.css')).toMatch(/@media \(max-height: 480px\)\s*\{\s*\.sc-drawer__footer:has\(\.sc-info-footer-row\)\s*\{\s*position:\s*static/);
   });
 
   it('scrolls the message actions sheet instead of cutting it on landscape phones', () => {
@@ -41,8 +41,13 @@ describe('layout guards', () => {
     expect(list).toMatch(/overflow-y:\s*auto/);
   });
 
-  it('keeps the profile share icon inline with a wrapped label', () => {
-    const share = rule('src/features/rooms/styles/profile-modal.css', '.sc-profile-share');
-    expect(share).toMatch(/display:\s*block/);
+  it('keeps the profile share button centred while its label wraps', () => {
+    const file = 'src/features/rooms/styles/profile-modal.css';
+    const base = read(file).match(/\.sc-profile-share,\s*\.sc-profile-outline-btn\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(base).toMatch(/display:\s*inline-flex/);
+    expect(base).toMatch(/align-items:\s*center/);
+    expect(base).toMatch(/justify-content:\s*center/);
+    expect(rule(file, '.sc-profile-share__label')).toMatch(/text-align:\s*center/);
+    expect(rule(file, '.sc-profile-share')).toBe('');
   });
 });

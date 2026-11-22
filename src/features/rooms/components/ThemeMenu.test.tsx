@@ -45,6 +45,15 @@ describe('ThemeMenu', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('ignores Escape that another handler already consumed', () => {
+    const onClose = vi.fn();
+    render(<ThemeMenu isOpen position={{ top: 60, right: 8 }} onClose={onClose} />);
+    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    event.preventDefault();
+    window.dispatchEvent(event);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('does not listen for Escape while closed', () => {
     const onClose = vi.fn();
     render(<ThemeMenu isOpen={false} position={{ top: 60, right: 8 }} onClose={onClose} />);
