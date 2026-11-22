@@ -19,7 +19,7 @@ import { AvatarPicker } from '@features/auth/components/AvatarPicker';
 import { useResponsiveAvatarSize } from '@features/auth/hooks/useResponsiveAvatarSize';
 import { NICKNAME_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@features/auth/constants/validation';
 import { getPasswordMatchStatus } from '@features/auth/lib/password-match';
-import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { Collapse, MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { removeMyPhoto, uploadMyPhoto, useUserPhoto } from '@features/profile-photos';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
 import { usePhotoDraft } from '@features/profile-photos/hooks/usePhotoDraft';
@@ -550,33 +550,35 @@ export function EditProfileModal({
           {profileError && <small key={profileError} className="sc-anim-shake" style={{ color: theme.dangerText, fontWeight: 600 }}>{profileError}</small>}
 
           {saveBarPresence.isPresent && (
-            <div
-              className={saveBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
-              inert={saveBarPresence.isExiting}
-              style={{ display: 'flex', gap: '12px' }}
-            >
-              <button
-                onClick={() => {
-                  setNickname(user.nickname);
-                  setAvatar(user.avatar);
-                  photo.reset();
-                  setProfilePassword('');
-                }}
-                className="sc-btn sc-btn--secondary"
-                style={{ flex: 1, padding: '12px 20px' }}
+            <Collapse isExiting={saveBarPresence.isExiting} style={{ '--sc-collapse-gap': '24px' } as CSSProperties}>
+              <div
+                className={saveBarPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+                inert={saveBarPresence.isExiting}
+                style={{ display: 'flex', gap: '12px' }}
               >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={() => void handleSaveProfile()}
-                disabled={saveProfileDisabled}
-                className="sc-btn sc-btn--gradient sc-btn--lift"
-                style={{ flex: 1, padding: '12px 20px' }}
-              >
-                {(isDeriving || isSavingPhoto) && <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />}
-                {isSavingPhoto ? t('profilePhotos.uploading') : t('profile.saveChanges')}
-              </button>
-            </div>
+                <button
+                  onClick={() => {
+                    setNickname(user.nickname);
+                    setAvatar(user.avatar);
+                    photo.reset();
+                    setProfilePassword('');
+                  }}
+                  className="sc-btn sc-btn--secondary"
+                  style={{ flex: 1, padding: '12px 20px' }}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={() => void handleSaveProfile()}
+                  disabled={saveProfileDisabled}
+                  className="sc-btn sc-btn--gradient sc-btn--lift"
+                  style={{ flex: 1, padding: '12px 20px' }}
+                >
+                  {(isDeriving || isSavingPhoto) && <Spinner size={14} trackColor={withAlpha(theme.onGradient, 0.3)} accentColor={theme.onGradient} />}
+                  {isSavingPhoto ? t('profilePhotos.uploading') : t('profile.saveChanges')}
+                </button>
+              </div>
+            </Collapse>
           )}
         </div>
       )}

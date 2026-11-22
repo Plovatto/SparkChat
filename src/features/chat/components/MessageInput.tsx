@@ -19,7 +19,7 @@ import type { SessionAuth } from '@lib/api/session-auth';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { EmojiButton, EmojiPickerPopover, insertAtCaret } from '@features/emoji';
 import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
-import { MOTION_DURATION_MS, useLatchedPresence, usePrefersReducedMotion, usePresence } from '@features/motion';
+import { Collapse, MOTION_DURATION_MS, useLatchedPresence, usePrefersReducedMotion, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
@@ -368,6 +368,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       .slice(0, MENTION_SUGGESTION_LIMIT);
   }, [mentionQuery, mentionCandidates]);
   const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
+  const attachmentsPresence = useLatchedPresence(pendingAttachments.length > 0 ? pendingAttachments : null, MOTION_DURATION_MS.fast);
   const mentionListPresence = useLatchedPresence(isMentionListOpen ? filteredMentionCandidates : null);
   const [hasRecorded, setHasRecorded] = useState(false);
   if (isRecording && !hasRecorded) {
@@ -612,7 +613,11 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           isExiting={gifPanelPresence.isExiting}
         />
       )}
-      {pendingAttachments.length > 0 && <PendingAttachmentsPreview files={pendingAttachments} onRemove={removePendingAttachment} />}
+      {attachmentsPresence.value && (
+        <Collapse isExiting={attachmentsPresence.isExiting}>
+          <PendingAttachmentsPreview files={attachmentsPresence.value} onRemove={removePendingAttachment} />
+        </Collapse>
+      )}
       {pendingAttachments.length === 0 && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
           <LinkPreviewCard
