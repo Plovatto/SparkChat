@@ -49,7 +49,7 @@ import { hasDeepLinkParams, readDeepLinkIntents, withInviteIntent, withoutFirstI
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
-const CONNECTION_PROBLEM_DELAY_MS = 10000;
+const CONNECTION_PROBLEM_DELAY_MS = 60000;
 const PREFERENCES_RESET_DELAY_MS = 350;
 
 interface RecoveryFilePrompt {
@@ -286,7 +286,7 @@ function lastRoomStorageKey(userId: string): string {
 function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const { t } = useTranslation();
   const { socket, connected } = useSocket();
-  const connectionLost = useSustainedFlag(!connected, CONNECTION_PROBLEM_DELAY_MS);
+  const connectionLost = useSustainedFlag(!connected, CONNECTION_PROBLEM_DELAY_MS, { restartWhenVisible: true });
   const { theme } = useTheme();
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(() => {
     try {
@@ -514,7 +514,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {connectionLost && (
           <div
-            role="status"
+            role="alert"
             className="chat-connection-banner sc-anim-drop-in"
             style={{
               display: 'flex',
