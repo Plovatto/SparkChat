@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuCheck, LuCopy, LuCrown, LuEllipsisVertical, LuUserMinus } from 'react-icons/lu';
 import { Avatar } from '@features/profile-photos/components/Avatar';
@@ -21,9 +21,31 @@ interface MemberRowProps {
 export function MemberRow({ participant, currentUserId, subtitle, canManage, isCopied, index, onCopy, onPromote, onRemove, onViewPhoto }: MemberRowProps) {
   const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState<'bottom' | 'top'>('bottom');
   const rowRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isSelf = participant.id === currentUserId;
   const name = getDisplayName(participant.id, participant.nickname, currentUserId);
+
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!isMenuOpen || !menu) {
+      setMenuPlacement('bottom');
+      return;
+    }
+    const trigger = menu.parentElement?.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight;
+    if (!trigger) {
+      return;
+    }
+    const scroller = menu.closest('.sc-drawer__body')?.getBoundingClientRect();
+    const footer = menu.closest('.sc-drawer__body')?.querySelector('.sc-drawer__footer')?.getBoundingClientRect();
+    const viewportBottom = Math.min(window.innerHeight, scroller?.bottom ?? window.innerHeight);
+    const visibleBottom = footer && footer.top < viewportBottom ? footer.top : viewportBottom;
+    const spaceBelow = visibleBottom - trigger.bottom;
+    const spaceAbove = trigger.top - (scroller?.top ?? 0);
+    setMenuPlacement(spaceBelow < menuHeight + 6 && spaceAbove > spaceBelow ? 'top' : 'bottom');
+  }, [isMenuOpen]);
 
   useEffect(() => {
     if (!isMenuOpen) {
@@ -78,7 +100,7 @@ export function MemberRow({ participant, currentUserId, subtitle, canManage, isC
             {isCopied ? <LuCheck size={17} className="sc-anim-badge-pop" aria-hidden="true" /> : <LuEllipsisVertical size={18} aria-hidden="true" />}
           </button>
           {isMenuOpen && (
-            <div className="sc-info-menu" role="menu">
+            <div ref={menuRef} className="sc-info-menu" role="menu" data-placement={menuPlacement}>
               <button type="button" role="menuitem" className="sc-info-menu__item" onClick={() => runAndClose(onCopy)}>
                 <LuCopy size={15} aria-hidden="true" />
                 {t('roomInfo.copyUsername')}
