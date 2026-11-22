@@ -328,6 +328,11 @@ export interface CallIceServersResult {
   degrade?: CallDegradeWire | null;
 }
 
+export interface CallMediaStateWire {
+  muted: boolean;
+  camera: boolean;
+}
+
 export interface CallStatePayload {
   callId: string;
   state: 'ringing' | 'accepted' | 'active';
@@ -338,7 +343,7 @@ export interface CallStatePayload {
   answeredAt?: string | null;
   transferable?: boolean;
   peerLive?: boolean;
-  media?: { muted: boolean; camera: boolean };
+  media?: CallMediaStateWire;
 }
 
 export interface ServerToClientEvents {
@@ -539,7 +544,7 @@ export interface ClientToServerEvents {
   'call:silence': (payload: { callId: string }) => void;
   'call:hangup': (payload: { callId: string }) => void;
   'call:signal': (payload: { callId: string; to: string; envelope: string }) => void;
-  'call:heartbeat': (payload: { callId: string; relayed?: boolean }) => void;
+  'call:heartbeat': (payload: { callId: string; relayed?: boolean; media?: CallMediaStateWire }) => void;
   'call:sync': (payload: { callId?: string | null }) => void;
   'call:ice-servers': (payload: { callId: string; protectIp: boolean }) => void;
   'call:transfer': (payload: { callId: string; envelope: string }) => void;
