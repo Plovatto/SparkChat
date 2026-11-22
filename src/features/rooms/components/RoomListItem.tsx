@@ -28,6 +28,7 @@ import { AVATARS } from '@features/auth/constants/avatars';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { localizeAssistantWelcome } from '@features/chat/utils/assistant-welcome';
 import { Avatar, type AvatarProps } from '@features/profile-photos/components/Avatar';
+import { MOTION_DURATION_MS, useChangedSinceMount, useLatchedPresence } from '@features/motion';
 import { useTheme, type ThemeTokens } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import {
@@ -379,10 +380,14 @@ export const RoomListItem = memo(function RoomListItem({
   const { t } = useTranslation();
   const { theme } = useTheme();
   const [staggerIndex] = useState(entranceIndex);
+  const [hasEntered, setHasEntered] = useState(false);
   const lastPointerTypeRef = useRef<string | null>(null);
   const avatar = getRoomAvatar(room, user.id, theme);
   const online = isRoomParticipantOnline(room, user.id);
   const hasUnread = room.unreadCount > 0 && !isSelected;
+  const unreadBadge = useLatchedPresence(room.unreadCount > 0 ? (room.unreadCount > 99 ? '99+' : String(room.unreadCount)) : null, MOTION_DURATION_MS.fast);
+  const animateFavorite = useChangedSinceMount(isFavorite);
+  const animateMuted = useChangedSinceMount(isMuted);
 
   const activate = () => {
     if (isSelectionMode) {
@@ -414,9 +419,15 @@ export const RoomListItem = memo(function RoomListItem({
           activate();
         }
       }}
+      data-flip-key={room.id}
       data-selected={!isSelectionMode && isSelected}
       data-checked={isSelectionMode && isChecked}
-      className="sc-list-item sc-anim-list-in sc-stagger"
+      className={hasEntered ? 'sc-list-item' : 'sc-list-item sc-anim-list-in sc-stagger'}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) {
+          setHasEntered(true);
+        }
+      }}
       style={
         {
           borderRadius: '12px',
@@ -469,8 +480,10 @@ export const RoomListItem = memo(function RoomListItem({
             >
               {getRoomDisplayName(room, user.id)}
             </h6>
-            {isFavorite && <FaStar size={12} color={theme.warning} style={{ flexShrink: 0 }} />}
-            {isMuted && <FaBellSlash size={12} color={theme.textMuted} style={{ flexShrink: 0 }} title={t('rooms.muted')} />}
+            {isFavorite && <FaStar size={12} color={theme.warning} className={animateFavorite ? 'sc-toggle-pop' : undefined} style={{ flexShrink: 0 }} />}
+            {isMuted && (
+              <FaBellSlash size={12} color={theme.textMuted} className={animateMuted ? 'sc-toggle-pop' : undefined} style={{ flexShrink: 0 }} title={t('rooms.muted')} />
+            )}
             {room.userBlocked && <FaBan size={12} color={theme.dangerText} style={{ flexShrink: 0 }} title={t('chat.youBlocked')} />}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
@@ -510,15 +523,15 @@ export const RoomListItem = memo(function RoomListItem({
               <FaAt size={10} />
             </span>
           )}
-          {room.unreadCount > 0 &&
+          {unreadBadge.value !== null &&
             (() => {
-              const unreadLabel = room.unreadCount > 99 ? '99+' : String(room.unreadCount);
+              const unreadLabel = unreadBadge.value;
               const diameter = unreadLabel.length === 1 ? 20 : unreadLabel.length === 2 ? 23 : 27;
 
               return (
                 <span
                   key={unreadLabel}
-                  className="sc-anim-badge-pop"
+                  className={unreadBadge.isExiting ? 'sc-badge-out' : 'sc-anim-badge-pop'}
                   style={{
                     fontSize: unreadLabel.length > 2 ? '0.6rem' : '0.7rem',
                     borderRadius: '50%',

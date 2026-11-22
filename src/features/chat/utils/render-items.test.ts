@@ -85,6 +85,12 @@ describe('buildRenderItems', () => {
     expect(second[0]?.kind === 'image-group' && second[0].messages).toBe(group.messages);
     expect(renderItemKey(second[0]!)).toBe(`group-${group.messages[0].id}`);
   });
+
+  it('keys items by the optimistic render key so confirmed messages keep their element', () => {
+    const confirmed = message({ type: 'text', id: 'server-id', renderKey: 'temp-id' });
+    expect(renderItemKey({ kind: 'single', message: confirmed })).toBe('temp-id');
+    expect(renderItemKey({ kind: 'single', message: message({ type: 'text', id: 'plain' }) })).toBe('plain');
+  });
 });
 
 describe('canJoinRun', () => {

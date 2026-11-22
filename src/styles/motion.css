@@ -12,6 +12,11 @@
   --sc-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --sc-ease-spring-soft: cubic-bezier(0.22, 1, 0.36, 1);
 
+  --sc-spring-bouncy: var(--sc-ease-spring);
+  --sc-spring-lively: cubic-bezier(0.3, 1.32, 0.6, 1);
+  --sc-spring-snappy: cubic-bezier(0.25, 1.12, 0.5, 1);
+  --sc-spring-smooth: var(--sc-ease-spring-soft);
+
   --sc-lift-hover: -2px;
   --sc-lift-hover-strong: -3px;
   --sc-scale-hover: 1.02;
@@ -29,6 +34,15 @@
   --sc-anim-delay: 0ms;
   --sc-stagger-index: 0;
   --sc-stagger-step: 55ms;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --sc-spring-bouncy: linear(0, 0.045, 0.161, 0.317, 0.49, 0.659, 0.812, 0.939, 1.037, 1.105, 1.145, 1.162, 1.16, 1.145, 1.121, 1.094, 1.066, 1.04, 1.017, 0.999, 0.987, 0.978, 0.974, 0.974, 0.975, 0.979, 0.983, 0.988, 1);
+    --sc-spring-lively: linear(0, 0.025, 0.089, 0.179, 0.284, 0.395, 0.506, 0.61, 0.706, 0.79, 0.862, 0.922, 0.97, 1.006, 1.033, 1.051, 1.062, 1.067, 1.068, 1.065, 1.06, 1.054, 1.046, 1.039, 1.031, 1.024, 1.018, 1.012, 1);
+    --sc-spring-snappy: linear(0, 0.025, 0.088, 0.174, 0.271, 0.372, 0.47, 0.562, 0.646, 0.72, 0.783, 0.837, 0.881, 0.917, 0.945, 0.967, 0.984, 0.996, 1.004, 1.01, 1.013, 1.015, 1.015, 1.015, 1.014, 1.012, 1.011, 1.01, 1);
+    --sc-spring-smooth: linear(0, 0.026, 0.088, 0.17, 0.259, 0.349, 0.435, 0.514, 0.586, 0.65, 0.705, 0.753, 0.794, 0.829, 0.859, 0.883, 0.904, 0.921, 0.936, 0.947, 0.957, 0.965, 0.972, 0.977, 0.981, 0.985, 0.988, 0.99, 1);
+  }
 }
 
 @keyframes scFadeIn {
@@ -107,31 +121,42 @@
   }
 }
 
-@keyframes scBubbleInStart {
-  0% {
+@keyframes scBubbleSettle {
+  from {
     opacity: 0;
-    transform: translate3d(-26px, 16px, 0) scale(0.88) rotate(-1.6deg);
+    transform: translate3d(0, 12px, 0) scale(0.97);
   }
-  55% {
+  to {
     opacity: 1;
-  }
-  100% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
-@keyframes scBubbleInEnd {
+@keyframes scBubbleSend {
   0% {
     opacity: 0;
-    transform: translate3d(26px, 16px, 0) scale(0.88) rotate(1.6deg);
+    transform: translate3d(0, 46px, 0) scale(0.7);
   }
-  55% {
+  28% {
     opacity: 1;
   }
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scBubbleReceive {
+  0% {
+    opacity: 0;
+    transform: translate3d(-14px, 12px, 0) scale(0.82);
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -348,6 +373,15 @@
     transform: scale(1.16);
   }
   100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes scBadgeSpring {
+  from {
+    transform: scale(0.55);
+  }
+  to {
     transform: scale(1);
   }
 }
@@ -569,16 +603,28 @@
 }
 
 .sc-anim-bubble-in {
-  animation-name: scBubbleInStart;
-  animation-duration: var(--sc-dur-slower);
-  animation-timing-function: var(--sc-ease-spring);
+  animation-name: scBubbleSettle;
+  animation-duration: 300ms;
+  animation-timing-function: var(--sc-spring-smooth);
+  transform-origin: 0% 100%;
 }
 
 .sc-anim-bubble-in[data-own='true'] {
-  animation-name: scBubbleInEnd;
+  transform-origin: 100% 100%;
 }
 
-.chat-bubble-wrap[data-live='true'] .sc-bubble::after {
+.sc-anim-bubble-in[data-live='true'] {
+  animation-name: scBubbleReceive;
+  animation-duration: 380ms;
+  animation-timing-function: var(--sc-spring-lively);
+}
+
+.sc-anim-bubble-in[data-live='true'][data-own='true'] {
+  animation-name: scBubbleSend;
+  animation-duration: 400ms;
+}
+
+.chat-bubble-wrap[data-live='true']:not([data-own='true']) .sc-bubble::after {
   content: '';
   position: absolute;
   inset: -3px;
@@ -644,9 +690,9 @@
 }
 
 .sc-anim-badge-pop {
-  animation-name: scBadgePop;
-  animation-duration: var(--sc-dur-slow);
-  animation-timing-function: var(--sc-ease-spring);
+  animation-name: scBadgeSpring;
+  animation-duration: 360ms;
+  animation-timing-function: var(--sc-spring-bouncy);
 }
 
 .sc-anim-send-in {
@@ -883,6 +929,8 @@ html.sc-theme-transition *::after {
   .sc-anim-pop-in,
   .sc-anim-bubble-in,
   .sc-anim-bubble-in[data-own='true'],
+  .sc-anim-bubble-in[data-live='true'],
+  .sc-anim-bubble-in[data-live='true'][data-own='true'],
   .sc-anim-list-in,
   .sc-anim-swap-in-left,
   .sc-anim-swap-in-right,
@@ -919,7 +967,7 @@ html.sc-theme-transition *::after {
   .chat-shake,
   .float-soft,
   .animate-float,
-  .chat-bubble-wrap[data-live='true'] .sc-bubble::after {
+  .chat-bubble-wrap[data-live='true']:not([data-own='true']) .sc-bubble::after {
     animation: none;
   }
 
@@ -1149,5 +1197,138 @@ html.sc-theme-transition *::after {
 
   .sc-collapse > .sc-collapse__inner {
     overflow: visible;
+  }
+}
+
+@keyframes scPaneInFromRight {
+  from {
+    opacity: 0;
+    transform: translate3d(44px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes scPaneInFromLeft {
+  from {
+    opacity: 0.4;
+    transform: translate3d(-28px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.sc-pane-chat {
+  animation: scPaneInFromRight 340ms var(--sc-spring-smooth) backwards;
+}
+
+.sc-pane-list {
+  animation: scPaneInFromLeft 300ms var(--sc-spring-smooth) backwards;
+}
+
+@keyframes scBadgeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.sc-badge-out {
+  animation: scBadgeOut var(--sc-dur-fast) var(--sc-ease-exit) forwards;
+  pointer-events: none;
+}
+
+@keyframes scTickPop {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scTickSlide {
+  from {
+    opacity: 0;
+    transform: translate3d(-6px, 0, 0) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes scTickRead {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.sc-meta__ticks[data-animate='single'] > svg:first-child {
+  animation: scTickPop 340ms var(--sc-spring-bouncy) backwards;
+}
+
+.sc-meta__ticks[data-animate='double'] > svg:nth-child(2) {
+  animation: scTickSlide 300ms var(--sc-spring-lively) backwards;
+}
+
+.sc-meta__ticks[data-animate='read'] {
+  animation: scTickRead 380ms var(--sc-spring-snappy);
+}
+
+.sc-meta__ticks[data-animate='read'] > svg {
+  transition: color var(--sc-dur-normal) var(--sc-ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-pane-chat,
+  .sc-pane-list {
+    animation: scFadeIn var(--sc-dur-instant) linear backwards;
+  }
+
+  .sc-badge-out {
+    animation: scFadeOut var(--sc-dur-instant) linear forwards;
+  }
+
+  .sc-meta__ticks[data-animate] > svg,
+  .sc-meta__ticks[data-animate='read'] {
+    animation: none;
+  }
+}
+
+@keyframes scTogglePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-24deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.sc-toggle-pop {
+  animation: scTogglePop 420ms var(--sc-spring-bouncy) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-toggle-pop {
+    animation: scFadeIn var(--sc-dur-instant) linear backwards;
   }
 }
