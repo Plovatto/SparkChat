@@ -107,6 +107,7 @@
       "linkPreview": "Muitas requisições de preview. Aguarde um momento e tente novamente.",
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
       "loginAttempts": "Muitas tentativas de login. Tente novamente mais tarde.",
+      "accountAttempts": "Muitas tentativas de login nesta conta. Aguarde alguns segundos e tente novamente.",
       "registrations": "Muitas contas criadas a partir deste endereço. Tente novamente mais tarde.",
       "messages": "Você está enviando mensagens muito rápido. Aguarde um instante.",
       "passwordAttempts": "Muitas tentativas de senha. Tente novamente mais tarde.",

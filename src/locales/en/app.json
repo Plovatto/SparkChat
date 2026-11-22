@@ -107,6 +107,7 @@
       "linkPreview": "Too many preview requests. Please wait a moment and try again.",
       "upload": "Too many file uploads. Please wait a moment and try again.",
       "loginAttempts": "Too many sign-in attempts. Please try again later.",
+      "accountAttempts": "Too many sign-in attempts on this account. Wait a few seconds and try again.",
       "registrations": "Too many accounts created from this address. Please try again later.",
       "messages": "You're sending messages too fast. Please wait a moment.",
       "passwordAttempts": "Too many password attempts. Please try again later.",
