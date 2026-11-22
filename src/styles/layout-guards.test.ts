@@ -40,4 +40,9 @@ describe('layout guards', () => {
     expect(list).toMatch(/min-height:\s*0/);
     expect(list).toMatch(/overflow-y:\s*auto/);
   });
+
+  it('keeps the profile share icon inline with a wrapped label', () => {
+    const share = rule('src/features/rooms/styles/profile-modal.css', '.sc-profile-share');
+    expect(share).toMatch(/display:\s*block/);
+  });
 });

@@ -123,8 +123,14 @@
     transform 140ms var(--sc-ease-spring-soft);
 }
 
+.sc-profile-share {
+  display: block;
+}
+
 .sc-profile-share > svg {
-  flex-shrink: 0;
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: -3px;
 }
 
 .sc-profile-share[data-copied='true'] {
