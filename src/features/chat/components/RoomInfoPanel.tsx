@@ -9,7 +9,7 @@ import { useOptionalCall } from '@features/calls';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { GroupPhotoEditor } from '@features/profile-photos/components/GroupPhotoEditor';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
-import { getOtherParticipant } from '@features/rooms';
+import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { attestGroupAction, downloadMessageMedia } from '@lib/e2ee';
 import { formatTimeAgo } from '@lib/format';
@@ -138,6 +138,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);
+  const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
   const [pendingRemoval, setPendingRemoval] = useState<{ roomId: string; participant: RoomParticipant } | null>(null);
   const removalTarget =
     pendingRemoval && pendingRemoval.roomId === room.id && room.participants.some((participant) => participant.id === pendingRemoval.participant.id)
@@ -145,6 +146,9 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
       : null;
   if (pendingRemoval && !removalTarget) {
     setPendingRemoval(null);
+  }
+  if (!isOpen && isLeaveConfirmOpen) {
+    setIsLeaveConfirmOpen(false);
   }
   if (!isOpen && viewerPhoto) {
     setViewerPhoto(null);
@@ -220,7 +224,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
     }
   };
 
-  const handleLeaveGroup = () => {
+  const confirmLeaveGroup = () => {
     void attestGroupAction(room.id, 'group.memberLeft').then((attestation) => {
       socket?.emit('group:leave', { roomId: room.id, ...(attestation ? { attestation } : {}) });
     });
@@ -250,11 +254,13 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
 
   const drawerCloseHandler = removalTarget
     ? () => setPendingRemoval(null)
-    : isGroupPhotoConfirmOpen
-      ? () => {}
-      : viewerPhoto
-        ? () => setViewerPhoto(null)
-        : onClose;
+    : isLeaveConfirmOpen
+      ? () => setIsLeaveConfirmOpen(false)
+      : isGroupPhotoConfirmOpen
+        ? () => {}
+        : viewerPhoto
+          ? () => setViewerPhoto(null)
+          : onClose;
 
   const heroAvatarStyle: CSSProperties = {
     borderRadius: '50%',
@@ -277,7 +283,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
     view === 'main' ? (
       <>
         <FooterRow icon={<LuImage size={19} />} label={t('roomInfo.appearance')} onClick={() => setView('appearance')} withChevron />
-        {isGroup && <FooterRow icon={<LuLogOut size={19} />} label={t('roomInfo.leave')} onClick={handleLeaveGroup} tone="danger" />}
+        {isGroup && <FooterRow icon={<LuLogOut size={19} />} label={t('roomInfo.leave')} onClick={() => setIsLeaveConfirmOpen(true)} tone="danger" />}
         {!isGroup && otherUser && !isAssistant && (
           <FooterRow
             icon={<LuBan size={19} />}
@@ -443,6 +449,14 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
         confirmLabel={t('roomInfo.remove')}
         onConfirm={confirmRemoveMember}
         onCancel={() => setPendingRemoval(null)}
+      />
+      <ConfirmDialog
+        isOpen={isLeaveConfirmOpen}
+        title={t('roomInfo.leaveTitle')}
+        message={t('roomInfo.leaveConfirm', { name: getRoomDisplayName(room, currentUserId) })}
+        confirmLabel={t('roomInfo.leaveConfirmAction')}
+        onConfirm={confirmLeaveGroup}
+        onCancel={() => setIsLeaveConfirmOpen(false)}
       />
       {!mediaViewer && (
         <MediaViewer
