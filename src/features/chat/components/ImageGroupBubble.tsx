@@ -10,6 +10,7 @@ import type { ChatMessage } from '../types';
 import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
 import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
+import { resolveSenderAvatar } from '../utils/sender-avatar';
 import { ImageModal } from './ImageModal';
 import { MessageActionsRow } from './MessageActionsRow';
 import type { MessageBubbleActions } from './MessageBubble';
@@ -95,7 +96,7 @@ export const ImageGroupBubble = memo(function ImageGroupBubble({
   const visibleTiles = images.slice(0, MAX_GROUP_TILES);
   const extraCount = images.length - visibleTiles.length;
   const photoMessages = images.filter((image) => !isVideoMessage(image));
-  const senderAvatar = anchor ? participants.find((participant) => participant.id === anchor.sender.id)?.avatar : undefined;
+  const senderAvatar = anchor ? resolveSenderAvatar(participants, anchor.sender) : undefined;
   const hasPendingOrFailed = images.some((image) => image.pending || image.failed);
   const statusTileIndex = extraCount > 0 ? visibleTiles.length - 2 : visibleTiles.length - 1;
   const anchorId = anchor?.id ?? '';

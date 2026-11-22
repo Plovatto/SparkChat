@@ -32,6 +32,17 @@ describe('translateErrorPayload', () => {
     expect(translateErrorPayload({ code: 'user.passwordLengthRequired' }, 'errors.generic')).toBe('Atualize o aplicativo para definir uma senha.');
   });
 
+  it('translates the private conversation creation limit in both languages', async () => {
+    await appI18n.changeLanguage('en');
+    expect(translateErrorPayload({ code: 'rateLimit.privateRoomCreate', message: 'Muitas conversas novas em pouco tempo.' }, 'errors.generic')).toBe(
+      'You started too many new conversations in a short time. Try again later.',
+    );
+    await appI18n.changeLanguage('pt');
+    expect(translateErrorPayload({ code: 'rateLimit.privateRoomCreate' }, 'errors.generic')).toBe(
+      'Muitas conversas novas em pouco tempo. Tente novamente mais tarde.',
+    );
+  });
+
   it('explains the per-account sign-in delay in both languages', async () => {
     await appI18n.changeLanguage('en');
     expect(translateErrorPayload({ code: 'rateLimit.accountAttempts', message: 'server text' }, 'errors.generic')).toBe(

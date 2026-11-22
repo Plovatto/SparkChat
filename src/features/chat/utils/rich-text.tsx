@@ -4,6 +4,7 @@ import type { RoomParticipant } from '@lib/socket';
 const URL_SPLIT_PATTERN = /(https?:\/\/[^\s<>"']{1,2048})/gi;
 const MENTION_TOKEN_PATTERN = /(@[\p{L}\p{N}_]+)/gu;
 const TRAILING_URL_PUNCTUATION = /[)\].,!?]+$/;
+const BIDI_CONTROL_PATTERN = /[\u202A-\u202E\u2066-\u2069]/g;
 
 function renderMentions(text: string, nicknames: Set<string>, accentColor: string, keyPrefix: string): ReactNode[] {
   if (nicknames.size === 0 || !text.includes('@')) {
@@ -24,7 +25,7 @@ export function renderRichText(text: string, participants: RoomParticipant[], ac
   const nicknames = new Set(participants.map((participant) => participant.nickname.toLowerCase()));
   const nodes: ReactNode[] = [];
 
-  text.split(URL_SPLIT_PATTERN).forEach((part, index) => {
+  text.replace(BIDI_CONTROL_PATTERN, '').split(URL_SPLIT_PATTERN).forEach((part, index) => {
     if (index % 2 === 1) {
       const trailing = part.match(TRAILING_URL_PUNCTUATION)?.[0] ?? '';
       const url = trailing ? part.slice(0, -trailing.length) : part;

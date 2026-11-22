@@ -16,6 +16,7 @@ import { canReactToMessage } from '../utils/reactions';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { hasDisplayableLinkPreviewImage } from '../utils/link-preview-target';
 import { renderRichText } from '../utils/rich-text';
+import { resolveSenderAvatar } from '../utils/sender-avatar';
 import { truncateLongText } from '../utils/truncate-long-text';
 import { AudioMessageContent, type CurrentAudioRef } from './AudioMessageContent';
 import { FileMessageContent } from './FileMessageContent';
@@ -224,7 +225,7 @@ export const MessageBubble = memo(function MessageBubble({
     ) : null;
   const isBadgeVisible = Boolean(metaBadge && badgeTranslation && badgeTranslation.control !== 'none');
   const textAccentColor = bubbleStyle.accentColor;
-  const senderAvatar = participants.find((participant) => participant.id === message.sender.id)?.avatar;
+  const senderAvatar = resolveSenderAvatar(participants, message.sender);
 
   const handleRetry = () => {
     if (message.clientTempId) {
