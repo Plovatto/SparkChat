@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
+import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
 import { useOptionalCall } from '@features/calls';
 import { Avatar } from '@features/profile-photos/components/Avatar';
@@ -26,6 +27,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const clipboard = useClipboardCopy();
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const isOnline = otherUser?.status === 'online';
+  const onlineBadge = usePresence(isOnline, MOTION_DURATION_MS.fast);
   const roomName = getRoomDisplayName(room, currentUserId);
   const statusText = isAssistantRoom(room) ? t('chat.assistantStatus') : otherUser?.statusText;
   const invite = useGroupInviteLink(room);
@@ -69,8 +71,9 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
             className="sc-anim-pop-in sc-stagger"
             style={{ boxShadow: theme.shadowSm, '--sc-stagger-index': 1, '--sc-stagger-step': '45ms' } as CSSProperties}
           >
-            {isOnline && (
+            {onlineBadge.isPresent && (
               <span
+                className={onlineBadge.isExiting ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
                 style={{
                   position: 'absolute',
                   bottom: '1px',
@@ -125,6 +128,8 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
             >
               {!statusText && (
                 <span
+                  key={isOnline ? 'online' : 'offline'}
+                  className="sc-anim-badge-pop"
                   style={{
                     width: '8px',
                     height: '8px',
@@ -135,7 +140,11 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
                   }}
                 />
               )}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+              <span
+                key={statusText || (isOnline ? 'online' : 'offline')}
+                className="sc-anim-fade-in"
+                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+              >
                 {statusText || (isOnline ? t('presence.online') : t('presence.offline'))}
               </span>
             </small>
