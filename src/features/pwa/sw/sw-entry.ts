@@ -1,6 +1,7 @@
 import { openAuthenticatedField } from '../../../lib/e2ee/authenticated-field';
 import { forgetCachedWrappingKey, loadContactPin, loadRoomKeyGenerations } from '../../../lib/e2ee/key-store';
 import { getSodium } from '../../../lib/e2ee/sodium';
+import { armCallAnswer } from '../lib/armed-answer';
 import { readNotificationLanguage, readNotificationMirror, rememberMessageId } from '../lib/notification-mirror';
 import { resolveMessagePreview, type PreviewDeps } from './message-preview';
 import { OFFLINE_PAGE_PATH } from './protocol';
@@ -19,6 +20,21 @@ import {
 } from './sw-handlers';
 
 declare const __SW_VERSION__: string;
+declare const __SW_API_URL__: string;
+
+function declineCallOnServer(callId: string, token: string): Promise<void> {
+  const base = __SW_API_URL__.replace(/\/+$/, '');
+  if (!base) {
+    return Promise.resolve();
+  }
+  return fetch(`${base}/api/calls/decline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callId, token }),
+    credentials: 'omit',
+    keepalive: true,
+  }).then(() => undefined);
+}
 
 interface ExtendableEvent extends Event {
   waitUntil: (promise: Promise<unknown>) => void;
@@ -139,6 +155,8 @@ const env: WorkerEnvironment = {
   language: readLanguage,
   saveLanguage,
   now: () => Date.now(),
+  declineCall: declineCallOnServer,
+  armCallAnswer: (callId) => armCallAnswer(worker.caches, worker.registration.scope, callId, Date.now()),
   previewMessage: (roomId, preview, strings) => {
     forgetCachedWrappingKey();
     return resolveMessagePreview(roomId, preview, strings, previewDeps);

@@ -33,7 +33,7 @@ import { CallProvider } from '@features/calls';
 import { KeyTransparencyBanner } from '@features/key-transparency';
 import { PendingPhotoFailedToast, queuePendingMyPhoto } from '@features/profile-photos';
 import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, useNotificationMirror, usePwaChatShell } from '@features/pwa';
-import { NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
+import { GroupRemovedToast, NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useSplashPresence } from '@hooks/useSplashPresence';
@@ -45,7 +45,7 @@ import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type AppSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
-import { hasDeepLinkParams, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
+import { hasDeepLinkParams, isDeepLinkError, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
@@ -268,6 +268,7 @@ function AuthGate({
       <UpdateToast />
       <KeyTransparencyBanner />
       <PendingPhotoFailedToast />
+      <GroupRemovedToast />
       {splash.mounted && <LoadingScreen theme={theme} leaving={splash.leaving} />}
     </AppBackground>
   );
@@ -423,7 +424,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
       stopDeepLinkErrorWatchRef.current?.();
       const handleDeepLinkError = (payload: SocketErrorPayload) => {
-        if (!payload.clientTempId && !payload.event) {
+        if (isDeepLinkError(payload, intent)) {
           window.alert(translateErrorPayload(payload, 'errors.generic'));
         }
       };

@@ -44,3 +44,15 @@ export function withoutFirstIntent(previous: DeepLinkIntent[]): DeepLinkIntent[]
   zeroInviteIntent(previous[0]);
   return previous.slice(1);
 }
+
+const DEEP_LINK_EVENT: Record<DeepLinkIntent['kind'], string> = {
+  invite: 'room:join-by-invite',
+  chat: 'room:create-private',
+};
+
+export function isDeepLinkError(payload: { code?: string; clientTempId?: string; event?: string }, intent: DeepLinkIntent): boolean {
+  if (payload.clientTempId) {
+    return false;
+  }
+  return !payload.event || payload.event === DEEP_LINK_EVENT[intent.kind];
+}

@@ -11,6 +11,7 @@ export interface LaunchIntent {
   roomId: string | null;
   newChat: boolean;
   install: boolean;
+  answerCallId: string | null;
 }
 
 const LAUNCH_PARAMS = [LAUNCH_ROOM_PARAM, LAUNCH_CALL_PARAM, LAUNCH_ACTION_PARAM, LAUNCH_INSTALL_PARAM];
@@ -18,8 +19,10 @@ const LAUNCH_PARAMS = [LAUNCH_ROOM_PARAM, LAUNCH_CALL_PARAM, LAUNCH_ACTION_PARAM
 export function readLaunchIntent(search: string): LaunchIntent {
   const params = new URLSearchParams(search);
   const roomId = params.get(LAUNCH_ROOM_PARAM);
+  const callId = params.get(LAUNCH_CALL_PARAM);
   return {
     roomId: isSafeId(roomId) ? roomId : null,
+    answerCallId: isSafeId(callId) ? callId : null,
     newChat: params.get(LAUNCH_ACTION_PARAM) === LAUNCH_NEW_CHAT_ACTION,
     install: params.get(LAUNCH_INSTALL_PARAM) === '1',
   };
@@ -34,7 +37,7 @@ export function stripLaunchParams(href: string): string | null {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-let pending: LaunchIntent = { roomId: null, newChat: false, install: false };
+let pending: LaunchIntent = { roomId: null, newChat: false, install: false, answerCallId: null };
 
 export function captureLaunchIntent(): LaunchIntent {
   if (typeof window === 'undefined') {
@@ -52,4 +55,10 @@ export function takePendingLaunch(): { roomId: string | null; newChat: boolean }
   const { roomId, newChat } = pending;
   pending = { ...pending, roomId: null, newChat: false };
   return { roomId, newChat };
+}
+
+export function takePendingAnswer(): string | null {
+  const { answerCallId } = pending;
+  pending = { ...pending, answerCallId: null };
+  return answerCallId;
 }

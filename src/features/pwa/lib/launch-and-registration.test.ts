@@ -13,10 +13,12 @@ import {
 
 describe('launch params', () => {
   it('reads the room, the new chat shortcut and the install flag', () => {
-    expect(readLaunchIntent('?room=r1')).toEqual({ roomId: 'r1', newChat: false, install: false });
-    expect(readLaunchIntent('?action=new-chat')).toEqual({ roomId: null, newChat: true, install: false });
-    expect(readLaunchIntent('?install=1')).toEqual({ roomId: null, newChat: false, install: true });
-    expect(readLaunchIntent('?room=../../x&install=yes')).toEqual({ roomId: null, newChat: false, install: false });
+    expect(readLaunchIntent('?room=r1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null });
+    expect(readLaunchIntent('?action=new-chat')).toEqual({ roomId: null, newChat: true, install: false, answerCallId: null });
+    expect(readLaunchIntent('?install=1')).toEqual({ roomId: null, newChat: false, install: true, answerCallId: null });
+    expect(readLaunchIntent('?room=r1&call=c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: 'c1' });
+    expect(readLaunchIntent('?room=r1&call=../c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null });
+    expect(readLaunchIntent('?room=../../x&install=yes')).toEqual({ roomId: null, newChat: false, install: false, answerCallId: null });
   });
 
   it('strips only its own params and keeps deep links and the invite fragment', () => {

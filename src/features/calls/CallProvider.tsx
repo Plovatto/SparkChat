@@ -28,6 +28,7 @@ import { createVoiceLeveler, primeVoiceContext } from './lib/voice-leveler';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
+import { subscribeNotificationCallActions } from './lib/notification-actions';
 import './styles/calls.css';
 import './styles/incoming-call.css';
 import './styles/call-bar.css';
@@ -236,6 +237,19 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
     primePlayback();
     primeVoiceContext({ denoise: usesAdvancedNoise(getAudioProcessing()) });
   }, [primePlayback]);
+
+  useEffect(() => {
+    if (!controller) {
+      return;
+    }
+    return subscribeNotificationCallActions((action) => {
+      if (action.type === 'answer') {
+        primeCallAudio();
+        setMinimized(false);
+      }
+      controller.handleNotificationAction(action);
+    });
+  }, [controller, primeCallAudio]);
 
   const startCallInRoom = useCallback(
     (roomId: string, kind: CallKind) => {

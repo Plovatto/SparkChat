@@ -2287,6 +2287,64 @@ describe('live device switching', () => {
     expect(call.log).toEqual([]);
   });
 
+  it('stops a camera that finishes starting after the call ended and never sends it', async () => {
+    const call = await cameraCall();
+    await call.w.a.controller.toggleCamera();
+    let release: (track: MediaStreamTrack | null) => void = () => undefined;
+    call.w.a.deps.acquireCamera = () => new Promise((resolve) => (release = resolve));
+    call.peer.setVideoTrack = (track) => (call.peer.closed ? Promise.reject(new Error('The peer connection is closed.')) : ((call.peer.videoTrack = track), Promise.resolve()));
+    const late = fakeTrack('video', 'cam-late', call.log);
+
+    const pending = call.w.a.controller.toggleCamera();
+    call.w.a.controller.hangup();
+    await settle();
+    release(late as unknown as MediaStreamTrack);
+    await pending;
+
+    expect(late.readyState).toBe('ended');
+    expect(call.peer.videoTrack).not.toBe(late);
+    expect(call.media.tracks).not.toContain(late);
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(false);
+  });
+
+  it('turns the camera back off when sending the new camera fails instead of rejecting', async () => {
+    const call = await cameraCall({ cameras: [fakeTrack('video', 'cam-b', [])] });
+    await call.w.a.controller.toggleCamera();
+    call.peer.setVideoTrack = () => Promise.reject(new Error('replaceTrack failed'));
+    const next = fakeTrack('video', 'cam-c', []);
+    call.w.a.deps.acquireCamera = () => Promise.resolve(next as unknown as MediaStreamTrack);
+
+    await expect(call.w.a.controller.toggleCamera()).resolves.toBeUndefined();
+
+    expect(next.readyState).toBe('ended');
+    expect(call.media.tracks).not.toContain(next);
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, cameraFailed: true });
+  });
+
+  it('does not turn the camera back on when it was switched off while a new camera was being installed', async () => {
+    const call = await cameraCall();
+    let release: () => void = () => undefined;
+    const sent: unknown[] = [];
+    call.peer.setVideoTrack = (track) => {
+      sent.push(track);
+      if (track === null) {
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => (release = resolve));
+    };
+    const next = fakeTrack('video', 'cam-b', []);
+
+    const replacing = call.w.a.controller.replaceVideoInput(next as unknown as MediaStreamTrack);
+    await settle();
+    const off = call.w.a.controller.toggleCamera();
+    release();
+    await Promise.all([replacing, off]);
+
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(false);
+    expect(next.readyState).toBe('ended');
+    expect(call.media.tracks.some((track) => track.kind === 'video')).toBe(false);
+  });
+
   it('keeps the newest choice when the camera is switched twice quickly', async () => {
     const second = fakeTrack('video', 'cam-b', []);
     const third = fakeTrack('video', 'cam-c', []);
@@ -2823,5 +2881,101 @@ describe('transfer refused by the server', () => {
 
     expect(a2.controller.getSnapshot()).toMatchObject({ state: { phase: 'idle' }, notice: { kind: 'transfer-failed' } });
     expect(a2.socket.sent('call:hangup')).toHaveLength(0);
+  });
+});
+
+describe('push notification actions', () => {
+  async function heldRing() {
+    const w = await world();
+    const route = w.a.socket.onEmit;
+    let start: Record<string, unknown> | null = null;
+    w.a.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        start = payload;
+        return;
+      }
+      route?.(event, payload);
+    };
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    const payload = start as unknown as Record<string, unknown>;
+    w.a.socket.onEmit = route;
+    return { w, callId: payload.callId as string, deliver: () => route?.('call:start', payload) };
+  }
+
+  it('answers a call from the notification when the invite arrives after the app opened', async () => {
+    const { w, callId, deliver } = await heldRing();
+
+    w.b.controller.handleNotificationAction({ type: 'answer', callId });
+    await settle();
+    expect(w.b.socket.sent('call:sync').length).toBeGreaterThan(0);
+    deliver();
+    await settle();
+
+    expect(w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId })]);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
+  it('answers right away when the call is already ringing and ignores an answer for another call', async () => {
+    const { w, callId, deliver } = await heldRing();
+    deliver();
+    await settle();
+
+    w.b.controller.handleNotificationAction({ type: 'answer', callId: 'other-call' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+
+    w.b.controller.handleNotificationAction({ type: 'answer', callId });
+    await settle();
+    expect(w.b.socket.sent('call:accept')).toHaveLength(1);
+  });
+
+  it('forgets a pending answer after a minute so a later ring is not answered by itself', async () => {
+    const { w, callId, deliver } = await heldRing();
+    w.b.controller.handleNotificationAction({ type: 'answer', callId });
+    w.b.deps.now = () => Date.now() + 61_000;
+    deliver();
+    await settle();
+
+    expect(w.b.socket.sent('call:accept')).toHaveLength(0);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+  });
+
+  it('declines on the server when the notification is declined and never rings for that call', async () => {
+    const { w, callId, deliver } = await heldRing();
+
+    w.b.controller.handleNotificationAction({ type: 'decline', callId });
+    deliver();
+    await settle();
+
+    expect(w.b.socket.sent('call:decline')).toEqual([{ callId }]);
+    expect(w.b.controller.getSnapshot().state.phase).not.toBe('incoming-ringing');
+    expect(w.b.rings).not.toContain('incoming');
+  });
+
+  it('applies an answer or a decline that arrives while the invite is still being opened', async () => {
+    const answered = await heldRing();
+    answered.deliver();
+    answered.w.b.controller.handleNotificationAction({ type: 'answer', callId: answered.callId });
+    await settle();
+    expect(answered.w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId: answered.callId })]);
+
+    const declined = await heldRing();
+    declined.deliver();
+    declined.w.b.controller.handleNotificationAction({ type: 'decline', callId: declined.callId });
+    await settle();
+    expect(declined.w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'declined' });
+  });
+
+  it('declines a call that is already ringing like the decline button', async () => {
+    const { w, callId, deliver } = await heldRing();
+    deliver();
+    await settle();
+
+    w.b.controller.handleNotificationAction({ type: 'decline', callId });
+    await settle();
+
+    expect(w.b.socket.sent('call:decline')).toEqual([{ callId }]);
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'declined' });
   });
 });

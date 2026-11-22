@@ -60,6 +60,7 @@
       "notMember": "Usuário não faz parte do grupo.",
       "groupFull": "Este grupo atingiu o limite de membros.",
       "invalidInvite": "Este link de convite é inválido ou expirou. Peça um novo link a um membro.",
+      "removedFromGroup": "Você foi removido deste grupo e não pode voltar a entrar.",
       "avatarUploadInvalid": "Este envio de foto do grupo não é mais válido. Envie a foto novamente."
     },
     "message": {
@@ -107,6 +108,7 @@
       "linkPreview": "Muitas requisições de preview. Aguarde um momento e tente novamente.",
       "upload": "Muitos envios de arquivo. Aguarde um momento e tente novamente.",
       "loginAttempts": "Muitas tentativas de login. Tente novamente mais tarde.",
+      "accountAttempts": "Muitas tentativas de login nesta conta. Aguarde alguns segundos e tente novamente.",
       "registrations": "Muitas contas criadas a partir deste endereço. Tente novamente mais tarde.",
       "messages": "Você está enviando mensagens muito rápido. Aguarde um instante.",
       "passwordAttempts": "Muitas tentativas de senha. Tente novamente mais tarde.",
@@ -649,6 +651,11 @@
     "removeTitle": "Remover membro",
     "removeConfirm": "Remover {{name}} do grupo? Essa pessoa não poderá voltar a entrar, nem com o link de convite.",
     "leave": "Sair do grupo",
+    "leaveTitle": "Sair do grupo?",
+    "leaveConfirm": "Sair de {{name}}? Você deixará de receber as mensagens e só poderá voltar com um novo link de convite.",
+    "leaveConfirmAction": "Sair",
+    "removedNotice": "Você foi removido do grupo {{name}}.",
+    "removedDismiss": "Entendi",
     "seen": "Visto {{time}}",
     "members_one": "{{count}} membro",
     "members_other": "{{count}} membros",

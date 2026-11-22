@@ -10,7 +10,10 @@ import {
   type SocketUserStatus,
 } from '@lib/socket';
 import { getRoomName, subscribeRoomName } from '@lib/e2ee';
+import { translate } from '@lib/i18n/app-i18n';
 import { clearTranslationsForRoom } from '@lib/translation';
+import { showGroupRemovalNotice } from '../utils/group-removal-notice';
+import { getRoomDisplayName } from '../utils/room-display';
 
 export interface RoomsState {
   rooms: RoomSummary[];
@@ -62,6 +65,8 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
   selectedRoomIdRef.current = selectedRoomId;
   const currentUserIdRef = useRef(currentUserId);
   currentUserIdRef.current = currentUserId;
+  const roomsRef = useRef(rooms);
+  roomsRef.current = rooms;
 
   useEffect(() => {
     if (!socket) {
@@ -203,6 +208,14 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       setRooms((previous) => (previous.some((room) => room.id === roomId) ? previous.filter((room) => room.id !== roomId) : previous));
     };
 
+    const handleGroupLeft = ({ roomId, reason }: { roomId: string; reason?: 'removed' }) => {
+      if (reason === 'removed') {
+        const room = roomsRef.current.find((candidate) => candidate.id === roomId);
+        showGroupRemovalNotice(room ? getRoomDisplayName(room, currentUserIdRef.current) : translate('common.group'));
+      }
+      handleRoomRemoved({ roomId });
+    };
+
     const handleParticipantsUpdated = ({ roomId, participants }: { roomId: string; participants: RoomParticipant[] }) => {
       setRooms((previous) => patchRoom(previous, roomId, (room) => ({ ...room, participants })));
     };
@@ -239,7 +252,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
     socket.on('room:joined', handleRoomUpserted);
     socket.on('room:new', handleRoomUpserted);
     socket.on('room:deleted', handleRoomRemoved);
-    socket.on('group:left', handleRoomRemoved);
+    socket.on('group:left', handleGroupLeft);
     socket.on('group:user-joined', handleParticipantsUpdated);
     socket.on('group:user-left', handleMemberLeft);
     socket.on('group:participants-updated', handleParticipantsUpdated);
@@ -266,7 +279,7 @@ export function useRooms(selectedRoomId: string | null, currentUserId: string | 
       socket.off('room:joined', handleRoomUpserted);
       socket.off('room:new', handleRoomUpserted);
       socket.off('room:deleted', handleRoomRemoved);
-      socket.off('group:left', handleRoomRemoved);
+      socket.off('group:left', handleGroupLeft);
       socket.off('group:user-joined', handleParticipantsUpdated);
       socket.off('group:user-left', handleMemberLeft);
       socket.off('group:participants-updated', handleParticipantsUpdated);
