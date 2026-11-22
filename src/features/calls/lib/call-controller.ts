@@ -198,6 +198,20 @@ export interface OtherDeviceCall {
   roomId: string;
   role: 'caller' | 'callee';
   answeredAt: string | null;
+  media?: CallMediaState | null;
+}
+
+export interface CallMediaState {
+  muted: boolean;
+  camera: boolean;
+}
+
+function readMediaState(value: unknown): CallMediaState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const { muted, camera } = value as Record<string, unknown>;
+  return typeof muted === 'boolean' && typeof camera === 'boolean' ? { muted, camera } : null;
 }
 
 interface RawSignal {
@@ -765,6 +779,7 @@ export class CallController {
     this.voice?.setMuted(next);
     peer?.setMuted(next);
     this.update({ muted: next });
+    this.reportMediaChange();
   }
 
   setMicVolume(volume: number): void {
@@ -806,6 +821,7 @@ export class CallController {
       }
       await session.peerSession.setVideoTrack(null);
       this.update({ cameraOn: false, localStream: stream });
+      this.reportMediaChange();
       return;
     }
     const track = await this.deps.acquireCamera();
@@ -816,6 +832,7 @@ export class CallController {
     stream.addTrack(track);
     await session.peerSession.setVideoTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+    this.reportMediaChange();
   }
 
   async toggleScreenShare(): Promise<void> {
@@ -1246,7 +1263,7 @@ export class CallController {
       return;
     }
     this.scheduleOtherDeviceRecheck();
-    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null } });
+    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null, media: readMediaState(payload.media) } });
   }
 
   async transferHere(): Promise<void> {
@@ -1271,8 +1288,10 @@ export class CallController {
         this.update({ notice: { kind: resolved.error } });
         return;
       }
+      const carried = other.media;
+      const mediaKind: CallKind = carried ? (carried.camera ? 'video' : 'voice') : other.kind;
       try {
-        media = await this.deps.acquireMedia(other.kind);
+        media = await this.deps.acquireMedia(mediaKind);
       } catch {
         this.update({ notice: { kind: 'media-denied' } });
         return;
@@ -1337,7 +1356,11 @@ export class CallController {
         role: other.role,
         connectedAt: Number.isFinite(answeredAt) ? answeredAt : null,
       });
-      this.update({ otherDevice: null, muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      const startMuted = carried?.muted === true;
+      for (const track of handedOver.stream.getAudioTracks()) {
+        track.enabled = !startMuted;
+      }
+      this.update({ otherDevice: null, muted: startMuted, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
       this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
     } catch {
       this.update({ otherDevice: null, notice: { kind: 'transfer-failed' } });
@@ -1495,6 +1518,7 @@ export class CallController {
     this.teardown(state);
     this.machine.dispatch({ type: 'transferred-away', callId: payload.callId });
     this.update({ notice: { kind: 'transferred' } });
+    this.requestSync();
   }
 
   endOtherDeviceCall(): void {
@@ -1757,9 +1781,25 @@ export class CallController {
       return;
     }
     const relayed = this.reportableRoute(callId);
-    this.deps.socket.emit('call:heartbeat', relayed === null ? { callId } : { callId, relayed });
+    const media = this.reportableMedia(callId);
+    this.deps.socket.emit('call:heartbeat', { callId, ...(relayed === null ? {} : { relayed }), ...(media ? { media } : {}) });
     if (relayed === false) {
       this.session?.peerSession?.dropRelayCredentials();
+    }
+  }
+
+  private reportableMedia(callId: string): CallMediaState | null {
+    const session = this.session;
+    if (!session || session.callId !== callId || !session.channel || !hasCallMedia(this.machine.getState())) {
+      return null;
+    }
+    return { muted: this.snapshot.muted, camera: this.snapshot.cameraOn };
+  }
+
+  private reportMediaChange(): void {
+    const session = this.session;
+    if (session && this.heartbeat !== null && session.channel) {
+      this.sendHeartbeat(session.callId);
     }
   }
 

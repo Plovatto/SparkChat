@@ -338,6 +338,7 @@ export interface CallStatePayload {
   answeredAt?: string | null;
   transferable?: boolean;
   peerLive?: boolean;
+  media?: { muted: boolean; camera: boolean };
 }
 
 export interface ServerToClientEvents {
