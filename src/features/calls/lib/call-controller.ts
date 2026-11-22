@@ -1709,12 +1709,19 @@ export class CallController {
       return;
     }
     const video = stream.getVideoTracks()[0];
+    const current = () => this.session === session && session.screen === stream && session.peerSession === peer;
     let ok = false;
     if (video && video.readyState !== 'ended' && peer.canShareScreen()) {
       await peer.setMovieMode(this.snapshot.movieMode).catch(() => undefined);
+      if (!current()) {
+        return;
+      }
       ok = await peer.setScreenTracks(video, session.shareAudio?.track ?? null, session.screenInfo).catch(() => false);
     }
-    if (this.session !== session || session.screen !== stream || session.peerSession !== peer) {
+    if (!current()) {
+      if (ok) {
+        await peer.setScreenTracks(null).catch(() => false);
+      }
       return;
     }
     if (!ok) {

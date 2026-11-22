@@ -435,6 +435,8 @@ export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, 
   return next;
 }
 
+const EARLY_STATE_CONTROLS: ReadonlySet<ControlMessage['t']> = new Set(['caps', 'camera', 'mute', 'screen']);
+
 export class PeerSession {
   private readonly options: PeerSessionOptions;
   private readonly deps: PeerSessionDeps;
@@ -461,6 +463,8 @@ export class PeerSession {
   private fallbackStream: MediaStream | null = null;
   private degrade: DegradeStep | null;
   private localAttached = false;
+  private pendingVideoTrack: MediaStreamTrack | null | undefined = undefined;
+  private earlyControls = new Map<ControlMessage['t'], ControlMessage>();
   private remoteScreen: MediaStream | null = null;
   private remoteScreenExposed = false;
   private unstable = false;
@@ -617,11 +621,20 @@ export class PeerSession {
     }
     this.localAttached = true;
     for (const track of stream.getTracks()) {
+      if (track.readyState === 'ended' || (track.kind === 'video' && this.pendingVideoTrack !== undefined)) {
+        continue;
+      }
       const transceiver = this.connection.getTransceivers().find((candidate) => (candidate.receiver.track?.kind ?? candidate.sender.track?.kind) === track.kind);
       if (transceiver && !(await this.replaceWithRetry(transceiver.sender, track))) {
         this.fatal('media-attach-failed');
         return;
       }
+    }
+    const pendingVideo = this.pendingVideoTrack;
+    this.pendingVideoTrack = undefined;
+    const camera = this.cameraTransceiver();
+    if (pendingVideo !== undefined && camera) {
+      await camera.sender.replaceTrack(pendingVideo).catch(() => undefined);
     }
     await this.applyCaps();
     this.announceMedia();
@@ -1067,6 +1080,7 @@ export class PeerSession {
     if (!this.remoteScreenExposed) {
       this.exposeRemoteScreen();
     }
+    this.replayEarlyControls();
     void this.attachLocalTracks();
     this.announceState();
     const state = this.connection.iceConnectionState;
@@ -1078,23 +1092,35 @@ export class PeerSession {
   private openControlChannel(): void {
     const channel = this.connection.createDataChannel(CONTROL_CHANNEL_LABEL, { negotiated: true, id: CONTROL_CHANNEL_ID });
     channel.onmessage = (event) => {
-      if (!this.verified) {
-        return;
-      }
       const message = parseControlMessage(event.data);
-      if (!message) {
+      if (!message || message.t === 'ping') {
         return;
       }
-      if (message.t === 'ping') {
+      if (!this.verified) {
+        if (EARLY_STATE_CONTROLS.has(message.t)) {
+          this.earlyControls.set(message.t, message);
+        }
         return;
       }
-      if (message.t === 'caps') {
-        this.peerScreenCaps = message.screen;
-      }
-      this.options.onControl(message);
+      this.deliverControl(message);
     };
     channel.onopen = () => this.announceState();
     this.control = channel;
+  }
+
+  private deliverControl(message: ControlMessage): void {
+    if (message.t === 'caps') {
+      this.peerScreenCaps = message.screen;
+    }
+    this.options.onControl(message);
+  }
+
+  private replayEarlyControls(): void {
+    const early = Array.from(this.earlyControls.values());
+    this.earlyControls.clear();
+    for (const message of early) {
+      this.deliverControl(message);
+    }
   }
 
   private announceState(): void {
@@ -1134,7 +1160,11 @@ export class PeerSession {
 
   async setVideoTrack(track: MediaStreamTrack | null): Promise<void> {
     const transceiver = this.cameraTransceiver();
-    if (!transceiver || !this.verified) {
+    if (!transceiver) {
+      return;
+    }
+    if (!this.verified || (this.options.localStream && !this.localAttached)) {
+      this.pendingVideoTrack = track;
       return;
     }
     if (track && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {

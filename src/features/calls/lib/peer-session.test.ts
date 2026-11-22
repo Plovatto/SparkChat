@@ -880,6 +880,8 @@ describe('control channel', () => {
     channel.onmessage?.({ data: '{"t":"screen","on":true}' });
     expect(h.controls).toEqual([]);
     await verify(h);
+    expect(h.controls).toEqual([{ t: 'screen', on: true }]);
+    h.controls.length = 0;
     channel.onmessage?.({ data: '{"t":"screen","on":true}' });
     expect(h.controls).toEqual([{ t: 'screen', on: true }]);
     h.controls.length = 0;
@@ -1478,14 +1480,45 @@ describe('screen share capabilities', () => {
     expect(await h.session.setScreenTracks(track('video'))).toBe(true);
   });
 
-  it('ignores capability messages received before verification', async () => {
+  it('holds capability messages received before verification and applies them once verified', async () => {
     const h = build('caller');
     h.session.start();
     await settle();
     peerCaps(h);
+    expect(h.session.canShareScreen()).toBe(false);
+    expect(h.controls).toEqual([]);
+
     await verify(h);
 
-    expect(h.session.canShareScreen()).toBe(false);
+    expect(h.session.canShareScreen()).toBe(true);
+    expect(h.controls).toContainEqual({ t: 'caps', screen: true });
+  });
+
+  it('never delivers early messages when verification fails', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    const channel = h.connection.channels[0]!;
+    channel.onmessage?.({ data: '{"t":"camera","on":true}' });
+    channel.onmessage?.({ data: '{"t":"hangup"}' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(h.controls).toEqual([]);
+  });
+
+  it('applies a camera change made before verification once the local tracks are attached', async () => {
+    const stream = localStream(['audio']);
+    const h = build('caller', { localStream: stream });
+    h.session.start();
+    await settle();
+    const camera = track('video');
+    await h.session.setVideoTrack(camera);
+    expect(h.connection.transceivers[1]?.sender.track).toBeNull();
+
+    await verify(h);
+    await settle();
+
+    expect(h.connection.transceivers[1]?.sender.track).toBe(camera);
+    expect(h.connection.channels[0]?.sent).toContain('{"t":"camera","on":true}');
   });
 });
 

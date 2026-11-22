@@ -32,7 +32,7 @@ import './styles/call-bar.css';
 
 interface CallProviderProps {
   rooms: RoomSummary[];
-  onScreenCoverChange?: (covering: boolean) => void;
+  onScreenCoverChange?: (covering: boolean, uncover: () => void) => void;
 }
 
 const noopSubscribe = () => () => undefined;
@@ -110,7 +110,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   const coversChat = !minimized && phase !== 'idle' && phase !== 'incoming-ringing';
 
   useEffect(() => {
-    onScreenCoverChange?.(coversChat);
+    onScreenCoverChange?.(coversChat, () => setMinimized(true));
   }, [coversChat, onScreenCoverChange]);
 
   const localSpeaking = showSelfSpeaking(useSpeaking(snapshot.localStream, (phase === 'active' || phase === 'reconnecting') && !snapshot.muted), snapshot.muted);

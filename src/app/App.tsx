@@ -314,8 +314,16 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   useAudioContextPrimer();
   const callCoversChatRef = useRef(false);
   const isChatCoveredByCall = useCallback(() => callCoversChatRef.current, []);
-  const handleCallCoverChange = useCallback((covering: boolean) => {
+  const uncoverChatRef = useRef<(() => void) | null>(null);
+  const handleCallCoverChange = useCallback((covering: boolean, uncover: () => void) => {
     callCoversChatRef.current = covering;
+    uncoverChatRef.current = uncover;
+  }, []);
+  const openNotifiedRoom = useCallback((roomId: string) => {
+    setSelectedRoomId(roomId);
+    if (callCoversChatRef.current) {
+      uncoverChatRef.current?.();
+    }
   }, []);
   const totalUnread = rooms.reduce((sum, room) => (mutedRoomIds.has(room.id) ? sum : sum + room.unreadCount), 0);
 
@@ -326,7 +334,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
     mutedRoomIds,
     notificationPreference.isEnabled,
     soundPreference.isEnabled,
-    setSelectedRoomId,
+    openNotifiedRoom,
     notificationContentPreference.isContentHidden,
     isChatCoveredByCall,
   );

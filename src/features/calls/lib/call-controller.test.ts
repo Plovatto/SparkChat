@@ -2120,6 +2120,24 @@ describe('call transfer between devices', () => {
     expect(fresh.screenTracks).toHaveLength(1);
   });
 
+  it('does not leave the screen on the new connection when the share is stopped during the reattach', async () => {
+    const { w } = await sharingTransfer();
+    const fresh = w.b.peers[1]!;
+    let release: () => void = () => undefined;
+    fresh.setMovieMode = () => new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    fresh.options.onControl({ t: 'caps', screen: true });
+    await settle();
+    await w.b.controller.toggleScreenShare();
+    release();
+    await settle();
+
+    expect(w.b.controller.getSnapshot().screenSharing).toBe(false);
+    expect(fresh.screenTracks.some((entry) => entry.video !== null)).toBe(false);
+  });
+
   it('stops the share with a notice when the new device cannot receive screens', async () => {
     const { w, share } = await sharingTransfer();
     const fresh = w.b.peers[1]!;
