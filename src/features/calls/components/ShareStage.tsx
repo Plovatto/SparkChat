@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuEyeOff, LuExternalLink, LuMaximize, LuMicOff, LuMinimize, LuPanelRightClose, LuPanelRightOpen, LuPictureInPicture2, LuScreenShare } from 'react-icons/lu';
+import { LuExternalLink, LuEyeOff, LuMaximize, LuMicOff, LuMinimize, LuPanelRightClose, LuPanelRightOpen, LuPictureInPicture2, LuScreenShare, LuUser } from 'react-icons/lu';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
 import { OverlayVisibility, resolveFocus, stripItems, type StageItem } from '../lib/stage-focus';
 import { useStreamOn } from './call-hooks';
@@ -84,7 +84,7 @@ export interface ShareStageProps {
 function Avatar({ person, size }: { person: Person; size: number }) {
   return (
     <div className="sc-stage-avatar" style={{ width: `${size}px`, height: `${size}px`, background: person.avatar?.bgGradient, overflow: 'hidden' }}>
-      {person.photo ? <img src={person.photo} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }} /> : person.avatar ? <person.avatar.icon size={Math.round(size / 2)} color={AVATAR_ICON_COLOR} /> : null}
+      {person.photo ? <img src={person.photo} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%', display: 'block' }} /> : person.avatar ? <person.avatar.icon size={Math.round(size / 2)} color={AVATAR_ICON_COLOR} /> : <LuUser size={Math.round(size / 2.4)} aria-hidden="true" />}
     </div>
   );
 }

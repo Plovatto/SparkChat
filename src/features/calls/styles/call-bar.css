@@ -36,7 +36,7 @@
 .sc-livebar--attached {
   z-index: 3;
   flex-shrink: 0;
-  margin: 10px 12px 2px;
+  margin: 10px 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   animation: scLivebarDrop 380ms var(--sc-ease-spring-soft) both;
 }
