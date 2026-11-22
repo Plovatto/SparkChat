@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
+import { FaDesktop, FaInfoCircle, FaMicrophone, FaMicrophoneAlt, FaVideo, FaVolumeMute, FaVolumeUp } from 'react-icons/fa';
 import { LuX } from 'react-icons/lu';
 import { useTheme } from '@features/theme';
 import { Dropdown, type DropdownOption } from '@components/common/Dropdown';
@@ -31,6 +31,7 @@ export interface SharerSettings {
   onMonitorVolume?: (volume: number) => void;
   duckLevel?: number;
   onDuckLevel?: (level: number) => void;
+  onChangeSource?: () => void;
 }
 
 export interface ReceiverSettings {
@@ -293,6 +294,15 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
 
   const sharerSection = sharer && (
     <>
+      {sharer.onChangeSource && (
+        <button type="button" className="sc-call-panel-action" onClick={sharer.onChangeSource}>
+          <FaDesktop size={14} aria-hidden="true" />
+          <span className="sc-call-panel-action__text">
+            <span className="sc-call-panel-action__label">{t('calls.broadcast.changeSource')}</span>
+            <span className="sc-call-panel-action__hint">{t('calls.broadcast.changeSourceHint')}</span>
+          </span>
+        </button>
+      )}
       <AudioOption id="call-share-movie" label={t('calls.broadcast.movie')} description={t('calls.broadcast.movieHint')} checked={sharer.movieMode} onChange={() => sharer.onMovieMode(!sharer.movieMode)} />
       {sharer.hasAudio ? (
         <VolumeOption id="call-share-volume" label={t('calls.broadcast.shareVolume')} description={t('calls.broadcast.shareVolumeHint')} value={sharer.volume} onChange={sharer.onVolume} />

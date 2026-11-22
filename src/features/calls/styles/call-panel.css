@@ -185,6 +185,59 @@
   line-height: 1.4;
 }
 
+.sc-call-panel-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--sc-surface-sunken);
+  color: var(--sc-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), opacity 160ms ease;
+}
+
+.sc-call-panel-action:hover {
+  opacity: 0.88;
+}
+
+.sc-call-panel-action:active {
+  transform: scale(0.98);
+}
+
+.sc-call-panel-action:focus-visible {
+  outline: 2px solid var(--sc-accent);
+  outline-offset: 2px;
+}
+
+.sc-call-panel-action svg {
+  flex-shrink: 0;
+  color: var(--sc-accent-text, var(--sc-accent));
+}
+
+.sc-call-panel-action__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sc-call-panel-action__label {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.sc-call-panel-action__hint {
+  font-size: 0.74rem;
+  line-height: 1.3;
+  color: var(--sc-text-secondary);
+}
+
 .sc-call-panel-note svg {
   flex-shrink: 0;
   margin-top: 2px;
@@ -393,6 +446,7 @@
   .sc-call-segmented__indicator,
   .sc-call-segmented button,
   .sc-call-panel__close,
+  .sc-call-panel-action,
   .sc-call-range::-webkit-slider-thumb,
   .sc-call-range::-moz-range-thumb {
     transition: none;

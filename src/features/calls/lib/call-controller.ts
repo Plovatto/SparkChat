@@ -173,6 +173,7 @@ export interface CallControllerDeps {
   tabs: TabOwnership;
   acquireMedia: (kind: CallKind) => Promise<LocalMedia>;
   acquireCamera: () => Promise<MediaStreamTrack | null>;
+  acquireMicrophone?: () => Promise<MediaStreamTrack | null>;
   acquireScreen: () => Promise<MediaStream | null>;
   createShareAudio: (track: MediaStreamTrack, volume: number) => ShareAudio;
   getShareVolume: () => number;
@@ -356,6 +357,7 @@ export class CallController {
   private retriedHangups = new Set<string>();
   private lastHangupCallId: string | null = null;
   private voice: VoiceLeveler | null = null;
+  private deviceChain: Promise<void> = Promise.resolve();
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
@@ -890,28 +892,7 @@ export class CallController {
       this.update({ notice: { kind: 'screen-degraded' } });
       return;
     }
-    session.screen = stream;
-    session.shareAudio = shareAudio;
-    session.screenInfo = info;
-    this.startSurfaceWatch(session);
-    const shared = stream;
-    const onMute = () => this.setScreenPaused(session, shared, true);
-    const onUnmute = () => this.setScreenPaused(session, shared, false);
-    video.addEventListener('mute', onMute);
-    video.addEventListener('unmute', onUnmute);
-    session.screenCleanup = () => {
-      video.removeEventListener('mute', onMute);
-      video.removeEventListener('unmute', onUnmute);
-    };
-    video.addEventListener(
-      'ended',
-      () => {
-        if (this.session === session && session.screen === shared) {
-          void this.stopScreenShare();
-        }
-      },
-      { once: true },
-    );
+    this.adoptScreen(session, stream, shareAudio, info);
     this.update({ screenSharing: true, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume, movieMode: movie });
   }
 
@@ -1007,21 +988,116 @@ export class CallController {
     return phase === 'active' || phase === 'reconnecting';
   }
 
+  private queueDeviceChange(task: () => Promise<void>): Promise<void> {
+    const next = this.deviceChain.then(task, task);
+    this.deviceChain = next.catch(() => undefined);
+    return next;
+  }
+
+  switchCamera(): Promise<void> {
+    return this.queueDeviceChange(() => this.swapCamera());
+  }
+
+  switchMicrophone(): Promise<void> {
+    const acquire = this.deps.acquireMicrophone;
+    if (!acquire) {
+      return Promise.resolve();
+    }
+    return this.queueDeviceChange(async () => {
+      const session = this.session;
+      if (!session?.media || !session.peerSession) {
+        return;
+      }
+      const track = await acquire().catch(() => null);
+      if (track) {
+        await this.installAudioInput(session, track);
+      }
+    });
+  }
+
+  private async swapCamera(): Promise<void> {
+    const session = this.session;
+    const peer = session?.peerSession;
+    if (!session?.media || !peer || !this.isConnected() || !this.snapshot.cameraOn) {
+      return;
+    }
+    const stream = session.media.stream;
+    const previous = stream.getVideoTracks();
+    let track = await this.deps.acquireCamera().catch(() => null);
+    if (!track && this.session === session) {
+      for (const old of previous) {
+        old.stop();
+      }
+      track = await this.deps.acquireCamera().catch(() => null);
+    }
+    if (this.session !== session || session.peerSession !== peer || !this.snapshot.cameraOn) {
+      track?.stop();
+      return;
+    }
+    if (!track) {
+      for (const old of previous) {
+        old.stop();
+        stream.removeTrack(old);
+      }
+      await peer.setVideoTrack(null).catch(() => undefined);
+      this.update({ cameraOn: false, cameraFailed: true, localStream: stream });
+      this.reportMediaChange();
+      return;
+    }
+    try {
+      await peer.setVideoTrack(track);
+    } catch {
+      track.stop();
+      return;
+    }
+    if (this.session !== session) {
+      track.stop();
+      return;
+    }
+    for (const old of previous) {
+      stream.removeTrack(old);
+      if (old.readyState !== 'ended') {
+        old.stop();
+      }
+    }
+    stream.addTrack(track);
+    this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+  }
+
+  private async installAudioInput(session: Session, track: MediaStreamTrack): Promise<void> {
+    const peer = session.peerSession;
+    if (this.session !== session || !session.media || !peer) {
+      track.stop();
+      return;
+    }
+    const stream = session.media.stream;
+    const previous = stream.getAudioTracks();
+    track.enabled = !this.snapshot.muted;
+    try {
+      await peer.setAudioTrack(this.voice ? this.voice.setInput(track) : track);
+    } catch {
+      track.stop();
+      return;
+    }
+    if (this.session !== session) {
+      track.stop();
+      return;
+    }
+    for (const old of previous) {
+      stream.removeTrack(old);
+      old.stop();
+    }
+    stream.addTrack(track);
+    this.update({ localStream: stream });
+  }
+
   async replaceAudioInput(track: MediaStreamTrack): Promise<void> {
     const session = this.session;
     if (!session?.media || !session.peerSession) {
       track.stop();
       return;
     }
-    const stream = session.media.stream;
-    for (const old of stream.getAudioTracks()) {
-      old.stop();
-      stream.removeTrack(old);
-    }
-    track.enabled = !this.snapshot.muted;
-    stream.addTrack(track);
-    await session.peerSession.setAudioTrack(this.voice ? this.voice.setInput(track) : track);
-    this.update({ localStream: stream });
+    await this.queueDeviceChange(() => this.installAudioInput(session, track));
   }
 
   async replaceVideoInput(track: MediaStreamTrack): Promise<void> {
@@ -1030,14 +1106,97 @@ export class CallController {
       track.stop();
       return;
     }
-    const stream = session.media.stream;
-    for (const old of stream.getVideoTracks()) {
-      old.stop();
-      stream.removeTrack(old);
+    await this.queueDeviceChange(async () => {
+      const peer = session.peerSession;
+      if (this.session !== session || !session.media || !peer) {
+        track.stop();
+        return;
+      }
+      const stream = session.media.stream;
+      const previous = stream.getVideoTracks();
+      try {
+        await peer.setVideoTrack(track);
+      } catch {
+        track.stop();
+        return;
+      }
+      for (const old of previous) {
+        stream.removeTrack(old);
+        old.stop();
+      }
+      stream.addTrack(track);
+      this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+    });
+  }
+
+  async changeScreenSource(): Promise<void> {
+    const session = this.session;
+    const peer = session?.peerSession;
+    const current = session?.screen;
+    if (!session || !peer || !current || session.screenPending || !this.isConnected()) {
+      return;
     }
-    stream.addTrack(track);
-    await session.peerSession.setVideoTrack(track);
-    this.update({ cameraOn: true, localStream: stream });
+    session.screenPending = true;
+    const stream = await this.deps.acquireScreen().catch(() => null);
+    session.screenPending = false;
+    const video = stream?.getVideoTracks()[0];
+    if (!stream || !video) {
+      if (stream) {
+        this.deps.stopMedia(stream);
+      }
+      return;
+    }
+    if (this.session !== session || session.screen !== current || session.peerSession !== peer || !this.isConnected()) {
+      this.deps.stopMedia(stream);
+      return;
+    }
+    const movie = this.snapshot.movieMode;
+    await this.deps.applyShareConstraints(stream, movie);
+    const rawAudio = stream.getAudioTracks()[0] ?? null;
+    const volume = this.deps.getShareVolume();
+    const shareAudio = rawAudio ? this.deps.createShareAudio(rawAudio, volume) : null;
+    const described = withMovie(toScreenInfo(stream), movie);
+    const info = described ? { ...described, audio: shareAudio !== null } : null;
+    const ok = await peer.setScreenTracks(video, shareAudio?.track ?? null, info).catch(() => false);
+    if (!ok || this.session !== session || session.screen !== current) {
+      shareAudio?.stop();
+      this.deps.stopMedia(stream);
+      if (ok && this.session === session && session.screen === current) {
+        await peer.setScreenTracks(current.getVideoTracks()[0] ?? null, session.shareAudio?.track ?? null, session.screenInfo).catch(() => false);
+      }
+      return;
+    }
+    this.releaseScreen(session);
+    this.adoptScreen(session, stream, shareAudio, info);
+    this.update({ screenSharing: true, screenPaused: false, localScreenStream: stream, shareAudio: shareAudio?.controllable ?? false, shareVolume: volume });
+  }
+
+  private adoptScreen(session: Session, stream: MediaStream, shareAudio: ShareAudio | null, info: ScreenInfo | null): void {
+    const video = stream.getVideoTracks()[0];
+    session.screen = stream;
+    session.shareAudio = shareAudio;
+    session.screenInfo = info;
+    this.startSurfaceWatch(session);
+    if (!video) {
+      return;
+    }
+    const onMute = () => this.setScreenPaused(session, stream, true);
+    const onUnmute = () => this.setScreenPaused(session, stream, false);
+    video.addEventListener('mute', onMute);
+    video.addEventListener('unmute', onUnmute);
+    session.screenCleanup = () => {
+      video.removeEventListener('mute', onMute);
+      video.removeEventListener('unmute', onUnmute);
+    };
+    video.addEventListener(
+      'ended',
+      () => {
+        if (this.session === session && session.screen === stream) {
+          void this.stopScreenShare();
+        }
+      },
+      { once: true },
+    );
   }
 
   private async onAccepted(payload: { callId: string; envelope: string; deviceId: string }): Promise<void> {
