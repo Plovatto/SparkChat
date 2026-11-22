@@ -149,6 +149,7 @@
 }
 
 .sc-stage-badges {
+  --sc-stage-badge-h: 28px;
   position: absolute;
   top: 12px;
   left: 12px;
@@ -167,7 +168,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  height: var(--sc-stage-badge-h);
   padding: 0 10px;
   border-radius: 999px;
   background: var(--sc-danger);
@@ -202,8 +203,9 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 28px;
+  height: var(--sc-stage-badge-h);
   padding: 0 12px;
+  overflow: hidden;
   border-radius: 999px;
   background: rgba(10, 8, 20, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -447,14 +449,16 @@
     max-width: calc(100% - 20px);
   }
 
+  .sc-stage-badges {
+    --sc-stage-badge-h: 24px;
+  }
+
   .sc-stage-live {
-    height: 24px;
     padding: 0 8px;
     font-size: 0.6875rem;
   }
 
   .sc-stage-chip {
-    height: 24px;
     padding: 0 10px;
     font-size: 0.75rem;
   }
