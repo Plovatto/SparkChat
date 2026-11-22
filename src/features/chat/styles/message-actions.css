@@ -182,7 +182,19 @@
 .sc-actions-sheet__list {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-height: 480px) {
+  .sc-actions-sheet {
+    max-height: 92dvh;
+  }
+
+  .sc-actions-sheet__item {
+    min-height: 42px;
+  }
 }
 
 .sc-actions-sheet__item {

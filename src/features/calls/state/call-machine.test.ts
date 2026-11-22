@@ -256,6 +256,46 @@ describe('createCallMachine timers', () => {
     expect(machine.getState()).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
   });
 
+  it('keeps reconnecting while the controller asks to extend and ends once it stops asking', () => {
+    const effects: CallEffect[] = [];
+    let extend = true;
+    const asked: string[] = [];
+    const machine = createCallMachine({
+      onEffect: (effect) => effects.push(effect),
+      onChange: () => undefined,
+      extendReconnect: (state) => {
+        asked.push(state.phase);
+        return extend;
+      },
+    });
+    machine.dispatch(outgoing);
+    machine.dispatch({ type: 'remote-accepted', callId: A });
+    machine.dispatch({ type: 'media', callId: A, status: 'connected' });
+    machine.dispatch({ type: 'media', callId: A, status: 'interrupted' });
+
+    vi.advanceTimersByTime(CALL_RECONNECT_TIMEOUT_MS * 5);
+    expect(machine.getState().phase).toBe('reconnecting');
+    expect(asked).toEqual(['reconnecting', 'reconnecting', 'reconnecting', 'reconnecting', 'reconnecting']);
+    expect(effects.map((effect) => effect.type)).not.toContain('send-hangup');
+
+    extend = false;
+    vi.advanceTimersByTime(CALL_RECONNECT_TIMEOUT_MS);
+    expect(machine.getState()).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+    expect(effects.map((effect) => effect.type)).toContain('send-hangup');
+  });
+
+  it('only consults the extension for the reconnect timer', () => {
+    const extendReconnect = vi.fn(() => true);
+    const machine = createCallMachine({ onEffect: () => undefined, onChange: () => undefined, extendReconnect });
+    machine.dispatch(outgoing);
+    machine.dispatch({ type: 'remote-accepted', callId: A });
+
+    vi.advanceTimersByTime(CALL_CONNECT_TIMEOUT_MS);
+
+    expect(machine.getState()).toMatchObject({ phase: 'ended', reason: 'failed' });
+    expect(extendReconnect).not.toHaveBeenCalled();
+  });
+
   it('returns to idle after the linger period', () => {
     const { machine, changes } = create();
     machine.dispatch(incoming);

@@ -46,6 +46,7 @@ export const HANGUP_RETRY_MS = 25_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
 export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
 export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
+export const CALL_RECONNECT_MAX_MS = 180_000;
 export const ROOM_WAIT_ATTEMPTS = 30;
 export const ROOM_WAIT_INTERVAL_MS = 100;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
@@ -165,6 +166,7 @@ export interface CallSocket {
 export interface CallControllerDeps {
   socket: CallSocket;
   onPageResume?: (handler: () => void) => () => void;
+  isPageHidden?: () => boolean;
   getIdentity: () => CurrentIdentity | null;
   resolvePeer: (userId: string) => Promise<ResolvedPeer>;
   isPrivateRoomWith: (roomId: string, selfId: string, peerId: string) => boolean;
@@ -196,6 +198,20 @@ export interface OtherDeviceCall {
   roomId: string;
   role: 'caller' | 'callee';
   answeredAt: string | null;
+  media?: CallMediaState | null;
+}
+
+export interface CallMediaState {
+  muted: boolean;
+  camera: boolean;
+}
+
+function readMediaState(value: unknown): CallMediaState | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const { muted, camera } = value as Record<string, unknown>;
+  return typeof muted === 'boolean' && typeof camera === 'boolean' ? { muted, camera } : null;
 }
 
 interface RawSignal {
@@ -332,6 +348,8 @@ export class CallController {
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
+  private reconnectingSince: number | null = null;
+  private reconnectVerdict: string | null = null;
   private disposed = false;
   private otherDeviceRecheck: ReturnType<typeof setTimeout> | null = null;
   private hangupRetries = new Map<string, ReturnType<typeof setTimeout>>();
@@ -345,6 +363,7 @@ export class CallController {
     this.machine = createCallMachine({
       onEffect: (effect) => this.handleEffect(effect),
       onChange: (state) => this.handleChange(state),
+      extendReconnect: (state) => this.keepReconnecting(state),
     });
     this.bindSocket();
     this.detach.push(
@@ -760,6 +779,7 @@ export class CallController {
     this.voice?.setMuted(next);
     peer?.setMuted(next);
     this.update({ muted: next });
+    this.reportMediaChange();
   }
 
   setMicVolume(volume: number): void {
@@ -801,6 +821,7 @@ export class CallController {
       }
       await session.peerSession.setVideoTrack(null);
       this.update({ cameraOn: false, localStream: stream });
+      this.reportMediaChange();
       return;
     }
     const track = await this.deps.acquireCamera();
@@ -811,6 +832,7 @@ export class CallController {
     stream.addTrack(track);
     await session.peerSession.setVideoTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+    this.reportMediaChange();
   }
 
   async toggleScreenShare(): Promise<void> {
@@ -1221,6 +1243,7 @@ export class CallController {
       return;
     }
     if (state.callId === payload.callId) {
+      this.settleReconnectVerdict(payload);
       this.session?.peerSession?.recoverIfUnhealthy('resync');
       return;
     }
@@ -1240,7 +1263,7 @@ export class CallController {
       return;
     }
     this.scheduleOtherDeviceRecheck();
-    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null } });
+    this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null, media: readMediaState(payload.media) } });
   }
 
   async transferHere(): Promise<void> {
@@ -1265,8 +1288,10 @@ export class CallController {
         this.update({ notice: { kind: resolved.error } });
         return;
       }
+      const carried = other.media;
+      const mediaKind: CallKind = carried ? (carried.camera ? 'video' : 'voice') : other.kind;
       try {
-        media = await this.deps.acquireMedia(other.kind);
+        media = await this.deps.acquireMedia(mediaKind);
       } catch {
         this.update({ notice: { kind: 'media-denied' } });
         return;
@@ -1331,7 +1356,11 @@ export class CallController {
         role: other.role,
         connectedAt: Number.isFinite(answeredAt) ? answeredAt : null,
       });
-      this.update({ otherDevice: null, muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      const startMuted = carried?.muted === true;
+      for (const track of handedOver.stream.getAudioTracks()) {
+        track.enabled = !startMuted;
+      }
+      this.update({ otherDevice: null, muted: startMuted, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
       this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
     } catch {
       this.update({ otherDevice: null, notice: { kind: 'transfer-failed' } });
@@ -1489,6 +1518,7 @@ export class CallController {
     this.teardown(state);
     this.machine.dispatch({ type: 'transferred-away', callId: payload.callId });
     this.update({ notice: { kind: 'transferred' } });
+    this.requestSync();
   }
 
   endOtherDeviceCall(): void {
@@ -1751,9 +1781,25 @@ export class CallController {
       return;
     }
     const relayed = this.reportableRoute(callId);
-    this.deps.socket.emit('call:heartbeat', relayed === null ? { callId } : { callId, relayed });
+    const media = this.reportableMedia(callId);
+    this.deps.socket.emit('call:heartbeat', { callId, ...(relayed === null ? {} : { relayed }), ...(media ? { media } : {}) });
     if (relayed === false) {
       this.session?.peerSession?.dropRelayCredentials();
+    }
+  }
+
+  private reportableMedia(callId: string): CallMediaState | null {
+    const session = this.session;
+    if (!session || session.callId !== callId || !session.channel || !hasCallMedia(this.machine.getState())) {
+      return null;
+    }
+    return { muted: this.snapshot.muted, camera: this.snapshot.cameraOn };
+  }
+
+  private reportMediaChange(): void {
+    const session = this.session;
+    if (session && this.heartbeat !== null && session.channel) {
+      this.sendHeartbeat(session.callId);
     }
   }
 
@@ -1830,9 +1876,53 @@ export class CallController {
     }
   }
 
+  private keepReconnecting(state: CallState): boolean {
+    if (!state.callId || state.phase !== 'reconnecting' || this.disposed) {
+      return false;
+    }
+    const since = this.reconnectingSince ?? this.deps.now();
+    if (this.deps.now() - since >= CALL_RECONNECT_MAX_MS) {
+      return false;
+    }
+    if (this.pageHidden() || this.deps.socket.connected === false) {
+      return true;
+    }
+    this.reconnectVerdict = state.callId;
+    this.requestSync();
+    return true;
+  }
+
+  private settleReconnectVerdict(payload: CallStatePayload): void {
+    const state = this.machine.getState();
+    if (this.reconnectVerdict !== payload.callId || state.callId !== payload.callId) {
+      return;
+    }
+    this.reconnectVerdict = null;
+    if (state.phase !== 'reconnecting' || payload.peerLive === true) {
+      return;
+    }
+    if (this.pageHidden() || this.deps.socket.connected === false) {
+      return;
+    }
+    this.machine.dispatch({ type: 'timeout', callId: payload.callId, timer: 'reconnect' });
+  }
+
+  private pageHidden(): boolean {
+    if (this.deps.isPageHidden) {
+      return this.deps.isPageHidden();
+    }
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  }
+
   private handleChange(state: CallState): void {
     const previous = this.lastPhase;
     this.lastPhase = state.phase;
+    if (state.phase === 'reconnecting') {
+      this.reconnectingSince ??= this.deps.now();
+    } else {
+      this.reconnectingSince = null;
+      this.reconnectVerdict = null;
+    }
     const patch: Partial<CallSnapshot> = { state };
     if (state.phase === 'ended' && previous !== 'ended') {
       patch.durationSeconds = state.connectedAt === null ? null : Math.max(0, Math.round((this.deps.now() - state.connectedAt) / 1000));

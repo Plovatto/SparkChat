@@ -89,9 +89,9 @@ export function GroupNameEditor({ room, currentUserId }: GroupNameEditorProps) {
             onClick={startEditing}
             aria-label={t('roomInfo.rename')}
             title={t('roomInfo.rename')}
-            style={{ background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', padding: '4px', display: 'grid', placeItems: 'center' }}
           >
-            <FaPen size={14} />
+            <FaPen size={14} style={{ display: 'block' }} />
           </button>
         )}
       </div>

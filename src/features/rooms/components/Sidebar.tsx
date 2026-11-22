@@ -459,9 +459,9 @@ export function Sidebar({
                 onClick={toggleSelectAll}
                 title={allSelectableSelected ? t('sidebar.unselectAll') : t('sidebar.selectAll')}
                 className="sc-icon-btn sc-icon-btn--ghost sc-anim-swap-in-right"
-                style={{ width: '30px', height: '30px', color: allSelectableSelected ? theme.accentText : theme.textPrimary }}
+                style={{ width: '30px', height: '30px', color: allSelectableSelected ? theme.accentText : theme.borderStrong }}
               >
-                {allSelectableSelected ? <FaCheckSquare size={16} /> : <FaSquare size={16} />}
+                {allSelectableSelected ? <FaCheckSquare size={18} /> : <FaSquare size={18} />}
               </button>
             </div>
           ) : undefined

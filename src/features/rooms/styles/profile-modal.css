@@ -106,7 +106,9 @@
   gap: 10px;
   width: 100%;
   min-height: 52px;
-  padding: 0 18px;
+  padding: 6px 18px;
+  text-align: center;
+  line-height: 1.25;
   border: 1px solid color-mix(in srgb, var(--sc-text-primary) 11%, transparent);
   border-radius: 12px;
   background: transparent;
@@ -119,6 +121,18 @@
     border-color 200ms ease,
     color 200ms ease,
     transform 140ms var(--sc-ease-spring-soft);
+}
+
+.sc-profile-share__label {
+  display: block;
+  min-width: 0;
+  text-align: center;
+}
+
+.sc-profile-share__label > svg {
+  display: inline-block;
+  margin-right: 10px;
+  vertical-align: -3px;
 }
 
 .sc-profile-share[data-copied='true'] {
