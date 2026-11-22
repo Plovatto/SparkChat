@@ -232,9 +232,10 @@ interface BlockedBannerProps {
   tone: 'warning' | 'danger';
   icon: ReactNode;
   text: string;
+  isExiting?: boolean;
 }
 
-function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
+function BlockedBanner({ tone, icon, text, isExiting = false }: BlockedBannerProps) {
   const { theme } = useTheme();
   const background = tone === 'warning' ? theme.warningSoft : theme.dangerSoft;
   const color = tone === 'warning' ? theme.warningText : theme.dangerText;
@@ -242,7 +243,7 @@ function BlockedBanner({ tone, icon, text }: BlockedBannerProps) {
 
   return (
     <div
-      className="sc-anim-rise-in"
+      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
       style={{
         background,
         color,
@@ -849,11 +850,13 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       dismissed: dismissedRoomIds.has(room.id),
       triggered: suggestion.triggered,
     });
-  const recordingPresence = useLatchedPresence(recordingText);
-  const typingPresence = useLatchedPresence(typingText);
-  const uploadingPresence = useLatchedPresence(uploadingMediaType);
-  const failurePresence = useLatchedPresence(failureText);
+  const recordingPresence = useLatchedPresence(recordingText, MOTION_DURATION_MS.fast, roomId);
+  const typingPresence = useLatchedPresence(typingText, MOTION_DURATION_MS.fast, roomId);
+  const uploadingPresence = useLatchedPresence(uploadingMediaType, MOTION_DURATION_MS.fast, roomId);
+  const failurePresence = useLatchedPresence(failureText, MOTION_DURATION_MS.fast, roomId);
   const dropZonePresence = usePresence(isDraggingFile, MOTION_DURATION_MS.fast);
+  const userBlockedPresence = useLatchedPresence(room?.userBlocked ?? false, MOTION_DURATION_MS.fast, roomId);
+  const blockedByPresence = useLatchedPresence(room?.isBlockedBy ?? false, MOTION_DURATION_MS.fast, roomId);
   const translationSuggestionPresence = usePresence(showTranslationSuggestion, MOTION_DURATION_MS.fast);
   const roomNotice = useMemo(
     () =>
@@ -864,7 +867,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           : null,
     [reactionFailure, copyNotice, t],
   );
-  const roomNoticePresence = useLatchedPresence(roomNotice);
+  const roomNoticePresence = useLatchedPresence(roomNotice, MOTION_DURATION_MS.fast, roomId);
 
   if (!room) {
     return <EmptyChatState />;
@@ -1454,12 +1457,22 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           </div>
         </div>
 
-        {room.userBlocked && (
-          <BlockedBanner tone="warning" icon={<FaBan size={16} />} text={t('chat.youBlocked')} />
+        {userBlockedPresence.isPresent && (
+          <BlockedBanner
+            tone="warning"
+            icon={<FaBan size={16} />}
+            text={t('chat.youBlocked')}
+            isExiting={userBlockedPresence.isExiting}
+          />
         )}
 
-        {room.isBlockedBy && (
-          <BlockedBanner tone="danger" icon={<FaExclamationTriangle size={16} />} text={t('chat.blockedYou')} />
+        {blockedByPresence.isPresent && (
+          <BlockedBanner
+            tone="danger"
+            icon={<FaExclamationTriangle size={16} />}
+            text={t('chat.blockedYou')}
+            isExiting={blockedByPresence.isExiting}
+          />
         )}
 
         {replyPresence.isPresent && replyPreviewMessage && (

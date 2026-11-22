@@ -231,4 +231,31 @@ describe('MessageInput composer', () => {
     renderComposer({ userBlocked: true });
     expect(screen.getByTestId('message-input').getAttribute('aria-label')).toBe('chat.input.placeholderYouBlocked');
   });
+
+  it('plays the exit on a removed attachment and keeps the other tiles mounted', async () => {
+    renderComposer();
+    const picker = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!picker) {
+      throw new Error('file input not found');
+    }
+    const first = new File(['a'], 'a.txt', { type: 'text/plain' });
+    const second = new File(['b'], 'b.txt', { type: 'text/plain' });
+    fireEvent.change(picker, { target: { files: [first, second] } });
+    const [removeFirst, removeSecond] = screen.getAllByTitle('chat.input.removeAttachment');
+    if (!removeFirst || !removeSecond) {
+      throw new Error('expected two attachment tiles');
+    }
+    const keptTile = removeSecond.closest('.sc-anim-pop-in');
+
+    fireEvent.click(removeFirst);
+    expect(removeFirst.closest('.sc-anim-pop-out')).not.toBeNull();
+    expect(screen.getAllByTitle('chat.input.removeAttachment')).toHaveLength(2);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const remaining = screen.getAllByTitle('chat.input.removeAttachment');
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.closest('.sc-anim-pop-in')).toBe(keptTile);
+  });
 });

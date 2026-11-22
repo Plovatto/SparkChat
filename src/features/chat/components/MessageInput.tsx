@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -18,7 +19,7 @@ import type { SessionAuth } from '@lib/api/session-auth';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { EmojiButton, EmojiPickerPopover, insertAtCaret } from '@features/emoji';
 import { GifButton, GifPanel, gifLocaleFor, keepGifPanelOpen, useGifStatus } from '@features/gifs';
-import { MOTION_DURATION_MS, usePresence } from '@features/motion';
+import { MOTION_DURATION_MS, useLatchedPresence, usePrefersReducedMotion, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { useAudioRecorder, type AudioRecordingResult } from '../hooks/useAudioRecorder';
@@ -99,14 +100,59 @@ function interpolateLevels(levels: number[]): number[] {
   return interpolated;
 }
 
+const pendingFileKeys = new WeakMap<File, number>();
+let nextPendingFileKey = 0;
+
+function pendingFileKey(file: File): number {
+  let key = pendingFileKeys.get(file);
+  if (key === undefined) {
+    nextPendingFileKey += 1;
+    key = nextPendingFileKey;
+    pendingFileKeys.set(file, key);
+  }
+  return key;
+}
+
 interface PendingAttachmentsPreviewProps {
   files: File[];
-  onRemove?: (index: number) => void;
+  onRemove?: (file: File) => void;
 }
 
 function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPreviewProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [exitingFiles, setExitingFiles] = useState<ReadonlySet<File>>(() => new Set());
+  const exitTimersRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const timers = exitTimersRef.current;
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
+
+  const removeWithExit = (file: File) => {
+    if (!onRemove || exitingFiles.has(file)) {
+      return;
+    }
+    if (prefersReducedMotion) {
+      onRemove(file);
+      return;
+    }
+    setExitingFiles((previous) => new Set(previous).add(file));
+    const timer = window.setTimeout(() => {
+      exitTimersRef.current.delete(timer);
+      setExitingFiles((previous) => {
+        const next = new Set(previous);
+        next.delete(file);
+        return next;
+      });
+      onRemove(file);
+    }, MOTION_DURATION_MS.fast);
+    exitTimersRef.current.add(timer);
+  };
 
   return (
     <div
@@ -130,9 +176,13 @@ function PendingAttachmentsPreview({ files, onRemove }: PendingAttachmentsPrevie
           padding: '10px 10px 4px 4px',
         }}
       >
-        {files.map((file, index) => (
-          <div key={`${file.name}-${file.lastModified}-${index}`} className="sc-anim-pop-in" style={{ display: 'flex', flexShrink: 0 }}>
-            <PendingAttachmentTile file={file} onRemove={onRemove ? () => onRemove(index) : undefined} />
+        {files.map((file) => (
+          <div
+            key={pendingFileKey(file)}
+            className={exitingFiles.has(file) ? 'sc-anim-pop-out' : 'sc-anim-pop-in'}
+            style={{ display: 'flex', flexShrink: 0 }}
+          >
+            <PendingAttachmentTile file={file} onRemove={onRemove ? () => removeWithExit(file) : undefined} />
           </div>
         ))}
       </div>
@@ -316,6 +366,12 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       .filter((candidate) => candidate.nickname.toLowerCase().startsWith(query))
       .slice(0, MENTION_SUGGESTION_LIMIT);
   }, [mentionQuery, mentionCandidates]);
+  const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
+  const mentionListPresence = useLatchedPresence(isMentionListOpen ? filteredMentionCandidates : null);
+  const [hasRecorded, setHasRecorded] = useState(false);
+  if (isRecording && !hasRecorded) {
+    setHasRecorded(true);
+  }
 
   const updateMentionQuery = (value: string, cursorPosition: number) => {
     if (!mentionCandidates || mentionCandidates.length === 0) {
@@ -382,8 +438,8 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
     addFiles: addPendingAttachments,
   }));
 
-  const removePendingAttachment = (index: number) => {
-    setPendingAttachments((previous) => previous.filter((_, itemIndex) => itemIndex !== index));
+  const removePendingAttachment = (file: File) => {
+    setPendingAttachments((previous) => previous.filter((item) => item !== file));
   };
 
   const handleAttachmentPick = (event: ChangeEvent<HTMLInputElement>) => {
@@ -540,7 +596,6 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   }
 
   const blockedTitle = isBlockedBy ? t('chat.input.blockedBy') : userBlocked ? t('chat.input.youBlocked') : null;
-  const isMentionListOpen = mentionQuery !== null && filteredMentionCandidates.length > 0;
 
   return (
     <>
@@ -570,7 +625,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
       {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
-      <form ref={composerRowRef} onSubmit={handleSubmit} className="chat-input-bar sc-composer">
+      <form ref={composerRowRef} onSubmit={handleSubmit} className={`chat-input-bar sc-composer${hasRecorded ? ' sc-anim-rise-in' : ''}`}>
         <input
           type="file"
           ref={attachmentInputRef}
@@ -589,9 +644,10 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
             }
           }}
         >
-          {isMentionListOpen && (
+          {mentionListPresence.value && (
             <div
-              className="sc-anim-rise-in"
+              className={mentionListPresence.isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
+              aria-hidden={mentionListPresence.isExiting || undefined}
               style={{
                 position: 'absolute',
                 bottom: 'calc(100% + 8px)',
@@ -607,7 +663,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
                 transformOrigin: 'bottom center',
               }}
             >
-              {filteredMentionCandidates.map((candidate, index) => (
+              {mentionListPresence.value.map((candidate, index) => (
                 <div
                   key={candidate.id}
                   role="option"

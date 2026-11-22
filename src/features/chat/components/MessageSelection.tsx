@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaCheck, FaTimes, FaTrash } from 'react-icons/fa';
 import '../styles/delete-messages.css';
@@ -109,10 +109,25 @@ interface ComposerSlotProps {
 }
 
 export function ComposerSlot({ isSelecting, bar, children }: ComposerSlotProps) {
+  const [hasSelected, setHasSelected] = useState(false);
+  if (isSelecting && !hasSelected) {
+    setHasSelected(true);
+  }
+
   return (
     <>
       {isSelecting && bar}
-      <div data-testid="composer-slot" style={{ display: isSelecting ? 'none' : 'contents' }}>
+      <div
+        data-testid="composer-slot"
+        className="sc-composer-slot"
+        data-returning={hasSelected || undefined}
+        onAnimationEnd={(event) => {
+          if (!isSelecting && event.target instanceof HTMLElement && event.target.classList.contains('sc-composer')) {
+            setHasSelected(false);
+          }
+        }}
+        style={{ display: isSelecting ? 'none' : 'contents' }}
+      >
         {children}
       </div>
     </>

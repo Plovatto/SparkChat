@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import ptApp from '../../../locales/pt/app.json';
@@ -168,5 +168,21 @@ describe('message selection mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar seleção' }));
     expect(screen.getByLabelText<HTMLTextAreaElement>('mensagem').value).toBe('rascunho importante');
     expect(screen.getByTestId('callbacks').textContent).toBe('0');
+  });
+
+  it('marks the composer to rise back in after a selection and clears the mark once it played', () => {
+    render(<Harness />);
+    const slot = screen.getByTestId('composer-slot');
+    expect(slot.hasAttribute('data-returning')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Selecionar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar seleção' }));
+    expect(slot.hasAttribute('data-returning')).toBe(true);
+    const composer = screen.getByLabelText('mensagem');
+    composer.classList.add('sc-composer');
+    fireEvent.animationEnd(composer);
+    act(() => {
+      composer.dispatchEvent(new Event('webkitAnimationEnd', { bubbles: true }));
+    });
+    expect(slot.hasAttribute('data-returning')).toBe(false);
   });
 });

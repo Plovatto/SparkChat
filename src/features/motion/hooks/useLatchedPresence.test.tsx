@@ -45,4 +45,11 @@ describe('useLatchedPresence', () => {
     const { result } = renderHook(() => useLatchedPresence<number>(undefined));
     expect(result.current).toEqual({ value: null, isPresent: false, isExiting: false });
   });
+
+  it('drops the old value without an exit when the reset key changes', () => {
+    const initialProps: { value: string | null; roomId: string } = { value: 'Ada is typing', roomId: 'a' };
+    const { result, rerender } = renderHook(({ value, roomId }) => useLatchedPresence(value, 150, roomId), { initialProps });
+    rerender({ value: null, roomId: 'b' });
+    expect(result.current).toEqual({ value: null, isPresent: false, isExiting: false });
+  });
 });
