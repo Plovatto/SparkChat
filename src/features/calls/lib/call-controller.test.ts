@@ -13,6 +13,8 @@ import {
   type CallSocket,
   type PeerSessionFactoryOptions,
   type PeerSessionLike,
+  HANGUP_RETRY_MS,
+  OTHER_DEVICE_RECHECK_MS,
   type ResolvedPeer,
 } from './call-controller';
 import { onPageResume, type ResumeSource } from './page-resume';
@@ -818,6 +820,78 @@ describe('server events', () => {
 
     w.a.socket.receive('call:ended', { callId: 'elsewhere', reason: 'completed', endedAt: 1 });
     expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+  });
+
+  it('hides the other device offer when the server says the call can no longer be taken over', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', transferable: true });
+    await settle();
+    expect(w.a.controller.getSnapshot().otherDevice).toMatchObject({ callId: 'elsewhere' });
+
+    w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', transferable: false });
+    await settle();
+    expect(w.a.controller.getSnapshot().otherDevice).toBeNull();
+    expect(w.a.socket.sent('call:hangup')).toEqual([]);
+  });
+
+  it('tells the server which call this device is in when it syncs', async () => {
+    const w = await world();
+    const before = w.a.socket.sent('call:sync').length;
+    w.a.socket.receive('connect', undefined);
+    await settle();
+    const idle = w.a.socket.sent('call:sync').slice(before);
+    expect(idle.every((payload) => payload.callId === null)).toBe(true);
+
+    await connectCall(w);
+    const callId = w.a.controller.getSnapshot().state.callId;
+    const mark = w.a.socket.sent('call:sync').length;
+    w.a.socket.receive('connect', undefined);
+    await settle();
+    expect(w.a.socket.sent('call:sync').slice(mark)).toContainEqual({ callId });
+  });
+
+  it('rechecks the other device offer while it is shown', async () => {
+    vi.useFakeTimers();
+    try {
+      const w = await world();
+      w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', transferable: true });
+      await vi.advanceTimersByTimeAsync(10);
+      const before = w.a.socket.sent('call:sync').length;
+      await vi.advanceTimersByTimeAsync(OTHER_DEVICE_RECHECK_MS);
+      expect(w.a.socket.sent('call:sync').length).toBe(before + 1);
+      await vi.advanceTimersByTimeAsync(OTHER_DEVICE_RECHECK_MS);
+      expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
+
+      w.a.socket.receive('call:state', null);
+      await vi.advanceTimersByTimeAsync(OTHER_DEVICE_RECHECK_MS * 2);
+      expect(w.a.socket.sent('call:sync').length).toBe(before + 2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retries a refused hangup once after the old socket had time to go quiet', async () => {
+    vi.useFakeTimers();
+    try {
+      const w = await world();
+      await connectCall(w);
+      const callId = w.a.controller.getSnapshot().state.callId;
+      w.a.controller.hangup();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(w.a.socket.sent('call:hangup')).toEqual([{ callId }]);
+
+      w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:hangup' });
+      await vi.advanceTimersByTimeAsync(HANGUP_RETRY_MS - 100);
+      expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(200);
+      expect(w.a.socket.sent('call:hangup')).toEqual([{ callId }, { callId }]);
+
+      w.a.socket.receive('error', { message: 'x', code: 'call.notAllowed', event: 'call:hangup' });
+      await vi.advanceTimersByTimeAsync(HANGUP_RETRY_MS * 2);
+      expect(w.a.socket.sent('call:hangup')).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('ends a call on another device only when the user asks, with an explicit force flag', async () => {
