@@ -41,6 +41,8 @@ import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership'
 import type { VoiceLeveler } from './voice-leveler';
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
+export const OTHER_DEVICE_RECHECK_MS = 15_000;
+export const HANGUP_RETRY_MS = 25_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
 export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
 export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
@@ -330,6 +332,10 @@ export class CallController {
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private disposed = false;
+  private otherDeviceRecheck: ReturnType<typeof setTimeout> | null = null;
+  private hangupRetries = new Map<string, ReturnType<typeof setTimeout>>();
+  private retriedHangups = new Set<string>();
+  private lastHangupCallId: string | null = null;
   private voice: VoiceLeveler | null = null;
 
   constructor(deps: CallControllerDeps) {
@@ -405,7 +411,48 @@ export class CallController {
   }
 
   private requestSync(): void {
-    this.deps.socket.emit('call:sync', {});
+    const state = this.machine.getState();
+    this.deps.socket.emit('call:sync', { callId: state.callId && isCallLive(state) ? state.callId : null });
+  }
+
+  private scheduleOtherDeviceRecheck(): void {
+    this.clearOtherDeviceRecheck();
+    for (const timer of this.hangupRetries.values()) {
+      clearTimeout(timer);
+    }
+    this.hangupRetries.clear();
+    this.otherDeviceRecheck = setTimeout(() => {
+      this.otherDeviceRecheck = null;
+      if (!this.disposed && this.snapshot.otherDevice) {
+        this.requestSync();
+        this.scheduleOtherDeviceRecheck();
+      }
+    }, OTHER_DEVICE_RECHECK_MS);
+  }
+
+  private retryHangup(callId: string): void {
+    const state = this.machine.getState();
+    if (this.retriedHangups.has(callId) || (state.callId === callId && isCallLive(state))) {
+      return;
+    }
+    this.retriedHangups.add(callId);
+    this.hangupRetries.set(
+      callId,
+      setTimeout(() => {
+        this.hangupRetries.delete(callId);
+        const current = this.machine.getState();
+        if (!this.disposed && !(current.callId === callId && isCallLive(current))) {
+          this.deps.socket.emit('call:hangup', { callId });
+        }
+      }, HANGUP_RETRY_MS),
+    );
+  }
+
+  private clearOtherDeviceRecheck(): void {
+    if (this.otherDeviceRecheck !== null) {
+      clearTimeout(this.otherDeviceRecheck);
+      this.otherDeviceRecheck = null;
+    }
   }
 
   private onConfig(payload: CallConfigPayload): void {
@@ -1090,6 +1137,13 @@ export class CallController {
     const code = payload.code ?? 'call.error';
     const session = this.session;
     const errorCallId = payload.params?.callId;
+    if (event === 'call:hangup' && code === 'call.notAllowed') {
+      const refused = typeof errorCallId === 'string' ? errorCallId : this.lastHangupCallId;
+      if (refused) {
+        this.retryHangup(refused);
+      }
+      return;
+    }
     if (typeof errorCallId === 'string' && errorCallId !== session?.callId) {
       return;
     }
@@ -1173,9 +1227,16 @@ export class CallController {
     if (payload.state !== 'accepted' && payload.state !== 'active') {
       return;
     }
+    if (payload.transferable === false) {
+      if (this.snapshot.otherDevice) {
+        this.update({ otherDevice: null });
+      }
+      return;
+    }
     if (await this.deps.tabs.isCallHeldByOtherTab()) {
       return;
     }
+    this.scheduleOtherDeviceRecheck();
     this.update({ otherDevice: { callId: payload.callId, peerId: payload.peerId, kind: payload.kind, roomId: payload.roomId, role: payload.role, answeredAt: payload.answeredAt ?? null } });
   }
 
@@ -1269,7 +1330,8 @@ export class CallController {
       this.update({ otherDevice: null, muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
       this.deps.socket.emit('call:transfer', { callId: other.callId, envelope });
     } catch {
-      this.update({ notice: { kind: 'transfer-failed' } });
+      this.update({ otherDevice: null, notice: { kind: 'transfer-failed' } });
+      this.requestSync();
     } finally {
       this.preparing = false;
       this.update({ transferring: false });
@@ -1466,6 +1528,7 @@ export class CallController {
         this.deps.socket.emit('call:decline', { callId: effect.callId });
         return;
       case 'send-hangup':
+        this.lastHangupCallId = effect.callId;
         this.deps.socket.emit('call:hangup', { callId: effect.callId });
         return;
       case 'create-peer':
@@ -1824,6 +1887,7 @@ export class CallController {
 
   dispose(): void {
     this.disposed = true;
+    this.clearOtherDeviceRecheck();
     this.machine.dispose();
     this.stopHeartbeat();
     this.stopStats();

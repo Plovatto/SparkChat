@@ -91,10 +91,10 @@ export function CallNotices() {
     return null;
   }
   const Icon = shown.icon;
-  const belowBar = call.minimized && call.hasStatusBar;
+  const overCall = state.phase !== 'idle' && !call.minimized;
 
   return (
-    <div className="sc-call-toast-region" data-below-bar={belowBar}>
+    <div className="sc-call-toast-region" data-over-call={overCall}>
       <div
         key={shown.id}
         role={shown.role}

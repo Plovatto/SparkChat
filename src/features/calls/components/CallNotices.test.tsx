@@ -99,8 +99,14 @@ describe('CallNotices toasts', () => {
     expect(screen.getByRole('button', { name: 'calls.transferHere' })).toHaveProperty('disabled', true);
   });
 
-  it('moves below the minimized call bar when the chat shows one', () => {
-    const { view } = renderWith({ screenSharing: true, screenPaused: true }, { minimized: true, hasStatusBar: true });
-    expect(view.container.querySelector('.sc-call-toast-region')?.getAttribute('data-below-bar')).toBe('true');
+  it('stays at the bottom over the chat and lifts above the controls while the call screen is open', () => {
+    const { view } = renderWith({ otherDevice: { callId: 'c', peerId: 'p', kind: 'voice', roomId: 'r', role: 'caller', answeredAt: null } });
+    expect(view.container.querySelector('.sc-call-toast-region')?.getAttribute('data-over-call')).toBe('false');
+
+    const minimized = renderWith({ screenSharing: true, screenPaused: true, state: { ...EMPTY_CALL_SNAPSHOT.state, phase: 'active', callId: 'c' } }, { minimized: true });
+    expect(minimized.view.container.querySelector('.sc-call-toast-region')?.getAttribute('data-over-call')).toBe('false');
+
+    const open = renderWith({ notice: { kind: 'transfer-failed' }, state: { ...EMPTY_CALL_SNAPSHOT.state, phase: 'active', callId: 'd' } });
+    expect(open.view.container.querySelector('.sc-call-toast-region')?.getAttribute('data-over-call')).toBe('true');
   });
 });
