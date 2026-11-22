@@ -270,6 +270,7 @@ export function timerForPhase(phase: CallPhase): { timer: CallTimer; ms: number 
 export interface CallMachineOptions {
   onEffect: (effect: CallEffect, state: CallState) => void;
   onChange: (state: CallState) => void;
+  extendReconnect?: (state: CallState) => boolean;
 }
 
 export interface CallMachine {
@@ -303,11 +304,18 @@ export function createCallMachine(options: CallMachineOptions): CallMachine {
     }
     const callId = state.callId;
     timerKey = key;
-    timerHandle = setTimeout(() => {
-      timerHandle = null;
-      timerKey = '';
-      dispatch({ type: 'timeout', callId, timer: wanted.timer });
-    }, wanted.ms);
+    const arm = () => {
+      timerHandle = setTimeout(() => {
+        timerHandle = null;
+        if (wanted.timer === 'reconnect' && timerKey === key && options.extendReconnect?.(state) === true) {
+          arm();
+          return;
+        }
+        timerKey = '';
+        dispatch({ type: 'timeout', callId, timer: wanted.timer });
+      }, wanted.ms);
+    };
+    arm();
   };
 
   const dispatch = (event: CallEvent): CallState => {

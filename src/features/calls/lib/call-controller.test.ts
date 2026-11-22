@@ -4,7 +4,9 @@ import type { PinnedPeer, SignalType } from '@lib/e2ee/call-crypto';
 import type { CurrentIdentity } from '@lib/e2ee/current-identity';
 import { generateIdentity } from '@lib/e2ee/identity';
 import { buildSigningProof } from '@lib/e2ee/signing';
+import { CALL_RECONNECT_TIMEOUT_MS } from '../state/call-machine';
 import {
+  CALL_RECONNECT_MAX_MS,
   CallController,
   FALLBACK_STUN,
   HEARTBEAT_INTERVAL_MS,
@@ -1852,6 +1854,168 @@ describe('running in the background', () => {
     doc.dispatchEvent(new Event('visibilitychange'));
     expect(w.a.socket.connects).toBe(1);
     expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+
+  function stateFor(w: World, peerLive?: boolean) {
+    const callId = w.a.controller.getSnapshot().state.callId;
+    return { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', ...(peerLive === undefined ? {} : { peerLive }) };
+  }
+
+  async function interruptedCall(overrides: Partial<CallControllerDeps> = {}): Promise<World> {
+    const w = await world({ alice: { ...backgroundDeps(), isPageHidden: () => doc.visibilityState === 'hidden', ...overrides } });
+    w.a.socket.connected = true;
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    w.a.peers[0]!.options.onConnection('interrupted');
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    return w;
+  }
+
+  it('keeps reconnecting while the server says the backgrounded peer can still come back', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = (event) => {
+      if (event === 'call:sync') {
+        w.a.socket.receive('call:state', stateFor(w, true));
+      }
+    };
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 4);
+    await settle();
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.a.socket.sent('call:sync').length).toBeGreaterThanOrEqual(4);
+
+    w.a.peers[0]!.options.onConnection('connected');
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+    expect(w.a.peers[0]!.closed).toBe(false);
+  });
+
+  it('ends the call once the server says the peer is gone', async () => {
+    const w = await interruptedCall();
+    let live = true;
+    w.a.socket.onEmit = (event) => {
+      if (event === 'call:sync') {
+        w.a.socket.receive('call:state', stateFor(w, live));
+      }
+    };
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 2);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    live = false;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS);
+    await settle();
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+  });
+
+  it('falls back to the old reconnect window against a server that does not report the peer', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = (event) => {
+      if (event === 'call:sync') {
+        w.a.socket.receive('call:state', stateFor(w));
+      }
+    };
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS);
+    await settle();
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+  });
+
+  it('never gives up on the call while the page is hidden or offline, and resumes when media returns', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+    doc.visibilityState = 'hidden';
+    doc.dispatchEvent(new Event('visibilitychange'));
+    w.a.socket.connected = false;
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 5_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    doc.visibilityState = 'visible';
+    doc.dispatchEvent(new Event('visibilitychange'));
+    expect(w.a.socket.connects).toBe(1);
+    w.a.socket.connected = true;
+    w.a.peers[0]!.options.onConnection('connected');
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+    expect(w.a.peers[0]!.closed).toBe(false);
+  });
+
+  it('gives up after the longest reconnect window even while hidden', async () => {
+    const w = await interruptedCall();
+    doc.visibilityState = 'hidden';
+    w.a.socket.connected = false;
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+  });
+
+  it('does not end a hidden call when a stale verdict arrives', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = (event) => {
+      if (event === 'call:sync') {
+        doc.visibilityState = 'hidden';
+        w.a.socket.receive('call:state', stateFor(w, false));
+      }
+    };
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS);
+    await settle();
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+  });
+
+  it('ends at the longest reconnect window when the server never answers the sync', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(w.a.socket.sent('call:sync').length).toBeGreaterThanOrEqual(5);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+  });
+
+  it('lets the user hang up during an extended reconnect and stops extending', async () => {
+    const w = await interruptedCall();
+    doc.visibilityState = 'hidden';
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 2);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    w.a.controller.hangup();
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'completed' });
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+    expect(w.a.peers[0]!.closed).toBe(true);
+
+    const syncs = w.a.socket.sent('call:sync').length;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
+    expect(w.a.socket.sent('call:sync')).toHaveLength(syncs);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('idle');
+  });
+
+  it('does nothing when disposed while a reconnect extension is pending', async () => {
+    const w = await interruptedCall();
+    doc.visibilityState = 'hidden';
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS + 1_000);
+
+    w.a.controller.dispose();
+    const emitted = w.a.socket.emitted.length;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS * 2);
+
+    expect(w.a.socket.emitted.length).toBe(emitted);
   });
 
   it('does nothing on resume when there is no call', async () => {
