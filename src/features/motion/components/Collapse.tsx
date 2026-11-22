@@ -10,6 +10,9 @@ interface CollapseProps {
 
 export function Collapse({ isExiting, animateEnter = true, className, style, children }: CollapseProps) {
   const [isSettled, setIsSettled] = useState(!animateEnter);
+  if (isExiting && isSettled && animateEnter) {
+    setIsSettled(false);
+  }
 
   const handleAnimationEnd = (event: AnimationEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget && !isExiting) {

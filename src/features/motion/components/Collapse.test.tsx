@@ -45,4 +45,30 @@ describe('Collapse', () => {
     expect(wrapper.className).toBe('sc-collapse is-exiting');
     expect(wrapper.dataset.settled).toBeUndefined();
   });
+
+  it('replays the enter with clipping when it comes back while exiting', () => {
+    const { container, rerender } = render(
+      <Collapse isExiting={false}>
+        <span>Bar</span>
+      </Collapse>,
+    );
+    const wrapper = container.firstElementChild as HTMLElement;
+    endAnimation(wrapper);
+    expect(wrapper.dataset.settled).toBe('true');
+
+    rerender(
+      <Collapse isExiting>
+        <span>Bar</span>
+      </Collapse>,
+    );
+    rerender(
+      <Collapse isExiting={false}>
+        <span>Bar</span>
+      </Collapse>,
+    );
+    expect(wrapper.className).toBe('sc-collapse sc-collapse--enter');
+    expect(wrapper.dataset.settled).toBeUndefined();
+    endAnimation(wrapper);
+    expect(wrapper.dataset.settled).toBe('true');
+  });
 });

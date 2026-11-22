@@ -618,7 +618,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           <PendingAttachmentsPreview files={attachmentsPresence.value} onRemove={removePendingAttachment} />
         </Collapse>
       )}
-      {pendingAttachments.length === 0 && linkPreview.preview && (
+      {!attachmentsPresence.isPresent && linkPreview.preview && (
         <div className="sc-anim-rise-in" style={{ padding: '10px 14px 0', background: theme.surface }}>
           <LinkPreviewCard
             preview={linkPreview.preview.preview}
@@ -628,7 +628,7 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
           />
         </div>
       )}
-      {pendingAttachments.length === 0 && linkPreview.url && !linkPreview.preview && (
+      {!attachmentsPresence.isPresent && linkPreview.url && !linkPreview.preview && (
         <LinkPreviewOffer status={linkPreview.status} onGenerate={linkPreview.generate} onDismiss={linkPreview.dismiss} />
       )}
       <form
