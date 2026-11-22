@@ -337,6 +337,7 @@ export interface CallStatePayload {
   role: 'caller' | 'callee';
   answeredAt?: string | null;
   transferable?: boolean;
+  peerLive?: boolean;
 }
 
 export interface ServerToClientEvents {

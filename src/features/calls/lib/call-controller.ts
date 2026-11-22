@@ -46,6 +46,7 @@ export const HANGUP_RETRY_MS = 25_000;
 export const ICE_SERVERS_TIMEOUT_MS = 8_000;
 export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200];
 export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
+export const CALL_RECONNECT_MAX_MS = 180_000;
 export const ROOM_WAIT_ATTEMPTS = 30;
 export const ROOM_WAIT_INTERVAL_MS = 100;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
@@ -165,6 +166,7 @@ export interface CallSocket {
 export interface CallControllerDeps {
   socket: CallSocket;
   onPageResume?: (handler: () => void) => () => void;
+  isPageHidden?: () => boolean;
   getIdentity: () => CurrentIdentity | null;
   resolvePeer: (userId: string) => Promise<ResolvedPeer>;
   isPrivateRoomWith: (roomId: string, selfId: string, peerId: string) => boolean;
@@ -332,6 +334,8 @@ export class CallController {
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
+  private reconnectingSince: number | null = null;
+  private reconnectVerdict: string | null = null;
   private disposed = false;
   private otherDeviceRecheck: ReturnType<typeof setTimeout> | null = null;
   private hangupRetries = new Map<string, ReturnType<typeof setTimeout>>();
@@ -345,6 +349,7 @@ export class CallController {
     this.machine = createCallMachine({
       onEffect: (effect) => this.handleEffect(effect),
       onChange: (state) => this.handleChange(state),
+      extendReconnect: (state) => this.keepReconnecting(state),
     });
     this.bindSocket();
     this.detach.push(
@@ -1221,6 +1226,7 @@ export class CallController {
       return;
     }
     if (state.callId === payload.callId) {
+      this.settleReconnectVerdict(payload);
       this.session?.peerSession?.recoverIfUnhealthy('resync');
       return;
     }
@@ -1830,9 +1836,53 @@ export class CallController {
     }
   }
 
+  private keepReconnecting(state: CallState): boolean {
+    if (!state.callId || state.phase !== 'reconnecting' || this.disposed) {
+      return false;
+    }
+    const since = this.reconnectingSince ?? this.deps.now();
+    if (this.deps.now() - since >= CALL_RECONNECT_MAX_MS) {
+      return false;
+    }
+    if (this.pageHidden() || this.deps.socket.connected === false) {
+      return true;
+    }
+    this.reconnectVerdict = state.callId;
+    this.requestSync();
+    return true;
+  }
+
+  private settleReconnectVerdict(payload: CallStatePayload): void {
+    const state = this.machine.getState();
+    if (this.reconnectVerdict !== payload.callId || state.callId !== payload.callId) {
+      return;
+    }
+    this.reconnectVerdict = null;
+    if (state.phase !== 'reconnecting' || payload.peerLive === true) {
+      return;
+    }
+    if (this.pageHidden() || this.deps.socket.connected === false) {
+      return;
+    }
+    this.machine.dispatch({ type: 'timeout', callId: payload.callId, timer: 'reconnect' });
+  }
+
+  private pageHidden(): boolean {
+    if (this.deps.isPageHidden) {
+      return this.deps.isPageHidden();
+    }
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+  }
+
   private handleChange(state: CallState): void {
     const previous = this.lastPhase;
     this.lastPhase = state.phase;
+    if (state.phase === 'reconnecting') {
+      this.reconnectingSince ??= this.deps.now();
+    } else {
+      this.reconnectingSince = null;
+      this.reconnectVerdict = null;
+    }
     const patch: Partial<CallSnapshot> = { state };
     if (state.phase === 'ended' && previous !== 'ended') {
       patch.durationSeconds = state.connectedAt === null ? null : Math.max(0, Math.round((this.deps.now() - state.connectedAt) / 1000));
