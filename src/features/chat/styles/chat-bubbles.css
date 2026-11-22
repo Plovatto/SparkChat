@@ -7,6 +7,23 @@
   max-width: min(72%, 420px);
 }
 
+.sc-jump-latest {
+  position: absolute;
+  right: calc(18px + env(safe-area-inset-right, 0px));
+  bottom: 18px;
+  z-index: 5;
+  width: 42px;
+  height: 42px;
+}
+
+.chat-bubble-wrap .sc-bubble img,
+.chat-bubble-wrap .sc-bubble video {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 :root {
   --sc-room-header-height: 77px;
 }

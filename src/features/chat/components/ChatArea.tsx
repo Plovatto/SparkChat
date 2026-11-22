@@ -359,7 +359,6 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     return () => onInfoColumnChange?.(false);
   }, [isInfoColumnOpen, onInfoColumnChange]);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [scrollButtonPosition, setScrollButtonPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [messageIdsPendingDelete, setMessageIdsPendingDelete] = useState<string[] | null>(null);
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
@@ -501,14 +500,6 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       return;
     }
 
-    const updateButtonPosition = () => {
-      const rect = container.getBoundingClientRect();
-      setScrollButtonPosition({
-        top: rect.bottom - 42 - 18,
-        left: rect.right - 42 - 18,
-      });
-    };
-
     let lastClientHeight = container.clientHeight;
     const keepBottomPinned = () => {
       const wasPinned = container.scrollHeight - container.scrollTop - lastClientHeight < 2;
@@ -518,16 +509,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       }
     };
 
-    updateButtonPosition();
-    window.addEventListener('resize', updateButtonPosition);
-    const resizeObserver = new ResizeObserver(() => {
-      keepBottomPinned();
-      updateButtonPosition();
-    });
+    const resizeObserver = new ResizeObserver(keepBottomPinned);
     resizeObserver.observe(container);
 
     return () => {
-      window.removeEventListener('resize', updateButtonPosition);
       resizeObserver.disconnect();
     };
   }, [room?.id, isInfoOpen]);
@@ -1452,33 +1437,26 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                 />
               )}
             </div>
-            <button
-              onClick={() => {
-                isAtBottomRef.current = true;
-                setIsAtBottom(true);
-                scrollToBottom('smooth');
-              }}
-              title={t('chat.scrollToLatest')}
-              aria-hidden={isAtBottom}
-              tabIndex={isAtBottom ? -1 : 0}
-              className="sc-icon-btn sc-icon-btn--surface"
-              style={{
-                position: 'fixed',
-                top: scrollButtonPosition?.top ?? 0,
-                left: scrollButtonPosition?.left ?? 0,
-                visibility: scrollButtonPosition ? 'visible' : 'hidden',
-                width: '42px',
-                height: '42px',
-                border: `1px solid ${theme.border}`,
-                zIndex: 5,
-                opacity: isAtBottom ? 0 : 1,
-                transform: isAtBottom ? 'translateY(10px) scale(0.7)' : undefined,
-                pointerEvents: isAtBottom ? 'none' : 'auto',
-              }}
-            >
-              <FaArrowDown size={16} />
-            </button>
           </div>
+          <button
+            onClick={() => {
+              isAtBottomRef.current = true;
+              setIsAtBottom(true);
+              scrollToBottom('smooth');
+            }}
+            title={t('chat.scrollToLatest')}
+            aria-hidden={isAtBottom}
+            tabIndex={isAtBottom ? -1 : 0}
+            className="sc-icon-btn sc-icon-btn--surface sc-jump-latest"
+            style={{
+              border: `1px solid ${theme.border}`,
+              opacity: isAtBottom ? 0 : 1,
+              transform: isAtBottom ? 'translateY(10px) scale(0.7)' : undefined,
+              pointerEvents: isAtBottom ? 'none' : 'auto',
+            }}
+          >
+            <FaArrowDown size={16} />
+          </button>
         </div>
 
         {userBlockedPresence.isPresent && (
