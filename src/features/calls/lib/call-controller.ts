@@ -1517,7 +1517,7 @@ export class CallController {
     }
     if (event === 'call:start' && session && this.machine.getState().phase === 'outgoing-ringing') {
       const invite = this.glareInvite?.callerId === session.peerId ? this.glareInvite : null;
-      if (invite || code === 'call.alreadyInCall') {
+      if ((invite && code === 'call.peerBusy') || code === 'call.alreadyInCall') {
         this.resolveGlare(session, invite);
         return;
       }
