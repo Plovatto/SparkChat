@@ -13,13 +13,17 @@ function useFrameInsets(enabled: boolean): FrameInsets | null {
       setInsets(null);
       return;
     }
-    const frame = document.querySelector<HTMLElement>(FRAME_SELECTOR);
+    let frame = document.querySelector<HTMLElement>(FRAME_SELECTOR);
     if (!frame) {
       setInsets(null);
       return;
     }
     const measure = () => {
-      const next = frameInsets(frame.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, FRAME_GAP_PX);
+      if (!frame?.isConnected) {
+        frame = document.querySelector<HTMLElement>(FRAME_SELECTOR);
+      }
+      const root = document.documentElement;
+      const next = frame ? frameInsets(frame.getBoundingClientRect(), { width: root.clientWidth || window.innerWidth, height: root.clientHeight || window.innerHeight }, FRAME_GAP_PX) : null;
       setInsets((current) => (current?.right === next?.right && current?.bottom === next?.bottom ? current : next));
     };
     measure();
