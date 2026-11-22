@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Plovatto/SparkChat/security/advisories/new
+    about: Report security issues privately, never in a public issue.
+  - name: Report a problem with the API
+    url: https://github.com/Plovatto/API-SparkChat/issues
+    about: Server, authentication, and upload problems belong in the API repository.
+  - name: Open SparkChat
+    url: https://sparkchat.plovatto.dev/en/
+    about: Check whether the problem still happens on the published version.
