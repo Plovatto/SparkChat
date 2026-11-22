@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
 const INTERACTIVE_SELECTOR = [
   'button',
@@ -80,7 +81,7 @@ export function CustomCursor() {
 
   useEffect(() => {
     const supportsFinePointer = window.matchMedia('(pointer: fine)').matches;
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const prefersReducedMotion = window.matchMedia(REDUCED_MOTION_QUERY).matches;
     const layer = layerRef.current;
     const pointer = pointerRef.current;
 

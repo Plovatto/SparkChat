@@ -4,12 +4,12 @@ import { buildTheme } from '@features/theme/build-theme';
 import { applyThemeCssVars, themeTokensToCssVars } from '@features/theme/theme-css-vars';
 import { LANDING_WALLPAPER_ID_LIST } from '../constants/wallpapers';
 import { DEFAULT_LANDING_THEME, readLandingTheme, writeLandingTheme, type LandingThemeChoice } from '../lib/landing-theme-storage';
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
 const THEME_TRANSITION_CLASS = 'sc-theme-transition';
 const THEME_TRANSITION_MS = 420;
 const REVEAL_DURATION_MS = 700;
 const REVEAL_EASING = 'cubic-bezier(0.22, 1, 0.36, 1)';
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 interface Point {
   x: number;

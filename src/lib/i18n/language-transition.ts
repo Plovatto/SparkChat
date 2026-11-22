@@ -1,5 +1,6 @@
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
+
 const SKIP_SELECTOR = 'input, textarea, script, style, [contenteditable="true"], [data-no-language-reveal]';
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 const REVEAL_CLASS = 'sc-lang-reveal';
 const DELAY_PROPERTY = '--sc-lang-reveal-delay';
 
