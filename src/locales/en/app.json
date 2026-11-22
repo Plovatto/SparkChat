@@ -115,6 +115,7 @@
       "resumeAttempts": "Too many reconnection attempts. Please wait a moment.",
       "roomJoin": "Too many attempts to join with a code. Try again later.",
       "roomCreate": "You created too many groups in a short time. Try again later.",
+      "privateRoomCreate": "You started too many new conversations in a short time. Try again later.",
       "socket": "Too many actions in a short time. Wait a moment.",
       "gifs": "Too many GIF searches in a short time. Wait a moment and try again.",
       "gifUpload": "Too many GIFs sent in a short time. Wait a moment."
@@ -382,6 +383,7 @@
     },
     "upload": {
       "imageFailed": "Couldn't send the image.",
+      "imageUnreadable": "Couldn't read this image. Pick another file.",
       "audioFailed": "Couldn't send the audio.",
       "fileFailed": "Couldn't send the file.",
       "someImageFailed": "Couldn't send one of the images. Please try again.",
