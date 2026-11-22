@@ -1051,6 +1051,8 @@
       "relay": "Conexão via servidor (TURN)"
     },
     "broadcast": {
+      "changeSource": "Trocar o que está compartilhando",
+      "changeSourceHint": "Escolha outra tela, janela ou aba sem parar a transmissão",
       "sending": "Você está transmitindo",
       "receiving": "Você está assistindo",
       "movie": "Modo filme",

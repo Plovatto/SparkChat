@@ -13,8 +13,10 @@ import { CallScreen } from './components/CallScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
-import { clearLegacyCallSettings, getAudioProcessing, getMovieMode, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
-import { acquireCameraTrack, acquireLocalMedia, acquireScreenShare, applyShareConstraints, audioConstraints, isMobileDevice, stopStream, supportsScreenShare, usesAdvancedNoise, videoConstraints, resetKnownDevices } from './lib/media-devices';
+import { clearLegacyCallSettings, devicePrefs, getAudioProcessing, getMovieMode, getShareVolume, micVolume, setAudioProcessing, setMovieMode, setShareVolume, type AudioProcessing } from './lib/call-settings';
+import { acquireCameraTrack, acquireLocalMedia, acquireMicrophoneTrack, acquireScreenShare, applyShareConstraints, isMobileDevice, listDevices, stopStream, supportsScreenShare, usesAdvancedNoise, resetKnownDevices } from './lib/media-devices';
+import { routeCallOutput } from './lib/audio-output';
+import { deviceFallback } from './lib/device-watch';
 import { showSelfSpeaking } from './lib/self-speaking';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
@@ -36,6 +38,7 @@ interface CallProviderProps {
 }
 
 const noopSubscribe = () => () => undefined;
+const DEVICE_CHANGE_SETTLE_MS = 300;
 const emptySnapshot = () => EMPTY_CALL_SNAPSHOT;
 
 function isBlocked(room: RoomSummary): boolean {
@@ -71,8 +74,15 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
       resolvePeer: (userId) => resolvePinnedPeer(socket, userId),
       isPrivateRoomWith: (roomId, selfId, peerId) => isPrivateRoomWith(roomsRef.current, roomId, selfId, peerId),
       tabs,
-      acquireMedia: (kind) => acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: preferredAudioRef.current, videoInputId: preferredVideoRef.current }),
-      acquireCamera: () => acquireCameraTrack({ videoInputId: preferredVideoRef.current }),
+      acquireMedia: (kind) => {
+        const prefs = devicePrefs.get();
+        return acquireLocalMedia(kind, { audioProcessing: getAudioProcessing(), audioInputId: prefs.audioInput || undefined, videoInputId: prefs.videoInput || undefined, facing: prefs.facing });
+      },
+      acquireCamera: () => {
+        const prefs = devicePrefs.get();
+        return acquireCameraTrack({ videoInputId: prefs.videoInput || undefined, facing: prefs.facing });
+      },
+      acquireMicrophone: () => acquireMicrophoneTrack({ audioInputId: devicePrefs.get().audioInput || undefined, audioProcessing: getAudioProcessing() }),
       acquireScreen: () => acquireScreenShare(),
       createShareAudio: (track, volume) => createShareAudio(track, volume),
       getShareVolume,
@@ -127,8 +137,91 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
     }
   }, [phase]);
 
-  const preferredAudioRef = useRef<string | undefined>(undefined);
-  const preferredVideoRef = useRef<string | undefined>(undefined);
+  const [outputFallback, setOutputFallback] = useState(false);
+  const mediaRootRef = useRef<HTMLDivElement>(null);
+  const callRunning = phase !== 'idle' && phase !== 'ended';
+  const outputRef = useRef('');
+  outputRef.current = outputFallback ? '' : devicePrefs.get().audioOutput;
+
+  useEffect(() => {
+    if (!callRunning) {
+      return;
+    }
+    const route = routeCallOutput(mediaRootRef.current ?? document.body, () => outputRef.current);
+    const stop = devicePrefs.subscribe(() => {
+      outputRef.current = outputFallback ? '' : devicePrefs.get().audioOutput;
+      route.refresh();
+    });
+    return () => {
+      stop();
+      route.dispose();
+    };
+  }, [callRunning, outputFallback]);
+
+  const localStreamRef = useRef<MediaStream | null>(null);
+  localStreamRef.current = snapshot.localStream;
+  const cameraOnRef = useRef(false);
+  cameraOnRef.current = snapshot.cameraOn;
+  const mediaRunning = phase === 'active' || phase === 'reconnecting';
+
+  useEffect(() => {
+    if (!controller || !mediaRunning || !navigator.mediaDevices?.addEventListener) {
+      return;
+    }
+    let cancelled = false;
+    let busy = false;
+    let again = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const check = async () => {
+      if (busy) {
+        again = true;
+        return;
+      }
+      busy = true;
+      try {
+        const lists = await listDevices();
+        if (cancelled) {
+          return;
+        }
+        const stream = localStreamRef.current;
+        const prefs = devicePrefs.get();
+        const verdict = deviceFallback(lists, { mic: stream?.getAudioTracks()[0] ?? null, camera: cameraOnRef.current ? (stream?.getVideoTracks()[0] ?? null) : null, prefs });
+        setOutputFallback(verdict.output !== prefs.audioOutput);
+        await Promise.all([verdict.mic ? controller.switchMicrophone() : null, verdict.camera ? controller.switchCamera() : null]);
+      } finally {
+        busy = false;
+        if (again && !cancelled) {
+          again = false;
+          schedule();
+        }
+      }
+    };
+    const schedule = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      timer = setTimeout(() => {
+        timer = null;
+        void check();
+      }, DEVICE_CHANGE_SETTLE_MS);
+    };
+    void check();
+    navigator.mediaDevices.addEventListener('devicechange', schedule);
+    return () => {
+      cancelled = true;
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
+      navigator.mediaDevices.removeEventListener?.('devicechange', schedule);
+    };
+  }, [controller, mediaRunning]);
+
+  const rememberFacing = useCallback(() => {
+    const facing = localStreamRef.current?.getVideoTracks()[0]?.getSettings?.().facingMode;
+    if (facing === 'user' || facing === 'environment') {
+      devicePrefs.set({ facing });
+    }
+  }, []);
   const [statusBars, setStatusBars] = useState(0);
   const registerStatusBar = useCallback(() => {
     setStatusBars((count) => count + 1);
@@ -157,19 +250,6 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
       void controller.startCall({ roomId, peerId, kind });
     },
     [controller, primeCallAudio],
-  );
-
-  const replaceTrackFromDevice = useCallback(
-    (constraints: MediaStreamConstraints, apply: (track: MediaStreamTrack) => Promise<void>) => {
-      void navigator.mediaDevices
-        .getUserMedia(constraints)
-        .then((stream) => {
-          const track = stream.getTracks()[0];
-          return track ? apply(track) : undefined;
-        })
-        .catch(() => undefined);
-    },
-    [],
   );
 
   const screenShareSupported = supportsScreenShare();
@@ -266,19 +346,22 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
       void controller?.transferHere();
     },
     changeAudioInput: (deviceId) => {
-      preferredAudioRef.current = deviceId || undefined;
-      replaceTrackFromDevice({ audio: audioConstraints(deviceId || undefined, getAudioProcessing()) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());
+      devicePrefs.set({ audioInput: deviceId });
+      void controller?.switchMicrophone();
     },
     changeVideoInput: (deviceId) => {
-      preferredVideoRef.current = deviceId || undefined;
-      if (snapshot.cameraOn) {
-        replaceTrackFromDevice({ video: videoConstraints(isMobileDevice(), deviceId || undefined) }, (track) => controller?.replaceVideoInput(track) ?? Promise.resolve());
-      }
+      devicePrefs.set({ videoInput: deviceId });
+      void controller?.switchCamera().then(rememberFacing);
+    },
+    changeAudioOutput: (deviceId) => {
+      setOutputFallback(false);
+      devicePrefs.set({ audioOutput: deviceId });
     },
     changeAudioProcessing: (patch: Partial<AudioProcessing>) => {
-      const next = setAudioProcessing(patch);
-      replaceTrackFromDevice({ audio: audioConstraints(preferredAudioRef.current, next) }, (track) => controller?.replaceAudioInput(track) ?? Promise.resolve());
+      setAudioProcessing(patch);
+      void controller?.switchMicrophone();
     },
+    changeScreenSource: () => void controller?.changeScreenSource(),
     primePlayback,
     hasStatusBar: statusBars > 0,
     registerStatusBar,
@@ -299,8 +382,10 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   return (
     <CallContext value={api}>
       {children}
-      <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
-      <CallScreen videoRef={remoteRef} voiceRef={voiceRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
+      <div ref={mediaRootRef} style={{ display: 'contents' }}>
+        <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
+      </div>
+      <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
       <CallMiniBar />
       <IncomingCallModal />
       <CallNotices />

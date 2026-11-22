@@ -2163,6 +2163,319 @@ describe('voice leveling', () => {
   });
 });
 
+describe('live device switching', () => {
+  interface FakeTrack {
+    kind: string;
+    label: string;
+    enabled: boolean;
+    readyState: string;
+    stop: () => void;
+  }
+
+  function fakeTrack(kind: string, label: string, log: string[]): FakeTrack {
+    const track: FakeTrack = {
+      kind,
+      label,
+      enabled: true,
+      readyState: 'live',
+      stop: () => {
+        track.readyState = 'ended';
+        log.push(`stop ${label}`);
+      },
+    };
+    return track;
+  }
+
+  function liveStream(initial: FakeTrack[]) {
+    const tracks: FakeTrack[] = [...initial];
+    return {
+      tracks,
+      stream: {
+        getTracks: () => [...tracks],
+        getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+        getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+        addTrack: (track: FakeTrack) => void tracks.push(track),
+        removeTrack: (track: FakeTrack) => void tracks.splice(tracks.indexOf(track), 1),
+      } as unknown as MediaStream,
+    };
+  }
+
+  async function cameraCall(options: { cameras?: Array<FakeTrack | null>; mics?: Array<FakeTrack | null>; leveler?: VoiceLeveler } = {}) {
+    const log: string[] = [];
+    const mic = fakeTrack('audio', 'mic-a', log);
+    const camera = fakeTrack('video', 'cam-a', log);
+    const media = liveStream([mic, camera]);
+    const cameras = options.cameras ?? [];
+    const mics = options.mics ?? [];
+    const w = await world({
+      alice: {
+        acquireMedia: () => Promise.resolve({ stream: media.stream, cameraFailed: false }),
+        acquireCamera: () => {
+          log.push('acquire camera');
+          return Promise.resolve((cameras.shift() ?? null) as unknown as MediaStreamTrack | null);
+        },
+        acquireMicrophone: () => {
+          log.push('acquire mic');
+          return Promise.resolve((mics.shift() ?? null) as unknown as MediaStreamTrack | null);
+        },
+        ...(options.leveler ? { createVoiceLeveler: () => options.leveler! } : {}),
+        createPeerSession: (peerOptions) => {
+          const peer = new FakePeer(peerOptions);
+          peer.setVideoTrack = (track) => {
+            peer.videoTrack = track;
+            log.push(`send video ${(track as unknown as FakeTrack | null)?.label ?? 'none'}`);
+            return Promise.resolve();
+          };
+          peer.setAudioTrack = (track?: MediaStreamTrack) => {
+            log.push(`send audio ${(track as unknown as FakeTrack | undefined)?.label ?? 'none'}`);
+            return Promise.resolve();
+          };
+          w.a.peers.push(peer);
+          return peer;
+        },
+      },
+    });
+    await connectCall(w, 'video');
+    w.a.peers[0]!.options.onConnection('connected');
+    log.length = 0;
+    return { w, log, mic, camera, media, peer: w.a.peers[0]! };
+  }
+
+  it('switches the camera instantly on the existing sender and stops the old camera only after the new one is sent', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const call = await cameraCall({ cameras: [next] });
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(true);
+
+    await call.w.a.controller.switchCamera();
+
+    expect(call.log).toEqual(['acquire camera', 'send video cam-b', 'stop cam-a']);
+    expect(call.media.tracks).toContain(next);
+    expect(call.media.tracks).not.toContain(call.camera);
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: true, cameraFailed: false });
+    expect(call.w.a.controller.getSnapshot().localStream).toBe(call.media.stream);
+    expect(call.w.a.socket.sent('call:hangup')).toHaveLength(0);
+  });
+
+  it('releases the old camera and retries when the device cannot open two cameras at once, as phones do', async () => {
+    const next = fakeTrack('video', 'cam-back', []);
+    const call = await cameraCall({ cameras: [null, next] });
+
+    await call.w.a.controller.switchCamera();
+
+    expect(call.log).toEqual(['acquire camera', 'stop cam-a', 'acquire camera', 'send video cam-back']);
+    expect(call.media.tracks).toContain(next);
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(true);
+  });
+
+  it('turns the camera off cleanly when no camera can be opened at all', async () => {
+    const call = await cameraCall({ cameras: [null, null] });
+
+    await call.w.a.controller.switchCamera();
+
+    expect(call.peer.videoTrack).toBeNull();
+    expect(call.media.tracks.some((track) => track.kind === 'video')).toBe(false);
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, cameraFailed: true });
+  });
+
+  it('does not open a camera when the camera is off, the choice applies when it is turned on', async () => {
+    const call = await cameraCall({ cameras: [fakeTrack('video', 'cam-b', [])] });
+    await call.w.a.controller.toggleCamera();
+    call.log.length = 0;
+
+    await call.w.a.controller.switchCamera();
+
+    expect(call.log).toEqual([]);
+  });
+
+  it('keeps the newest choice when the camera is switched twice quickly', async () => {
+    const second = fakeTrack('video', 'cam-b', []);
+    const third = fakeTrack('video', 'cam-c', []);
+    const call = await cameraCall({ cameras: [second, third] });
+
+    await Promise.all([call.w.a.controller.switchCamera(), call.w.a.controller.switchCamera()]);
+
+    expect(call.media.tracks.filter((track) => track.kind === 'video')).toEqual([third]);
+    expect(second.readyState).toBe('ended');
+    expect(call.peer.videoTrack).toBe(third);
+  });
+
+  it('switches the microphone live, keeping the mute state, before stopping the old one', async () => {
+    const next = fakeTrack('audio', 'mic-b', []);
+    const call = await cameraCall({ mics: [next] });
+    call.w.a.controller.toggleMute();
+    call.log.length = 0;
+
+    await call.w.a.controller.switchMicrophone();
+
+    expect(call.log).toEqual(['acquire mic', 'send audio mic-b', 'stop mic-a']);
+    expect(next.enabled).toBe(false);
+    expect(call.media.tracks).toContain(next);
+    expect(call.w.a.controller.getSnapshot().muted).toBe(true);
+  });
+
+  it('routes a new microphone through the existing processing chain', async () => {
+    const next = fakeTrack('audio', 'mic-b', []);
+    const inputs: unknown[] = [];
+    const output = { kind: 'audio', label: 'leveled', enabled: true } as unknown as MediaStreamTrack;
+    const leveler: VoiceLeveler = {
+      track: output,
+      processed: true,
+      sendStream: () => ({ getAudioTracks: () => [output], getVideoTracks: () => [], getTracks: () => [output] }) as unknown as MediaStream,
+      setInput: (track) => {
+        inputs.push(track);
+        return output;
+      },
+      setVolume: () => undefined,
+      setMuted: () => undefined,
+      close: () => undefined,
+    };
+    const call = await cameraCall({ mics: [next], leveler });
+
+    await call.w.a.controller.switchMicrophone();
+
+    expect(inputs).toEqual([next]);
+    expect(call.log).toEqual(['acquire mic', 'send audio leveled', 'stop mic-a']);
+  });
+
+  it('rewires the old microphone into the processing chain when sending the new one fails', async () => {
+    const next = fakeTrack('audio', 'mic-b', []);
+    const inputs: unknown[] = [];
+    const output = { kind: 'audio', label: 'leveled', enabled: true } as unknown as MediaStreamTrack;
+    const leveler: VoiceLeveler = {
+      track: output,
+      processed: true,
+      sendStream: () => ({ getAudioTracks: () => [output], getVideoTracks: () => [], getTracks: () => [output] }) as unknown as MediaStream,
+      setInput: (track) => {
+        inputs.push(track);
+        return output;
+      },
+      setVolume: () => undefined,
+      setMuted: () => undefined,
+      close: () => undefined,
+    };
+    const call = await cameraCall({ mics: [next], leveler });
+    call.peer.setAudioTrack = () => Promise.reject(new Error('replace failed'));
+
+    await call.w.a.controller.switchMicrophone();
+
+    expect(inputs).toEqual([next, call.mic]);
+    expect(next.readyState).toBe('ended');
+    expect(call.mic.readyState).toBe('live');
+    expect(call.media.tracks).toContain(call.mic);
+  });
+
+  it('turns the camera off cleanly when the retry opened a camera but sending it fails', async () => {
+    const next = fakeTrack('video', 'cam-back', []);
+    const call = await cameraCall({ cameras: [null, next] });
+    const original = call.peer.setVideoTrack.bind(call.peer);
+    call.peer.setVideoTrack = (track) => (track ? Promise.reject(new Error('replace failed')) : original(track));
+
+    await call.w.a.controller.switchCamera();
+
+    expect(next.readyState).toBe('ended');
+    expect(call.media.tracks.some((track) => track.kind === 'video')).toBe(false);
+    expect(call.peer.videoTrack).toBeNull();
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, cameraFailed: true });
+  });
+
+  it('keeps the old camera when sending the new one fails and the old one is still open', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const call = await cameraCall({ cameras: [next] });
+    call.peer.setVideoTrack = () => Promise.reject(new Error('replace failed'));
+
+    await call.w.a.controller.switchCamera();
+
+    expect(next.readyState).toBe('ended');
+    expect(call.camera.readyState).toBe('live');
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(true);
+  });
+
+  it('keeps the old microphone when no other microphone can be opened even after releasing it', async () => {
+    const call = await cameraCall({ mics: [null, null] });
+
+    await call.w.a.controller.switchMicrophone();
+
+    expect(call.log).toEqual(['acquire mic']);
+    expect(call.mic.readyState).toBe('live');
+    expect(call.media.tracks).toContain(call.mic);
+  });
+});
+
+describe('changing the shared screen', () => {
+  it('swaps the shared source on the same sender without stopping the share', async () => {
+    const first = screenStream();
+    const second = screenStream(false);
+    const screens = [first.stream, second.stream];
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(screens.shift() ?? null), stopMedia: (stream) => { for (const track of stream?.getTracks() ?? []) { track.stop(); } } } });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    w.b.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+    const peer = w.a.peers[0]!;
+
+    await w.a.controller.changeScreenSource();
+
+    expect(peer.screenTracks.at(-1)).toEqual({ video: second.video, audio: null });
+    expect(peer.screenTracks.some((entry) => entry.video === null)).toBe(false);
+    expect(first.video.stopped).toBe(true);
+    expect(second.video.stopped).toBe(false);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: true, localScreenStream: second.stream, shareAudio: false });
+
+    first.end();
+    await settle();
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(true);
+    second.end();
+    await settle();
+    expect(w.a.controller.getSnapshot().screenSharing).toBe(false);
+  });
+
+  it('releases the new capture when preparing it throws and allows another try', async () => {
+    const first = screenStream();
+    const second = screenStream();
+    const third = screenStream(false);
+    const screens = [first.stream, second.stream, third.stream];
+    let fail = false;
+    const w = await world({
+      alice: {
+        acquireScreen: () => Promise.resolve(screens.shift() ?? null),
+        applyShareConstraints: () => (fail ? Promise.reject(new Error('constraints')) : Promise.resolve()),
+        stopMedia: (stream) => {
+          for (const track of stream?.getTracks() ?? []) {
+            track.stop();
+          }
+        },
+      },
+    });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+    fail = true;
+
+    await w.a.controller.changeScreenSource();
+
+    expect(second.video.stopped).toBe(true);
+    expect(first.video.stopped).toBe(false);
+    expect(w.a.controller.getSnapshot().localScreenStream).toBe(first.stream);
+    fail = false;
+    await w.a.controller.changeScreenSource();
+    expect(w.a.controller.getSnapshot().localScreenStream).toBe(third.stream);
+  });
+
+  it('keeps the current share when picking another source is cancelled', async () => {
+    const first = screenStream();
+    const screens: Array<MediaStream | null> = [first.stream, null];
+    const w = await world({ alice: { acquireScreen: () => Promise.resolve(screens.shift() ?? null) } });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    await w.a.controller.toggleScreenShare();
+
+    await w.a.controller.changeScreenSource();
+
+    expect(first.video.stopped).toBe(false);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ screenSharing: true, localScreenStream: first.stream });
+  });
+});
+
 describe('call transfer between devices', () => {
   async function transferWorld() {
     const w = await world();

@@ -110,3 +110,17 @@ describe('DevicePicker duck level', () => {
     expect(screen.queryByRole('slider', { name: 'calls.broadcast.duckLevel' })).toBeNull();
   });
 });
+
+describe('DevicePicker share source', () => {
+  it('offers to change the shared screen without stopping the share', () => {
+    const onChangeSource = vi.fn();
+    renderPicker(sharer('none', { onChangeSource }));
+    fireEvent.click(screen.getByRole('button', { name: /calls.broadcast.changeSource/ }));
+    expect(onChangeSource).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the option when the source cannot be changed', () => {
+    renderPicker(sharer('none'));
+    expect(screen.queryByRole('button', { name: /calls.broadcast.changeSource/ })).toBeNull();
+  });
+});
