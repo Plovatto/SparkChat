@@ -11,6 +11,7 @@ import { consumeEscape } from '../utils/escape-key';
 import { GIF_QUERY_MAX_LENGTH } from '../utils/gif-gallery-controller';
 import { gifColumnCount, isGridKey, layoutMasonry, moveInMasonry } from '../utils/masonry-layout';
 import { GifTile } from './GifTile';
+import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 
 const GIF_SEARCH_HEIGHT = 42;
 
@@ -64,17 +65,7 @@ export function GifPanel({ auth, locale, onPick, onClose, onDismiss, ignoreOutsi
     }
   }, [autoFocusSearch]);
 
-  useEffect(() => {
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (!target || panelRef.current?.contains(target) || ignoreOutsideRef?.current?.contains(target)) {
-        return;
-      }
-      onClose();
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [onClose, ignoreOutsideRef]);
+  useOutsidePointerDown(true, [panelRef, ignoreOutsideRef], onClose);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;

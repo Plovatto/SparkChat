@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuCheck, LuCopy, LuCrown, LuEllipsisVertical, LuUserMinus } from 'react-icons/lu';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { getDisplayName } from '@lib/format';
 import type { RoomParticipant } from '@lib/socket';
+import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 
 interface MemberRowProps {
   participant: RoomParticipant;
@@ -47,18 +48,7 @@ export function MemberRow({ participant, currentUserId, subtitle, canManage, isC
     setMenuPlacement(spaceBelow < menuHeight + 6 && spaceAbove > spaceBelow ? 'top' : 'bottom');
   }, [isMenuOpen]);
 
-  useEffect(() => {
-    if (!isMenuOpen) {
-      return;
-    }
-    const closeOnOutside = (event: PointerEvent) => {
-      if (rowRef.current && event.target instanceof Node && !rowRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', closeOnOutside);
-    return () => document.removeEventListener('pointerdown', closeOnOutside);
-  }, [isMenuOpen]);
+  useOutsidePointerDown(isMenuOpen, [rowRef], () => setIsMenuOpen(false));
 
   const handleMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
