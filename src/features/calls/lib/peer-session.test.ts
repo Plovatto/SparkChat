@@ -18,6 +18,7 @@ import {
   CREDENTIAL_REFRESH_MS,
   DISCONNECTED_RESTART_DELAY_MS,
   DTLS_VERIFY_TIMEOUT_MS,
+  VIDEO_MIN_ADAPTIVE_BITRATE,
   MAX_REMOTE_CANDIDATES,
   PeerSession,
   SCREEN_DEGRADED_MAX_BITRATE,
@@ -947,6 +948,32 @@ describe('bitrate caps and degrade', () => {
     return h.connection.transceivers.find((transceiver) => transceiver.receiver.track.kind === kind)?.sender.parameters.encodings[0]?.maxBitrate;
   }
 
+  it('fits the camera into the measured uplink and gives the quality back when the link recovers', async () => {
+    const h = await connected();
+    const uplink = (bps: number) =>
+      h.connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local', availableOutgoingBitrate: bps });
+
+    uplink(500_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(Math.floor(500_000 * 0.75) - AUDIO_MAX_BITRATE);
+
+    uplink(520_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(Math.floor(500_000 * 0.75) - AUDIO_MAX_BITRATE);
+
+    uplink(4_000_000);
+    await h.session.refreshBandwidth();
+    expect(bitrate(h, 'video')).toBe(VIDEO_MAX_BITRATE);
+  });
+
+  it('never squeezes the camera below a usable floor on a very slow uplink', async () => {
+    const h = await connected();
+    h.connection.stats.set('pair', { type: 'candidate-pair', nominated: true, state: 'succeeded', localCandidateId: 'local', availableOutgoingBitrate: 60_000 });
+    await h.session.refreshBandwidth();
+
+    expect(bitrate(h, 'video')).toBe(VIDEO_MIN_ADAPTIVE_BITRATE);
+  });
+
   it('caps audio at 32 kbps and video at 1.5 Mbps', async () => {
     const h = await connected();
 
@@ -1830,6 +1857,49 @@ describe('connection recovery', () => {
     h.connection.iceConnectionState = 'disconnected';
     h.session.recoverIfUnhealthy('online');
     expect(restarts).toEqual([{ reason: 'online', relay: false }]);
+  });
+
+  it('sends the pending offer again when the first one was lost before the call ever connected', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(0);
+    const offers = () => h.signals.filter((signal) => signal.type === 'offer').length;
+    const sent = offers();
+    expect(h.connection.signalingState).toBe('have-local-offer');
+
+    h.session.recoverIfUnhealthy('resync');
+    await settle();
+
+    expect(offers()).toBe(sent + 1);
+  });
+
+  it('keeps resending the pending offer on the retry ladder while the first connection never comes up', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    const offers = () => h.signals.filter((signal) => signal.type === 'offer').length;
+    const sent = offers();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(offers()).toBeGreaterThan(sent + 2);
+  });
+
+  it('never makes the callee negotiate or restart before the first offer arrived, so a late offer still applies', async () => {
+    const h = build('callee');
+    h.session.start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(60_000);
+    h.connection.onnegotiationneeded?.();
+    await settle();
+
+    expect(h.signals.filter((signal) => signal.type === 'offer')).toHaveLength(0);
+    expect(h.connection.restartCalls).toBe(0);
+
+    await h.session.receiveSignal('offer', remoteDescription('offer'));
+    await settle();
+    expect(h.signals.filter((signal) => signal.type === 'answer')).toHaveLength(1);
   });
 
   it('keeps a direct route alive with a control ping every 5 seconds after verification', async () => {
