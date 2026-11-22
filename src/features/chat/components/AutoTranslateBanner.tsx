@@ -8,9 +8,10 @@ interface AutoTranslateBannerProps {
   language: Language;
   onAccept: () => void;
   onDismiss: () => void;
+  isExiting?: boolean;
 }
 
-export function AutoTranslateBanner({ language, onAccept, onDismiss }: AutoTranslateBannerProps) {
+export function AutoTranslateBanner({ language, onAccept, onDismiss, isExiting = false }: AutoTranslateBannerProps) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const titleId = useId();
@@ -19,7 +20,7 @@ export function AutoTranslateBanner({ language, onAccept, onDismiss }: AutoTrans
     <div
       role="region"
       aria-labelledby={titleId}
-      className="sc-anim-rise-in"
+      className={isExiting ? 'sc-anim-rise-out' : 'sc-anim-rise-in'}
       style={{
         display: 'flex',
         alignItems: 'center',
