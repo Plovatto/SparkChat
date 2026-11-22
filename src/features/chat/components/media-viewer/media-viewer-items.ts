@@ -1,6 +1,7 @@
 import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageFileMeta, RoomParticipant } from '@lib/socket';
 import type { ChatMessage } from '../../types';
+import { resolveSenderAvatar } from '../../utils/sender-avatar';
 
 export type MediaViewerKind = 'image' | 'video';
 
@@ -46,7 +47,7 @@ export function toMediaViewerItems(messages: readonly ChatMessage[], participant
         caption: message.caption?.trim() ? message.caption.trim() : null,
         senderId: message.sender.id,
         senderName: participant?.nickname ?? message.sender.nickname,
-        senderAvatar: participant?.avatar,
+        senderAvatar: resolveSenderAvatar(participants, message.sender),
         timestamp: message.timestamp,
         isGif: message.type === 'image' && isGifMimeType(message.fileMeta?.mimeType),
         message,
