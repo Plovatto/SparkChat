@@ -487,9 +487,52 @@ async function track(client: Client, roomId: string, activeCreation = false): Pr
   await client.roomKeys.trackRoom(client.socket.asAppSocket(), server.summary(roomId), { activeCreation, ...(groupName ? { groupName } : {}) });
 }
 
+const nativeSetTimeout = globalThis.setTimeout;
+const nativeClearTimeout = globalThis.clearTimeout;
+const pendingCrypto = new Set<Promise<unknown>>();
+const immediateHandles = new WeakSet<object>();
+const TRACKED_SUBTLE_METHODS = ['importKey', 'sign', 'verify', 'digest', 'generateKey', 'encrypt', 'decrypt'] as const;
+
+function nextTurn(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+function installDeterministicScheduling(): void {
+  const zeroDelayTimeout = (handler: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    if (delay && delay > 0) {
+      return nativeSetTimeout(handler, delay, ...args);
+    }
+    const handle = setImmediate(handler, ...args);
+    immediateHandles.add(handle);
+    return handle;
+  };
+  const clearAnyTimeout = (handle?: unknown) => {
+    if (handle && typeof handle === 'object' && immediateHandles.has(handle)) {
+      clearImmediate(handle as NodeJS.Immediate);
+      return;
+    }
+    nativeClearTimeout(handle as NodeJS.Timeout);
+  };
+  vi.stubGlobal('setTimeout', zeroDelayTimeout);
+  vi.stubGlobal('clearTimeout', clearAnyTimeout);
+  for (const method of TRACKED_SUBTLE_METHODS) {
+    const original = crypto.subtle[method].bind(crypto.subtle) as (...args: unknown[]) => Promise<unknown>;
+    vi.spyOn(crypto.subtle, method).mockImplementation(((...args: unknown[]) => {
+      const operation = original(...args);
+      pendingCrypto.add(operation);
+      const forget = () => pendingCrypto.delete(operation);
+      operation.then(forget, forget);
+      return operation;
+    }) as never);
+  }
+}
+
 async function settle(): Promise<void> {
   for (let round = 0; round < 20; round += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    while (pendingCrypto.size > 0) {
+      await Promise.allSettled(Array.from(pendingCrypto));
+    }
+    await nextTurn();
   }
 }
 
@@ -528,6 +571,8 @@ beforeEach(() => {
   storeState.generations.clear();
   storeState.pins.clear();
   warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  pendingCrypto.clear();
+  installDeterministicScheduling();
   vi.stubGlobal('window', globalThis);
 });
 

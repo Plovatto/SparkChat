@@ -24,10 +24,13 @@ const themeState = {
   getRoomAppearance: vi.fn(() => ({ ...DEFAULT_CHAT_APPEARANCE })),
 };
 
+const TILE_IDS = new Set(['default', 'gradient3']);
+
 vi.mock('@features/theme', async (importOriginal) => {
   const actual = await importOriginal<ThemeModule>();
   return {
     ...actual,
+    CHAT_BACKGROUNDS: actual.CHAT_BACKGROUNDS.filter((background) => TILE_IDS.has(background.id)),
     useTheme: () => ({ theme: buildTheme('dark', 'duskViolet').tokens, ...themeState }),
     useThemeNames: () => ({ color: (id: string) => id, base: (id: string) => id, wallpaper: (id: string) => `wallpaper:${id}` }),
   };
