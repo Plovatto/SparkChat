@@ -3076,3 +3076,89 @@ describe('push notification actions', () => {
     expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'declined' });
   });
 });
+
+describe('same tab recovery and glare', () => {
+  it('sends the tab token with sync, start, accept and heartbeats', async () => {
+    const w = await world({ alice: { tabDevice: () => 'tab-alice-0123456789' }, bob: { tabDevice: () => 'tab-bobby-0123456789' } });
+    w.a.socket.receive('connect', undefined);
+    expect(w.a.socket.sent('call:sync').at(-1)).toMatchObject({ device: 'tab-alice-0123456789' });
+
+    await connectCall(w);
+    expect(w.a.socket.sent('call:start')[0]).toMatchObject({ device: 'tab-alice-0123456789' });
+    expect(w.b.socket.sent('call:accept')[0]).toMatchObject({ device: 'tab-bobby-0123456789' });
+    w.a.socket.connected = true;
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ device: 'tab-alice-0123456789' });
+  });
+
+  it('resumes the call by itself after a reload when the server says this tab owned it', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'mineAAAAAAAAAAAAAAAAAA', state: 'active', roomId: 'room-1', kind: 'video', peerId: 'bob', role: 'caller', transferable: true, resumable: true, answeredAt: null, media: { muted: true, camera: false } });
+    await settle();
+
+    expect(w.a.socket.sent('call:transfer')).toEqual([expect.objectContaining({ callId: 'mineAAAAAAAAAAAAAAAAAA' })]);
+    expect(w.a.controller.getSnapshot()).toMatchObject({ otherDevice: null, muted: true });
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+  });
+
+  it('still only offers the switch for a call of another tab or device', async () => {
+    const w = await world();
+    w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', transferable: true });
+    await settle();
+
+    expect(w.a.socket.sent('call:transfer')).toEqual([]);
+    expect(w.a.controller.getSnapshot().otherDevice).toMatchObject({ callId: 'elsewhere' });
+  });
+
+  it('connects one call when both sides call each other at the same time', async () => {
+    const w = await world();
+    const aRoute = w.a.socket.onEmit;
+    const bRoute = w.b.socket.onEmit;
+    let aStart: Record<string, unknown> | null = null;
+    w.a.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        aStart = payload;
+      }
+      aRoute?.(event, payload);
+    };
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        w.b.socket.receive('error', { event: 'call:start', code: 'call.alreadyInCall', message: 'x', params: { callId: payload.callId } });
+        return;
+      }
+      if (event === 'call:sync' && aStart) {
+        w.b.socket.receive('call:incoming', { callId: aStart.callId, roomId: aStart.roomId, kind: aStart.kind, callerId: 'alice', envelope: aStart.envelope, ringExpiresAt: 1 });
+        return;
+      }
+      bRoute?.(event, payload);
+    };
+
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+    await settle();
+
+    expect(w.b.controller.getSnapshot().notice).toBeNull();
+    expect(w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId: (aStart as unknown as Record<string, unknown>).callId })]);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
+  it('does not auto answer a later call from someone who was simply busy', async () => {
+    const w = await world();
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        w.b.socket.receive('error', { event: 'call:start', code: 'call.peerBusy', message: 'x', params: { callId: payload.callId } });
+      }
+    };
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'busy' });
+    w.b.controller.dismissEnded();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+  });
+});
