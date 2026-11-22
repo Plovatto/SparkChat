@@ -306,10 +306,13 @@ describe('failed sign-up photo', () => {
     }
   });
 
-  it('gives up right away on errors that a retry cannot fix', async () => {
+  it.each([
+    [{ code: 'upload.tooLarge', params: { kind: 'avatar' } }, 400],
+    [{ code: 'upload.newAccountQuotaExceeded' }, 507],
+  ])('gives up right away on errors that a retry cannot fix (%o)', async (payload, status) => {
     vi.useFakeTimers();
     try {
-      fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ code: 'upload.tooLarge', params: { kind: 'avatar' } }), { status: 400 })));
+      fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify(payload), { status })));
       vi.stubGlobal('fetch', fetchMock);
       state.session = { id: 'u1', sessionToken: 'token' };
       setIdentity('u1');
