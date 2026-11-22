@@ -92,5 +92,5 @@ export function renderItemMessages(item: RenderItem): ChatMessage[] {
 }
 
 export function renderItemKey(item: RenderItem): string {
-  return item.kind === 'single' ? item.message.id : `group-${item.messages[0].id}`;
+  return item.kind === 'single' ? (item.message.renderKey ?? item.message.id) : `group-${item.messages[0].renderKey ?? item.messages[0].id}`;
 }

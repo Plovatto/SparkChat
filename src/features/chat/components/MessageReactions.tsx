@@ -100,6 +100,10 @@ function ReactionChip({ chip, names, compact, showCount, disabled, onToggle, onS
   const longPress = useLongPress({ onLongPress: () => onShowReactors(summary.emoji), enabled: compact && phase !== 'exit' });
   const title = t('chat.reactions.chipTitle', { count: summary.count, names, emoji: summary.emoji });
   const phaseClass = phase === 'enter' ? ' sc-reaction-chip--in' : phase === 'exit' ? ' sc-reaction-chip--out' : '';
+  const [burst, setBurst] = useState(() => ({ own: summary.includesOwn, key: phase === 'enter' && summary.includesOwn ? 1 : 0 }));
+  if (burst.own !== summary.includesOwn) {
+    setBurst({ own: summary.includesOwn, key: summary.includesOwn ? burst.key + 1 : burst.key });
+  }
 
   return (
     <li
@@ -126,7 +130,11 @@ function ReactionChip({ chip, names, compact, showCount, disabled, onToggle, onS
           onToggle(summary.emoji);
         }}
       >
-        <span className="sc-reaction-chip__emoji" aria-hidden="true">
+        <span
+          key={`emoji-${burst.key}`}
+          className={`sc-reaction-chip__emoji${burst.key > 0 ? ' sc-reaction-chip__emoji--burst' : ''}`}
+          aria-hidden="true"
+        >
           {summary.emoji}
         </span>
         {showCount && !compact && (
@@ -151,6 +159,7 @@ function ReactionChip({ chip, names, compact, showCount, disabled, onToggle, onS
           </span>
         </button>
       )}
+      {burst.key > 0 && <span key={`burst-${burst.key}`} className="sc-reaction-burst" aria-hidden="true" />}
     </li>
   );
 }

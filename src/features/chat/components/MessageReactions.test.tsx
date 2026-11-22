@@ -146,4 +146,18 @@ describe('MessageReactions', () => {
     fireEvent.click(toggle);
     expect(onToggle).toHaveBeenCalledWith('❤️');
   });
+  it('bursts only when the current user adds a reaction, never for existing or others reactions', () => {
+    const { container, rerenderWith } = renderChips({ reactions: reactions([['ana', '😂']]) });
+    expect(container.querySelector('.sc-reaction-burst')).toBeNull();
+
+    rerenderWith({ reactions: reactions([['ana', '😂'], ['bia', '😂']]) });
+    expect(container.querySelector('.sc-reaction-burst')).toBeNull();
+
+    rerenderWith({ reactions: reactions([['ana', '😂'], ['bia', '😂'], ['me', '😂']]) });
+    expect(container.querySelectorAll('.sc-reaction-burst')).toHaveLength(1);
+    expect(container.querySelector('.sc-reaction-chip__emoji--burst')).not.toBeNull();
+
+    rerenderWith({ reactions: reactions([['ana', '😂'], ['bia', '😂'], ['me', '😂'], ['me', '🔥']]) });
+    expect(container.querySelectorAll('.sc-reaction-burst')).toHaveLength(2);
+  });
 });

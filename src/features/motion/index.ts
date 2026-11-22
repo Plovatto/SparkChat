@@ -7,3 +7,6 @@ export { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion';
 export { useEntranceGate } from './hooks/useEntranceGate';
 export type { EntranceGate, EntrancePhase } from './hooks/useEntranceGate';
 export { Collapse } from './components/Collapse';
+
+export { useChangedSinceMount } from './hooks/useChangedSinceMount';
+export { useFlipReorder } from './hooks/useFlipReorder';

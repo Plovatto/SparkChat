@@ -17,3 +17,4 @@ export { resolveBubbleStyle } from './utils/resolve-bubble-style';
 export type { ResolvedBubbleStyle } from './utils/resolve-bubble-style';
 export { getContrastTextColor } from './utils/contrast-text-color';
 export { useThemeNames, type ThemeNames } from './hooks/useThemeNames';
+export { originFromElement, revealThemeChange, type RevealOrigin } from './utils/theme-reveal';

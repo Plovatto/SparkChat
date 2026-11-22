@@ -69,7 +69,7 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
     getNotifications: (tag) =>
       Promise.resolve(
         shown
-          .filter((entry) => !entry.closed && entry.options.tag === tag)
+          .filter((entry) => !entry.closed && (tag === '' || entry.options.tag === tag))
           .map<WorkerNotification>((entry) => ({
             tag,
             data: entry.options.data,
@@ -388,6 +388,25 @@ describe('handleNotificationClick', () => {
     const empty = fakeEnv();
     await handleNotificationClick(empty.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), 'decline');
     expect(empty.opened).toEqual([]);
+  });
+
+  it('treats a stale call notification from a call that already expired as a plain room notification', async () => {
+    const { env, opened, armed, declined } = fakeEnv();
+    const stale = notification({ kind: 'call', callId: 'c1', roomId: 'r1', declineToken: 'dXNlcg.1.abc', ringExpiresAt: 500 });
+    await handleNotificationClick(env, stale, 'answer');
+    await handleNotificationClick(env, stale, 'decline');
+
+    expect(opened).toEqual(['https://chat.example/app/?room=r1']);
+    expect(armed).toEqual([]);
+    expect(declined).toEqual([]);
+  });
+
+  it('closes call notifications whose ring expired when a new call arrives, even if their end push was lost', async () => {
+    const { env, visible } = fakeEnv();
+    await handlePush(env, createWorkerState(), { t: 'call', callId: 'old', roomId: 'r1', kind: 'voice', e: 500 });
+    await handlePush(env, createWorkerState(), { t: 'call', callId: 'new', roomId: 'r1', kind: 'voice', e: 50_000 });
+
+    expect(visible().map((entry) => (entry.options.data as { callId: string }).callId)).toEqual(['new']);
   });
 
   it('declines on the server with the token even when no window is open, and survives a failed request', async () => {

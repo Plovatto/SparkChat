@@ -485,6 +485,7 @@ export class PeerSession {
   private relayCredentialsDropped = false;
   private relayRefresh: Promise<void> | null = null;
   private uplinkBps: number | null = null;
+  private reportedDegrade: DegradeStep | null = null;
 
   constructor(options: PeerSessionOptions) {
     this.options = options;
@@ -803,13 +804,8 @@ export class PeerSession {
       if (this.verified) {
         this.options.onConnection('connected');
       }
-      if (first && !this.verified && this.dtlsTimer === null) {
-        this.dtlsTimer = setTimeout(() => {
-          this.dtlsTimer = null;
-          if (!this.verified) {
-            this.fatal('fingerprint-mismatch');
-          }
-        }, DTLS_VERIFY_TIMEOUT_MS);
+      if (!this.verified && this.dtlsTimer === null) {
+        this.armDtlsWatchdog();
       }
       if (first || !this.dtlsChecked) {
         this.verifyDtls();
@@ -838,6 +834,20 @@ export class PeerSession {
         this.recover('failed');
       }
     }
+  }
+
+  private armDtlsWatchdog(): void {
+    this.dtlsTimer = setTimeout(() => {
+      this.dtlsTimer = null;
+      if (this.closed || this.verified) {
+        return;
+      }
+      this.dtlsChecked = false;
+      this.verifyDtls();
+      if (!this.verified && !this.closed) {
+        this.armDtlsWatchdog();
+      }
+    }, DTLS_VERIFY_TIMEOUT_MS);
   }
 
   isIceHealthy(): boolean {
@@ -1017,10 +1027,6 @@ export class PeerSession {
     }
     const transport = this.dtlsTransport();
     if (!transport) {
-      if (this.connected) {
-        this.dtlsChecked = true;
-        this.fatal('fingerprint-mismatch');
-      }
       return;
     }
     if (this.watchedTransport !== transport) {
@@ -1161,21 +1167,22 @@ export class PeerSession {
     this.sendControl({ t: 'mute', on: muted });
   }
 
-  async setVideoTrack(track: MediaStreamTrack | null): Promise<void> {
+  async setVideoTrack(track: MediaStreamTrack | null): Promise<boolean> {
     const transceiver = this.cameraTransceiver();
     if (!transceiver) {
-      return;
+      return true;
     }
     if (!this.verified || (this.options.localStream && !this.localAttached)) {
       this.pendingVideoTrack = track;
-      return;
+      return true;
     }
     if (track && this.degrade === 'audio-only-relay' && (await this.isRelayed())) {
-      return;
+      return false;
     }
     await transceiver.sender.replaceTrack(track);
     this.sendControl({ t: 'camera', on: track !== null });
     await this.applyCaps();
+    return true;
   }
 
   async setAudioTrack(track: MediaStreamTrack): Promise<void> {
@@ -1347,7 +1354,11 @@ export class PeerSession {
         await screenAudioSender?.replaceTrack(null);
         this.sendControl({ t: 'screen', on: false });
       }
-      this.options.onDegrade?.('audio-only-relay');
+      this.reportDegrade('audio-only-relay');
+      return;
+    }
+    if (audioOnly) {
+      this.reportDegrade('audio-only-relay');
       return;
     }
     const lowerCamera = degradeVideo || this.unstable;
@@ -1371,9 +1382,15 @@ export class PeerSession {
       }),
     );
     await this.setSenderCap(screenAudioSender, { maxBitrate: this.movie ? MOVIE_AUDIO_MAX_BITRATE : SCREEN_AUDIO_MAX_BITRATE });
-    if (degradeVideo) {
-      this.options.onDegrade?.('video-360');
+    this.reportDegrade(degradeVideo ? 'video-360' : null);
+  }
+
+  private reportDegrade(step: DegradeStep | null): void {
+    if (step === this.reportedDegrade && step === null) {
+      return;
     }
+    this.reportedDegrade = step;
+    this.options.onDegrade?.(step);
   }
 
   private async setSenderCap(sender: RTCRtpSender | undefined, cap: SenderCap): Promise<void> {
@@ -1393,7 +1410,7 @@ export class PeerSession {
 
   private scheduleCredentialRefresh(): void {
     const refresh = this.options.refreshIceServers;
-    if (!refresh) {
+    if (!refresh || this.closed) {
       return;
     }
     this.refreshTimer = setTimeout(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FaBell,
@@ -25,7 +25,7 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { STATUS_TEXT_MAX_LENGTH } from '@features/auth/constants/validation';
 import { IncomingCallSlot } from '@features/calls';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
-import { useLatchedPresence } from '@features/motion';
+import { useFlipReorder, useLatchedPresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
 import { useEscapeKey } from '@hooks/useEscapeKey';
@@ -239,6 +239,9 @@ export function Sidebar({
   );
 
   const visibleRooms = useMemo(() => filterRooms(sortedRooms, roomFilter, searchQuery, user.id), [sortedRooms, roomFilter, searchQuery, user.id]);
+  const roomListRef = useRef<HTMLDivElement>(null);
+  const visibleRoomIds = useMemo(() => visibleRooms.map((room) => room.id), [visibleRooms]);
+  useFlipReorder(roomListRef, visibleRoomIds, `${roomFilter}:${searchQuery}`);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -492,7 +495,9 @@ export function Sidebar({
           </div>
         ) : rooms.length === 0 ? (
           <div style={{ padding: '50px 20px', textAlign: 'center', color: theme.textSecondary }}>
-            <FaComments size={50} className="animate-float" style={{ opacity: 0.3, marginBottom: '15px' }} />
+            <span className="sc-empty-icon" style={{ marginBottom: '15px' }}>
+              <FaComments size={50} className="animate-float" style={{ opacity: 0.3 }} />
+            </span>
             <p className="sc-anim-rise-in sc-stagger" style={{ fontSize: '0.9rem', margin: '5px 0', '--sc-stagger-index': 1 } as CSSProperties}>
               {t('sidebar.noConversations')}
             </p>
@@ -504,7 +509,7 @@ export function Sidebar({
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div ref={roomListRef} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {visibleRooms.map((room, index) => (
               <RoomListItem
                 key={room.id}

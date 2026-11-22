@@ -444,7 +444,9 @@ export function useRoomMessages(
 
       setMessages((previous) => {
         if (clientTempId && previous.some((existing) => existing.clientTempId === clientTempId)) {
-          return previous.map((existing) => (existing.clientTempId === clientTempId ? confirmed : existing));
+          return previous.map((existing) =>
+            existing.clientTempId === clientTempId ? { ...confirmed, renderKey: existing.renderKey ?? existing.id } : existing,
+          );
         }
         if (previous.some((existing) => existing.id === confirmed.id)) {
           return previous;

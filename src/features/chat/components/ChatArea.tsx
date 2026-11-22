@@ -1257,7 +1257,9 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                     gap: '12px',
                   }}
                 >
-                  <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
+                  <span className="sc-empty-icon">
+                    <FaComments size={40} className="animate-float" style={{ color: theme.accentText, opacity: 0.6 }} />
+                  </span>
                   <div className="sc-anim-rise-in sc-stagger" style={{ '--sc-stagger-index': 1 } as CSSProperties}>
                     {t('chat.noMessages')}
                   </div>

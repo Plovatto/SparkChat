@@ -923,6 +923,9 @@
     },
     "notice": {
       "media-denied": "Libere o microfone para ligar.",
+      "media-busy": "O microfone ou a câmera está sendo usado por outro app. Feche o outro app e tente de novo.",
+      "no-microphone": "Nenhum microfone foi encontrado neste aparelho.",
+      "camera-degraded": "A câmera foi desligada para manter a chamada nesta conexão lenta.",
       "key-changed": "A chave de segurança deste contato mudou. Confirme a nova chave antes de ligar.",
       "unverifiable": "Não foi possível verificar este contato para chamadas.",
       "other-tab": "Já existe uma chamada em outra aba.",

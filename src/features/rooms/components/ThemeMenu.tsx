@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { FaCheck, FaMobileAlt, FaPalette } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
-import { buildTheme, COLOR_THEMES, THEME_BASES, useTheme, useThemeNames, type ColorThemeId, type ThemeBaseId } from '@features/theme';
+import { buildTheme, COLOR_THEMES, originFromElement, revealThemeChange, THEME_BASES, useTheme, useThemeNames, type ColorThemeId, type ThemeBaseId } from '@features/theme';
 
 interface ThemeMenuProps {
   isOpen: boolean;
@@ -114,7 +114,7 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
               <button
                 key={baseId}
                 type="button"
-                onClick={() => changeBaseTheme(baseId)}
+                onClick={(event) => revealThemeChange(originFromElement(event.currentTarget), () => changeBaseTheme(baseId))}
                 data-selected={isSelected}
                 className="sc-menu-item sc-anim-rise-in sc-stagger"
                 style={
@@ -174,9 +174,10 @@ export function ThemeMenu({ isOpen, position, onClose }: ThemeMenuProps) {
               <button
                 key={colorId}
                 type="button"
-                onClick={() => {
-                  changeColorTheme(colorId);
+                onClick={(event) => {
+                  const origin = originFromElement(event.currentTarget);
                   onClose();
+                  revealThemeChange(origin, () => changeColorTheme(colorId));
                 }}
                 data-selected={isSelected}
                 className="sc-menu-item sc-anim-rise-in sc-stagger"
