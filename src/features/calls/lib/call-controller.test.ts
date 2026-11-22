@@ -817,7 +817,7 @@ describe('server events', () => {
     w.a.socket.receive('call:state', { callId: 'elsewhere', state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller' });
     await settle();
     expect(w.a.socket.sent('call:hangup')).toEqual([]);
-    expect(w.a.controller.getSnapshot().otherDevice).toEqual({ callId: 'elsewhere', peerId: 'bob', kind: 'voice', roomId: 'room-1', role: 'caller', answeredAt: null });
+    expect(w.a.controller.getSnapshot().otherDevice).toEqual({ callId: 'elsewhere', peerId: 'bob', kind: 'voice', roomId: 'room-1', role: 'caller', answeredAt: null, media: null });
     expect(w.a.controller.getSnapshot().notice).toBeNull();
 
     w.a.socket.receive('call:ended', { callId: 'elsewhere', reason: 'completed', endedAt: 1 });
@@ -1565,20 +1565,20 @@ describe('relay indicator', () => {
       ['r', { type: 'remote-candidate', candidateType: 'srflx' }],
     ]);
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).not.toHaveProperty('relayed');
 
     peer.statsReport = stats;
     const before = w.a.socket.sent('call:heartbeat').length;
     await vi.advanceTimersByTimeAsync(2_000);
     expect(w.a.socket.sent('call:heartbeat')).toHaveLength(before + 1);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: false });
 
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: false });
 
     stats.set('l', { type: 'local-candidate', candidateType: 'relay' });
     await vi.advanceTimersByTimeAsync(4_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: true });
   });
 
   it('lets the peer drop its relay credentials only after a stable direct reading on a healthy connection', async () => {
@@ -1596,19 +1596,19 @@ describe('relay indicator', () => {
     ]);
     peer.statsReport = stats;
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: true });
     expect(peer.dropped).toBe(0);
 
     stats.set('l', { type: 'local-candidate', candidateType: 'host' });
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: true });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: true });
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId, relayed: false });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, relayed: false });
     expect(peer.dropped).toBe(1);
 
     peer.iceHealthy = false;
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).not.toHaveProperty('relayed');
     expect(peer.dropped).toBe(1);
   });
 
@@ -1631,7 +1631,8 @@ describe('relay indicator', () => {
     peer.options.onRestart('failed', true);
     peer.statsReport = new Map();
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(w.a.socket.sent('call:heartbeat').at(-1)).toEqual({ callId });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId });
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).not.toHaveProperty('relayed');
     expect(peer.dropped).toBe(dropped);
   });
 });
@@ -2393,6 +2394,89 @@ describe('call transfer between devices', () => {
     expect(a2.stopped).toBeGreaterThan(0);
     expect(a2.socket.sent('call:hangup')).toHaveLength(0);
     expect(a2.socket.sent('call:sync').length).toBe(syncs + 1);
+  });
+
+  it('takes over the microphone and camera state the old device reported, even in a voice call', async () => {
+    const { w, callId } = await transferWorld();
+    const kinds: string[] = [];
+    const audio = { kind: 'audio', enabled: true, stop: () => undefined };
+    const camera = { kind: 'video', enabled: true, stop: () => undefined };
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }), {
+      acquireMedia: (kind) => {
+        kinds.push(kind);
+        const video = kind === 'video' ? [camera] : [];
+        return Promise.resolve({ stream: { getTracks: () => [audio, ...video], getAudioTracks: () => [audio], getVideoTracks: () => video } as unknown as MediaStream, cameraFailed: false });
+      },
+    });
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null, transferable: true, media: { muted: true, camera: true } });
+    await settle();
+    expect(a2.controller.getSnapshot().otherDevice?.media).toEqual({ muted: true, camera: true });
+
+    await a2.controller.transferHere();
+    await settle();
+
+    expect(kinds).toEqual(['video']);
+    expect(a2.controller.getSnapshot()).toMatchObject({ muted: true, cameraOn: true });
+    expect(audio.enabled).toBe(false);
+  });
+
+  it('leaves the camera off on the new device when the old one had it off in a video call', async () => {
+    const { w, callId } = await transferWorld();
+    const kinds: string[] = [];
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }), {
+      acquireMedia: (kind) => {
+        kinds.push(kind);
+        return Promise.resolve({ stream: { getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => (kind === 'video' ? [{}] : []) } as unknown as MediaStream, cameraFailed: false });
+      },
+    });
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'video', peerId: 'bob', role: 'caller', answeredAt: null, media: { muted: false, camera: false } });
+    await settle();
+    await a2.controller.transferHere();
+    await settle();
+    expect(kinds).toEqual(['voice']);
+    expect(a2.controller.getSnapshot()).toMatchObject({ muted: false, cameraOn: false });
+  });
+
+  it('falls back to the call kind when the server does not report the old device state', async () => {
+    const { w, callId } = await transferWorld();
+    const kinds: string[] = [];
+    const a2 = makeNode(w.alice, () => Promise.resolve({ peer: w.bob.pinned }), {
+      acquireMedia: (kind) => {
+        kinds.push(kind);
+        return Promise.resolve({ stream: { getTracks: () => [], getAudioTracks: () => [], getVideoTracks: () => (kind === 'video' ? [{}] : []) } as unknown as MediaStream, cameraFailed: false });
+      },
+    });
+    a2.socket.receive('call:config', { enabled: true, relayAvailable: false });
+    a2.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'video', peerId: 'bob', role: 'caller', answeredAt: null });
+    await settle();
+    await a2.controller.transferHere();
+    await settle();
+    expect(kinds).toEqual(['video']);
+  });
+
+  it('reports its microphone and camera state with every heartbeat and right after a change', async () => {
+    const { w, callId } = await transferWorld();
+    w.a.socket.connected = true;
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, media: { muted: false, camera: false } });
+    const before = w.a.socket.sent('call:heartbeat').length;
+    w.a.controller.toggleMute();
+    await settle();
+    expect(w.a.socket.sent('call:heartbeat')).toHaveLength(before + 1);
+    expect(w.a.socket.sent('call:heartbeat').at(-1)).toMatchObject({ callId, media: { muted: true, camera: false } });
+  });
+
+  it('asks for the call state after moving away so the call can be taken back from this device', async () => {
+    const { w, callId } = await transferWorld();
+    const syncs = w.a.socket.sent('call:sync').length;
+    w.a.socket.receive('call:transferred', { callId });
+    await settle();
+    expect(w.a.socket.sent('call:sync').length).toBeGreaterThan(syncs);
+    w.a.socket.receive('call:state', { callId, state: 'active', roomId: 'room-1', kind: 'voice', peerId: 'bob', role: 'caller', answeredAt: null, transferable: true });
+    await settle();
+    expect(w.a.controller.getSnapshot().otherDevice).toMatchObject({ callId });
   });
 
   it('tears the old device down quietly without hanging up and tells the user', async () => {
