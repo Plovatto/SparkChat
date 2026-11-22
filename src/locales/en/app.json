@@ -60,6 +60,7 @@
       "notMember": "This user isn't a member of the group.",
       "groupFull": "This group has reached its member limit.",
       "invalidInvite": "This invite link is invalid or has expired. Ask a member for a new one.",
+      "removedFromGroup": "You were removed from this group and cannot join again.",
       "avatarUploadInvalid": "This group photo upload is no longer valid. Please send the photo again."
     },
     "message": {
@@ -648,6 +649,11 @@
     "removeTitle": "Remove member",
     "removeConfirm": "Remove {{name}} from the group? They will not be able to join again, not even with the invite link.",
     "leave": "Leave group",
+    "leaveTitle": "Leave group?",
+    "leaveConfirm": "Leave {{name}}? You will stop receiving its messages and can only come back with a new invite link.",
+    "leaveConfirmAction": "Leave",
+    "removedNotice": "You were removed from {{name}}.",
+    "removedDismiss": "Got it",
     "seen": "Seen {{time}}",
     "members_one": "{{count}} member",
     "members_other": "{{count}} members",

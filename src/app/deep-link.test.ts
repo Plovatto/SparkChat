@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasDeepLinkParams, MAX_DEEP_LINK_VALUE_LENGTH, readDeepLinkIntents, withInviteIntent, withoutFirstIntent } from './deep-link';
+import { hasDeepLinkParams, isDeepLinkError, MAX_DEEP_LINK_VALUE_LENGTH, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
 
 describe('readDeepLinkIntents', () => {
   it('returns nothing without deep link params', () => {
@@ -60,5 +60,25 @@ describe('invite intent secrets', () => {
     expect(withoutFirstIntent([dismissed, next])).toEqual([next]);
     expect(dismissed.secret.every((byte) => byte === 0)).toBe(true);
     expect(next.secret.every((byte) => byte === 5)).toBe(true);
+  });
+});
+
+describe('isDeepLinkError', () => {
+  const invite: DeepLinkIntent = { kind: 'invite', roomId: 'g1', secret: new Uint8Array(32) };
+  const chat: DeepLinkIntent = { kind: 'chat', nickname: 'ana' };
+
+  it('shows untagged errors for any intent', () => {
+    expect(isDeepLinkError({ code: 'room.notFound' }, chat)).toBe(true);
+    expect(isDeepLinkError({ code: 'room.notFound' }, invite)).toBe(true);
+  });
+
+  it('shows the invite join error tagged with its event', () => {
+    expect(isDeepLinkError({ code: 'room.removedFromGroup', event: 'room:join-by-invite' }, invite)).toBe(true);
+  });
+
+  it('ignores errors of other events and of pending messages', () => {
+    expect(isDeepLinkError({ code: 'room.notFound', event: 'room:rename' }, invite)).toBe(false);
+    expect(isDeepLinkError({ code: 'room.removedFromGroup', event: 'room:join-by-invite' }, chat)).toBe(false);
+    expect(isDeepLinkError({ code: 'rateLimit.messages', clientTempId: 't1' }, invite)).toBe(false);
   });
 });
