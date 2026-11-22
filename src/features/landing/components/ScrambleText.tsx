@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef } from 'react';
+import { REDUCED_MOTION_QUERY } from '@constants/media-queries';
 
 interface ScrambleTextProps {
   text: string;
@@ -6,7 +7,6 @@ interface ScrambleTextProps {
 
 const GLYPHS = 'abcdeghknopqrsuvxyz0123456789';
 const DURATION_MS = 1100;
-const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 function randomGlyph(): string {
   return GLYPHS.charAt(Math.floor(Math.random() * GLYPHS.length));

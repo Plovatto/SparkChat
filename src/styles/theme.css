@@ -162,23 +162,6 @@
   background: var(--sc-surface-pressed);
 }
 
-.sc-btn--ghost-border {
-  background: transparent;
-  color: var(--sc-text-secondary);
-  border-color: var(--sc-border);
-}
-
-.sc-btn--ghost-border:hover:not(:disabled) {
-  background: var(--sc-surface-hover);
-  border-color: var(--sc-border-hover);
-  color: var(--sc-text-primary);
-}
-
-.sc-btn--ghost-border:active:not(:disabled) {
-  background: var(--sc-surface-pressed);
-  border-color: var(--sc-accent);
-}
-
 .sc-btn--danger {
   background: var(--sc-danger);
   color: #ffffff;
@@ -1135,29 +1118,6 @@
   border-radius: 6px;
 }
 
-.sc-color-input {
-  width: 36px;
-  height: 28px;
-  border: 1.5px solid var(--sc-border);
-  border-radius: 7px;
-  cursor: pointer;
-  padding: 2px;
-  background: var(--sc-surface);
-  transition:
-    border-color var(--sc-duration) var(--sc-ease),
-    box-shadow var(--sc-duration) var(--sc-ease);
-}
-
-.sc-color-input:hover {
-  border-color: var(--sc-border-hover);
-}
-
-.sc-color-input:focus-visible {
-  outline: none;
-  border-color: var(--sc-border-focus);
-  box-shadow: 0 0 0 3px var(--sc-focus-ring);
-}
-
 .sc-bubble {
   position: relative;
   transition:
@@ -1367,8 +1327,7 @@
   box-shadow: 0 0 0 4px var(--sc-accent-soft);
 }
 
-.sc-btn--secondary:hover:not(:disabled),
-.sc-btn--ghost-border:hover:not(:disabled) {
+.sc-btn--secondary:hover:not(:disabled) {
   box-shadow:
     var(--sc-shadow-sm),
     0 0 0 3px var(--sc-accent-soft);
@@ -1526,11 +1485,6 @@
 .sc-tile:active {
   transform: scale(0.99);
   transition-duration: 0.08s;
-}
-
-.sc-media-gallery-grid .sc-tile:hover,
-.sc-media-gallery-grid .sc-tile:active {
-  transform: none;
 }
 
 .sc-avatar-option:hover {
@@ -1717,7 +1671,6 @@
   .sc-bubble-quote,
   .sc-bubble-card,
   .sc-media-thumb,
-  .sc-color-input,
   .sc-input,
   .sc-link,
   .sc-header-status,

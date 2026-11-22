@@ -1,13 +1,17 @@
-# Como contribuir
+# Contributing
 
-## Reportando problemas
+Thanks for helping improve SparkChat. By taking part, you agree to follow the [code of conduct](CODE_OF_CONDUCT.md).
 
-Abra uma [issue](https://github.com/Plovatto/SparkChat/issues) descrevendo o problema, os passos para reproduzir e o comportamento esperado. Falhas de segurança devem ser reportadas pela [política de segurança](SECURITY.md).
+## Reporting problems
 
-## Enviando alterações
+Open an [issue](https://github.com/Plovatto/SparkChat/issues/new/choose) with the problem, the steps to reproduce it, and the expected behavior. Server, authentication, and upload problems belong in the [API repository](https://github.com/Plovatto/API-SparkChat/issues). Report security issues through the [security policy](SECURITY.md).
 
-1. Crie uma branch a partir da `main` com o prefixo do tipo da alteração: `feature/`, `fix/`, `chore/` ou `docs/`.
-2. Use commits no padrão [gitmoji](https://gitmoji.dev/) com [Conventional Commits](https://www.conventionalcommits.org/), por exemplo `:bug: fix: corrige a prévia de links`.
-3. Funcionalidades novas e correções devem vir acompanhadas de testes.
-4. Antes de abrir o pull request, rode `npm run lint`, `npm run typecheck` e `npm test`.
-5. Abra o pull request para a `main` descrevendo o que foi feito, os detalhes e como foi testado.
+## Sending changes
+
+1. Create a branch from `main` with a prefix for the type of change: `feature/`, `fix/`, `chore/`, or `docs/`.
+2. Write commits in the [gitmoji](https://gitmoji.dev/) format with [Conventional Commits](https://www.conventionalcommits.org/), for example `:bug: fix: keep the link preview after a reconnection`.
+3. Add tests for new features and bug fixes.
+4. Before opening the pull request, run `npm run lint`, `npm run typecheck`, and `npm test`.
+5. Open the pull request against `main` describing what was done, the details, and how it was tested. Its title follows the same format as the commits, and a check validates it.
+
+Notable changes are recorded in the [changelog](CHANGELOG.md).

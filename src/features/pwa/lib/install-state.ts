@@ -39,13 +39,6 @@ export function isDesktopPlatform(info: PlatformInfo): boolean {
   return !isIosPlatform(info) && !/Android|Mobi|CrOS.*Touch/i.test(info.userAgent);
 }
 
-export function detectDesktop(): boolean {
-  if (typeof navigator === 'undefined') {
-    return false;
-  }
-  return isDesktopPlatform({ userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints });
-}
-
 export function isStandaloneDisplay({ matchMedia, navigatorStandalone }: DisplayInfo): boolean {
   if (navigatorStandalone === true) {
     return true;

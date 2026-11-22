@@ -271,6 +271,7 @@ export interface CallMachineOptions {
   onEffect: (effect: CallEffect, state: CallState) => void;
   onChange: (state: CallState) => void;
   extendReconnect?: (state: CallState) => boolean;
+  extendConnect?: (state: CallState) => boolean;
 }
 
 export interface CallMachine {
@@ -308,6 +309,10 @@ export function createCallMachine(options: CallMachineOptions): CallMachine {
       timerHandle = setTimeout(() => {
         timerHandle = null;
         if (wanted.timer === 'reconnect' && timerKey === key && options.extendReconnect?.(state) === true) {
+          arm();
+          return;
+        }
+        if (wanted.timer === 'connect' && timerKey === key && options.extendConnect?.(state) === true) {
           arm();
           return;
         }

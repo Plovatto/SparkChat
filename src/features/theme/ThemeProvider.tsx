@@ -9,8 +9,8 @@ import { ThemeContext, type ThemeContextValue } from './theme-context';
 import { applyThemeCssVars } from './theme-css-vars';
 import { isColorThemeId, isThemeBaseId } from './theme-guards';
 
-export const BASE_STORAGE_KEY = 'chatBaseTheme';
-export const COLOR_STORAGE_KEY = 'chatColorTheme';
+const BASE_STORAGE_KEY = 'chatBaseTheme';
+const COLOR_STORAGE_KEY = 'chatColorTheme';
 const WALLPAPER_STORAGE_KEY = 'chatRoomWallpapers';
 const GLOBAL_WALLPAPER_STORAGE_KEY = 'chatGlobalWallpaper';
 const APPEARANCE_STORAGE_KEY = 'chatRoomAppearance';

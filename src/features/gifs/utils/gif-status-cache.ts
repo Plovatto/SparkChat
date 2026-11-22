@@ -7,10 +7,6 @@ function sessionKey(auth: SessionAuth): string {
   return `${auth.userId}:${auth.sessionToken}`;
 }
 
-export function peekGifStatus(auth: SessionAuth): Promise<boolean> | undefined {
-  return statusBySession.get(sessionKey(auth));
-}
-
 export function loadGifStatus(auth: SessionAuth, fetchStatus: (auth: SessionAuth) => Promise<boolean> = fetchGifStatus): Promise<boolean> {
   const key = sessionKey(auth);
   const cached = statusBySession.get(key);

@@ -4,8 +4,9 @@ import type { PinnedPeer, SignalType } from '@lib/e2ee/call-crypto';
 import type { CurrentIdentity } from '@lib/e2ee/current-identity';
 import { generateIdentity } from '@lib/e2ee/identity';
 import { buildSigningProof } from '@lib/e2ee/signing';
-import { CALL_RECONNECT_TIMEOUT_MS } from '../state/call-machine';
+import { CALL_CONNECT_TIMEOUT_MS, CALL_RECONNECT_TIMEOUT_MS } from '../state/call-machine';
 import {
+  CALL_OFFLINE_MAX_MS,
   CALL_RECONNECT_MAX_MS,
   CallController,
   FALLBACK_STUN,
@@ -1137,7 +1138,7 @@ describe('server events', () => {
     expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
   });
 
-  it('fails the call after three ice retries on call.invalidState', async () => {
+  it('keeps the call with fallback servers when the server is slow to confirm the accept', async () => {
     const w = await world();
     const route = w.b.socket.onEmit!;
     w.b.socket.onEmit = (event, payload) => {
@@ -1148,13 +1149,14 @@ describe('server events', () => {
       route(event, payload);
     };
     await connectCall(w);
-    for (const delay of [300, 600, 1200]) {
+    for (const delay of [300, 600, 1200, 2400, 4800]) {
       await vi.advanceTimersByTimeAsync(delay);
       await settle();
     }
 
-    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(4);
-    expect(w.b.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed', detail: 'call.invalidState' });
+    expect(w.b.socket.sent('call:ice-servers')).toHaveLength(6);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+    expect(w.b.peers.at(-1)?.options.iceServers).toEqual([FALLBACK_STUN]);
   });
 
   it('removes its socket listeners when disposed', async () => {
@@ -2009,7 +2011,20 @@ describe('running in the background', () => {
     expect(w.a.socket.sent('call:hangup')).toHaveLength(1);
   });
 
-  it('falls back to the old reconnect window against a server that does not report the peer', async () => {
+  it('measures the offline window from when the network dropped, not from when reconnecting started', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS + 10_000);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+
+    w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS * 2);
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+  });
+
+  it('keeps reconnecting against a server that does not report the peer while the network works', async () => {
     const w = await interruptedCall();
     w.a.socket.onEmit = (event) => {
       if (event === 'call:sync') {
@@ -2017,10 +2032,71 @@ describe('running in the background', () => {
       }
     };
 
-    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS * 2);
     await settle();
 
-    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+  });
+
+  it('never ends a reconnecting call on its own while the network works, however long it takes', async () => {
+    const w = await interruptedCall();
+    w.a.socket.onEmit = null;
+
+    await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS * 3);
+
+    expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
+    expect(w.a.peers[0]!.recoveries.filter((reason) => reason === 'resync').length).toBeGreaterThan(3);
+    expect(w.a.socket.sent('call:hangup')).toHaveLength(0);
+  });
+
+  it('keeps a slow connection attempt alive past the old connect timer while the network works', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    w.b.socket.connected = true;
+    await connectCall(w);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
+    w.a.socket.onEmit = null;
+
+    await vi.advanceTimersByTimeAsync(CALL_CONNECT_TIMEOUT_MS * 6);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
+
+    w.a.peers[0]!.options.onConnection('connected');
+    expect(w.a.controller.getSnapshot().state.phase).toBe('active');
+  });
+
+  it('ends a connection attempt only after the device has been offline for the whole offline window', async () => {
+    const w = await world({ alice: backgroundDeps() });
+    w.a.socket.connected = true;
+    w.b.socket.connected = true;
+    await connectCall(w);
+    w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
+
+    await vi.advanceTimersByTimeAsync(CALL_OFFLINE_MAX_MS - CALL_CONNECT_TIMEOUT_MS);
+    expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
+    await vi.advanceTimersByTimeAsync(CALL_CONNECT_TIMEOUT_MS + 1_000);
+
+    expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'failed' });
+  });
+
+  it('restarts recovery and resyncs when the network changes during a call', async () => {
+    const changes: Array<() => void> = [];
+    const connection = { addEventListener: (type: string, listener: () => void) => type === 'change' && changes.push(listener), removeEventListener: () => undefined };
+    vi.stubGlobal('window', { addEventListener: () => undefined, removeEventListener: () => undefined });
+    vi.stubGlobal('navigator', { onLine: true, connection });
+    try {
+      const w = await interruptedCall();
+      const recoveries = w.a.peers[0]!.recoveries.length;
+      const syncs = w.a.socket.sent('call:sync').length;
+      changes.forEach((listener) => listener());
+
+      expect(w.a.peers[0]!.recoveries.length).toBe(recoveries + 1);
+      expect(w.a.socket.sent('call:sync').length).toBe(syncs + 1);
+      expect(w.a.socket.sent('call:heartbeat').length).toBeGreaterThan(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('never gives up on the call while the page is hidden or offline, and resumes when media returns', async () => {
@@ -2048,6 +2124,7 @@ describe('running in the background', () => {
     const w = await interruptedCall();
     doc.visibilityState = 'hidden';
     w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
 
     await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
@@ -2071,13 +2148,14 @@ describe('running in the background', () => {
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
   });
 
-  it('ends at the longest reconnect window when the server never answers the sync', async () => {
+  it('ends at the longest offline window when the socket never comes back', async () => {
     const w = await interruptedCall();
     w.a.socket.onEmit = null;
+    w.a.socket.connected = false;
+    w.a.socket.receive('disconnect', undefined);
 
     await vi.advanceTimersByTimeAsync(CALL_RECONNECT_MAX_MS - 1_000);
     expect(w.a.controller.getSnapshot().state.phase).toBe('reconnecting');
-    expect(w.a.socket.sent('call:sync').length).toBeGreaterThanOrEqual(5);
 
     await vi.advanceTimersByTimeAsync(2_000);
     expect(w.a.controller.getSnapshot().state).toMatchObject({ phase: 'ended', reason: 'connection-lost' });

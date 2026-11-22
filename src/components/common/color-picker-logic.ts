@@ -1,3 +1,5 @@
+import { clamp } from '@lib/math/clamp';
+
 export interface Rgb {
   r: number;
   g: number;
@@ -22,10 +24,6 @@ export const COLOR_PRESETS: readonly string[] = [
   '#ffffff',
   '#1f1b2e',
 ];
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 export function normalizeHex(input: string): string | null {
   const match = HEX_PATTERN.exec(input.trim());
