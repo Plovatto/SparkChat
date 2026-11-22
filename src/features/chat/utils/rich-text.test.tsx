@@ -13,10 +13,10 @@ describe('renderRichText', () => {
   });
 
   it('removes bidi control characters so a link cannot disguise its real target', () => {
-    const { container } = renderText('http://evil.com‮gpj.exe and ⁦text⁩');
+    const { container } = renderText('http://evil.com\u202Egpj.exe and \u2066text\u2069');
     const link = container.querySelector('a');
     expect(link?.getAttribute('href')).toBe('http://evil.comgpj.exe');
     expect(link?.textContent).toBe('http://evil.comgpj.exe');
-    expect(container.textContent).not.toMatch(/[‪-‮⁦-⁩]/);
+    expect(container.textContent).not.toMatch(/[\u202A-\u202E\u2066-\u2069]/);
   });
 });
