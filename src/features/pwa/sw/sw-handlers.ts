@@ -11,7 +11,7 @@ import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '../../profile
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
-  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video' }
+  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string }
   | { t: 'call-end'; callId: string; reason: string }
   | { t: 'msg'; roomId: string; preview?: PushMessagePreview };
 
@@ -63,6 +63,7 @@ export interface WorkerEnvironment {
   now: () => number;
   previewMessage?: (roomId: string, preview: PushMessagePreview | undefined, strings: WorkerStrings) => Promise<NotificationText | null>;
   roomIcon?: (roomId: string) => Promise<string | null>;
+  declineCall?: (callId: string, token: string) => Promise<void>;
 }
 
 export interface WorkerState {
@@ -115,6 +116,12 @@ export function messageTag(roomId: string): string {
   return `msg:${roomId}`;
 }
 
+const DECLINE_TOKEN = /^[A-Za-z0-9_.-]{1,512}$/;
+
+function isDeclineToken(value: unknown): value is string {
+  return typeof value === 'string' && DECLINE_TOKEN.test(value);
+}
+
 export function parsePushMessage(raw: unknown): PushMessage | null {
   if (typeof raw !== 'object' || raw === null) {
     return null;
@@ -123,7 +130,7 @@ export function parsePushMessage(raw: unknown): PushMessage | null {
   switch (value.t) {
     case 'call':
       if (isSafeId(value.callId) && isSafeId(value.roomId) && (value.kind === 'voice' || value.kind === 'video')) {
-        return { t: 'call', callId: value.callId, roomId: value.roomId, kind: value.kind };
+        return { t: 'call', callId: value.callId, roomId: value.roomId, kind: value.kind, ...(isDeclineToken(value.d) ? { d: value.d } : {}) };
       }
       return null;
     case 'call-end':
@@ -215,7 +222,7 @@ async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language
     renotify: true,
     requireInteraction: true,
     vibrate: CALL_VIBRATION,
-    data: { kind: 'call', callId: message.callId, roomId: message.roomId },
+    data: { kind: 'call', callId: message.callId, roomId: message.roomId, ...(message.d ? { declineToken: message.d } : {}) },
   };
   if (env.maxActions() >= 2) {
     options.actions = [
@@ -330,7 +337,7 @@ function pickClient(clients: WorkerWindowClient[]): WorkerWindowClient | undefin
   return clients.find((client) => client.focused) ?? clients.find((client) => client.visibilityState === 'visible') ?? clients[0];
 }
 
-function readNotificationData(data: unknown): { kind?: string; callId?: string; roomId?: string } {
+function readNotificationData(data: unknown): { kind?: string; callId?: string; roomId?: string; declineToken?: string } {
   if (typeof data !== 'object' || data === null) {
     return {};
   }
@@ -339,6 +346,7 @@ function readNotificationData(data: unknown): { kind?: string; callId?: string; 
     kind: typeof value.kind === 'string' ? value.kind : undefined,
     callId: isSafeId(value.callId) ? value.callId : undefined,
     roomId: isSafeId(value.roomId) ? value.roomId : undefined,
+    declineToken: isDeclineToken(value.declineToken) ? value.declineToken : undefined,
   };
 }
 
@@ -351,11 +359,14 @@ export async function handleNotificationClick(env: WorkerEnvironment, notificati
     if (data.callId) {
       const callId = data.callId;
       clients.forEach((client) => client.postMessage({ type: 'sparkchat:call-decline', callId }));
+      if (data.declineToken && env.declineCall) {
+        await env.declineCall(callId, data.declineToken).catch(() => undefined);
+      }
     }
     return;
   }
 
-  const callId = data.kind === 'call' ? data.callId : undefined;
+  const callId = data.kind === 'call' && action === NOTIFICATION_ACTION_ANSWER ? data.callId : undefined;
   const client = pickClient(clients);
   if (client) {
     await client.focus().catch(() => undefined);

@@ -50,8 +50,9 @@ function fakeClient(overrides: Partial<WorkerWindowClient> = {}): FakeClient {
   return client;
 }
 
-function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number; language?: 'pt' | 'en' } = {}) {
+function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number; language?: 'pt' | 'en'; declineFails?: boolean } = {}) {
   const shown: ShownNotification[] = [];
+  const declined: Array<{ callId: string; token: string }> = [];
   const opened: string[] = [];
   const savedLanguages: string[] = [];
   const env: WorkerEnvironment = {
@@ -88,8 +89,12 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
       return Promise.resolve();
     },
     now: () => 1_000,
+    declineCall: (callId, token) => {
+      declined.push({ callId, token });
+      return options.declineFails ? Promise.reject(new Error('offline')) : Promise.resolve();
+    },
   };
-  return { env, shown, opened, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
+  return { env, shown, opened, declined, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
 }
 
 describe('resolveWorkerLanguage', () => {
@@ -207,6 +212,16 @@ describe('handlePush', () => {
         { action: 'decline', title: 'Recusar' },
       ],
     });
+  });
+
+  it('keeps the decline token of the push in the call notification and drops a malformed one', async () => {
+    const { env, visible } = fakeEnv();
+    await handlePush(env, createWorkerState(), { t: 'call', callId: 'c1', roomId: 'r1', kind: 'voice', d: 'dXNlcg.123.abc-_' });
+    expect(visible()[0]!.options.data).toEqual({ kind: 'call', callId: 'c1', roomId: 'r1', declineToken: 'dXNlcg.123.abc-_' });
+
+    const other = fakeEnv();
+    await handlePush(other.env, createWorkerState(), { t: 'call', callId: 'c2', roomId: 'r1', kind: 'voice', d: 'bad token<>' });
+    expect(other.visible()[0]!.options.data).toEqual({ kind: 'call', callId: 'c2', roomId: 'r1' });
   });
 
   it('omits actions where the platform does not support them and uses english when asked', async () => {
@@ -340,8 +355,19 @@ describe('handleNotificationClick', () => {
 
     const client = fakeClient();
     const withWindow = fakeEnv({ clients: [client] });
-    await handleNotificationClick(withWindow.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), '');
+    await handleNotificationClick(withWindow.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), 'answer');
     expect(client.messages).toEqual([{ type: 'sparkchat:open-room', roomId: 'r1', callId: 'c1' }]);
+  });
+
+  it('opens the room without an answer intent when the call notification body is tapped', async () => {
+    const { env, opened } = fakeEnv();
+    await handleNotificationClick(env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), '');
+    expect(opened).toEqual(['https://chat.example/app/?room=r1']);
+
+    const client = fakeClient();
+    const withWindow = fakeEnv({ clients: [client] });
+    await handleNotificationClick(withWindow.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), '');
+    expect(client.messages).toEqual([{ type: 'sparkchat:open-room', roomId: 'r1' }]);
   });
 
   it('declines through open windows and never opens a new one', async () => {
@@ -355,6 +381,19 @@ describe('handleNotificationClick', () => {
     const empty = fakeEnv();
     await handleNotificationClick(empty.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), 'decline');
     expect(empty.opened).toEqual([]);
+  });
+
+  it('declines on the server with the token even when no window is open, and survives a failed request', async () => {
+    const empty = fakeEnv();
+    await handleNotificationClick(empty.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1', declineToken: 'dXNlcg.123.abc' }), 'decline');
+    expect(empty.declined).toEqual([{ callId: 'c1', token: 'dXNlcg.123.abc' }]);
+    expect(empty.opened).toEqual([]);
+
+    const client = fakeClient();
+    const failing = fakeEnv({ clients: [client], declineFails: true });
+    await handleNotificationClick(failing.env, notification({ kind: 'call', callId: 'c1', roomId: 'r1', declineToken: 'dXNlcg.123.abc' }), 'decline');
+    expect(failing.declined).toHaveLength(1);
+    expect(client.messages).toEqual([{ type: 'sparkchat:call-decline', callId: 'c1' }]);
   });
 
   it('opens the app root for generic notifications and ignores unsafe ids', async () => {

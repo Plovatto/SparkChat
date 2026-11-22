@@ -49,6 +49,7 @@ export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
 export const CALL_RECONNECT_MAX_MS = 180_000;
 export const ROOM_WAIT_ATTEMPTS = 30;
 export const ROOM_WAIT_INTERVAL_MS = 100;
+export const NOTIFICATION_ACTION_TTL_MS = 60_000;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
@@ -190,6 +191,11 @@ export interface CallControllerDeps {
   acquireWakeLock: () => void;
   releaseWakeLock: () => void;
   now: () => number;
+}
+
+export interface NotificationCallAction {
+  type: 'answer' | 'decline';
+  callId: string;
 }
 
 export interface OtherDeviceCall {
@@ -358,6 +364,9 @@ export class CallController {
   private lastHangupCallId: string | null = null;
   private voice: VoiceLeveler | null = null;
   private deviceChain: Promise<void> = Promise.resolve();
+  private cameraEpoch = 0;
+  private pendingAnswer: { callId: string; until: number } | null = null;
+  private readonly pendingDeclines = new Map<string, number>();
 
   constructor(deps: CallControllerDeps) {
     this.deps = deps;
@@ -495,6 +504,10 @@ export class CallController {
     if (typeof payload.callId !== 'string' || this.knownCallIds.has(payload.callId)) {
       return;
     }
+    if (this.takePendingDecline(payload.callId)) {
+      this.rememberCallId(payload.callId);
+      return;
+    }
     if (!(await this.waitForPrivateRoom(payload.roomId, identity.userId, payload.callerId))) {
       return;
     }
@@ -502,6 +515,7 @@ export class CallController {
       return;
     }
     this.preparing = true;
+    let autoAnswer: boolean;
     try {
       const resolved = await this.deps.resolvePeer(payload.callerId);
       if ('error' in resolved) {
@@ -554,10 +568,68 @@ export class CallController {
         seenTransfers: new Set(),
       };
       this.machine.dispatch({ type: 'incoming', callId: content.callId, roomId: content.roomId, peerId: content.callerId, kind: content.kind });
+      autoAnswer = this.takePendingAnswer(content.callId);
     } catch {
       return;
     } finally {
       this.preparing = false;
+    }
+    if (autoAnswer) {
+      await this.accept();
+    }
+  }
+
+  handleNotificationAction(action: NotificationCallAction): void {
+    if (this.disposed || typeof action.callId !== 'string' || action.callId.length === 0) {
+      return;
+    }
+    const state = this.machine.getState();
+    const ringing = state.phase === 'incoming-ringing' && state.callId === action.callId;
+    const until = this.deps.now() + NOTIFICATION_ACTION_TTL_MS;
+    if (action.type === 'decline') {
+      if (this.pendingAnswer?.callId === action.callId) {
+        this.pendingAnswer = null;
+      }
+      if (ringing) {
+        this.decline();
+        return;
+      }
+      this.prunePendingDeclines();
+      this.pendingDeclines.set(action.callId, until);
+      this.deps.socket.emit('call:decline', { callId: action.callId });
+      return;
+    }
+    if (ringing) {
+      void this.accept();
+      return;
+    }
+    if (isCallLive(state) || this.knownCallIds.has(action.callId)) {
+      return;
+    }
+    this.pendingAnswer = { callId: action.callId, until };
+    this.requestSync();
+  }
+
+  private takePendingAnswer(callId: string): boolean {
+    const pending = this.pendingAnswer;
+    if (!pending || pending.callId !== callId) {
+      return false;
+    }
+    this.pendingAnswer = null;
+    return pending.until > this.deps.now();
+  }
+
+  private takePendingDecline(callId: string): boolean {
+    this.prunePendingDeclines();
+    return this.pendingDeclines.delete(callId);
+  }
+
+  private prunePendingDeclines(): void {
+    const now = this.deps.now();
+    for (const [callId, until] of this.pendingDeclines) {
+      if (until <= now) {
+        this.pendingDeclines.delete(callId);
+      }
     }
   }
 
@@ -816,23 +888,45 @@ export class CallController {
       return;
     }
     const stream = session.media.stream;
+    const peer = session.peerSession;
+    const epoch = ++this.cameraEpoch;
     if (this.snapshot.cameraOn) {
       for (const track of stream.getVideoTracks()) {
         track.stop();
         stream.removeTrack(track);
       }
-      await session.peerSession.setVideoTrack(null);
       this.update({ cameraOn: false, localStream: stream });
       this.reportMediaChange();
+      await peer.setVideoTrack(null).catch(() => undefined);
       return;
     }
-    const track = await this.deps.acquireCamera();
+    const track = await this.deps.acquireCamera().catch(() => null);
+    const stale = () => this.session !== session || session.peerSession !== peer || !this.isConnected() || this.cameraEpoch !== epoch;
+    if (stale()) {
+      track?.stop();
+      return;
+    }
     if (!track) {
       this.update({ cameraFailed: true });
       return;
     }
+    try {
+      await peer.setVideoTrack(track);
+    } catch {
+      track.stop();
+      if (!stale()) {
+        this.update({ cameraOn: false, cameraFailed: true });
+      }
+      return;
+    }
+    if (stale()) {
+      track.stop();
+      if (this.session === session && session.peerSession === peer) {
+        await peer.setVideoTrack(null).catch(() => undefined);
+      }
+      return;
+    }
     stream.addTrack(track);
-    await session.peerSession.setVideoTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
     this.reportMediaChange();
   }
@@ -1125,10 +1219,18 @@ export class CallController {
       }
       const stream = session.media.stream;
       const previous = stream.getVideoTracks();
+      const epoch = this.cameraEpoch;
       try {
         await peer.setVideoTrack(track);
       } catch {
         track.stop();
+        return;
+      }
+      if (this.session !== session || session.peerSession !== peer || this.cameraEpoch !== epoch) {
+        track.stop();
+        if (this.session === session && session.peerSession === peer && !this.snapshot.cameraOn) {
+          await peer.setVideoTrack(null).catch(() => undefined);
+        }
         return;
       }
       for (const old of previous) {

@@ -19,6 +19,21 @@ import {
 } from './sw-handlers';
 
 declare const __SW_VERSION__: string;
+declare const __SW_API_URL__: string;
+
+function declineCallOnServer(callId: string, token: string): Promise<void> {
+  const base = __SW_API_URL__.replace(/\/+$/, '');
+  if (!base) {
+    return Promise.resolve();
+  }
+  return fetch(`${base}/api/calls/decline`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callId, token }),
+    credentials: 'omit',
+    keepalive: true,
+  }).then(() => undefined);
+}
 
 interface ExtendableEvent extends Event {
   waitUntil: (promise: Promise<unknown>) => void;
@@ -139,6 +154,7 @@ const env: WorkerEnvironment = {
   language: readLanguage,
   saveLanguage,
   now: () => Date.now(),
+  declineCall: declineCallOnServer,
   previewMessage: (roomId, preview, strings) => {
     forgetCachedWrappingKey();
     return resolveMessagePreview(roomId, preview, strings, previewDeps);

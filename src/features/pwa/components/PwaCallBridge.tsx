@@ -1,22 +1,23 @@
-import { useEffect, useRef } from 'react';
-import { useOptionalCall } from '@features/calls';
+import { useEffect } from 'react';
+import { queueNotificationCallAction } from '@features/calls';
+import { takePendingAnswer } from '../lib/launch-params';
 import { onWorkerMessage } from '../lib/sw-registration';
 
 export function PwaCallBridge() {
-  const call = useOptionalCall();
-  const callRef = useRef(call);
-  callRef.current = call;
+  useEffect(() => {
+    const answerCallId = takePendingAnswer();
+    if (answerCallId) {
+      queueNotificationCallAction({ type: 'answer', callId: answerCallId });
+    }
+  }, []);
 
   useEffect(
     () =>
       onWorkerMessage((message) => {
-        const current = callRef.current;
-        if (message.type !== 'sparkchat:call-decline' || !current) {
-          return;
-        }
-        const { state } = current.snapshot;
-        if (state.phase === 'incoming-ringing' && state.callId === message.callId) {
-          current.decline();
+        if (message.type === 'sparkchat:call-decline') {
+          queueNotificationCallAction({ type: 'decline', callId: message.callId });
+        } else if (message.type === 'sparkchat:open-room' && message.callId) {
+          queueNotificationCallAction({ type: 'answer', callId: message.callId });
         }
       }),
     [],
