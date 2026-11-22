@@ -811,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Carregando conversas...",
-    "connectionProblem": "Sem conexão. Tentando reconectar…",
+    "connectionProblem": "Não foi possível conectar ao servidor. Verifique sua internet.",
     "deepLink": {
       "joinTitle": "Entrar no grupo?",
       "joinMessage": "Um link convidou você para entrar em um grupo. Quer entrar?",

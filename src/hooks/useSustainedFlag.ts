@@ -1,16 +1,37 @@
 import { useEffect, useState } from 'react';
 
-export function useSustainedFlag(active: boolean, delayMs: number): boolean {
+interface SustainedFlagOptions {
+  restartWhenVisible?: boolean;
+}
+
+export function useSustainedFlag(active: boolean, delayMs: number, options: SustainedFlagOptions = {}): boolean {
   const [sustained, setSustained] = useState(false);
+  const restartWhenVisible = options.restartWhenVisible === true;
 
   useEffect(() => {
     if (!active) {
       setSustained(false);
       return;
     }
-    const timer = window.setTimeout(() => setSustained(true), delayMs);
-    return () => window.clearTimeout(timer);
-  }, [active, delayMs]);
+    let timer = window.setTimeout(() => setSustained(true), delayMs);
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') {
+        return;
+      }
+      window.clearTimeout(timer);
+      setSustained(false);
+      timer = window.setTimeout(() => setSustained(true), delayMs);
+    };
+    if (restartWhenVisible) {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+    return () => {
+      window.clearTimeout(timer);
+      if (restartWhenVisible) {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
+    };
+  }, [active, delayMs, restartWhenVisible]);
 
   return active && sustained;
 }

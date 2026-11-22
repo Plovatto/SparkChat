@@ -52,4 +52,38 @@ describe('useSustainedFlag', () => {
     });
     expect(result.current).toBe(false);
   });
+
+  it('restarts the delay when the page becomes visible again', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    const { result } = renderHook(() => useSustainedFlag(true, 1000, { restartWhenVisible: true }));
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(result.current).toBe(true);
+
+    visibility = 'visible';
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe(true);
+  });
+
+  it('ignores visibility changes unless asked to', () => {
+    const { result } = renderHook(() => useSustainedFlag(true, 1000));
+    act(() => {
+      vi.advanceTimersByTime(600);
+      document.dispatchEvent(new Event('visibilitychange'));
+      vi.advanceTimersByTime(400);
+    });
+    expect(result.current).toBe(true);
+  });
 });

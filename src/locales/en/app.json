@@ -811,7 +811,7 @@
   },
   "app": {
     "loadingConversations": "Loading conversations...",
-    "connectionProblem": "No connection. Reconnecting…",
+    "connectionProblem": "Can't reach the server. Check your internet connection.",
     "deepLink": {
       "joinTitle": "Join group?",
       "joinMessage": "A link invited you to join a group. Do you want to join?",
