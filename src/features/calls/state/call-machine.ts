@@ -84,6 +84,13 @@ export function isCallLive(state: CallState): boolean {
   return LIVE_PHASES.has(state.phase);
 }
 
+export function blocksNewCall(state: CallState, roomId: string | null): boolean {
+  if (state.phase === 'idle' || state.phase === 'ended') {
+    return false;
+  }
+  return !(state.phase === 'incoming-ringing' && roomId !== null && state.roomId === roomId);
+}
+
 export function hasCallMedia(state: CallState): boolean {
   return MEDIA_PHASES.has(state.phase);
 }

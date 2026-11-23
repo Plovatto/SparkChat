@@ -3364,6 +3364,34 @@ describe('same tab recovery and glare', () => {
     expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
   });
 
+  it('answers the ringing call when calling back the same person a moment later', async () => {
+    const w = await world();
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+    const incomingId = w.b.controller.getSnapshot().state.callId;
+
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+
+    expect(w.b.socket.sent('call:start')).toEqual([]);
+    expect(w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId: incomingId })]);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
+  it('keeps ignoring a call to someone else while another person is ringing', async () => {
+    const w = await world();
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+
+    void w.b.controller.startCall({ roomId: 'room-2', peerId: 'carol', kind: 'voice' });
+    await settle();
+
+    expect(w.b.socket.sent('call:start')).toEqual([]);
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+  });
+
   it('does not auto answer a later call from someone who was simply busy', async () => {
     const w = await world();
     w.b.socket.onEmit = (event, payload) => {

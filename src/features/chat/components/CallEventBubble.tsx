@@ -1,7 +1,7 @@
 import type { IconType } from 'react-icons';
 import { LuPhone, LuPhoneMissed, LuVideo, LuVideoOff } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { useOptionalCall } from '@features/calls';
+import { blocksNewCall, useOptionalCall } from '@features/calls';
 import type { EntrancePhase } from '@features/motion';
 import { describeCallCard, type CallPreviewGlyph } from '@lib/format/call-event';
 import { formatTime } from '@lib/format';
@@ -36,7 +36,7 @@ export function CallEventBubble({ message, entrancePhase, room: roomProp }: Call
   const Glyph = GLYPHS[card.glyph];
   const ButtonIcon = card.kind === 'video' ? LuVideo : LuPhone;
   const callable = call !== null && (room ? call.canCall(room) : call.snapshot.enabled);
-  const busy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
+  const busy = call !== null && blocksNewCall(call.snapshot.state, room?.id ?? null);
   const time = formatTime(message.timestamp);
 
   const startCallBack = () => {

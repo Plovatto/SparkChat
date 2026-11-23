@@ -3,7 +3,7 @@ import { FaArrowLeft, FaCheck, FaComments, FaLink, FaPhone, FaUser } from 'react
 import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { getOtherParticipant, getRoomDisplayName } from '@features/rooms';
-import { useOptionalCall } from '@features/calls';
+import { blocksNewCall, useOptionalCall } from '@features/calls';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useTheme } from '@features/theme';
 import { useClipboardCopy } from '@hooks/useClipboardCopy';
@@ -33,7 +33,7 @@ export function ChatHeader({ room, currentUserId, onBack, onOpenInfo }: ChatHead
   const invite = useGroupInviteLink(room);
   const call = useOptionalCall();
   const canCall = call !== null && call.canCall(room);
-  const callBusy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
+  const callBusy = call !== null && blocksNewCall(call.snapshot.state, room.id);
 
   const shareInviteLink = () => {
     void invite.createLink().then((link) => {
