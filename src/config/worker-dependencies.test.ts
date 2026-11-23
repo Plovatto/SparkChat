@@ -5,7 +5,8 @@ import { WORKER_DEPENDENCIES } from './worker-dependencies';
 
 const root = join(process.cwd(), 'src');
 const WORKER_FILE = /\.(worker|worklet)\.ts$/;
-const BARE_IMPORT = /(?:^|\n)\s*import\s[^'"]*?from\s+['"]([^'"./][^'"]*)['"]|import\(\s*['"]([^'"./][^'"]*)['"]\s*\)/g;
+const BARE_IMPORT = /(?:^|\n)\s*(?:import|export)\s(?!type\s)(?:[^'";]*?\sfrom\s+)?['"]([^'"./][^'"]*)['"]|import\(\s*['"]([^'"./][^'"]*)['"]\s*\)/g;
+const ALIASES = ['@/', '@app/', '@features/', '@components/', '@hooks/', '@lib/', '@constants/', '@config/'];
 
 function workerFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -19,7 +20,7 @@ function workerFiles(dir: string): string[] {
 
 function bareImports(file: string): string[] {
   const text = readFileSync(file, 'utf8');
-  return [...text.matchAll(BARE_IMPORT)].map((match) => (match[1] ?? match[2] ?? '').split('?')[0] ?? '').filter((name) => name && !name.startsWith('@/'));
+  return [...text.matchAll(BARE_IMPORT)].map((match) => (match[1] ?? match[2] ?? '').split('?')[0] ?? '').filter((name) => name && !ALIASES.some((alias) => name.startsWith(alias)));
 }
 
 describe('worker dependency pre-bundling', () => {
