@@ -9,9 +9,9 @@ import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { Collapse } from '@features/motion';
 import { useCall } from '../call-context';
-import { autoplay } from '../lib/autoplay';
 import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
+import { mirrorSelfView } from '../lib/self-view';
 import { CHROME_HIDE_MS, chromeAutoHides, chromeVisible, describeSurface, selectCallView, selectStageLayout } from '../lib/stage-layout';
 import { OverlayVisibility } from '../lib/stage-focus';
 import { describeShareSurface } from '../lib/share-surface';
@@ -23,7 +23,7 @@ import { supportsOutputSelection } from '../lib/audio-output';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
 import { ShareStage } from './ShareStage';
-import { useSpeaking, useStreamOn } from './call-hooks';
+import { useSpeaking, useStreamOn, useVideoOnly } from './call-hooks';
 import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
 import { useDuckedVolume } from './use-ducking';
 import { useShareMonitor } from './use-share-monitor';
@@ -187,20 +187,11 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
     call.setMinimized(true);
   };
 
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element) {
-      return;
-    }
-    if (element.srcObject !== snapshot.remoteStream) {
-      element.srcObject = snapshot.remoteStream;
-    }
-    if (snapshot.remoteStream) {
-      autoplay.play(element);
-    }
-  }, [snapshot.remoteStream, videoRef, stageActive]);
-
-  useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
+  const remoteCameraVideo = useVideoOnly(snapshot.remoteStream);
+  const selfVideo = useVideoOnly(snapshot.cameraOn ? snapshot.localStream : null);
+  useStreamOn(videoRef, remoteCameraVideo);
+  useStreamOn(localRef, selfVideo);
+  const selfMirrored = mirrorSelfView(selfVideo);
   useEffect(() => {
     if (shareAudioRef.current) {
       shareAudioRef.current.volume = shareAudioVolume;
@@ -343,7 +334,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
   );
 
   const selfMedia = snapshot.cameraOn ? (
-    <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" />
+    <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" data-mirror={selfMirrored} />
   ) : (
     <span className="sc-call-person__halo">
       <Avatar
@@ -576,7 +567,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
           )}
           {view === 'video' && snapshot.cameraOn && (
             <div className={`sc-call-self${localSpeaking ? ' sc-call-speaking' : ''}`}>
-              <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" />
+              <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" data-mirror={selfMirrored} />
               {nameChip(t('calls.you'), snapshot.muted, ' sc-call-self__name')}
             </div>
           )}
@@ -596,8 +587,8 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
             local={localStage}
             title={localStage ? t('calls.share.yourScreen') : t('calls.share.peerTitle', { name: peerName })}
             detail={localStage ? ownSurfaceText : peerSurfaceText}
-            remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? snapshot.remoteStream : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
-            self={{ name: t('calls.you'), avatar: meAvatar === undefined ? undefined : AVATARS[meAvatar], photo: myPhoto, stream: snapshot.cameraOn ? snapshot.localStream : null, speaking: localSpeaking, muted: snapshot.muted }}
+            remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? remoteCameraVideo : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
+            self={{ name: t('calls.you'), avatar: meAvatar === undefined ? undefined : AVATARS[meAvatar], photo: myPhoto, stream: selfVideo, speaking: localSpeaking, muted: snapshot.muted }}
             myScreen={layout.localScreenTile ? snapshot.localScreenStream : null}
             stageRef={stageRef}
             streamVideoRef={screenRef}
