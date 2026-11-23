@@ -9,6 +9,7 @@ import {
   dbToGain,
   micGain,
   primeVoiceContext,
+  releasePrimedVoiceContext,
   takeVoiceContext,
   type VoiceContextLike,
   type VoiceNodeLike,
@@ -262,6 +263,27 @@ describe('primeVoiceContext', () => {
     expect(fake.calls.resumed).toBe(2);
     expect(takeVoiceContext(() => null)).toBe(fake.context);
     expect(takeVoiceContext(() => null)).toBeNull();
+  });
+
+  it('closes a primed context that no call adopted', () => {
+    const fake = fakeContext('suspended');
+    primeVoiceContext({ create: () => fake.context, prepare: () => Promise.resolve(null) });
+
+    releasePrimedVoiceContext();
+    releasePrimedVoiceContext();
+
+    expect(fake.calls.closed).toBe(1);
+    expect(takeVoiceContext(() => null)).toBeNull();
+  });
+
+  it('leaves an adopted context alone', () => {
+    const fake = fakeContext('running');
+    primeVoiceContext({ create: () => fake.context, prepare: () => Promise.resolve(null) });
+    expect(takeVoiceContext(() => null)).toBe(fake.context);
+
+    releasePrimedVoiceContext();
+
+    expect(fake.calls.closed).toBe(0);
   });
 });
 

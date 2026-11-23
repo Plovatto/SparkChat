@@ -78,7 +78,7 @@ describe('useStreamOn', () => {
     return { track, stream };
   }
 
-  it('re-binds a camera that starts sending frames after the element was bound', () => {
+  it('re-binds the camera on every unmute, even when the element still reports the old frame size', () => {
     const bound = boundElement();
     const { track, stream } = videoStream();
     renderHook(() => useStreamOn({ current: bound.element }, stream));
@@ -89,7 +89,21 @@ describe('useStreamOn', () => {
 
     bound.setWidth(640);
     track.dispatchEvent(new Event('unmute'));
-    expect(bound.assigned).toEqual([stream, null, stream]);
+    expect(bound.assigned).toEqual([stream, null, stream, null, stream]);
+  });
+
+  it('replays the preview when the page comes back to the foreground', () => {
+    const bound = boundElement();
+    const { stream } = videoStream();
+    const { unmount } = renderHook(() => useStreamOn({ current: bound.element }, stream));
+    const before = bound.plays.length;
+
+    window.dispatchEvent(new Event('pageshow'));
+    expect(bound.plays.length).toBe(before + 1);
+
+    unmount();
+    window.dispatchEvent(new Event('pageshow'));
+    expect(bound.plays.length).toBe(before + 1);
   });
 
   it('resumes a live camera preview that the browser paused', () => {

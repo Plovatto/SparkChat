@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FaMicrophone, FaMicrophoneSlash, FaTimes } from 'react-icons/fa';
 import { MdCallEnd } from 'react-icons/md';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
-import { useStreamOn } from './call-hooks';
+import { useStreamOn, useToggleRipple } from './call-hooks';
 
 interface CallPipProps {
   target: Window;
@@ -25,6 +25,7 @@ export function CallPip({ target, peerName, avatar, photo, stream, speaking, mut
   const videoRef = useRef<HTMLVideoElement>(null);
   useStreamOn(videoRef, stream);
   const muteLabel = muted ? t('calls.unmute') : t('calls.mute');
+  const muteRipple = useToggleRipple(muted);
 
   return createPortal(
     <div className="sc-call-pip">
@@ -49,7 +50,7 @@ export function CallPip({ target, peerName, avatar, photo, stream, speaking, mut
         <span className={`sc-call-pip__name${speaking && stream ? ' sc-call-speaking' : ''}`} style={speaking && stream ? { borderRadius: '6px', padding: '0 6px' } : undefined}>
           {peerName}
         </span>
-        <button type="button" className="sc-call-round" onClick={onToggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={muted}>
+        <button type="button" className="sc-call-round" onClick={onToggleMute} title={muteLabel} aria-label={muteLabel} aria-pressed={muted} data-ripple={muteRipple}>
           {muted ? <FaMicrophoneSlash size={16} /> : <FaMicrophone size={16} />}
         </button>
         <button type="button" className="sc-call-round sc-call-round--danger" onClick={onHangup} title={t('calls.hangup')} aria-label={t('calls.hangup')}>

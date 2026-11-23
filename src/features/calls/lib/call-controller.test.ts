@@ -2501,19 +2501,36 @@ describe('live device switching', () => {
     kind: string;
     label: string;
     enabled: boolean;
+    muted: boolean;
     readyState: string;
     stop: () => void;
+    addEventListener: (type: string, listener: () => void) => void;
+    removeEventListener: (type: string, listener: () => void) => void;
+    fire: (type: string) => void;
   }
 
   function fakeTrack(kind: string, label: string, log: string[]): FakeTrack {
+    const listeners = new Map<string, Set<() => void>>();
     const track: FakeTrack = {
       kind,
       label,
       enabled: true,
+      muted: false,
       readyState: 'live',
       stop: () => {
         track.readyState = 'ended';
         log.push(`stop ${label}`);
+      },
+      addEventListener: (type, listener) => {
+        listeners.set(type, (listeners.get(type) ?? new Set()).add(listener));
+      },
+      removeEventListener: (type, listener) => {
+        listeners.get(type)?.delete(listener);
+      },
+      fire: (type) => {
+        for (const listener of [...(listeners.get(type) ?? [])]) {
+          listener();
+        }
       },
     };
     return track;
@@ -2573,6 +2590,103 @@ describe('live device switching', () => {
     log.length = 0;
     return { w, log, mic, camera, media, peer: w.a.peers[0]! };
   }
+
+  it('reopens the camera when the system ends the camera track', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const call = await cameraCall({ cameras: [next] });
+
+    call.camera.readyState = 'ended';
+    call.camera.fire('ended');
+    await settle();
+
+    expect(call.log).toContain('acquire camera');
+    expect(call.peer.videoTrack).toBe(next);
+    expect(call.media.tracks).toContain(next);
+    expect(call.media.tracks).not.toContain(call.camera);
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: true, cameraFailed: false });
+  });
+
+  it('turns the camera off and clears the preview when the ended camera cannot be reopened', async () => {
+    const call = await cameraCall({ cameras: [null, null] });
+
+    call.camera.readyState = 'ended';
+    call.camera.fire('ended');
+    await settle();
+
+    expect(call.peer.videoTrack).toBeNull();
+    expect(call.media.tracks.some((track) => track.kind === 'video')).toBe(false);
+    expect(call.w.a.controller.getSnapshot()).toMatchObject({ cameraOn: false, cameraFailed: true });
+  });
+
+  it('watches a camera installed later and ignores a camera that was already replaced', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const last = fakeTrack('video', 'cam-c', []);
+    const call = await cameraCall({ cameras: [next, last] });
+    await call.w.a.controller.switchCamera();
+    call.log.length = 0;
+
+    call.camera.fire('ended');
+    await settle();
+    expect(call.log).toEqual([]);
+
+    next.readyState = 'ended';
+    next.fire('ended');
+    await settle();
+    expect(call.peer.videoTrack).toBe(last);
+    expect(call.media.tracks).toContain(last);
+  });
+
+  it('reopens a camera the system keeps muted while the call is on screen', async () => {
+    const next = fakeTrack('video', 'cam-b', []);
+    const call = await cameraCall({ cameras: [next] });
+
+    call.camera.muted = true;
+    call.camera.fire('mute');
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(call.log).toEqual([]);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(call.peer.videoTrack).toBe(next);
+    expect(call.media.tracks).not.toContain(call.camera);
+  });
+
+  it('leaves a camera that unmutes on its own alone', async () => {
+    const call = await cameraCall({ cameras: [fakeTrack('video', 'cam-b', [])] });
+
+    call.camera.muted = true;
+    call.camera.fire('mute');
+    await vi.advanceTimersByTimeAsync(500);
+    call.camera.muted = false;
+    call.camera.fire('unmute');
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(call.log).toEqual([]);
+    expect(call.media.tracks).toContain(call.camera);
+  });
+
+  it('drops a device change camera when the camera was toggled while it was opening', async () => {
+    const call = await cameraCall();
+    let release: (track: MediaStreamTrack | null) => void = () => undefined;
+    const late = fakeTrack('video', 'cam-late', []);
+    const fresh = fakeTrack('video', 'cam-fresh', []);
+    const cameras: Array<Promise<MediaStreamTrack | null>> = [
+      new Promise((resolve) => (release = resolve)),
+      Promise.resolve(fresh as unknown as MediaStreamTrack),
+    ];
+    call.w.a.deps.acquireCamera = () => cameras.shift() ?? Promise.resolve(null);
+
+    const swapping = call.w.a.controller.switchCamera();
+    await settle();
+    await call.w.a.controller.toggleCamera();
+    await call.w.a.controller.toggleCamera();
+    release(late as unknown as MediaStreamTrack);
+    await swapping;
+
+    expect(late.readyState).toBe('ended');
+    expect(call.media.tracks.filter((track) => track.kind === 'video')).toEqual([fresh]);
+    expect(call.peer.videoTrack).toBe(fresh);
+    expect(call.w.a.controller.getSnapshot().cameraOn).toBe(true);
+  });
 
   it('switches the camera instantly on the existing sender and stops the old camera only after the new one is sent', async () => {
     const next = fakeTrack('video', 'cam-b', []);
