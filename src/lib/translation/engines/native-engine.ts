@@ -2,7 +2,7 @@ import type { Language } from '@lib/i18n/language';
 import { NATIVE_STALLED_PAIRS_STORAGE_KEY } from '@constants/storage-keys';
 import { NATIVE_API_TIMEOUT_MS, TIMED_OUT, withNativeTimeout } from '../native-timeout';
 import { invalidateEngineRoutes } from '../router';
-import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
+import { pairKey, type PairKey, type SourceLanguage, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
 
 export { NATIVE_API_TIMEOUT_MS };
 
@@ -86,7 +86,7 @@ function clearStall(key: PairKey): boolean {
   return stalledPairs.delete(key);
 }
 
-async function interactionAvailability(source: Language, target: Language): Promise<TranslationSupport> {
+async function interactionAvailability(source: SourceLanguage, target: Language): Promise<TranslationSupport> {
   const translatorApi = api();
   const key = pairKey(source, target);
   if (!translatorApi || translators.has(key) || !isStalled(key)) {
@@ -119,7 +119,7 @@ function isMissingGesture(error: unknown): boolean {
   return error instanceof Error && error.name === 'NotAllowedError';
 }
 
-function getTranslator(source: Language, target: Language): Promise<TranslatorInstance> {
+function getTranslator(source: SourceLanguage, target: Language): Promise<TranslatorInstance> {
   const key = pairKey(source, target);
   const existing = translators.get(key);
   if (existing) {
@@ -186,7 +186,7 @@ function getTranslator(source: Language, target: Language): Promise<TranslatorIn
   return created;
 }
 
-async function support(source: Language, target: Language): Promise<TranslationSupport> {
+async function support(source: SourceLanguage, target: Language): Promise<TranslationSupport> {
   const translatorApi = api();
   if (!translatorApi) {
     return 'unavailable';
@@ -213,7 +213,7 @@ async function support(source: Language, target: Language): Promise<TranslationS
   }
 }
 
-function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: Language, target: Language): void {
+function recheckStalled(translatorApi: TranslatorStatic, key: PairKey, source: SourceLanguage, target: Language): void {
   const last = lastStalledRecheck.get(key);
   if (stalledRechecks.has(key) || (last !== undefined && Date.now() - last < NATIVE_STALL_RECHECK_MS)) {
     return;
@@ -275,7 +275,7 @@ export const nativeEngine: TranslationEngine = {
   },
 };
 
-export async function prepareNativeFromGesture(source: Language, target: Language): Promise<void> {
+export async function prepareNativeFromGesture(source: SourceLanguage, target: Language): Promise<void> {
   const key = pairKey(source, target);
   if (!api()) {
     return;

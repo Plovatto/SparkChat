@@ -1,6 +1,6 @@
 import type * as BergamotTranslator from '@mkljczk/bergamot-translator/translator.js';
 import type { Language } from '@lib/i18n/language';
-import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
+import { pairKey, type PairKey, type SourceLanguage, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from '../types';
 import { isBergamotRuntimeSupported } from './bergamot-loader';
 import {
   ensureModelFileCached,
@@ -31,7 +31,7 @@ function workerUrl(): string {
   return new URL('bergamot/translator-worker.js', location.origin + import.meta.env.BASE_URL).href;
 }
 
-function supportedPair(source: Language, target: Language): PairKey | null {
+function supportedPair(source: SourceLanguage, target: Language): PairKey | null {
   const key = pairKey(source, target);
   return key === 'en-pt' || key === 'pt-en' ? key : null;
 }
@@ -223,7 +223,7 @@ export function createBergamotEngine(): BergamotEngine {
     }
   }
 
-  function prepare(source: Language, target: Language): Promise<void> {
+  function prepare(source: SourceLanguage, target: Language): Promise<void> {
     const pair = supportedPair(source, target);
     if (!pair || !isBergamotRuntimeSupported() || failed || failedPairs.has(pair)) {
       return Promise.reject(new Error('model-load-failed'));
@@ -275,7 +275,7 @@ export function createBergamotEngine(): BergamotEngine {
 
   async function translate(
     text: string,
-    source: Language,
+    source: SourceLanguage,
     target: Language,
     options?: { priority?: number },
   ): Promise<string> {
@@ -312,7 +312,7 @@ export function createBergamotEngine(): BergamotEngine {
     }
   }
 
-  async function support(source: Language, target: Language): Promise<TranslationSupport> {
+  async function support(source: SourceLanguage, target: Language): Promise<TranslationSupport> {
     const pair = supportedPair(source, target);
     if (!pair || !isBergamotRuntimeSupported()) {
       return 'unavailable';

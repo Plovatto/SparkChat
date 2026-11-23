@@ -606,7 +606,8 @@
       "autoRoomCaption": "Translates other languages on your device.",
       "languages": {
         "pt": "Portuguese",
-        "en": "English"
+        "en": "English",
+        "es": "Spanish"
       }
     },
     "keyTrust": {
