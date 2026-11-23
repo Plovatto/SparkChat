@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LuClock, LuEyeOff, LuLoaderCircle, LuMicOff, LuMinimize2, LuPhone, LuScreenShare, LuTriangleAlert, LuUser, LuVideo, LuVolume2, LuVolumeX, LuWifiOff } from 'react-icons/lu';
+import { LuEyeOff, LuLoaderCircle, LuMicOff, LuMinimize2, LuPhone, LuScreenShare, LuTriangleAlert, LuUser, LuVideo, LuVolume2, LuVolumeX, LuWifiOff } from 'react-icons/lu';
 import { AVATARS } from '@features/auth/constants/avatars';
 import { getStoredSession } from '@features/auth/api/session-storage';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
-import { formatCallDuration } from '@lib/format';
+import { CallDuration, CallEndedDuration } from './CallDuration';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { Collapse } from '@features/motion';
 import { useCall, useLocalSpeaking } from '../call-context';
@@ -35,18 +35,6 @@ interface CallScreenProps {
   videoRef: RefObject<HTMLVideoElement | null>;
   shareAudioRef: RefObject<HTMLAudioElement | null>;
   shareMonitorRef: RefObject<HTMLAudioElement | null>;
-}
-
-function useElapsed(connectedAt: number | null, running: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running || connectedAt === null) {
-      return;
-    }
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [running, connectedAt]);
-  return connectedAt === null ? 0 : Math.max(0, Math.floor((now - connectedAt) / 1000));
 }
 
 function useFullscreen(target: RefObject<HTMLElement | null>): { supported: boolean; active: boolean; toggle: () => void } {
@@ -110,7 +98,6 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
   const avatar = peer ? AVATARS[peer.avatar] : undefined;
   const peerPhoto = useUserPhoto(peer ? state.peerId : null);
   const running = state.phase === 'active' || state.phase === 'reconnecting';
-  const elapsed = useElapsed(state.connectedAt, running);
   const remoteSharing = running && snapshot.remoteScreenOn && snapshot.remoteScreenStream !== null;
   const isVideo = state.kind === 'video' || snapshot.cameraOn || snapshot.remoteCameraOn || remoteSharing;
   const remoteCamera = snapshot.remoteStream !== null && snapshot.remoteCameraOn;
@@ -209,7 +196,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
       case 'reconnecting':
         return t('calls.status.reconnecting');
       case 'active':
-        return formatCallDuration(elapsed);
+        return <CallDuration connectedAt={state.connectedAt} running={running} />;
       case 'ended':
         return translate(`calls.ended.${state.reason ?? 'completed'}`);
       default:
@@ -411,12 +398,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
       <Avatar userId={peer ? state.peerId : null} avatarIndex={peer?.avatar} size={96} iconSize={44} className="sc-call-avatar sc-call-avatar--ended" style={{ width: undefined, height: undefined }} />
       <h2 className="sc-call-name">{peerName}</h2>
       <p className="sc-call-ended__title">{statusText}</p>
-      {state.connectedAt !== null && elapsed > 0 && (
-        <p className="sc-call-ended__meta">
-          <LuClock size={14} aria-hidden="true" />
-          {t('calls.endedDuration', { time: formatCallDuration(elapsed) })}
-        </p>
-      )}
+      <CallEndedDuration connectedAt={state.connectedAt} />
       {endedWarning && (
         <div role="status" className="sc-call-callout">
           <LuTriangleAlert size={18} aria-hidden="true" />

@@ -9,7 +9,7 @@ import { CallContext, LocalSpeakingContext, type CallApi, type PeerDisplay } fro
 import { CallAudio } from './components/CallAudio';
 import { CallMiniBar } from './components/CallMiniBar';
 import { CallNotices } from './components/CallNotices';
-import { CallScreen } from './components/CallScreen';
+import { CallScreen } from './components/lazy-call-screen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { CallController, EMPTY_CALL_SNAPSHOT, type CallSocket } from './lib/call-controller';
 import { isPrivateRoomWith, resolvePinnedPeer } from './lib/call-peer';
