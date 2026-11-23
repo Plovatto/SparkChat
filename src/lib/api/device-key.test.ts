@@ -53,6 +53,19 @@ describe('device key lifecycle', () => {
     expect(await deviceKey.getDeviceKey('someone-else')).toBeNull();
   });
 
+  it('keeps the bound key when another login attempt fails', async () => {
+    const { deviceKey } = await freshModules();
+    const publicKey = await deviceKey.prepareLoginDeviceKey();
+    await deviceKey.completeLoginDeviceKey(AUTH.userId, publicKey, true);
+
+    const abandoned = await deviceKey.prepareLoginDeviceKey();
+    vi.resetModules();
+    const reloaded = await import('./device-key');
+
+    expect(abandoned).not.toBe(publicKey);
+    expect((await reloaded.getDeviceKey(AUTH.userId))?.publicKey).toBe(publicKey);
+  });
+
   it('migrates an existing session once, with a proof made by the new key', async () => {
     const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(jsonResponse(200, { status: 'bound' })));
     vi.stubGlobal('fetch', fetchMock);

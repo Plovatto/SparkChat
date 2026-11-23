@@ -1,6 +1,7 @@
 export const DEVICE_KEY_DB_NAME = 'sparkchat-device-key';
 const STORE_NAME = 'keys';
 const RECORD_KEY = 'current';
+const PENDING_PREFIX = 'pending:';
 const LOCK_NAME = 'sparkchat-device-key';
 export const SIGNATURE_VERSION = 'SPARKCHAT-SIG-V1';
 export const UNSIGNED_PAYLOAD = 'UNSIGNED-PAYLOAD';
@@ -21,6 +22,7 @@ export interface SessionProof {
 }
 
 let cached: Promise<DeviceKeyRecord | null> | null = null;
+const pendingLogins = new Map<string, DeviceKeyRecord>();
 let clockOffsetMs = 0;
 
 function hasPlatformSupport(): boolean {
@@ -81,6 +83,11 @@ async function readStoredRecord(): Promise<DeviceKeyRecord | null> {
   return isDeviceKeyRecord(value) ? value : null;
 }
 
+async function readSlot(slot: string): Promise<DeviceKeyRecord | null> {
+  const value = await runStore<unknown>('readonly', (store) => store.get(slot));
+  return isDeviceKeyRecord(value) ? value : null;
+}
+
 async function writeStoredRecord(record: DeviceKeyRecord): Promise<DeviceKeyRecord> {
   await runStore('readwrite', (store) => store.put(record, RECORD_KEY));
   const stored = await readStoredRecord();
@@ -118,10 +125,30 @@ export async function prepareLoginDeviceKey(): Promise<string | null> {
     return null;
   }
   try {
-    return await withDeviceKeyLock(async () => (await writeStoredRecord(await generateRecord(null))).publicKey);
+    const record = await generateRecord(null);
+    const slot = `${PENDING_PREFIX}${record.publicKey}`;
+    await runStore('readwrite', (store) => store.put(record, slot));
+    if ((await readSlot(slot))?.publicKey !== record.publicKey) {
+      return null;
+    }
+    pendingLogins.set(record.publicKey, record);
+    return record.publicKey;
   } catch {
-    cached = null;
     return null;
+  }
+}
+
+async function removePendingSlots(): Promise<void> {
+  const keys = await runStore<IDBValidKey[]>('readonly', (store) => store.getAllKeys());
+  const pending = keys.filter((key) => typeof key === 'string' && key.startsWith(PENDING_PREFIX));
+  if (pending.length > 0) {
+    await runStore('readwrite', (store) => {
+      let last: IDBRequest<undefined> = store.delete(pending[0] as string);
+      for (const key of pending.slice(1)) {
+        last = store.delete(key);
+      }
+      return last;
+    });
   }
 }
 
@@ -130,10 +157,12 @@ export async function completeLoginDeviceKey(userId: string, publicKey: string |
     return;
   }
   await withDeviceKeyLock(async () => {
-    const record = await readStoredRecord();
-    if (record?.publicKey === publicKey) {
+    const record = pendingLogins.get(publicKey) ?? (await readSlot(`${PENDING_PREFIX}${publicKey}`));
+    pendingLogins.delete(publicKey);
+    if (record) {
       await writeStoredRecord({ ...record, userId, bound });
     }
+    await removePendingSlots();
   }).catch(() => undefined);
 }
 
@@ -226,6 +255,10 @@ export function proofHeaders(proof: SessionProof): Record<string, string> {
     'X-Spark-Nonce': proof.nonce,
     'X-Spark-Signature': proof.signature,
   };
+}
+
+export function invalidateDeviceKeyCache(): void {
+  cached = null;
 }
 
 export function resetDeviceKeyCache(): void {

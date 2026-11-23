@@ -2,6 +2,7 @@ import { env } from '@config/env';
 import {
   adjustClockOffset,
   ensureDeviceKey,
+  invalidateDeviceKeyCache,
   proofHeaders,
   sha256Base64Url,
   signForSession,
@@ -37,7 +38,7 @@ async function bodyHash(body: BodyInit | null | undefined): Promise<string> {
   return UNSIGNED_PAYLOAD;
 }
 
-async function readStaleServerTime(response: Response): Promise<number | null> {
+async function readSignatureFailure(response: Response): Promise<{ code: string; serverTime: number | null } | null> {
   if (response.status !== 401) {
     return null;
   }
@@ -45,9 +46,19 @@ async function readStaleServerTime(response: Response): Promise<number | null> {
     .clone()
     .json()
     .catch(() => null)) as { code?: unknown; params?: { serverTime?: unknown } } | null;
-  const serverTime = data?.params?.serverTime;
-  return data?.code === 'auth.signatureStale' && typeof serverTime === 'number' ? serverTime : null;
+  if (typeof data?.code !== 'string') {
+    return null;
+  }
+  const serverTime = data.params?.serverTime;
+  return { code: data.code, serverTime: typeof serverTime === 'number' ? serverTime : null };
 }
+
+async function readStaleServerTime(response: Response): Promise<number | null> {
+  const failure = await readSignatureFailure(response);
+  return failure?.code === 'auth.signatureStale' ? failure.serverTime : null;
+}
+
+const RELOAD_KEY_CODES = new Set(['auth.signatureRequired', 'auth.signatureInvalid']);
 
 async function sendSigned(auth: SessionAuth, url: string, init: RequestInit): Promise<Response> {
   const method = (init.method ?? 'GET').toUpperCase();
@@ -65,12 +76,16 @@ async function sendSigned(auth: SessionAuth, url: string, init: RequestInit): Pr
 export async function authorizedFetch(auth: SessionAuth, path: string, init: RequestInit = {}): Promise<Response> {
   const url = `${env.apiUrl}${path}`;
   const response = await sendSigned(auth, url, init);
-  const serverTime = await readStaleServerTime(response);
-  if (serverTime === null) {
-    return response;
+  const failure = await readSignatureFailure(response);
+  if (failure?.code === 'auth.signatureStale' && failure.serverTime !== null) {
+    adjustClockOffset(failure.serverTime);
+    return sendSigned(auth, url, init);
   }
-  adjustClockOffset(serverTime);
-  return sendSigned(auth, url, init);
+  if (failure && RELOAD_KEY_CODES.has(failure.code)) {
+    invalidateDeviceKeyCache();
+    return sendSigned(auth, url, init);
+  }
+  return response;
 }
 
 async function postDeviceKey(auth: SessionAuth, record: DeviceKeyRecord): Promise<Response> {
