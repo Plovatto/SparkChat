@@ -13,6 +13,7 @@ import { landingBootScript } from './src/features/landing/lib/boot-script';
 import { LANDING_BOOT_PLACEHOLDER, renderLandingDocument, type LandingHeadCopy } from './src/features/landing/lib/landing-head';
 import { buildContentSecurityPolicy, contentSecurityPolicyMetaTag } from './src/config/content-security-policy';
 import { EMOJI_DATA_PATH, emojiDataFiles } from './src/features/emoji/utils/emoji-data-source';
+import { WORKER_DEPENDENCIES } from './src/config/worker-dependencies';
 
 const LANDING_SERVER_ENTRY = 'src/features/landing/entry-server.tsx';
 const SERVICE_WORKER_ENTRY = 'src/features/pwa/sw/sw-entry.ts';
@@ -310,6 +311,9 @@ export default defineConfig(({ isSsrBuild }) => ({
       '@constants': path.resolve(import.meta.dirname, 'src/constants'),
       '@config': path.resolve(import.meta.dirname, 'src/config'),
     },
+  },
+  optimizeDeps: {
+    include: [...WORKER_DEPENDENCIES],
   },
   server: {
     port: 5173,
