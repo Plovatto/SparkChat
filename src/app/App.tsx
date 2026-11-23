@@ -346,7 +346,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const handleSelectRoom = useCallback((room: RoomSummary) => setSelectedRoomId(room.id), []);
   const { language: appLanguage } = useAppLanguage();
   const openNewChat = useCallback(() => setIsNewChatOpen(true), []);
-  usePwaChatShell({ socket, connected, selectedRoomId, language: appLanguage, onOpenRoom: setSelectedRoomId, onNewChat: openNewChat });
+  usePwaChatShell({ socket, selectedRoomId, language: appLanguage, onOpenRoom: setSelectedRoomId, onNewChat: openNewChat });
   useNotificationMirror({ userId: user.id, rooms, hideContent: notificationContentPreference.isContentHidden, language: appLanguage });
 
   useEffect(() => {
