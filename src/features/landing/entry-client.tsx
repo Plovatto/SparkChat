@@ -3,6 +3,7 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { I18nextProvider } from 'react-i18next';
 import { languageFromPath } from '@lib/i18n';
 import { createLandingI18n } from './i18n';
+import { afterFirstPaint } from './lib/after-first-paint';
 import { Landing } from './Landing';
 
 import '@/styles/motion.css';
@@ -30,7 +31,8 @@ const app = (
 );
 
 if (rootElement.hasChildNodes()) {
-  hydrateRoot(rootElement, app);
+  const root = rootElement;
+  afterFirstPaint(window, () => hydrateRoot(root, app));
 } else {
   createRoot(rootElement).render(app);
 }
