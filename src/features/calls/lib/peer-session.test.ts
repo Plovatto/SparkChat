@@ -33,7 +33,7 @@ import {
   screenControl,
   screenEncoding,
   directMovieBitrate,
-  enableShareStereo,
+  tuneAudioSdp,
   MOVIE_4K_MAX_BITRATE,
   MOVIE_1440_MAX_BITRATE,
   MOVIE_1080_MAX_BITRATE,
@@ -1881,7 +1881,8 @@ describe('cpu load adaptation', () => {
   });
 });
 
-describe('share audio stereo', () => {
+describe('audio sdp tuning', () => {
+  const VOICE_FMTP = `a=fmtp:111 minptime=10;useinbandfec=1;usedtx=0;maxaveragebitrate=${AUDIO_MAX_BITRATE}`;
   const sdp = [
     'v=0',
     'm=audio 9 UDP/TLS/RTP/SAVPF 111 63',
@@ -1898,24 +1899,37 @@ describe('share audio stereo', () => {
   ].join('\r\n');
 
   it('enables high quality stereo only on the second audio section', () => {
-    const munged = enableShareStereo(sdp);
-    const [voice, share] = munged.split('m=audio').slice(1);
-    expect(voice).toContain('a=fmtp:111 minptime=10;useinbandfec=1\r\n');
+    const munged = tuneAudioSdp(sdp);
+    const share = munged.split('m=audio').slice(1)[1];
     expect(share).toContain('a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0\r\n');
-    expect(munged.replace(/;stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0/, '')).toBe(sdp);
+    expect(munged.replace(/;stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0/, '').replace(VOICE_FMTP, 'a=fmtp:111 minptime=10;useinbandfec=1')).toBe(sdp);
+  });
+
+  it('asks for in-band fec, continuous transmission and a voice bitrate on the voice section', () => {
+    const voice = tuneAudioSdp(sdp).split('m=audio').slice(1)[0];
+    expect(voice).toContain(`${VOICE_FMTP}\r\n`);
+    expect(VOICE_FMTP).toBe(`a=fmtp:111 minptime=10;useinbandfec=1;usedtx=0;maxaveragebitrate=${AUDIO_MAX_BITRATE}`);
+  });
+
+  it('overrides a disabled fec on the voice section and leaves the red fmtp alone', () => {
+    const red = sdp.replace('a=fmtp:111 minptime=10;useinbandfec=1\r\nm=video', 'a=fmtp:111 minptime=10;useinbandfec=0;usedtx=1\r\na=rtpmap:63 red/48000/2\r\na=fmtp:63 111/111\r\nm=video');
+    const voice = tuneAudioSdp(red).split('m=audio').slice(1)[0];
+    expect(voice).toContain(`${VOICE_FMTP}\r\n`);
+    expect(voice).toContain('a=fmtp:63 111/111\r\n');
+    expect(tuneAudioSdp(tuneAudioSdp(red))).toBe(tuneAudioSdp(red));
   });
 
   it('adds an fmtp line when missing, keeps existing values and is idempotent', () => {
     const bare = sdp.replace('a=fmtp:111 minptime=10;useinbandfec=1\r\n\r\n', '\r\n').split('m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1').join('m=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=rtpmap:111 opus/48000/2');
-    expect(enableShareStereo(bare)).toContain('a=rtpmap:111 opus/48000/2\r\na=fmtp:111 stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0');
-    const once = enableShareStereo(sdp);
-    expect(enableShareStereo(once)).toBe(once);
-    expect(enableShareStereo('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n')).toBe('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n');
+    expect(tuneAudioSdp(bare)).toContain('a=rtpmap:111 opus/48000/2\r\na=fmtp:111 stereo=1;sprop-stereo=1;maxaveragebitrate=192000;cbr=0;usedtx=0');
+    const once = tuneAudioSdp(sdp);
+    expect(tuneAudioSdp(once)).toBe(once);
+    expect(tuneAudioSdp('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n')).toBe('v=0\r\nm=audio 9 X 0\r\na=rtpmap:0 PCMU/8000\r\n');
   });
 
   it('keeps the dtls fingerprint lines untouched', () => {
     const withFingerprint = `v=0\r\na=fingerprint:sha-256 AA:BB\r\n${sdp.slice(5)}`;
-    expect(extractSdpFingerprints(enableShareStereo(withFingerprint))).toEqual(['sha-256 AA:BB']);
+    expect(extractSdpFingerprints(tuneAudioSdp(withFingerprint))).toEqual(['sha-256 AA:BB']);
   });
 });
 
@@ -1944,10 +1958,32 @@ describe('local description munging', () => {
     h.session.start();
     await settle();
 
-    expect(applied[0]?.sdp).toBe(enableShareStereo(offer));
+    expect(applied[0]?.sdp).toBe(tuneAudioSdp(offer));
     expect(applied[0]?.sdp).toContain('stereo=1');
     expect((h.signals[0]?.payload.description as { sdp: string }).sdp).toBe(applied[0]?.sdp);
     expect(h.signals[0]?.payload.fingerprints).toEqual(['sha-256 AA:AA:AA']);
+  });
+
+  it('falls back to the untouched offer when the browser rejects the tuned one', async () => {
+    const h = build('caller');
+    const offer = 'v=0\r\na=fingerprint:sha-256 AA:AA:AA\r\nm=audio 9 X 111\r\na=rtpmap:111 opus/48000/2\r\n';
+    const applied: string[] = [];
+    const connection = h.connection as unknown as Record<string, unknown>;
+    connection.createOffer = () => Promise.resolve({ type: 'offer', sdp: offer });
+    connection.setLocalDescription = (description: { type: string; sdp: string }) => {
+      applied.push(description.sdp);
+      if (description.sdp !== offer) {
+        return Promise.reject(new Error('rejected'));
+      }
+      h.connection.localDescription = description;
+      h.connection.signalingState = 'have-local-offer';
+      return Promise.resolve();
+    };
+    h.session.start();
+    await settle();
+
+    expect(applied).toEqual([tuneAudioSdp(offer), offer]);
+    expect((h.signals[0]?.payload.description as { sdp: string }).sdp).toBe(offer);
   });
 });
 
