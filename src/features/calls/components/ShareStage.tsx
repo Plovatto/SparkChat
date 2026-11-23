@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type R
 import { useTranslation } from 'react-i18next';
 import { LuExternalLink, LuEyeOff, LuMaximize, LuMicOff, LuMinimize, LuPanelRightClose, LuPanelRightOpen, LuPictureInPicture2, LuScreenShare, LuUser } from 'react-icons/lu';
 import { AVATAR_ICON_COLOR, type AVATARS } from '@features/auth/constants/avatars';
+import { mirrorSelfView } from '../lib/self-view';
 import { OverlayVisibility, resolveFocus, stripItems, type StageItem } from '../lib/stage-focus';
 import { useStreamOn } from './call-hooks';
 import { useFrozenFrame } from './use-frozen-frame';
@@ -10,13 +11,13 @@ import '../styles/call-stage.css';
 interface StreamVideoProps {
   stream: MediaStream | null;
   mirror?: boolean;
-  fit?: 'contain' | 'cover';
+  fit?: 'contain';
   videoRef?: RefObject<HTMLVideoElement | null>;
   label?: string;
   holdFrame?: { paused: boolean };
 }
 
-function StreamVideo({ stream, mirror = false, fit = 'cover', videoRef, label, holdFrame }: StreamVideoProps) {
+function StreamVideo({ stream, mirror = false, fit = 'contain', videoRef, label, holdFrame }: StreamVideoProps) {
   const ownRef = useRef<HTMLVideoElement>(null);
   const ref = videoRef ?? ownRef;
   useStreamOn(ref, stream);
@@ -147,7 +148,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
       case 'remote':
         return personView(remote, false, 112);
       case 'self':
-        return self ? personView(self, true, 112) : null;
+        return self ? personView(self, mirrorSelfView(self.stream), 112) : null;
       case 'my-screen':
         return <StreamVideo stream={myScreen} fit="contain" label={t('calls.share.yourScreen')} />;
     }
@@ -176,7 +177,7 @@ export function ShareStage({ stream, local, title, detail, remote, self, myScree
       case 'self':
         return self ? (
           <button key={item} {...common} className={`sc-call-tile${self.speaking ? ' sc-call-speaking' : ''}`} aria-label={t('calls.you')}>
-            {personView(self, true, 52)}
+            {personView(self, mirrorSelfView(self.stream), 52)}
             <span className="sc-call-chip">
               <span>{t('calls.you')}</span>
             </span>

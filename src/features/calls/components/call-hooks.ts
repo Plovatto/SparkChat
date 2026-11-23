@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { monitorSpeaking } from '../lib/audio-level';
 import { autoplay } from '../lib/autoplay';
 
@@ -44,6 +44,43 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
       autoplay.forget(element);
     }
   });
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || !stream) {
+      return;
+    }
+    const tracks = stream.getVideoTracks?.() ?? [];
+    const rebind = () => {
+      if (element.srcObject !== stream) {
+        return;
+      }
+      if ((element as HTMLVideoElement).videoWidth === 0) {
+        element.srcObject = null;
+        element.srcObject = stream;
+      }
+      autoplay.play(element);
+    };
+    const resume = () => {
+      if (element.srcObject === stream && element.paused && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) {
+        autoplay.play(element);
+      }
+    };
+    for (const track of tracks) {
+      track.addEventListener('unmute', rebind);
+    }
+    element.addEventListener('pause', resume);
+    return () => {
+      for (const track of tracks) {
+        track.removeEventListener('unmute', rebind);
+      }
+      element.removeEventListener('pause', resume);
+    };
+  });
+}
+
+export function useVideoOnly(stream: MediaStream | null): MediaStream | null {
+  const track = stream?.getVideoTracks()[0] ?? null;
+  return useMemo(() => (track ? new MediaStream([track]) : null), [track]);
 }
 
 export function isOutside(target: EventTarget | null, ...elements: Array<{ contains: (node: Node) => boolean } | null>): boolean {
