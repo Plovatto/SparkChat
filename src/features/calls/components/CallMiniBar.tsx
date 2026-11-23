@@ -4,7 +4,7 @@ import { LuMic, LuMicOff, LuPhone, LuPhoneOff, LuVideo } from 'react-icons/lu';
 import { formatCallDuration } from '@lib/format';
 import { speakingClass } from '../lib/self-speaking';
 import { Collapse } from '@features/motion';
-import { useCall } from '../call-context';
+import { useCall, useLocalSpeaking } from '../call-context';
 import { isMounted } from '../lib/presence';
 import { usePresence } from './use-presence';
 import { FRAME_GAP_PX, FRAME_SELECTOR, frameInsets, type FrameInsets } from '../lib/frame-anchor';
@@ -52,6 +52,7 @@ export function CallStatusBar() {
 export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   const { t } = useTranslation();
   const call = useCall();
+  const localSpeaking = useLocalSpeaking();
   const { snapshot, minimized } = call;
   const { state } = snapshot;
   const { registerStatusBar, hasStatusBar } = call;
@@ -122,11 +123,11 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
         <button
           type="button"
           data-bar-action=""
-          className={speakingClass('sc-livebar__btn sc-livebar__btn--mute', call.localSpeaking)}
+          className={speakingClass('sc-livebar__btn sc-livebar__btn--mute', localSpeaking)}
           data-muted={snapshot.muted}
           onClick={call.toggleMute}
           aria-label={muteLabel}
-          title={call.localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel}
+          title={localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel}
           aria-pressed={snapshot.muted}
         >
           {snapshot.muted ? <LuMicOff size={18} aria-hidden="true" /> : <LuMic size={18} aria-hidden="true" />}
