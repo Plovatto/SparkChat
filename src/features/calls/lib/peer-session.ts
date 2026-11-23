@@ -181,8 +181,32 @@ export function screenEncoding({ movie, relayed, degrade, width, height, frameRa
 }
 
 const STEREO_PARAMS = ['stereo=1', 'sprop-stereo=1', `maxaveragebitrate=${MOVIE_AUDIO_MAX_BITRATE}`, 'cbr=0', 'usedtx=0'];
+const VOICE_PARAMS = ['useinbandfec=1', 'usedtx=0', `maxaveragebitrate=${AUDIO_MAX_BITRATE}`];
 
-export function enableShareStereo(sdp: string): string {
+function paramKey(part: string): string {
+  return part.split('=')[0] ?? part;
+}
+
+function tuneOpusSection(section: string, params: readonly string[], override: boolean): string {
+  const payload = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(section)?.[1];
+  if (!payload) {
+    return section;
+  }
+  const fmtp = new RegExp(`(a=fmtp:${payload} )([^\r\n]*)`);
+  const match = fmtp.exec(section);
+  if (!match) {
+    const eol = section.includes('\r\n') ? '\r\n' : '\n';
+    return section.replace(new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`), `$1${eol}a=fmtp:${payload} ${params.join(';')}`);
+  }
+  const wanted = new Map(params.map((part) => [paramKey(part), part]));
+  const existing = (match[2] ?? '').split(';').map((part) => part.trim()).filter(Boolean);
+  const keys = new Set(existing.map(paramKey));
+  const kept = override ? existing.map((part) => wanted.get(paramKey(part)) ?? part) : existing;
+  const merged = [...kept, ...params.filter((part) => !keys.has(paramKey(part)))].join(';');
+  return section.replace(fmtp, `$1${merged}`);
+}
+
+export function tuneAudioSdp(sdp: string): string {
   const sections = sdp.split(/(?=\nm=)/);
   let audioIndex = 0;
   return sections
@@ -191,23 +215,13 @@ export function enableShareStereo(sdp: string): string {
         return section;
       }
       audioIndex += 1;
-      if (audioIndex !== 2) {
-        return section;
+      if (audioIndex === 1) {
+        return tuneOpusSection(section, VOICE_PARAMS, true);
       }
-      const payload = /a=rtpmap:(\d+) opus\/48000\/2/i.exec(section)?.[1];
-      if (!payload) {
-        return section;
+      if (audioIndex === 2) {
+        return tuneOpusSection(section, STEREO_PARAMS, false);
       }
-      const fmtp = new RegExp(`(a=fmtp:${payload} )([^\r\n]*)`);
-      const match = fmtp.exec(section);
-      if (match) {
-        const existing = (match[2] ?? '').split(';').map((part) => part.trim()).filter(Boolean);
-        const keys = new Set(existing.map((part) => part.split('=')[0]));
-        const merged = [...existing, ...STEREO_PARAMS.filter((part) => !keys.has(part.split('=')[0]))].join(';');
-        return section.replace(fmtp, `$1${merged}`);
-      }
-      const eol = section.includes('\r\n') ? '\r\n' : '\n';
-      return section.replace(new RegExp(`(a=rtpmap:${payload} [^\r\n]*)`), `$1${eol}a=fmtp:${payload} ${STEREO_PARAMS.join(';')}`);
+      return section;
     })
     .join('');
 }
@@ -663,7 +677,16 @@ export class PeerSession {
       return;
     }
     const description = kind === 'offer' ? await connection.createOffer(options) : await connection.createAnswer();
-    await connection.setLocalDescription({ type: description.type, sdp: enableShareStereo(description.sdp ?? '') });
+    const original = description.sdp ?? '';
+    const tuned = tuneAudioSdp(original);
+    try {
+      await connection.setLocalDescription({ type: description.type, sdp: tuned });
+    } catch (error) {
+      if (tuned === original) {
+        throw error;
+      }
+      await connection.setLocalDescription({ type: description.type, sdp: original });
+    }
   }
 
   private async negotiate(): Promise<void> {
