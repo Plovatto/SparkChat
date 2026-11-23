@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type 
 import { createPortal } from 'react-dom';
 import { FaCheck, FaChevronDown } from 'react-icons/fa';
 import { moveActive, placeMenu, typeAhead, type MenuPlacement } from './dropdown-logic';
+import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 
 export interface DropdownOption {
   value: string;
@@ -116,19 +117,7 @@ export function Dropdown({ value, options, onChange, icon, disabled = false, emp
     };
   }, [open, options.length]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (target && !triggerRef.current?.contains(target) && !listRef.current?.contains(target)) {
-        close(false);
-      }
-    };
-    document.addEventListener('pointerdown', onPointerDown, true);
-    return () => document.removeEventListener('pointerdown', onPointerDown, true);
-  }, [open, close]);
+  useOutsidePointerDown(open, [triggerRef, listRef], () => close(false), true);
 
   useEffect(() => {
     if (!open || active < 0) {

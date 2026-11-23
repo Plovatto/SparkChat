@@ -606,7 +606,8 @@
       "autoRoomCaption": "Traduz no seu aparelho o que chegar em outro idioma.",
       "languages": {
         "pt": "português",
-        "en": "inglês"
+        "en": "inglês",
+        "es": "espanhol"
       }
     },
     "keyTrust": {

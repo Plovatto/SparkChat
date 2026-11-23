@@ -13,7 +13,7 @@ export {
 } from './segments';
 export type { Segment } from './segments';
 export { detectLanguage } from './detection';
-export { detectPtEn } from './heuristic-detector';
+export { detectByWords } from './heuristic-detector';
 export type { DetectedLanguage } from './heuristic-detector';
 export {
   captureTranslationEpoch,
