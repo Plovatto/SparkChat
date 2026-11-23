@@ -80,7 +80,7 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
 
 export function useVideoOnly(stream: MediaStream | null): MediaStream | null {
   const track = stream?.getVideoTracks()[0] ?? null;
-  return useMemo(() => (track ? new MediaStream([track]) : null), [track]);
+  return useMemo(() => (track && typeof MediaStream !== 'undefined' ? new MediaStream([track]) : null), [track]);
 }
 
 export function isOutside(target: EventTarget | null, ...elements: Array<{ contains: (node: Node) => boolean } | null>): boolean {
