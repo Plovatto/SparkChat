@@ -26,7 +26,7 @@ import { needsBackgroundAnchor } from './lib/background-anchor';
 import { useCallMediaSession } from './components/use-media-session';
 import { StreamWindow } from './components/StreamWindow';
 import { createShareAudio } from './lib/share-audio';
-import { createVoiceLeveler, primeVoiceContext } from './lib/voice-leveler';
+import { createVoiceLeveler, primeVoiceContext, releasePrimedVoiceContext } from './lib/voice-leveler';
 import { startRingtone, stopRingtone } from './lib/ringtone';
 import { createBrowserTabOwnership } from './lib/tab-ownership';
 import { acquireWakeLock, releaseWakeLock } from './lib/wake-lock';
@@ -131,6 +131,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   useEffect(() => {
     if (phase === 'idle' || phase === 'ended') {
       resetKnownDevices();
+      releasePrimedVoiceContext();
     }
   }, [phase]);
 

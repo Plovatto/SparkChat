@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { monitorSpeaking } from '../lib/audio-level';
 import { autoplay } from '../lib/autoplay';
+import { onPageResume } from '../lib/page-resume';
 
 export function useSpeaking(stream: MediaStream | null, enabled: boolean): boolean {
   const [speaking, setSpeaking] = useState(false);
@@ -54,10 +55,8 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
       if (element.srcObject !== stream) {
         return;
       }
-      if ((element as HTMLVideoElement).videoWidth === 0) {
-        element.srcObject = null;
-        element.srcObject = stream;
-      }
+      element.srcObject = null;
+      element.srcObject = stream;
       autoplay.play(element);
     };
     const resume = () => {
@@ -69,11 +68,17 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
       track.addEventListener('unmute', rebind);
     }
     element.addEventListener('pause', resume);
+    const stopResume = onPageResume(() => {
+      if (element.srcObject === stream) {
+        autoplay.play(element);
+      }
+    });
     return () => {
       for (const track of tracks) {
         track.removeEventListener('unmute', rebind);
       }
       element.removeEventListener('pause', resume);
+      stopResume();
     };
   });
 }

@@ -21,7 +21,7 @@ export interface CallMediaSession {
 
 export type MetadataFactory = (init: { title: string; artist: string }) => unknown;
 
-type CallAction = 'hangup' | 'togglemicrophone' | 'play' | 'pause';
+type CallAction = 'hangup' | 'togglemicrophone' | 'pause';
 
 function browserSession(): MediaSessionLike | null {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
@@ -72,13 +72,11 @@ export function startCallMediaSession(
 
   register('hangup', () => current.onHangup());
   register('togglemicrophone', () => current.onToggleMicrophone());
-  const keepPlaying = () => {
-    session.playbackState = 'playing';
-    current.onResume?.();
-  };
   if (options.onResume) {
-    register('play', keepPlaying);
-    register('pause', keepPlaying);
+    register('pause', () => {
+      session.playbackState = 'playing';
+      current.onToggleMicrophone();
+    });
   }
   apply(options);
 

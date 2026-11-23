@@ -124,6 +124,18 @@ export function primeVoiceContext({ denoise = false, create = browserContext, pr
   }
 }
 
+export function releasePrimedVoiceContext(): void {
+  const context = primed;
+  primed = null;
+  if (context && context.state !== 'closed') {
+    try {
+      void Promise.resolve(context.close()).catch(() => undefined);
+    } catch {
+      return;
+    }
+  }
+}
+
 export function takeVoiceContext(create: () => VoiceContextLike | null = browserContext): VoiceContextLike | null {
   const context = primed && primed.state !== 'closed' ? primed : create();
   primed = null;
