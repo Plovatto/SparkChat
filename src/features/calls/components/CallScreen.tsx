@@ -7,10 +7,11 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
-import { useCall } from '../call-context';
-import { autoplay } from '../lib/autoplay';
+import { Collapse } from '@features/motion';
+import { useCall, useLocalSpeaking } from '../call-context';
 import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
+import { mirrorSelfView } from '../lib/self-view';
 import { CHROME_HIDE_MS, chromeAutoHides, chromeVisible, describeSurface, selectCallView, selectStageLayout } from '../lib/stage-layout';
 import { OverlayVisibility } from '../lib/stage-focus';
 import { describeShareSurface } from '../lib/share-surface';
@@ -22,7 +23,7 @@ import { supportsOutputSelection } from '../lib/audio-output';
 import { CallPip } from './CallPip';
 import { CallQualityBars } from './CallQualityBars';
 import { ShareStage } from './ShareStage';
-import { useSpeaking, useStreamOn } from './call-hooks';
+import { useSpeaking, useStreamOn, useVideoOnly } from './call-hooks';
 import { openOnMinimize, shouldClosePip, allowAutoPip } from './pip-policy';
 import { useDuckedVolume } from './use-ducking';
 import { useShareMonitor } from './use-share-monitor';
@@ -149,7 +150,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
       : null;
   const supportsOutput = supportsOutputSelection();
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
-  const localSpeaking = call.localSpeaking;
+  const localSpeaking = useLocalSpeaking();
   const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume, duckLevel);
   const monitorVolume = useDuckedVolume(call.movieMode && monitorTrack !== null, localSpeaking || remoteSpeaking, shareMonitorVolume, duckLevel);
   useShareMonitor(shareMonitorRef, monitorTrack, monitorVolume);
@@ -186,20 +187,11 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
     call.setMinimized(true);
   };
 
-  useEffect(() => {
-    const element = videoRef.current;
-    if (!element) {
-      return;
-    }
-    if (element.srcObject !== snapshot.remoteStream) {
-      element.srcObject = snapshot.remoteStream;
-    }
-    if (snapshot.remoteStream) {
-      autoplay.play(element);
-    }
-  }, [snapshot.remoteStream, videoRef, stageActive]);
-
-  useStreamOn(localRef, snapshot.cameraOn ? snapshot.localStream : null);
+  const remoteCameraVideo = useVideoOnly(snapshot.remoteStream);
+  const selfVideo = useVideoOnly(snapshot.cameraOn ? snapshot.localStream : null);
+  useStreamOn(videoRef, remoteCameraVideo);
+  useStreamOn(localRef, selfVideo);
+  const selfMirrored = mirrorSelfView(selfVideo);
   useEffect(() => {
     if (shareAudioRef.current) {
       shareAudioRef.current.volume = shareAudioVolume;
@@ -253,6 +245,14 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
   const ended = state.phase === 'ended';
   const ringing = state.phase === 'outgoing-ringing' || state.phase === 'connecting';
   const reconnecting = state.phase === 'reconnecting';
+  const statusOpen = ringing || reconnecting;
+  const statusStage = usePresence(statusOpen, 220, 160);
+  const remoteMutedStage = usePresence(snapshot.remoteMuted && running, 260, 160);
+  const lastStatusRef = useRef({ text: statusText, reconnecting });
+  if (statusOpen) {
+    lastStatusRef.current = { text: statusText, reconnecting };
+  }
+  const shownStatus = lastStatusRef.current;
   const view = selectCallView({ ended, stageActive, remoteVideo: showRemoteVideo });
   const cinema = stageActive && (call.remoteShareMovie || (localStage && call.movieMode));
 
@@ -308,8 +308,8 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
     },
   };
 
-  const mutedBadge = (small: boolean) => (
-    <span className={`sc-call-muted-badge${small ? ' sc-call-muted-badge--small' : ''}`} role="img" aria-label={t('calls.mutedBadge')}>
+  const mutedBadge = (small: boolean, exiting = false) => (
+    <span className={`sc-call-muted-badge${small ? ' sc-call-muted-badge--small' : ''}`} role="img" aria-label={t('calls.mutedBadge')} data-exiting={exiting || undefined}>
       <LuMicOff size={small ? 12 : 15} />
     </span>
   );
@@ -334,7 +334,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
   );
 
   const selfMedia = snapshot.cameraOn ? (
-    <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" />
+    <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" data-mirror={selfMirrored} />
   ) : (
     <span className="sc-call-person__halo">
       <Avatar
@@ -375,14 +375,16 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
             className={`sc-call-avatar${remoteSpeaking ? ' sc-call-speaking' : ''}`}
             style={{ width: undefined, height: undefined }}
           >
-            {snapshot.remoteMuted && running && mutedBadge(false)}
+            {isMounted(remoteMutedStage) && mutedBadge(false, remoteMutedStage === 'exiting')}
           </Avatar>
         </span>
-        {(ringing || reconnecting) && (
-          <span className="sc-call-person__status" aria-hidden="true">
-            {reconnecting && <LuLoaderCircle size={15} className="sc-call-spin" />}
-            {statusText}
-          </span>
+        {isMounted(statusStage) && (
+          <Collapse isExiting={statusStage === 'exiting'} className="sc-call-person__slot">
+            <span className="sc-call-person__status" aria-hidden="true">
+              {shownStatus.reconnecting && <LuLoaderCircle size={15} className="sc-call-spin" />}
+              {shownStatus.text}
+            </span>
+          </Collapse>
         )}
         {state.kind === 'video' && snapshot.remoteStream !== null && !snapshot.remoteCameraOn && (
           <span className="sc-call-person__status">
@@ -565,7 +567,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
           )}
           {view === 'video' && snapshot.cameraOn && (
             <div className={`sc-call-self${localSpeaking ? ' sc-call-speaking' : ''}`}>
-              <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" />
+              <video ref={localRef} autoPlay playsInline muted className="sc-call-self-video" data-mirror={selfMirrored} />
               {nameChip(t('calls.you'), snapshot.muted, ' sc-call-self__name')}
             </div>
           )}
@@ -585,8 +587,8 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
             local={localStage}
             title={localStage ? t('calls.share.yourScreen') : t('calls.share.peerTitle', { name: peerName })}
             detail={localStage ? ownSurfaceText : peerSurfaceText}
-            remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? snapshot.remoteStream : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
-            self={{ name: t('calls.you'), avatar: meAvatar === undefined ? undefined : AVATARS[meAvatar], photo: myPhoto, stream: snapshot.cameraOn ? snapshot.localStream : null, speaking: localSpeaking, muted: snapshot.muted }}
+            remote={{ name: peerName, avatar, photo: peerPhoto, stream: remoteCamera ? remoteCameraVideo : null, speaking: remoteSpeaking, muted: snapshot.remoteMuted }}
+            self={{ name: t('calls.you'), avatar: meAvatar === undefined ? undefined : AVATARS[meAvatar], photo: myPhoto, stream: selfVideo, speaking: localSpeaking, muted: snapshot.muted }}
             myScreen={layout.localScreenTile ? snapshot.localScreenStream : null}
             stageRef={stageRef}
             streamVideoRef={screenRef}

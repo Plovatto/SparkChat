@@ -1,9 +1,10 @@
 import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
+import { cameraLoadCap, shareLoadCap, type LoadLevel } from './load-adaptation';
 import type { ShareSurfaceKind } from './share-surface';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
-export type ControlMessage = { t: 'hangup' } | { t: 'ping' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean };
+export type ControlMessage = { t: 'hangup' } | { t: 'ping' } | { t: 'mute'; on: boolean } | { t: 'camera'; on: boolean } | ScreenControl | { t: 'caps'; screen: boolean } | { t: 'keyframe' };
 
 export type RestartReason = 'connect-timeout' | 'disconnected' | 'failed' | 'retry' | 'online' | 'resync' | 'probe';
 
@@ -178,6 +179,25 @@ export function screenEncoding({ movie, relayed, degrade, width, height, frameRa
   const maxBitrate = directMovieBitrate(width, height);
   const highFrameRate = (frameRate ?? 0) >= 50 && uplinkBps !== null && uplinkBps >= maxBitrate;
   return { maxBitrate, scaleResolutionDownBy: 1, maxFramerate: highFrameRate ? MOVIE_HIGH_FRAMERATE : MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
+}
+
+export const MOVIE_LOAD_FRAMERATE = [MOVIE_MAX_FRAMERATE, 24, 15, 10] as const;
+
+export function movieLoadCap(level: LoadLevel, encoding: ScreenEncoding): ScreenEncoding {
+  if (level === 0) {
+    return encoding;
+  }
+  return {
+    ...encoding,
+    maxBitrate: Math.round(encoding.maxBitrate / (level + 1)),
+    maxFramerate: Math.min(encoding.maxFramerate ?? MOVIE_MAX_FRAMERATE, MOVIE_LOAD_FRAMERATE[level]),
+    scaleResolutionDownBy: Math.max(encoding.scaleResolutionDownBy, level >= 2 ? 2 : 1.5),
+  };
+}
+
+export function shareCap(level: LoadLevel, width: number | null, height: number | null, unstable: boolean, degraded: boolean): SenderCap {
+  const cap = shareLoadCap(level, { width, height, unstable: unstable || degraded });
+  return { ...cap, maxBitrate: degraded ? Math.min(cap.maxBitrate, SCREEN_DEGRADED_MAX_BITRATE) : cap.maxBitrate };
 }
 
 const STEREO_PARAMS = ['stereo=1', 'sprop-stereo=1', `maxaveragebitrate=${MOVIE_AUDIO_MAX_BITRATE}`, 'cbr=0', 'usedtx=0'];
@@ -362,6 +382,9 @@ export function parseControlMessage(raw: unknown): ControlMessage | null {
     if (message.t === 'ping') {
       return { t: 'ping' };
     }
+    if (message.t === 'keyframe') {
+      return { t: 'keyframe' };
+    }
     if (message.t === 'caps' && typeof message.screen === 'boolean') {
       return { t: 'caps', screen: message.screen };
     }
@@ -430,6 +453,7 @@ type ExtendedEncoding = RTCRtpEncodingParameters & { priority?: RTCPriorityType;
 export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, extended: boolean): RTCRtpSendParameters {
   const encodings: ExtendedEncoding[] = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
   const first: ExtendedEncoding = encodings[0] ?? {};
+  first.active = true;
   first.maxBitrate = cap.maxBitrate;
   if (cap.scaleResolutionDownBy !== undefined) {
     first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
@@ -449,6 +473,14 @@ export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, 
     next.degradationPreference = cap.degradationPreference;
   }
   return next;
+}
+
+export const KEYFRAME_REFRESH_GAP_MS = 2_000;
+
+export function withActive(current: RTCRtpSendParameters, active: boolean): RTCRtpSendParameters {
+  const encodings = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
+  encodings[0] = { ...encodings[0], active };
+  return { ...current, encodings };
 }
 
 const EARLY_STATE_CONTROLS: ReadonlySet<ControlMessage['t']> = new Set(['caps', 'camera', 'mute', 'screen']);
@@ -485,6 +517,8 @@ export class PeerSession {
   private remoteScreenExposed = false;
   private unstable = false;
   private movie = false;
+  private loadLevel: LoadLevel = 0;
+  private lastKeyFrameAt = Number.NEGATIVE_INFINITY;
   private peerScreenCaps = false;
   private allServers: RTCIceServer[];
   private relayEnabled = false;
@@ -838,12 +872,15 @@ export class PeerSession {
       return;
     }
     if (state === 'disconnected') {
-      this.options.onConnection('interrupted');
       this.failingSince ??= this.deps.now();
       this.clearDisconnectTimer();
       this.disconnectTimer = setTimeout(() => {
         this.disconnectTimer = null;
-        if (this.connection.iceConnectionState === 'disconnected' && this.retryTimer === null) {
+        if (this.closed || this.connection.iceConnectionState !== 'disconnected') {
+          return;
+        }
+        this.options.onConnection('interrupted');
+        if (this.retryTimer === null) {
           this.recover('disconnected');
         }
       }, DISCONNECTED_RESTART_DELAY_MS);
@@ -1155,6 +1192,10 @@ export class PeerSession {
   }
 
   private deliverControl(message: ControlMessage): void {
+    if (message.t === 'keyframe') {
+      void this.refreshScreenFrame();
+      return;
+    }
     if (message.t === 'caps') {
       this.peerScreenCaps = message.screen;
     }
@@ -1288,6 +1329,40 @@ export class PeerSession {
     await this.applyCaps();
   }
 
+  async setLoadLevel(level: LoadLevel): Promise<void> {
+    if (this.loadLevel === level) {
+      return;
+    }
+    this.loadLevel = level;
+    await this.applyCaps();
+  }
+
+  requestScreenKeyFrame(): boolean {
+    return this.sendControl({ t: 'keyframe' });
+  }
+
+  private async refreshScreenFrame(): Promise<void> {
+    const sender = this.screenTransceiver()?.sender;
+    const now = Date.now();
+    if (this.closed || !sender?.track || now - this.lastKeyFrameAt < KEYFRAME_REFRESH_GAP_MS) {
+      return;
+    }
+    this.lastKeyFrameAt = now;
+    try {
+      await sender.setParameters(withActive(sender.getParameters(), false));
+    } catch {
+      return;
+    }
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await sender.setParameters(withActive(sender.getParameters(), true));
+        return;
+      } catch {
+        continue;
+      }
+    }
+  }
+
   private transceiversOf(kind: 'audio' | 'video'): RTCRtpTransceiver[] {
     return this.connection.getTransceivers().filter((transceiver) => (transceiver.receiver.track?.kind ?? transceiver.sender.track?.kind) === kind);
   }
@@ -1400,15 +1475,18 @@ export class PeerSession {
     }
     const lowerCamera = degradeVideo || this.unstable;
     const cameraCap = this.unstable ? VIDEO_UNSTABLE_MAX_BITRATE : degradeVideo ? VIDEO_DEGRADED_MAX_BITRATE : VIDEO_MAX_BITRATE;
+    const cameraLoad = cameraLoadCap(this.loadLevel);
     await this.setSenderCap(videoSender, {
       maxBitrate: this.fitToUplink(cameraCap, Boolean(screenSender?.track)),
-      scaleResolutionDownBy: lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1,
+      scaleResolutionDownBy: Math.max(lowerCamera ? (this.options.mobile ? 1.333 : 2) : 1, cameraLoad.scaleResolutionDownBy),
+      ...(cameraLoad.maxFramerate !== undefined ? { maxFramerate: cameraLoad.maxFramerate } : {}),
       degradationPreference: 'maintain-framerate',
     });
     const screenSettings = screenSender?.track?.getSettings?.();
     await this.setSenderCap(
       screenSender,
-      screenEncoding({
+      this.movie
+        ? movieLoadCap(this.loadLevel, screenEncoding({
         movie: this.movie,
         relayed: this.movie && screenSender?.track ? await this.isRelayed() : false,
         degrade: this.degrade,
@@ -1416,7 +1494,8 @@ export class PeerSession {
         height: screenSettings?.height ?? null,
         frameRate: screenSettings?.frameRate ?? null,
         uplinkBps: this.movie && screenSender?.track ? await this.uplinkEstimate() : null,
-      }),
+      }))
+        : shareCap(this.loadLevel, screenSettings?.width ?? null, screenSettings?.height ?? null, this.unstable, degradeVideo),
     );
     await this.setSenderCap(screenAudioSender, { maxBitrate: this.movie ? MOVIE_AUDIO_MAX_BITRATE : SCREEN_AUDIO_MAX_BITRATE });
     this.reportDegrade(degradeVideo ? 'video-360' : null);
@@ -1457,10 +1536,20 @@ export class PeerSession {
         return;
       }
       void refresh()
-        .then((result) => this.applyRefresh(result))
+        .then((result) => {
+          this.applyRefresh(result);
+          return result ? this.moveRelayToFreshCredentials() : undefined;
+        })
         .catch(() => undefined)
         .finally(() => this.scheduleCredentialRefresh());
     }, CREDENTIAL_REFRESH_MS);
+  }
+
+  private async moveRelayToFreshCredentials(): Promise<void> {
+    if (this.closed || !this.isIceHealthy() || !(await this.isRelayed()) || this.closed) {
+      return;
+    }
+    this.restartIce(true);
   }
 
   dropRelayCredentials(): void {

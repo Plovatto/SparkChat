@@ -15,7 +15,7 @@ import {
   type CachedTranslation,
   type TranslationEpoch,
 } from './translation-cache';
-import { pairKey, type PairKey, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
+import { pairKey, type PairKey, type SourceLanguage, type TranslationEngine, type TranslationProgressEvent, type TranslationSupport } from './types';
 
 export const MIN_DETECTION_CONFIDENCE = 0.7;
 const LEAN_TARGET_CONFIDENCE = 0.5;
@@ -27,8 +27,8 @@ const PLACEHOLDER_KEY = 'chat.message.encryptedUnavailable';
 type Field = 'content' | 'caption';
 
 export type IncomingResult =
-  | { status: 'translated'; text: string; sourceLanguage: Language; explicit?: true }
-  | { status: 'preparing'; sourceLanguage: Language }
+  | { status: 'translated'; text: string; sourceLanguage: SourceLanguage; explicit?: true }
+  | { status: 'preparing'; sourceLanguage: SourceLanguage }
   | { status: 'none' };
 
 export type IncomingRequest = {
@@ -90,7 +90,7 @@ function watchProgress(engine: TranslationEngine): void {
   });
 }
 
-function prepareOnce(engine: TranslationEngine, source: Language, target: Language): void {
+function prepareOnce(engine: TranslationEngine, source: SourceLanguage, target: Language): void {
   const key = `${engine.id}:${pairKey(source, target)}`;
   if (preparing.has(key)) {
     return;
@@ -114,7 +114,7 @@ function isFinalSupport(support: TranslationSupport): boolean {
   return support === 'available' || support === 'unavailable' || support === 'failed';
 }
 
-function pollNativeAvailability(engine: TranslationEngine, source: Language, target: Language): void {
+function pollNativeAvailability(engine: TranslationEngine, source: SourceLanguage, target: Language): void {
   const key = pairKey(source, target);
   if (nativePolls.has(key) || invalidationListeners.size === 0) {
     return;
@@ -180,7 +180,7 @@ async function run(job: Job): Promise<IncomingResult> {
     return rememberFor(job, NONE);
   }
   const confidentOther = confident && detected.language !== request.target;
-  const source = confidentOther ? detected.language : oppositeLanguage(request.target);
+  const source: SourceLanguage = confidentOther ? detected.language : oppositeLanguage(request.target);
   const guessed = !confidentOther;
   const route = await resolveEngine(source, request.target);
   if (!route) {
@@ -209,7 +209,7 @@ function isSameText(a: string, b: string): boolean {
   return normalize(a) === normalize(b);
 }
 
-async function runOnRoute(job: Job, source: Language, route: EngineRoute, guessed: boolean): Promise<IncomingResult> {
+async function runOnRoute(job: Job, source: SourceLanguage, route: EngineRoute, guessed: boolean): Promise<IncomingResult> {
   const { request } = job;
   const { engine, support } = route;
   if (support === 'downloadable' || support === 'downloading') {
@@ -232,7 +232,7 @@ async function runOnRoute(job: Job, source: Language, route: EngineRoute, guesse
   }
   try {
     const text = await translatePreservingSegments(request.text, (chunk) =>
-      engine.translate(normalizeChatAbbreviations(collapseStretchedLetters(chunk), source), source, request.target, { priority: 1 }),
+      engine.translate(source === 'es' ? collapseStretchedLetters(chunk) : normalizeChatAbbreviations(collapseStretchedLetters(chunk), source), source, request.target, { priority: 1 }),
     );
     if (isSameText(text, request.text)) {
       return rememberFor(job, NONE);
@@ -315,12 +315,19 @@ export function translateIncoming(request: IncomingRequest): Promise<IncomingRes
   });
 }
 
+function canTranslateSpanish(): boolean {
+  return 'Translator' in globalThis;
+}
+
 export function classifyDetection(detected: DetectedLanguage | null, target: Language): IncomingAssessment {
   if (detected === null) {
     return 'unsure';
   }
   if (detected.language === target) {
     return detected.confidence >= LEAN_TARGET_CONFIDENCE ? 'target' : 'unsure';
+  }
+  if (detected.language === 'es' && !canTranslateSpanish()) {
+    return 'unsure';
   }
   return detected.confidence >= MIN_DETECTION_CONFIDENCE ? 'other' : 'unsure';
 }

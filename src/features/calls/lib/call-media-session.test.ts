@@ -55,22 +55,44 @@ describe('startCallMediaSession', () => {
     expect(next.onHangup).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the call playing when the system or the notification asks to pause or play', () => {
+    const { session, handlers } = fakeSession();
+    const onResume = vi.fn();
+    startCallMediaSession(options({ onResume }), session, metadata);
+
+    session.playbackState = 'paused';
+    handlers.get('pause')?.();
+    expect(session.playbackState).toBe('playing');
+    handlers.get('play')?.();
+
+    expect(onResume).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the system play and pause behaviour alone when nothing needs to be kept playing', () => {
+    const { session, handlers } = fakeSession();
+    startCallMediaSession(options(), session, metadata);
+    expect(handlers.has('play')).toBe(false);
+    expect(handlers.has('pause')).toBe(false);
+  });
+
   it('clears everything on stop and ignores later updates', () => {
     const { session, handlers } = fakeSession();
-    const call = startCallMediaSession(options(), session, metadata);
+    const call = startCallMediaSession(options({ onResume: vi.fn() }), session, metadata);
 
     call.stop();
     call.update(options({ title: 'Late' }));
 
     expect(handlers.get('hangup')).toBeNull();
     expect(handlers.get('togglemicrophone')).toBeNull();
+    expect(handlers.get('play')).toBeNull();
+    expect(handlers.get('pause')).toBeNull();
     expect(session.metadata).toBeNull();
     expect(session.playbackState).toBe('none');
   });
 
   it('copes with browsers that reject an action or lack the media session', () => {
-    const { session, handlers } = fakeSession(['togglemicrophone']);
-    const call = startCallMediaSession(options(), session, metadata);
+    const { session, handlers } = fakeSession(['togglemicrophone', 'play', 'pause']);
+    const call = startCallMediaSession(options({ onResume: vi.fn() }), session, metadata);
     expect([...handlers.keys()]).toEqual(['hangup']);
     expect(session.playbackState).toBe('playing');
     call.stop();

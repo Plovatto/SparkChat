@@ -6,7 +6,7 @@ export function CallQualityBars({ bars, relayed = null }: { bars: QualityBars | 
   if (bars === null) {
     return null;
   }
-  const tone = qualityTone(bars, relayed);
+  const tone = qualityTone(bars);
   const route = relayed === null ? '' : relayed ? t('calls.route.relay') : t('calls.route.direct');
   const label = route ? `${t('calls.quality', { bars })} · ${route}` : t('calls.quality', { bars });
   return (

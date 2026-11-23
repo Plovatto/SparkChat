@@ -52,6 +52,7 @@ export interface VoiceContextLike extends DenoiseContextLike {
   createGain: () => GainNodeLike;
   createMediaStreamDestination: () => DestinationLike;
   resume?: () => Promise<void>;
+  suspend?: () => Promise<void>;
   close: () => Promise<void>;
   addEventListener?: (type: 'statechange', listener: () => void) => void;
   removeEventListener?: (type: 'statechange', listener: () => void) => void;
@@ -64,6 +65,7 @@ export interface VoiceLeveler {
   setInput: (track: MediaStreamTrack) => MediaStreamTrack;
   setVolume: (volume: number) => void;
   setMuted: (muted: boolean) => void;
+  setLight: (light: boolean) => void;
   close: () => void;
 }
 
@@ -135,14 +137,18 @@ const defaultDeps: VoiceLevelerDeps = {
   prepareDenoiser: (context) => prepareDenoiser(context),
 };
 
-export function enableBrowserNoiseSuppression(track: MediaStreamTrack): void {
+export function setBrowserNoiseSuppression(track: MediaStreamTrack, on: boolean): void {
   try {
     void track
-      .applyConstraints({ ...track.getConstraints(), noiseSuppression: true })
+      .applyConstraints({ ...track.getConstraints(), noiseSuppression: on })
       .catch(() => undefined);
   } catch {
     return;
   }
+}
+
+export function enableBrowserNoiseSuppression(track: MediaStreamTrack): void {
+  setBrowserNoiseSuppression(track, true);
 }
 
 function setParam(param: ParamLike, value: number): void {
@@ -185,6 +191,7 @@ function passthrough(input: MediaStreamTrack, denoise: () => boolean): VoiceLeve
     },
     setVolume: () => undefined,
     setMuted: () => undefined,
+    setLight: () => undefined,
     close: () => undefined,
   };
 }
@@ -227,6 +234,8 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     let denoiser: DenoiseNodeLike | null = null;
     let loading = false;
     let closed = false;
+    let light = false;
+    let browserSuppressing = false;
     let routed: unknown = null;
     const route = () => {
       const target = denoiser ?? highpass;
@@ -250,7 +259,7 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     };
     const attachDenoiser = (factory: DenoiseFactory | null) => {
       loading = false;
-      if (closed || !resolved.denoise() || denoiser) {
+      if (closed || !resolved.denoise() || denoiser || light) {
         return;
       }
       let node: DenoiseNodeLike;
@@ -275,7 +284,7 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
       route();
     };
     const syncDenoise = () => {
-      if (!resolved.denoise()) {
+      if (!resolved.denoise() || light) {
         dropDenoiser();
       } else if (!denoiser && !loading) {
         loading = true;
@@ -285,7 +294,7 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     };
     syncDenoise();
     const onState = () => {
-      if (!closed && (context.state === 'suspended' || context.state === 'interrupted')) {
+      if (!closed && !light && (context.state === 'suspended' || context.state === 'interrupted')) {
         void context.resume?.().catch(() => undefined);
       }
     };
@@ -303,6 +312,10 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
         source = context.createMediaStreamSource(resolved.createStream([track]));
         routed = null;
         syncDenoise();
+        if (light && resolved.denoise()) {
+          setBrowserNoiseSuppression(track, true);
+          browserSuppressing = true;
+        }
         return output;
       },
       setVolume: (next) => {
@@ -318,6 +331,25 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
       },
       setMuted: (muted) => {
         output.enabled = !muted;
+      },
+      setLight: (next) => {
+        if (closed || next === light) {
+          return;
+        }
+        light = next;
+        syncDenoise();
+        if (light) {
+          void context.suspend?.().catch(() => undefined);
+        } else {
+          void context.resume?.().catch(() => undefined);
+        }
+        if (light && resolved.denoise()) {
+          setBrowserNoiseSuppression(current, true);
+          browserSuppressing = true;
+        } else if (!light && browserSuppressing) {
+          setBrowserNoiseSuppression(current, false);
+          browserSuppressing = false;
+        }
       },
       close: () => {
         if (closed) {

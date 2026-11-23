@@ -559,6 +559,38 @@ describe('ice restart', () => {
     expect(h.connection.restartCalls).toBe(1);
   });
 
+  it('does not report an interruption for a brief disconnect that recovers on its own', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+
+    for (let blip = 0; blip < 5; blip += 1) {
+      h.connection.setIce('disconnected');
+      await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS - 500);
+      h.connection.setIce('connected');
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    expect(h.statuses).not.toContain('interrupted');
+    expect(h.connection.restartCalls).toBe(0);
+  });
+
+  it('reports the interruption once the disconnect outlasts the grace period', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS - 1);
+    expect(h.statuses).not.toContain('interrupted');
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(h.statuses).toContain('interrupted');
+    expect(h.connection.restartCalls).toBe(1);
+  });
+
   it('starts direct only and falls back to the relay when nothing connects within 8 seconds', async () => {
     const h = build('caller');
     h.session.start();
@@ -1093,6 +1125,42 @@ describe('credential refresh', () => {
 
     expect(CREDENTIAL_REFRESH_MS).toBe(40 * 60 * 1000);
     expect(refresh).toHaveBeenCalledTimes(6);
+    expect(h.connection.restartCalls).toBe(restarts);
+  });
+
+  it('moves a relayed call onto each refreshed credential with one ice restart, because the server revokes the previous one', async () => {
+    const fresh = [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }];
+    const refresh = vi.fn().mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    const restarts = h.connection.restartCalls;
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(h.connection.restartCalls).toBe(restarts + 1);
+    expect(h.signals.filter((signal) => signal.type === 'ice-restart')).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+    expect(h.connection.restartCalls).toBe(restarts + 2);
+  });
+
+  it('does not restart a relayed call when the refresh brings nothing', async () => {
+    const refresh = vi.fn().mockResolvedValue(null);
+    const h = build('caller', { refreshIceServers: refresh });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    const restarts = h.connection.restartCalls;
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+
     expect(h.connection.restartCalls).toBe(restarts);
   });
 
@@ -1719,8 +1787,97 @@ describe('movie mode encodings', () => {
 
     await h.session.setMovieMode(false);
     expect(video.contentHint).toBe('detail');
-    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: SCREEN_MAX_BITRATE });
-    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).not.toHaveProperty('maxFramerate');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: SCREEN_MAX_BITRATE, maxFramerate: 15, scaleResolutionDownBy: 2 });
+    expect(h.connection.transceivers[2]!.sender.parameters.degradationPreference).toBe('maintain-resolution');
+  });
+});
+
+describe('cpu load adaptation', () => {
+  async function sharing() {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"caps","screen":true}' });
+    const video = { kind: 'video', contentHint: '', getSettings: () => ({ width: 1920, height: 1080 }) } as unknown as MediaStreamTrack;
+    await h.session.setScreenTracks(video, null);
+    return h;
+  }
+
+  it('lowers the screen frame rate first and the resolution later as load grows, then recovers', async () => {
+    const h = await sharing();
+    const screen = () => h.connection.transceivers[2]!.sender.parameters.encodings[0];
+    expect(screen()).toMatchObject({ maxFramerate: 15, scaleResolutionDownBy: 1 });
+    await h.session.setLoadLevel(1);
+    expect(screen()).toMatchObject({ maxFramerate: 8, scaleResolutionDownBy: 1 });
+    await h.session.setLoadLevel(3);
+    expect(screen()).toMatchObject({ maxFramerate: 3, scaleResolutionDownBy: 1.5 });
+    await h.session.setLoadLevel(0);
+    expect(screen()).toMatchObject({ maxFramerate: 15, scaleResolutionDownBy: 1, maxBitrate: SCREEN_MAX_BITRATE });
+  });
+
+  it('keeps voice at high priority whatever the load', async () => {
+    const h = await sharing();
+    await h.session.setLoadLevel(3);
+    expect(h.connection.transceivers[0]!.sender.parameters.encodings[0]).toMatchObject({ priority: 'high', networkPriority: 'high' });
+  });
+
+  it('lets an unstable network trade resolution for frame rate so the share keeps moving', async () => {
+    const h = await sharing();
+    await h.session.setNetworkUnstable(true);
+    expect(h.connection.transceivers[2]!.sender.parameters.degradationPreference).toBe('balanced');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]!.maxBitrate).toBeLessThanOrEqual(1_000_000);
+  });
+
+  it('restarts the screen encoder with a fresh key frame when the viewer reports a frozen share', async () => {
+    const h = await sharing();
+    const sender = h.connection.transceivers[2]!.sender;
+    const seen: boolean[] = [];
+    const original = sender.setParameters.bind(sender);
+    sender.setParameters = async (parameters) => {
+      seen.push(parameters.encodings[0]?.active !== false);
+      return original(parameters);
+    };
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(seen).toEqual([false, true]);
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(seen).toHaveLength(2);
+  });
+
+  it('retries turning the screen encoder back on and never leaves it off after a caps update', async () => {
+    const h = await sharing();
+    const sender = h.connection.transceivers[2]!.sender;
+    const original = sender.setParameters.bind(sender);
+    let failures = 1;
+    sender.setParameters = async (parameters) => {
+      if (parameters.encodings[0]?.active === true && failures > 0) {
+        failures -= 1;
+        throw new Error('stale transaction');
+      }
+      return original(parameters);
+    };
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+    sender.parameters.encodings[0]!.active = false;
+    await h.session.setLoadLevel(2);
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+  });
+
+  it('asks the sharer for a key frame over the control channel', async () => {
+    const h = await sharing();
+    const sent: string[] = [];
+    const channel = h.connection.channels[0]!;
+    const send = channel.send.bind(channel);
+    channel.send = (data: string) => {
+      sent.push(data);
+      send(data);
+    };
+    expect(h.session.requestScreenKeyFrame()).toBe(true);
+    expect(sent).toContain('{"t":"keyframe"}');
   });
 });
 

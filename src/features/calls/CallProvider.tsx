@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from 'react';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { translate } from '@lib/i18n/app-i18n';
 import { getCurrentIdentity } from '@lib/e2ee';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { useSpeaking } from './components/call-hooks';
-import { CallContext, type CallApi, type PeerDisplay } from './call-context';
+import { CallContext, LocalSpeakingContext, type CallApi, type PeerDisplay } from './call-context';
 import { CallAudio } from './components/CallAudio';
 import { CallMiniBar } from './components/CallMiniBar';
 import { CallNotices } from './components/CallNotices';
@@ -21,6 +21,8 @@ import { showSelfSpeaking } from './lib/self-speaking';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
+import { useBackgroundAnchor } from './components/use-background-anchor';
+import { needsBackgroundAnchor } from './lib/background-anchor';
 import { useCallMediaSession } from './components/use-media-session';
 import { StreamWindow } from './components/StreamWindow';
 import { createShareAudio } from './lib/share-audio';
@@ -125,8 +127,6 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   useEffect(() => {
     onScreenCoverChange?.(coversChat, () => setMinimized(true));
   }, [coversChat, onScreenCoverChange]);
-
-  const localSpeaking = showSelfSpeaking(useSpeaking(snapshot.localStream, (phase === 'active' || phase === 'reconnecting') && !snapshot.muted), snapshot.muted);
 
   useEffect(() => {
     if (phase === 'idle' || phase === 'ended') {
@@ -287,7 +287,10 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   }, [sharedStream, streamWindow]);
 
   const mediaSessionActive = phase === 'outgoing-ringing' || phase === 'connecting' || phase === 'active' || phase === 'reconnecting';
+  const anchorSupported = needsBackgroundAnchor();
+  const reviveAnchor = useBackgroundAnchor(mediaSessionActive);
   useCallMediaSession(mediaSessionActive, {
+    onResume: anchorSupported ? reviveAnchor : undefined,
     title: sharedPeerName || translate('calls.mediaSession.title'),
     artist: translate(snapshot.state.kind === 'video' ? 'calls.mediaSession.video' : 'calls.mediaSession.voice'),
     muted: snapshot.muted,
@@ -320,7 +323,6 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   }, [fullscreenStage]);
 
   const api: CallApi = {
-    localSpeaking,
     movieMode: snapshot.movieMode,
     shareVolume: snapshot.shareVolume,
     streamVolume,
@@ -397,26 +399,33 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
 
   return (
     <CallContext value={api}>
-      {children}
-      <div ref={mediaRootRef} style={{ display: 'contents' }}>
-        <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
-      </div>
-      <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
-      <CallMiniBar />
-      <IncomingCallModal />
-      <CallNotices />
-      {streamWindow && sharedStream && (
-        <StreamWindow
-          target={streamWindow}
-          stream={sharedStream}
-          title={sharedTitle}
-          onFullscreen={() => {
-            streamWindow.close();
-            setStreamWindow(null);
-            fullscreenStage();
-          }}
-        />
-      )}
+      <LocalSpeakingScope stream={snapshot.localStream} enabled={(phase === 'active' || phase === 'reconnecting') && !snapshot.muted} muted={snapshot.muted}>
+        {children}
+        <div ref={mediaRootRef} style={{ display: 'contents' }}>
+          <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
+        </div>
+        <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
+        <CallMiniBar />
+        <IncomingCallModal />
+        <CallNotices />
+        {streamWindow && sharedStream && (
+          <StreamWindow
+            target={streamWindow}
+            stream={sharedStream}
+            title={sharedTitle}
+            onFullscreen={() => {
+              streamWindow.close();
+              setStreamWindow(null);
+              fullscreenStage();
+            }}
+          />
+        )}
+      </LocalSpeakingScope>
     </CallContext>
   );
+}
+
+function LocalSpeakingScope({ stream, enabled, muted, children }: { stream: MediaStream | null; enabled: boolean; muted: boolean; children: ReactNode }) {
+  const speaking = showSelfSpeaking(useSpeaking(stream, enabled), muted);
+  return <LocalSpeakingContext value={speaking}>{children}</LocalSpeakingContext>;
 }

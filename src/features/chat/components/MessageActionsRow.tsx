@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { LuCircleCheck, LuCopy, LuEllipsisVertical, LuForward, LuLanguages, LuReply, LuSmilePlus, LuTrash2 } from 'react-icons/lu';
@@ -6,6 +6,7 @@ import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
 import { useMediaQuery } from '@hooks/useMediaQuery';
+import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 import '../styles/message-actions.css';
 
 export const MESSAGE_ACTIONS_SHEET_QUERY = '(max-width: 767.98px), (hover: none)';
@@ -217,18 +218,7 @@ function ActionsToolbar(props: MessageActionsRowProps) {
   const { isOwn, onReact } = props;
   useEscapeKey(menuOpen, () => setMenuOpen(false));
 
-  useEffect(() => {
-    if (!menuOpen) {
-      return;
-    }
-    const close = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [menuOpen]);
+  useOutsidePointerDown(menuOpen, [rootRef], () => setMenuOpen(false));
 
   useLayoutEffect(() => {
     const root = rootRef.current;

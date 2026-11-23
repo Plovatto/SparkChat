@@ -1,9 +1,11 @@
-import type { Language } from '@lib/i18n/language';
+import type { SourceLanguage } from './types';
 
 export interface DetectedLanguage {
-  language: Language;
+  language: SourceLanguage;
   confidence: number;
 }
+
+export type Scores = Record<SourceLanguage, number>;
 
 const PT_WORDS = new Set(
   (
@@ -12,7 +14,7 @@ const PT_WORDS = new Set(
     'menos mais mas porque quando onde como quem qual quais ele ela eles elas nós meu minha seu sua nosso nossa dele dela ' +
     'do da dos das no na nos nas num numa pelo pela pelos pelas ao aos à às se já só ou nem até sem sobre entre depois antes ' +
     'ser ter fazer foi era são estão estou tô vou vai vem tem tinha fica ficou acabou acabava pode posso quer quero sabe ' +
-    'coisa gente nada nunca sempre ontem cedo tarde noite dia semana daí aí lá cá então né tipo cara mano vlw blz obg show'
+    'coisa gente nada nunca sempre ontem cedo tarde noite dia semana daí aí lá cá então né tipo cara mano vlw blz obg show bola certo'
   ).split(' '),
 );
 const EN_WORDS = new Set(
@@ -25,11 +27,25 @@ const EN_WORDS = new Set(
   ).split(' '),
 );
 
+const ES_WORDS = new Set(
+  (
+    'el los las y es muy pero gracias hola qué cómo dónde cuándo cuál usted ustedes hoy mañana bueno buena buenos buenas ' +
+    'tengo tienes tiene tenemos quiero quieres puedo puedes hacer hace hago hacemos nosotros ellos ellas yo eso esto aquí allí ' +
+    'noche noches día días bien entonces ahora siempre hay soy eres están estoy estás lo le les del al un una pues vale ' +
+    'mucho mucha muchos muchas mejor lunes tiempo sí también porqué'
+  ).split(' '),
+);
+const PT_ES_SHARED_WORDS = new Set(['por', 'nos', 'todo', 'todos', 'vemos', 'nada', 'amigo', 'amiga', 'como', 'para', 'que', 'de', 'se', 'vamos', 'nunca']);
+
 const AMBIGUOUS_WORDS = new Set(['no', 'a', 'as', 'to', 'me', 'so', 'do', 'ok', 'yes', 'show']);
 const AMBIGUOUS_WEIGHT = 0.5;
 const PT_SLANG = new Set(['vc', 'pra', 'tá', 'tô']);
 const PT_SLANG_WEIGHT = 2;
-const PT_ACCENT = /[ãõçáéíóúâêô]/g;
+const PT_ACCENT = /[ãõçâêô]/g;
+const SHARED_ACCENT = /[áéíóú]/g;
+const ES_LETTER = /ñ/g;
+const ES_PUNCTUATION = /[¿¡]/g;
+const ES_SUFFIXES = ['ción', 'ciones', 'idad'];
 const PT_LAUGHTER = /^(k{3,}|(rs){2,})$/;
 const PT_SUFFIXES = ['mente', 'ções', 'ção', 'ões', 'zinho', 'zinha', 'inho', 'inha', 'ando', 'endo', 'indo', 'ado', 'ada', 'ados', 'adas', 'ido', 'ida', 'agem', 'eiro', 'eira', 'dade', 'ável', 'ível', 'oso', 'osa'];
 const EN_SUFFIXES = ['ing', 'tion', 'ness', 'ful', 'less', 'ight', 'ould', 'ly'];
@@ -45,42 +61,68 @@ function hasSuffix(word: string, suffixes: string[]): boolean {
   return suffixes.some((suffix) => word.length >= suffix.length + MIN_STEM && word.endsWith(suffix));
 }
 
-function scoreWord(word: string): { pt: number; en: number } {
-  let pt = 0;
-  let en = 0;
+function scoreWord(word: string): Scores {
+  const scores: Scores = { pt: 0, en: 0, es: 0 };
   if (PT_LAUGHTER.test(word)) {
-    return { pt: 1, en: 0 };
+    scores.pt = 1;
+    return scores;
+  }
+  if (PT_ES_SHARED_WORDS.has(word)) {
+    return scores;
   }
   const wordWeight = AMBIGUOUS_WORDS.has(word) ? AMBIGUOUS_WEIGHT : 1;
-  if (PT_SLANG.has(word)) pt += PT_SLANG_WEIGHT;
-  else if (PT_WORDS.has(word)) pt += wordWeight;
-  if (EN_WORDS.has(word)) en += wordWeight;
-  pt += word.match(PT_ACCENT)?.length ?? 0;
-  if (!PT_WORDS.has(word) && !EN_WORDS.has(word)) {
-    if (hasSuffix(word, PT_SUFFIXES)) pt += SUFFIX_WEIGHT;
-    else if (hasSuffix(word, EN_SUFFIXES)) en += SUFFIX_WEIGHT;
-    if (PT_PATTERN.test(word)) pt += PATTERN_WEIGHT;
-    else if (EN_PATTERN.test(word)) en += PATTERN_WEIGHT;
+  const isEs = ES_WORDS.has(word);
+  if (PT_SLANG.has(word)) scores.pt += PT_SLANG_WEIGHT;
+  else if (PT_WORDS.has(word)) scores.pt += wordWeight;
+  if (EN_WORDS.has(word)) scores.en += wordWeight;
+  if (isEs) scores.es += 1;
+  scores.pt += word.match(PT_ACCENT)?.length ?? 0;
+  if (!isEs) scores.pt += word.match(SHARED_ACCENT)?.length ?? 0;
+  scores.es += word.match(ES_LETTER)?.length ?? 0;
+  if (!PT_WORDS.has(word) && !EN_WORDS.has(word) && !isEs) {
+    if (hasSuffix(word, ES_SUFFIXES)) scores.es += SUFFIX_WEIGHT;
+    else if (hasSuffix(word, PT_SUFFIXES)) scores.pt += SUFFIX_WEIGHT;
+    else if (hasSuffix(word, EN_SUFFIXES)) scores.en += SUFFIX_WEIGHT;
+    if (PT_PATTERN.test(word)) scores.pt += PATTERN_WEIGHT;
+    else if (EN_PATTERN.test(word)) scores.en += PATTERN_WEIGHT;
   }
-  return { pt, en };
+  return scores;
 }
 
-function isTypicalWord(word: string): boolean {
-  if (AMBIGUOUS_WORDS.has(word)) return false;
-  const pt = PT_WORDS.has(word) || PT_SLANG.has(word);
-  return pt !== EN_WORDS.has(word);
+function typicalLanguage(word: string): SourceLanguage | null {
+  if (AMBIGUOUS_WORDS.has(word) || PT_ES_SHARED_WORDS.has(word)) return null;
+  const matches: SourceLanguage[] = [];
+  if (PT_WORDS.has(word) || PT_SLANG.has(word)) matches.push('pt');
+  if (EN_WORDS.has(word)) matches.push('en');
+  if (ES_WORDS.has(word)) matches.push('es');
+  return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
-export function detectPtEn(text: string): DetectedLanguage | null {
-  let pt = 0;
-  let en = 0;
-  const words = text.toLowerCase().match(WORD) ?? [];
+const LANGUAGE_ORDER: readonly SourceLanguage[] = ['pt', 'en', 'es'];
+
+export function rankLanguages(scores: Scores): [SourceLanguage, SourceLanguage] {
+  let first: SourceLanguage = 'pt';
+  let second: SourceLanguage = 'en';
+  if (scores.en > scores.pt) [first, second] = ['en', 'pt'];
+  if (scores.es > scores[first]) [first, second] = ['es', first];
+  else if (scores.es > scores[second]) second = 'es';
+  return [first, second];
+}
+
+export function detectByWords(text: string): DetectedLanguage | null {
+  const lower = text.toLowerCase();
+  const scores: Scores = { pt: 0, en: 0, es: lower.match(ES_PUNCTUATION)?.length ?? 0 };
+  const words = lower.match(WORD) ?? [];
+  const typical = new Set<SourceLanguage>();
   for (const word of words) {
     const score = scoreWord(word);
-    pt += score.pt;
-    en += score.en;
+    for (const language of LANGUAGE_ORDER) scores[language] += score[language];
+    const language = typicalLanguage(word);
+    if (language) typical.add(language);
   }
-  const total = pt + en;
-  if (total < MIN_SIGNAL && !(words.length === 1 && isTypicalWord(words[0]))) return null;
-  return { language: pt >= en ? 'pt' : 'en', confidence: Math.abs(pt - en) / total };
+  const [first, second] = rankLanguages(scores);
+  const total = scores.pt + scores.en + scores.es;
+  const onlyTypical = typical.size === 1 && typical.has(first) && scores[second] === 0;
+  if (total === 0 || (total < MIN_SIGNAL && !onlyTypical)) return null;
+  return { language: first, confidence: (scores[first] - scores[second]) / total };
 }

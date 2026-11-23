@@ -24,7 +24,6 @@ export interface CallApi {
   streamWindowOpen: boolean;
   openStreamWindow: () => void;
   snapshot: CallSnapshot;
-  localSpeaking: boolean;
   minimized: boolean;
   setMinimized: (value: boolean) => void;
   canCall: (room: RoomSummary) => boolean;
@@ -56,6 +55,12 @@ export interface CallApi {
 }
 
 export const CallContext = createContext<CallApi | null>(null);
+
+export const LocalSpeakingContext = createContext(false);
+
+export function useLocalSpeaking(): boolean {
+  return use(LocalSpeakingContext);
+}
 
 export function useOptionalCall(): CallApi | null {
   return use(CallContext);

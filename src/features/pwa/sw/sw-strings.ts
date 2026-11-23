@@ -6,6 +6,8 @@ export interface WorkerStrings {
   decline: string;
   missedCall: string;
   missedCallBody: string;
+  callEnded: string;
+  callEndedBody: string;
   newMessage: string;
   newMessageBody: string;
   generic: string;
@@ -24,6 +26,8 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     decline: 'Recusar',
     missedCall: 'Chamada perdida',
     missedCallBody: 'Você perdeu uma chamada no SparkChat',
+    callEnded: 'Chamada encerrada',
+    callEndedBody: 'Esta chamada já terminou',
     newMessage: 'Nova mensagem',
     newMessageBody: 'Abra o SparkChat para ler',
     generic: 'SparkChat',
@@ -40,6 +44,8 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     decline: 'Decline',
     missedCall: 'Missed call',
     missedCallBody: 'You missed a call on SparkChat',
+    callEnded: 'Call ended',
+    callEndedBody: 'This call has already ended',
     newMessage: 'New message',
     newMessageBody: 'Open SparkChat to read it',
     generic: 'SparkChat',
