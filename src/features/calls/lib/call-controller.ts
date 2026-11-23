@@ -46,22 +46,22 @@ import { cancelInterval, cancelTimeout, sleep, takeTimed } from './timers';
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const OTHER_DEVICE_RECHECK_MS = 15_000;
 export const HANGUP_RETRY_MS = 25_000;
-export const ICE_SERVERS_TIMEOUT_MS = 8_000;
-export const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200, 2400, 4800];
-export const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
+const ICE_SERVERS_TIMEOUT_MS = 8_000;
+const ICE_RETRY_DELAYS_MS: readonly number[] = [300, 600, 1200, 2400, 4800];
+const ACCEPT_CONFIRM_TIMEOUT_MS = 15_000;
 export const CALL_RECONNECT_MAX_MS = 180_000;
 export const CALL_OFFLINE_MAX_MS = CALL_RECONNECT_MAX_MS;
-export const ROOM_WAIT_ATTEMPTS = 30;
-export const ROOM_WAIT_INTERVAL_MS = 100;
-export const NOTIFICATION_ACTION_TTL_MS = 60_000;
-export const GLARE_WINDOW_MS = 15_000;
+const ROOM_WAIT_ATTEMPTS = 30;
+const ROOM_WAIT_INTERVAL_MS = 100;
+const NOTIFICATION_ACTION_TTL_MS = 60_000;
+const GLARE_WINDOW_MS = 15_000;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
 const CAMERA_MUTE_GRACE_MS = 2_500;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
 const PORT_53 = /:53(?:\?|$)/;
 
-export type CallNoticeKind =
+type CallNoticeKind =
   | 'media-denied'
   | 'media-busy'
   | 'no-microphone'
@@ -77,7 +77,7 @@ export type CallNoticeKind =
   | 'transfer-failed'
   | 'screen-failed';
 
-export interface CallNotice {
+interface CallNotice {
   kind: CallNoticeKind;
   code?: string;
 }
@@ -212,7 +212,7 @@ export interface NotificationCallAction {
   callId: string;
 }
 
-export interface OtherDeviceCall {
+interface OtherDeviceCall {
   callId: string;
   peerId: string;
   kind: CallKind;
@@ -222,7 +222,7 @@ export interface OtherDeviceCall {
   media?: CallMediaState | null;
 }
 
-export interface CallMediaState {
+interface CallMediaState {
   muted: boolean;
   camera: boolean;
 }
@@ -282,7 +282,7 @@ interface PendingIce {
   timer: ReturnType<typeof setTimeout>;
 }
 
-export const SURFACE_WATCH_MS = 2_000;
+const SURFACE_WATCH_MS = 2_000;
 
 function withMovie(info: ScreenInfo | null, movie: boolean): ScreenInfo | null {
   return info ? { ...info, movie } : null;
@@ -297,7 +297,7 @@ function toScreenInfo(stream: MediaStream): ScreenInfo | null {
   }
 }
 
-export function mediaErrorNotice(error: unknown): CallNoticeKind {
+function mediaErrorNotice(error: unknown): CallNoticeKind {
   const name = error instanceof Error || (typeof error === 'object' && error !== null && 'name' in error) ? String((error as { name?: unknown }).name) : '';
   if (name === 'NotReadableError' || name === 'AbortError' || name === 'TrackStartError') {
     return 'media-busy';
@@ -328,7 +328,7 @@ function toDegrade(value: CallDegradeWire | null | undefined): DegradeStep | nul
   return value === 'video-360' || value === 'audio-only-relay' ? value : null;
 }
 
-export function initialSnapshot(): CallSnapshot {
+function initialSnapshot(): CallSnapshot {
   return {
     state: IDLE_CALL_STATE,
     enabled: false,

@@ -1,7 +1,7 @@
 import type { CallKind, CallRole } from '@lib/e2ee/call-crypto';
 
 export type { CallKind, CallRole };
-export type CallPhase = 'idle' | 'outgoing-ringing' | 'incoming-ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
+type CallPhase = 'idle' | 'outgoing-ringing' | 'incoming-ringing' | 'connecting' | 'active' | 'reconnecting' | 'ended';
 export type CallEndReason =
   | 'completed'
   | 'missed'
@@ -48,7 +48,7 @@ export type CallEvent =
   | { type: 'peer-transfer'; callId: string }
   | { type: 'dismiss' };
 
-export type CallTimer = 'ring' | 'connect' | 'reconnect' | 'linger';
+type CallTimer = 'ring' | 'connect' | 'reconnect' | 'linger';
 
 export type CallEffect =
   | { type: 'send-start'; callId: string }
@@ -60,7 +60,7 @@ export type CallEffect =
   | { type: 'start-ringtone'; callId: string }
   | { type: 'stop-ringtone'; callId: string };
 
-export interface Transition {
+interface Transition {
   state: CallState;
   effects: CallEffect[];
 }
@@ -258,7 +258,7 @@ function handleTimeout(state: CallState, timer: CallTimer, callId: string): Tran
   return state.phase === 'reconnecting' ? finish(state, 'connection-lost', [{ type: 'send-hangup', callId }]) : unchanged(state);
 }
 
-export function timerForPhase(phase: CallPhase): { timer: CallTimer; ms: number } | null {
+function timerForPhase(phase: CallPhase): { timer: CallTimer; ms: number } | null {
   switch (phase) {
     case 'outgoing-ringing':
     case 'incoming-ringing':
@@ -274,7 +274,7 @@ export function timerForPhase(phase: CallPhase): { timer: CallTimer; ms: number 
   }
 }
 
-export interface CallMachineOptions {
+interface CallMachineOptions {
   onEffect: (effect: CallEffect, state: CallState) => void;
   onChange: (state: CallState) => void;
   extendReconnect?: (state: CallState) => boolean;

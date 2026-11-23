@@ -10,15 +10,15 @@ export type ControlMessage = { t: 'hangup' } | { t: 'ping' } | { t: 'mute'; on: 
 export type RestartReason = 'connect-timeout' | 'disconnected' | 'failed' | 'retry' | 'online' | 'resync' | 'probe';
 
 export const INITIAL_RELAY_FALLBACK_MS = 8_000;
-export const DIRECT_RESTART_ATTEMPTS = 2;
+const DIRECT_RESTART_ATTEMPTS = 2;
 export const FAILED_RELAY_AFTER_MS = 10_000;
-export const RESTART_RETRY_MS: readonly number[] = [3_000, 5_000, 8_000, 13_000, 15_000];
+const RESTART_RETRY_MS: readonly number[] = [3_000, 5_000, 8_000, 13_000, 15_000];
 export const RELAY_PROBE_INTERVAL_MS = 60_000;
 export const KEEPALIVE_INTERVAL_MS = 5_000;
 export const MAX_RELAY_PROBES = 3;
 export const RELAY_PROBE_SLOW_INTERVAL_MS = 5 * 60_000;
 
-export function isRelayUrl(url: string): boolean {
+function isRelayUrl(url: string): boolean {
   return /^turns?:/i.test(url);
 }
 
@@ -53,7 +53,7 @@ export interface ScreenInfo {
   paused?: boolean;
 }
 
-export interface ScreenControl {
+interface ScreenControl {
   t: 'screen';
   on: boolean;
   surface?: ShareSurfaceKind;
@@ -63,7 +63,7 @@ export interface ScreenControl {
   paused?: boolean;
 }
 
-export const MAX_SCREEN_LABEL_LENGTH = 80;
+const MAX_SCREEN_LABEL_LENGTH = 80;
 const SURFACES: ReadonlySet<string> = new Set(['browser', 'window', 'monitor', 'unknown']);
 const UNSAFE_CHAR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 
@@ -120,17 +120,17 @@ export const VIDEO_MIN_ADAPTIVE_BITRATE = 150_000;
 const UPLINK_CHANGE_RATIO = 0.2;
 export const SCREEN_MAX_BITRATE = 2_500_000;
 export const SCREEN_DEGRADED_MAX_BITRATE = 1_000_000;
-export const SCREEN_AUDIO_MAX_BITRATE = 64_000;
+const SCREEN_AUDIO_MAX_BITRATE = 64_000;
 export const MOVIE_AUDIO_MAX_BITRATE = 192_000;
 export const MOVIE_4K_MAX_BITRATE = 20_000_000;
 export const MOVIE_1440_MAX_BITRATE = 12_000_000;
 export const MOVIE_1080_MAX_BITRATE = 8_000_000;
 export const MOVIE_RELAY_MAX_BITRATE = 4_000_000;
-export const MOVIE_HIGH_FRAMERATE = 60;
+const MOVIE_HIGH_FRAMERATE = 60;
 export const MOVIE_DEGRADED_MAX_BITRATE = 1_500_000;
-export const MOVIE_MAX_FRAMERATE = 30;
+const MOVIE_MAX_FRAMERATE = 30;
 
-export interface ScreenEncodingInput {
+interface ScreenEncodingInput {
   movie: boolean;
   relayed: boolean;
   degrade: DegradeStep | null;
@@ -140,7 +140,7 @@ export interface ScreenEncodingInput {
   uplinkBps?: number | null;
 }
 
-export interface ScreenEncoding {
+interface ScreenEncoding {
   maxBitrate: number;
   scaleResolutionDownBy: number;
   maxFramerate?: number;
@@ -182,9 +182,9 @@ export function screenEncoding({ movie, relayed, degrade, width, height, frameRa
   return { maxBitrate, scaleResolutionDownBy: 1, maxFramerate: highFrameRate ? MOVIE_HIGH_FRAMERATE : MOVIE_MAX_FRAMERATE, degradationPreference: 'maintain-framerate' };
 }
 
-export const MOVIE_LOAD_FRAMERATE = [MOVIE_MAX_FRAMERATE, 24, 15, 10] as const;
+const MOVIE_LOAD_FRAMERATE = [MOVIE_MAX_FRAMERATE, 24, 15, 10] as const;
 
-export function movieLoadCap(level: LoadLevel, encoding: ScreenEncoding): ScreenEncoding {
+function movieLoadCap(level: LoadLevel, encoding: ScreenEncoding): ScreenEncoding {
   if (level === 0) {
     return encoding;
   }
@@ -196,7 +196,7 @@ export function movieLoadCap(level: LoadLevel, encoding: ScreenEncoding): Screen
   };
 }
 
-export function shareCap(level: LoadLevel, width: number | null, height: number | null, unstable: boolean, degraded: boolean): SenderCap {
+function shareCap(level: LoadLevel, width: number | null, height: number | null, unstable: boolean, degraded: boolean): SenderCap {
   const cap = shareLoadCap(level, { width, height, unstable: unstable || degraded });
   return { ...cap, maxBitrate: degraded ? Math.min(cap.maxBitrate, SCREEN_DEGRADED_MAX_BITRATE) : cap.maxBitrate };
 }
@@ -256,7 +256,7 @@ const MIN_RESTART_GAP_MS = 1_000;
 const FINGERPRINT_PATTERN = /^[a-z0-9-]+ (?:[0-9A-Fa-f]{2}:)*[0-9A-Fa-f]{2}$/;
 const SDP_FINGERPRINT = /^a=fingerprint:(\S+) (\S+)\s*$/gm;
 
-export interface PeerSessionDeps {
+interface PeerSessionDeps {
   createConnection: (config: RTCConfiguration) => RTCPeerConnection;
   hashCertificate: (certificate: ArrayBuffer) => Promise<string>;
   createStream: () => MediaStream;
@@ -289,7 +289,7 @@ export interface PeerSessionOptions {
   deps?: Partial<PeerSessionDeps>;
 }
 
-export function defaultHashCertificate(certificate: ArrayBuffer): Promise<string> {
+function defaultHashCertificate(certificate: ArrayBuffer): Promise<string> {
   return crypto.subtle.digest('SHA-256', certificate).then((digest) =>
     Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0').toUpperCase()).join(':'),
   );
@@ -441,7 +441,7 @@ function parseFingerprints(value: unknown): string[] | null {
   return normalized;
 }
 
-export interface SenderCap {
+interface SenderCap {
   maxBitrate: number;
   scaleResolutionDownBy?: number;
   maxFramerate?: number;
@@ -476,9 +476,9 @@ export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, 
   return next;
 }
 
-export const KEYFRAME_REFRESH_GAP_MS = 2_000;
+const KEYFRAME_REFRESH_GAP_MS = 2_000;
 
-export function withActive(current: RTCRtpSendParameters, active: boolean): RTCRtpSendParameters {
+function withActive(current: RTCRtpSendParameters, active: boolean): RTCRtpSendParameters {
   const encodings = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
   encodings[0] = { ...encodings[0], active };
   return { ...current, encodings };
