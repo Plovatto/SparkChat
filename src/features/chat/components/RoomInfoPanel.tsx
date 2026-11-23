@@ -5,7 +5,7 @@ import { MdTranslate } from 'react-icons/md';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { SideDrawer } from '@components/common/SideDrawer';
 import { Switch } from '@components/common/Switch';
-import { useOptionalCall } from '@features/calls';
+import { blocksNewCall, useOptionalCall } from '@features/calls';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { GroupPhotoEditor } from '@features/profile-photos/components/GroupPhotoEditor';
 import { ProfilePhotoViewer } from '@features/profile-photos/components/ProfilePhotoViewer';
@@ -161,7 +161,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
   const otherUser = room.type === 'private' ? getOtherParticipant(room, currentUserId) : undefined;
   const call = useOptionalCall();
   const canCall = call !== null && call.canCall(room);
-  const callBusy = call !== null && call.snapshot.state.phase !== 'idle' && call.snapshot.state.phase !== 'ended';
+  const callBusy = call !== null && blocksNewCall(call.snapshot.state, room.id);
   const isCurrentUserAdmin = room.participants.some((participant) => participant.id === currentUserId && participant.isAdmin);
   const isSelectedMediaPdf = selectedMedia?.type === 'file' && selectedMedia.fileMeta?.mimeType === 'application/pdf';
   const media = useMemo(() => getGalleryMedia(messages), [messages]);
