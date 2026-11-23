@@ -5,7 +5,7 @@ import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { renderVideoThumbnail, type VideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
-import { VideoPreviewModal } from './VideoPreviewModal';
+import { VideoPreviewModal } from './lazy-panels';
 import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 const VIDEO_THUMBNAIL_WIDTH = 380;

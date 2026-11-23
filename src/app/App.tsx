@@ -39,11 +39,13 @@ import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useSplashPresence } from '@hooks/useSplashPresence';
 import { useSustainedFlag } from '@hooks/useSustainedFlag';
 import { useViewportHeight } from '@hooks/useViewportHeight';
+import { preloadWhenIdle } from '@lib/lazy/preload-when-idle';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { clearTranslationsForRoom } from '@lib/translation';
 import { SocketProvider, useSocket, type AppSocket, type RoomSummary, type SocketErrorPayload } from '@lib/socket';
 import { AppBackground } from './AppBackground';
+import { DEFERRED_FEATURE_PRELOADS } from './deferred-preloads';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
 import { hasDeepLinkParams, isDeepLinkError, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
@@ -298,6 +300,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   });
   const isWideLayout = useMediaQuery(minWidthQuery(SPLIT_LAYOUT_MIN_WIDTH_PX));
   const [isInfoColumnOpen, setIsInfoColumnOpen] = useState(false);
+
+  useEffect(() => preloadWhenIdle(DEFERRED_FEATURE_PRELOADS), []);
   const isSidebarCollapsed = isWideLayout && isInfoColumnOpen;
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);

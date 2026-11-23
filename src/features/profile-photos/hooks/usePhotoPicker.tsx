@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { useAutoDismiss } from '@hooks/useAutoDismiss';
 import { compressProfilePhoto, decodeProfilePhoto, profilePhotoErrorKey, type PhotoCropArea } from '@lib/media/profile-photo-compression';
-import { PhotoCropModal } from '../components/PhotoCropModal';
+import { PhotoCropModal } from '../components/lazy-photo-crop-modal';
 
 export const PROFILE_PHOTO_ACCEPT = 'image/*';
 

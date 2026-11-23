@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MediaViewer } from '@features/chat/components/media-viewer/MediaViewer';
+import { MediaViewer } from '@features/chat/components/lazy-panels';
 import type { MediaViewerItem } from '@features/chat/components/media-viewer/media-viewer-items';
 
 interface ProfilePhotoViewerProps {

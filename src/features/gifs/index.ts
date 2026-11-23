@@ -1,5 +1,5 @@
 export { GifButton } from './components/GifButton';
-export { GifPanel, KLIPY_ATTRIBUTION, KLIPY_SEARCH_PLACEHOLDER } from './components/GifPanel';
+export { GifPanel } from './components/lazy-gif-panel';
 export { useGifStatus } from './hooks/useGifStatus';
 export { clearGifMediaCache } from './utils/gif-media-cache';
 export { clearGifStatusCache } from './utils/gif-status-cache';

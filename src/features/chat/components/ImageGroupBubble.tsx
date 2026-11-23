@@ -11,14 +11,14 @@ import { canReactToMessage, mergeGroupReactions } from '../utils/reactions';
 import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 import { resolveSenderAvatar } from '../utils/sender-avatar';
-import { ImageModal } from './ImageModal';
+import { ImageModal } from './lazy-panels';
 import { MessageActionsRow } from './MessageActionsRow';
 import type { MessageBubbleActions } from './MessageBubble';
 import { MessageBubbleShell, type BubbleRunPosition } from './MessageBubbleShell';
 import { MessageMeta } from './MessageMeta';
 import { MessageReceiptRow } from './MessageReceiptRow';
 import { UnencryptedNotice } from './UnencryptedNotice';
-import { VideoPreviewModal } from './VideoPreviewModal';
+import { VideoPreviewModal } from './lazy-panels';
 import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageGroupBubbleProps extends MessageBubbleActions {

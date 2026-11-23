@@ -32,7 +32,7 @@ import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { InstallAppButton } from '@features/pwa/components/InstallAppButton';
 import { useFavoriteRooms } from '../hooks/useFavoriteRooms';
-import { EditProfileModal } from './EditProfileModal';
+import { EditProfileModal } from './lazy-modals';
 import { countUnreadRooms, filterRooms, type RoomFilter } from '../utils/room-filters';
 import { RoomListItem } from './RoomListItem';
 import { RoomListToolbar } from './RoomListToolbar';

@@ -41,7 +41,7 @@ import { CallStatusBar } from '@features/calls';
 import { ContactKeyBanner } from './ContactKeyBanner';
 import { DeleteMessageDialog } from './DeleteMessageDialog';
 import { EmptyChatState } from './EmptyChatState';
-import { ForwardMessageModal } from './ForwardMessageModal';
+import { ForwardMessageModal } from './lazy-panels';
 import { MediaViewerProvider } from './media-viewer/MediaViewerProvider';
 import { ImageGroupBubble } from './ImageGroupBubble';
 import { MessageBubble } from './MessageBubble';
@@ -54,7 +54,7 @@ import {
   type MessageInputSubmitPayload,
 } from './MessageInput';
 import { ReplyPreviewBar } from './ReplyPreviewBar';
-import { RoomInfoPanel } from './RoomInfoPanel';
+import { RoomInfoPanel } from './lazy-panels';
 
 interface ChatAreaProps {
   room: RoomSummary | null;

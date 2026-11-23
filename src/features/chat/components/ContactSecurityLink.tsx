@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FaShieldAlt } from 'react-icons/fa';
 import { useTranslation } from 'react-i18next';
 import { useContactTrust } from '../hooks/useContactTrust';
-import { SafetyNumberDialog } from './SafetyNumberDialog';
+import { SafetyNumberDialog } from './lazy-panels';
 
 interface ContactSecurityLinkProps {
   contactId: string;
