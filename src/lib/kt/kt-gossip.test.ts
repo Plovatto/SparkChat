@@ -23,6 +23,7 @@ vi.mock('@lib/e2ee/contact-trust', () => ({
 
 import { getActiveKtAlerts, resetKtAlerts } from './kt-alerts';
 import { setKtBuildConfigForTests, setKtSocketConfig } from './kt-config';
+import { setKtRetryDelaysForTests } from './kt-rpc';
 import { gossipLatestHead, handleGossip, readAudit, resetGossipState } from './kt-gossip';
 import { emptyOwnerState, loadOwnerState, saveOwnerState } from './kt-store';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys, type FakeLogKeys } from './kt-test-support';
@@ -72,6 +73,7 @@ async function deliver(message: { from: string; envelope: string }, to: Party): 
 }
 
 beforeEach(async () => {
+  setKtRetryDelaysForTests([]);
   memoryKtStorage();
   setKtBuildConfigForTests({ pinnedLogPublicKey: null, witnessUrl: null });
   resetKtAlerts();
@@ -83,6 +85,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  setKtRetryDelaysForTests(null);
   setCurrentIdentity(null);
   setKtBuildConfigForTests(null);
 });

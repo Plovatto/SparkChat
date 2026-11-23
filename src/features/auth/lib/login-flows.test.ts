@@ -3,6 +3,7 @@ import { buildRecoveryFile, deriveRecoveryCredentials, derivePasswordCredentials
 import { forgetAuthParams, resolveAuthParams } from './auth-params';
 import { loginWithPassword, loginWithRecoveryFile } from './login-flows';
 
+vi.mock('@lib/e2ee/sodium', async (importOriginal) => (await import('../../../test/fast-sodium')).fastSodiumModule(importOriginal));
 vi.mock('@config/env', () => ({ env: { apiUrl: 'https://api.test', socketUrl: 'https://api.test' } }));
 
 const FIXED_SALT = 'AAECAwQFBgcICQoLDA0ODw';

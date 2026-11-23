@@ -4,6 +4,7 @@ import { generateIdentity } from '@lib/e2ee/identity';
 import { getActiveKtAlerts, resetKtAlerts } from './kt-alerts';
 import type { SignedTreeHead } from './kt-crypto';
 import { setKtBuildConfigForTests, setKtSocketConfig } from './kt-config';
+import { setKtRetryDelaysForTests } from './kt-rpc';
 import { emptyOwnerState, loadOwnerState, saveOwnerState } from './kt-store';
 import { FakeLog, FakeSocket, logServer, memoryKtStorage, newLogKeys, type FakeLogKeys, type ServerBehavior } from './kt-test-support';
 import { checkWitness } from './kt-witness';
@@ -33,6 +34,7 @@ function setup(log: FakeLog, storedSize: number | null = log.leaves.length) {
 }
 
 beforeEach(async () => {
+  setKtRetryDelaysForTests([]);
   memoryKtStorage();
   setKtBuildConfigForTests({ pinnedLogPublicKey: null, witnessUrl: WITNESS_URL });
   resetKtAlerts();
@@ -42,6 +44,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  setKtRetryDelaysForTests(null);
   setCurrentIdentity(null);
   setKtBuildConfigForTests(null);
 });

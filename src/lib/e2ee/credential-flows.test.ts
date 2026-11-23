@@ -23,6 +23,7 @@ const current = vi.hoisted((): { identity: { userId: string; publicKey: string; 
 
 import { verifyKeyBinding } from './signing';
 
+vi.mock('@lib/e2ee/sodium', async (importOriginal) => (await import('../../test/fast-sodium')).fastSodiumModule(importOriginal));
 vi.mock('@lib/i18n/app-i18n', () => ({ translate: (key: string) => key }));
 vi.mock('./key-store', () => ({
   loadPrivateKey: () => Promise.resolve(stored.entry),
