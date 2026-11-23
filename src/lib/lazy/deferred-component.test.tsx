@@ -59,6 +59,40 @@ describe('deferredUntilOpen', () => {
   });
 });
 
+describe('deferredUntilOpen load failures', () => {
+  it('renders nothing when the chunk fails and retries on the next open', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const load = vi.fn<() => Promise<typeof Panel>>().mockRejectedValueOnce(new Error('chunk gone')).mockResolvedValue(Panel);
+    const Deferred = deferredUntilOpen<PanelProps>(load);
+
+    const { rerender } = render(
+      <div data-testid="host">
+        <Deferred isOpen label="f" />
+      </div>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('host')).toBeTruthy();
+    expect(screen.queryByTestId('panel')).toBeNull();
+
+    rerender(
+      <div data-testid="host">
+        <Deferred isOpen={false} label="f" />
+      </div>,
+    );
+    rerender(
+      <div data-testid="host">
+        <Deferred isOpen label="f" />
+      </div>,
+    );
+
+    expect(await screen.findByText('f:open')).toBeTruthy();
+    expect(load).toHaveBeenCalledTimes(2);
+    consoleError.mockRestore();
+  });
+});
+
 describe('deferredComponent', () => {
   it('renders the loaded component with its props', async () => {
     const Deferred = deferredComponent<PanelProps>(() => Promise.resolve(Panel));

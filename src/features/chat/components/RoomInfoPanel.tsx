@@ -22,8 +22,7 @@ import { ChatAppearanceActions, ChatAppearanceView } from './ChatAppearanceView'
 import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
 import { GroupNameEditor } from './GroupNameEditor';
-import { PdfPreviewModal } from './lazy-panels';
-import { MediaViewer } from './lazy-panels';
+import { MediaViewer, PdfPreviewModal } from './lazy-panels';
 import { useMediaViewer } from './media-viewer/media-viewer-context';
 import { toMediaViewerItems } from './media-viewer/media-viewer-items';
 import { InfoMediaGrid } from './room-info/InfoMediaGrid';
