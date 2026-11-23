@@ -32,6 +32,23 @@ describe('useToggleRipple', () => {
   });
 });
 
+describe('useToggleRipple arm expiry', () => {
+  it('forgets a click that changed nothing, so a later change made by the call stays quiet', () => {
+    vi.useFakeTimers();
+    try {
+      const { result, rerender } = renderHook(({ pressed }) => useToggleRipple(pressed), { initialProps: { pressed: false } });
+      act(() => result.current[1]());
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      rerender({ pressed: true });
+      expect(result.current[0]).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('toggle ripple on call controls', () => {
   function pip(muted: boolean) {
     return <CallPip target={window} peerName="Ada" avatar={undefined} stream={null} speaking={false} muted={muted} remoteMuted={false} onToggleMute={vi.fn()} onHangup={vi.fn()} onClose={vi.fn()} />;

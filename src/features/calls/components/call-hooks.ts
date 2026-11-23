@@ -83,12 +83,32 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
   });
 }
 
+const RIPPLE_ARM_MS = 4000;
+
 export function useToggleRipple(pressed: boolean): readonly ['true' | undefined, () => void] {
   const [state, setState] = useState({ last: pressed, armed: false, ripple: false });
   if (state.last !== pressed) {
     setState({ last: pressed, armed: false, ripple: pressed && state.armed });
   }
-  const arm = useCallback(() => setState((current) => (current.armed ? current : { ...current, armed: true })), []);
+  const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (disarm.current !== null) {
+        clearTimeout(disarm.current);
+      }
+    },
+    [],
+  );
+  const arm = useCallback(() => {
+    setState((current) => (current.armed ? current : { ...current, armed: true }));
+    if (disarm.current !== null) {
+      clearTimeout(disarm.current);
+    }
+    disarm.current = setTimeout(() => {
+      disarm.current = null;
+      setState((current) => (current.armed ? { ...current, armed: false } : current));
+    }, RIPPLE_ARM_MS);
+  }, []);
   return [state.ripple && pressed ? 'true' : undefined, arm] as const;
 }
 
