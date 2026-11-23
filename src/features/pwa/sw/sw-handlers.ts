@@ -17,7 +17,7 @@ export type PushMessage =
 
 export type NotificationData =
   | { kind: 'call'; callId: string; roomId: string }
-  | { kind: 'missed'; callId: string; roomId?: string }
+  | { kind: 'missed' | 'ended'; callId: string; roomId?: string }
   | { kind: 'msg'; roomId: string }
   | { kind: 'generic' };
 
@@ -258,10 +258,22 @@ async function showCallEnd(env: WorkerEnvironment, strings: WorkerStrings, langu
   for (const notification of existing) {
     notification.close();
   }
+  const base = baseOptions(language, env);
   if (!MISSED_CALL_REASONS.includes(message.reason)) {
+    const remaining = await env.getNotifications('').catch(() => []);
+    if (remaining.length > 0 || (await hasFocusedVisibleClient(env))) {
+      return;
+    }
+    await env.showNotification(strings.callEnded, {
+      ...base,
+      icon: await roomIconOr(env, roomId, base.icon),
+      body: strings.callEndedBody,
+      tag,
+      silent: true,
+      data: { kind: 'ended', callId: message.callId, ...(roomId ? { roomId } : {}) },
+    });
     return;
   }
-  const base = baseOptions(language, env);
   await env.showNotification(strings.missedCall, {
     ...base,
     icon: await roomIconOr(env, roomId, base.icon),

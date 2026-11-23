@@ -1,0 +1,14 @@
+@media (max-width: 399.98px) {
+  .sc-call-controls:has(> .sc-call-round--torch) {
+    gap: 6px;
+  }
+
+  .sc-call-controls:has(> .sc-call-round--torch) .sc-call-round {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sc-call-controls:has(> .sc-call-round--torch) .sc-call-round--danger {
+    width: 54px;
+  }
+}

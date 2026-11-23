@@ -32,7 +32,7 @@
   background: rgba(6, 5, 12, 0.9);
   box-shadow: var(--call-shadow), 0 0 0 1px var(--call-line);
   color: #ffffff;
-  animation: scCallStageIn 360ms var(--sc-ease-spring-soft);
+  animation: scCallStageIn 320ms var(--sc-ease-spring-soft);
   transition: box-shadow 400ms ease;
 }
 
@@ -370,7 +370,7 @@
   font: inherit;
   cursor: pointer;
   box-sizing: border-box;
-  animation: scCallTileIn 380ms var(--sc-ease-spring-soft) calc(var(--tile-index, 0) * 70ms + 140ms) backwards;
+  animation: scCallTileIn 340ms var(--sc-ease-spring-soft) calc(var(--tile-index, 0) * 70ms + 140ms) backwards;
 }
 
 .sc-call-tile video {

@@ -16,7 +16,7 @@ function installFakeDetector(results: FakeResult[], options: { failDetect?: bool
   (globalThis as Record<string, unknown>).LanguageDetector = {
     create: (createOptions: { expectedInputLanguages?: string[] }) => {
       fake.createCalls += 1;
-      expect(createOptions.expectedInputLanguages).toEqual(['pt', 'en']);
+      expect(createOptions.expectedInputLanguages).toEqual(['pt', 'en', 'es']);
       return Promise.resolve({
         detect: (text: string) => {
           fake.detectCalls.push(text);
@@ -37,9 +37,19 @@ afterEach(() => {
 });
 
 describe('detectLanguage', () => {
-  it('uses the native detector when present and ignores other languages', async () => {
-    installFakeDetector([{ detectedLanguage: 'es', confidence: 0.95 }]);
-    expect(await detectLanguage('hola amigos')).toBeNull();
+  it('uses the native detector when present and ignores languages it cannot translate', async () => {
+    installFakeDetector([{ detectedLanguage: 'fr', confidence: 0.95 }]);
+    expect(await detectLanguage('bonjour mes amis')).toBeNull();
+  });
+
+  it('reports Spanish from the native detector', async () => {
+    installFakeDetector([{ detectedLanguage: 'es-ES', confidence: 0.95 }]);
+    expect(await detectLanguage('hola amigos, nos vemos mañana en la oficina')).toEqual({ language: 'es', confidence: 0.95 });
+  });
+
+  it('does not trust a native Spanish verdict on short text the heuristic reads as Portuguese', async () => {
+    installFakeDetector([{ detectedLanguage: 'es', confidence: 0.9 }]);
+    expect((await detectLanguage('tudo certo'))?.language).toBe('pt');
   });
 
   it('normalizes pt-BR to pt', async () => {
@@ -65,13 +75,13 @@ describe('detectLanguage', () => {
     expect(await detectLanguage(text)).toBeNull();
   });
 
-  it('does not trust a tiny pt share when the text is in a third language', async () => {
+  it('does not trust a tiny pt share when the text is in a language it cannot translate', async () => {
     installFakeDetector([
-      { detectedLanguage: 'es', confidence: 0.95 },
+      { detectedLanguage: 'fr', confidence: 0.95 },
       { detectedLanguage: 'pt', confidence: 0.03 },
       { detectedLanguage: 'en', confidence: 0.005 },
     ]);
-    expect(await detectLanguage('hola amigos')).toBeNull();
+    expect(await detectLanguage('bonjour mes amis')).toBeNull();
   });
 
   it('reuses a single detector instance', async () => {

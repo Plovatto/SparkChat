@@ -146,7 +146,7 @@
   justify-content: space-between;
   gap: 12px;
   min-height: 56px;
-  animation: scCallDropIn 360ms var(--sc-ease-spring-soft) 60ms backwards;
+  animation: scCallDropIn 320ms var(--sc-ease-spring-soft) 60ms backwards;
 }
 
 .sc-call-topbar__group {
@@ -346,7 +346,7 @@
   border: 1px solid var(--call-line);
   box-shadow: var(--call-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   box-sizing: border-box;
-  animation: scCallTileIn 420ms var(--sc-ease-spring-soft) calc(var(--tile-index, 0) * 70ms + 80ms) both;
+  animation: scCallTileIn 340ms var(--sc-ease-spring-soft) calc(var(--tile-index, 0) * 60ms + 60ms) both;
 }
 
 .sc-call-person::after {
@@ -374,6 +374,7 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
+  --sc-collapse-gap: 16px;
   padding: 16px;
   min-width: 0;
   max-width: 100%;
@@ -416,6 +417,24 @@
 
 .sc-call-person[data-dim='true'] .sc-call-avatar {
   opacity: 0.5;
+  animation: scCallDimBreathe 1.6s ease-in-out infinite alternate;
+}
+
+.sc-call-person__slot {
+  max-width: 100%;
+}
+
+.sc-call-person__slot.is-exiting .sc-call-person__status {
+  animation: scCallFadeOut 140ms var(--sc-ease-exit) forwards;
+}
+
+.sc-call-muted-badge[data-exiting] {
+  animation: scCallBadgeOut 160ms var(--sc-ease-exit) forwards;
+}
+
+.sc-call-self-video,
+.sc-call-feed__video {
+  animation: scCallVideoIn 320ms var(--sc-ease-enter) backwards;
 }
 
 .sc-call-sonar,
@@ -489,7 +508,7 @@
   overflow: hidden;
   background: rgba(8, 6, 18, 0.6);
   box-shadow: var(--call-shadow), 0 0 0 1px var(--call-line);
-  animation: scCallStageIn 360ms var(--sc-ease-spring-soft);
+  animation: scCallStageIn 320ms var(--sc-ease-spring-soft);
 }
 
 .sc-call-feed__video {
@@ -530,6 +549,7 @@
   font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
+  animation: scCallPopIn 220ms var(--sc-ease-enter) backwards;
 }
 
 .sc-call-self {
@@ -545,7 +565,7 @@
   border: 2px solid rgba(255, 255, 255, 0.2);
   box-shadow: 0 14px 36px rgba(4, 3, 12, 0.45);
   box-sizing: border-box;
-  animation: scCallTileIn 420ms var(--sc-ease-spring-soft) 160ms both;
+  animation: scCallTileIn 340ms var(--sc-ease-spring-soft) 140ms both;
 }
 
 .sc-call-self__name {
@@ -561,7 +581,7 @@
   z-index: 5;
   display: flex;
   justify-content: center;
-  animation: scCallRise 380ms var(--sc-ease-spring-soft) 80ms backwards;
+  animation: scCallRise 320ms var(--sc-ease-spring-soft) 80ms backwards;
 }
 
 .sc-call-controls {
@@ -652,7 +672,32 @@
   border: 1px solid var(--call-line);
   box-shadow: var(--call-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   box-sizing: border-box;
-  animation: scCallCardIn 420ms var(--sc-ease-spring-soft);
+  animation: scCallCardIn 320ms var(--sc-ease-spring-soft);
+}
+
+.sc-call-ended > .sc-call-avatar {
+  animation: scCallAvatarPop 340ms var(--sc-spring-lively) 60ms backwards;
+}
+
+.sc-call-ended > .sc-call-name,
+.sc-call-ended > .sc-call-ended__title,
+.sc-call-ended > .sc-call-ended__meta,
+.sc-call-ended > .sc-call-callout,
+.sc-call-ended > .sc-call-ended__actions {
+  animation: scCallFadeRise 280ms var(--sc-ease-enter) 110ms backwards;
+}
+
+.sc-call-ended > .sc-call-ended__title {
+  animation-delay: 150ms;
+}
+
+.sc-call-ended > .sc-call-ended__meta,
+.sc-call-ended > .sc-call-callout {
+  animation-delay: 190ms;
+}
+
+.sc-call-ended > .sc-call-ended__actions {
+  animation-delay: 230ms;
 }
 
 .sc-call-ended .sc-call-avatar {
@@ -955,6 +1000,7 @@
 
   .sc-call-person__center {
     gap: 12px;
+    --sc-collapse-gap: 12px;
   }
 
   .sc-call-feed__name {
@@ -1004,6 +1050,7 @@
 
   .sc-call-person__center {
     gap: 8px;
+    --sc-collapse-gap: 8px;
   }
 }
 
@@ -1097,6 +1144,44 @@
   }
 }
 
+@keyframes scCallAvatarPop {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes scCallDimBreathe {
+  from {
+    opacity: 0.42;
+  }
+  to {
+    opacity: 0.64;
+  }
+}
+
+@keyframes scCallBadgeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+
+@keyframes scCallVideoIn {
+  from {
+    opacity: 0;
+    scale: 1.04;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
 @keyframes scCallRing {
   from {
     opacity: 0.65;
@@ -1138,6 +1223,15 @@
   .sc-call-feed,
   .sc-call-self,
   .sc-call-ended,
+  .sc-call-ended > .sc-call-avatar,
+  .sc-call-ended > .sc-call-name,
+  .sc-call-ended > .sc-call-ended__title,
+  .sc-call-ended > .sc-call-ended__meta,
+  .sc-call-ended > .sc-call-callout,
+  .sc-call-ended > .sc-call-ended__actions,
+  .sc-call-self-video,
+  .sc-call-feed__video,
+  .sc-call-feed__status,
   .sc-call-warning,
   .sc-call-share-banner[data-state],
   .sc-call-share-volume {
@@ -1151,6 +1245,8 @@
 
   .sc-call-bg__blob,
   .sc-call-sonar > span,
+  .sc-call-person[data-dim='true'] .sc-call-avatar,
+  .sc-call-muted-badge[data-exiting],
   .sc-call-person.is-speaking::after {
     animation: none;
     will-change: auto;
@@ -1255,6 +1351,7 @@
 
   .sc-call-person__center {
     gap: 8px;
+    --sc-collapse-gap: 8px;
     padding: 10px 12px 40px;
   }
 
