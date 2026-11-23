@@ -1,5 +1,6 @@
 import { env } from '@config/env';
 import { toApiError } from '@lib/api/api-error';
+import { completeLoginDeviceKey, prepareLoginDeviceKey } from '@lib/api/device-key';
 import type { LoginCredentials, User } from '../types';
 
 export type NicknameAvailabilityStatus = 'available' | 'taken' | 'invalid';
@@ -13,6 +14,7 @@ interface LoginResponse {
   message: string;
   user: Omit<User, 'sessionToken'>;
   sessionToken: string;
+  deviceKeyBound?: boolean;
 }
 
 interface NicknameAvailabilityResponse {
@@ -57,25 +59,26 @@ export async function fetchAuthParams(nickname: string): Promise<AuthParams> {
   throw toApiError(null, 'auth.login.failed');
 }
 
-export async function login({ nickname, password }: LoginCredentials): Promise<LoginResult> {
-  const response = await fetch(`${env.apiUrl}/api/users/login`, {
+async function postLogin(path: string, body: Record<string, string>): Promise<LoginResponse> {
+  const devicePublicKey = await prepareLoginDeviceKey();
+  const response = await fetch(`${env.apiUrl}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nickname, password }),
+    body: JSON.stringify(devicePublicKey ? { ...body, devicePublicKey } : body),
   });
 
   const data = await parseLoginResponse(response);
+  await completeLoginDeviceKey(data.user.id, devicePublicKey, data.deviceKeyBound === true);
+  return data;
+}
+
+export async function login({ nickname, password }: LoginCredentials): Promise<LoginResult> {
+  const data = await postLogin('/api/users/login', { nickname, password });
   return { user: { ...data.user, sessionToken: data.sessionToken, authMethod: 'password' } };
 }
 
 export async function loginWithRecovery({ userId, recoveryKey }: RecoveryLoginInput): Promise<LoginResult> {
-  const response = await fetch(`${env.apiUrl}/api/users/login-with-recovery`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, recoveryKey }),
-  });
-
-  const data = await parseLoginResponse(response);
+  const data = await postLogin('/api/users/login-with-recovery', { userId, recoveryKey });
   return { user: { ...data.user, sessionToken: data.sessionToken, authMethod: 'keyfile' } };
 }
 

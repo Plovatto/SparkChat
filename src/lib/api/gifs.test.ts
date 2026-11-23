@@ -30,7 +30,7 @@ describe('fetchGifStatus', () => {
 
     const [url, init] = lastCall(fetchSpy);
     expect(url).toBe('https://api.test/api/gifs/status');
-    expect(init.headers).toEqual({ Authorization: 'Bearer user-1:token' });
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer user-1:token');
   });
 
   it('reports a disabled gallery only from a successful answer', async () => {

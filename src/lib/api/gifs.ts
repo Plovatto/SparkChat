@@ -1,6 +1,5 @@
-import { env } from '@config/env';
 import { toApiError } from './api-error';
-import { buildAuthHeader, type SessionAuth } from './session-auth';
+import { authorizedFetch, type SessionAuth } from './session-auth';
 
 export type GifLocale = 'br' | 'us';
 
@@ -32,9 +31,9 @@ const LOAD_FAILED_KEY = 'gifs.loadFailed';
 const MEDIA_FAILED_KEY = 'gifs.mediaFailed';
 
 function postJson(path: string, body: unknown, auth: SessionAuth, signal?: AbortSignal): Promise<Response> {
-  return fetch(`${env.apiUrl}${path}`, {
+  return authorizedFetch(auth, path, {
     method: 'POST',
-    headers: { ...buildAuthHeader(auth), 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     ...(signal ? { signal } : {}),
   });
@@ -95,7 +94,7 @@ async function requestGifPage(
 }
 
 export async function fetchGifStatus(auth: SessionAuth): Promise<boolean> {
-  const response = await fetch(`${env.apiUrl}/api/gifs/status`, { headers: buildAuthHeader(auth) });
+  const response = await authorizedFetch(auth, '/api/gifs/status');
   const data: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     throw toApiError(data, LOAD_FAILED_KEY);
