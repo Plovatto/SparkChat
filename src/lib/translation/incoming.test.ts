@@ -776,9 +776,16 @@ describe('classifyDetection for the translate link', () => {
     expect(classifyDetection({ language: 'pt', confidence: 0.3 }, 'pt')).toBe('unsure');
   });
 
-  it('offers it when the message leans to the other language or there is no signal', () => {
+  it('stays unsure when the message only leans to the other language or there is no signal', () => {
     expect(classifyDetection({ language: 'en', confidence: 0.3 }, 'pt')).toBe('unsure');
     expect(classifyDetection(null, 'pt')).toBe('unsure');
+  });
+
+  it('treats confident Spanish as another language only when a native translator exists', () => {
+    expect(classifyDetection({ language: 'es', confidence: 0.9 }, 'pt')).toBe('other');
+    expect(classifyDetection({ language: 'es', confidence: 0.9 }, 'en')).toBe('other');
+    delete (globalThis as Record<string, unknown>).Translator;
+    expect(classifyDetection({ language: 'es', confidence: 0.9 }, 'pt')).toBe('unsure');
   });
 
   it('is confident only above the threshold', () => {

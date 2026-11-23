@@ -14,7 +14,7 @@ export function hasText(text: string | null | undefined): text is string {
 }
 
 function isOfferable(assessment: IncomingAssessment | null): boolean {
-  return assessment === 'other' || assessment === 'unsure';
+  return assessment === 'other';
 }
 
 export function shouldRequestTranslation(params: {
