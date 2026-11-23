@@ -197,14 +197,11 @@ export function nextRelay(state: RelayState, reading: boolean | null): RelayStat
   return { relayed: state.relayed, pending: reading };
 }
 
-export type QualityTone = 'good' | 'relay' | 'fair' | 'poor';
+export type QualityTone = 'good' | 'fair' | 'poor';
 
-export function qualityTone(bars: QualityBars, relayed: boolean | null): QualityTone {
+export function qualityTone(bars: QualityBars): QualityTone {
   if (bars === 1) {
     return 'poor';
   }
-  if (bars === 2) {
-    return 'fair';
-  }
-  return relayed === true ? 'relay' : 'good';
+  return bars === 2 ? 'fair' : 'good';
 }

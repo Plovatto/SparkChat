@@ -260,11 +260,9 @@ describe('relay hysteresis', () => {
 });
 
 describe('qualityTone', () => {
-  it('keeps the poor and fair colors and shows relay only when quality is good', () => {
-    expect(qualityTone(1, true)).toBe('poor');
-    expect(qualityTone(2, false)).toBe('fair');
-    expect(qualityTone(3, true)).toBe('relay');
-    expect(qualityTone(3, false)).toBe('good');
-    expect(qualityTone(3, null)).toBe('good');
+  it('colors only by measured quality, so a good relayed call is green', () => {
+    expect(qualityTone(1)).toBe('poor');
+    expect(qualityTone(2)).toBe('fair');
+    expect(qualityTone(3)).toBe('good');
   });
 });
