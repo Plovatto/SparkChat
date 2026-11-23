@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from 'react';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { translate } from '@lib/i18n/app-i18n';
 import { getCurrentIdentity } from '@lib/e2ee';
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { useSocket, type RoomSummary } from '@lib/socket';
 import { useSpeaking } from './components/call-hooks';
-import { CallContext, type CallApi, type PeerDisplay } from './call-context';
+import { CallContext, LocalSpeakingContext, type CallApi, type PeerDisplay } from './call-context';
 import { CallAudio } from './components/CallAudio';
 import { CallMiniBar } from './components/CallMiniBar';
 import { CallNotices } from './components/CallNotices';
@@ -125,8 +125,6 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   useEffect(() => {
     onScreenCoverChange?.(coversChat, () => setMinimized(true));
   }, [coversChat, onScreenCoverChange]);
-
-  const localSpeaking = showSelfSpeaking(useSpeaking(snapshot.localStream, (phase === 'active' || phase === 'reconnecting') && !snapshot.muted), snapshot.muted);
 
   useEffect(() => {
     if (phase === 'idle' || phase === 'ended') {
@@ -320,7 +318,6 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   }, [fullscreenStage]);
 
   const api: CallApi = {
-    localSpeaking,
     movieMode: snapshot.movieMode,
     shareVolume: snapshot.shareVolume,
     streamVolume,
@@ -397,6 +394,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
 
   return (
     <CallContext value={api}>
+      <LocalSpeakingScope stream={snapshot.localStream} enabled={(phase === 'active' || phase === 'reconnecting') && !snapshot.muted} muted={snapshot.muted}>
       {children}
       <div ref={mediaRootRef} style={{ display: 'contents' }}>
         <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
@@ -417,6 +415,12 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
           }}
         />
       )}
+      </LocalSpeakingScope>
     </CallContext>
   );
+}
+
+function LocalSpeakingScope({ stream, enabled, muted, children }: { stream: MediaStream | null; enabled: boolean; muted: boolean; children: ReactNode }) {
+  const speaking = showSelfSpeaking(useSpeaking(stream, enabled), muted);
+  return <LocalSpeakingContext value={speaking}>{children}</LocalSpeakingContext>;
 }

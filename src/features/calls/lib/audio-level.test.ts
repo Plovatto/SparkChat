@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVEL_INTERVAL_MS, QUIET, SPEAKING_HOLD_MS, monitorSpeaking, nextSpeaking, rmsLevel, type AudioContextLike } from './audio-level';
+import { LEVEL_INTERVAL_MS, QUIET, SPEAKING_HOLD_MS, monitorSpeaking, nextSpeaking, rmsLevel, sharedMeterContext, type AudioContextLike } from './audio-level';
 
 function samples(amplitude: number, length = 64): Uint8Array {
   return Uint8Array.from({ length }, (_, index) => 128 + (index % 2 === 0 ? amplitude : -amplitude));
@@ -96,5 +96,35 @@ describe('monitorSpeaking', () => {
     monitorSpeaking(stream(false), () => undefined, { createContext: () => { created += 1; return null; } });
     expect(created).toBe(0);
     expect(() => monitorSpeaking(stream(true), () => undefined, { createContext: () => null })()).not.toThrow();
+  });
+});
+
+describe('sharedMeterContext', () => {
+  function fakeContext() {
+    return { state: 'running', closed: 0, createMediaStreamSource: () => ({ connect: () => undefined, disconnect: () => undefined }), createAnalyser: () => ({ fftSize: 0, getByteTimeDomainData: () => undefined, disconnect: () => undefined }), close() { this.closed += 1; this.state = 'closed'; return Promise.resolve(); } };
+  }
+
+  it('lets every level meter share one audio context and closes it after the last one leaves', async () => {
+    const created: Array<ReturnType<typeof fakeContext>> = [];
+    const create = () => {
+      const context = fakeContext();
+      created.push(context);
+      return context;
+    };
+    const first = sharedMeterContext(create);
+    const second = sharedMeterContext(create);
+    expect(created).toHaveLength(1);
+    await first?.close();
+    await first?.close();
+    expect(created[0]!.closed).toBe(0);
+    await second?.close();
+    expect(created[0]!.closed).toBe(1);
+    const third = sharedMeterContext(create);
+    expect(created).toHaveLength(2);
+    await third?.close();
+  });
+
+  it('returns nothing without audio context support', () => {
+    expect(sharedMeterContext(() => null)).toBeNull();
   });
 });

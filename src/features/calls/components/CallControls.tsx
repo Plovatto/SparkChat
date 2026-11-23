@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 import { useTranslation } from 'react-i18next';
 import { LuMic, LuMicOff, LuPhoneOff, LuScreenShare, LuScreenShareOff, LuSettings, LuVideo, LuVideoOff } from 'react-icons/lu';
 import { useMediaQuery } from '@hooks/useMediaQuery';
-import { useCall } from '../call-context';
+import { useCall, useLocalSpeaking } from '../call-context';
 import { speakingClass } from '../lib/self-speaking';
 import { isMounted } from '../lib/presence';
 import { useDevicePrefs } from '../lib/call-settings';
@@ -23,6 +23,7 @@ const MIN_PANEL_HEIGHT_PX = 220;
 export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast = null, onPanelChange }: CallControlsProps) {
   const { t } = useTranslation();
   const call = useCall();
+  const localSpeaking = useLocalSpeaking();
   const [showDevices, setShowDevices] = useState(false);
   const panelStage = usePresence(showDevices, 220, 160);
   const [panelHeight, setPanelHeight] = useState<number | undefined>(undefined);
@@ -33,7 +34,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
-  const muteTitle = call.localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
+  const muteTitle = localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
   const shareBlocked = !snapshot.canShareScreen || snapshot.degrade === 'audio-only-relay';
   const shareLabel = snapshot.screenSharing ? t('calls.share.stop') : shareBlocked ? t('calls.share.unavailable') : t('calls.share.start');
@@ -74,7 +75,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
       {isMounted(panelStage) && <span className="sc-call-scrim" data-state={panelStage} aria-hidden="true" />}
       <button
         type="button"
-        className={speakingClass('sc-call-round', call.localSpeaking)}
+        className={speakingClass('sc-call-round', localSpeaking)}
         data-tone={snapshot.muted ? 'off' : undefined}
         onClick={call.toggleMute}
         title={muteTitle}

@@ -7,7 +7,7 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
-import { useCall } from '../call-context';
+import { useCall, useLocalSpeaking } from '../call-context';
 import { autoplay } from '../lib/autoplay';
 import { pipMode } from '../lib/picture-in-picture';
 import { isMounted } from '../lib/presence';
@@ -149,7 +149,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
       : null;
   const supportsOutput = supportsOutputSelection();
   const remoteSpeaking = useSpeaking(snapshot.remoteStream, running && !snapshot.remoteMuted);
-  const localSpeaking = call.localSpeaking;
+  const localSpeaking = useLocalSpeaking();
   const shareAudioVolume = useDuckedVolume(call.remoteShareMovie, localSpeaking || remoteSpeaking, call.streamVolume, duckLevel);
   const monitorVolume = useDuckedVolume(call.movieMode && monitorTrack !== null, localSpeaking || remoteSpeaking, shareMonitorVolume, duckLevel);
   useShareMonitor(shareMonitorRef, monitorTrack, monitorVolume);

@@ -72,8 +72,58 @@ function defaultCreateContext(): AudioContextLike | null {
   }
 }
 
+interface SharedMeter {
+  context: AudioContextLike;
+  users: number;
+}
+
+let sharedMeter: SharedMeter | null = null;
+
+export function sharedMeterContext(create: () => AudioContextLike | null = defaultCreateContext): AudioContextLike | null {
+  if (!sharedMeter || sharedMeter.context.state === 'closed') {
+    const context = create();
+    if (!context) {
+      return null;
+    }
+    sharedMeter = { context, users: 0 };
+  }
+  const entry = sharedMeter;
+  entry.users += 1;
+  let released = false;
+  const target = entry.context as AudioContextLike & ResumableEvents;
+  return {
+    get state() {
+      return entry.context.state;
+    },
+    createMediaStreamSource: (stream) => entry.context.createMediaStreamSource(stream),
+    createAnalyser: () => entry.context.createAnalyser(),
+    resume: () => entry.context.resume?.() ?? Promise.resolve(),
+    addEventListener: (type: 'statechange', listener: () => void) => target.addEventListener?.(type, listener),
+    removeEventListener: (type: 'statechange', listener: () => void) => target.removeEventListener?.(type, listener),
+    close: async () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      entry.users -= 1;
+      if (entry.users > 0) {
+        return;
+      }
+      if (sharedMeter === entry) {
+        sharedMeter = null;
+      }
+      await entry.context.close();
+    },
+  } as AudioContextLike & ResumableEvents;
+}
+
+interface ResumableEvents {
+  addEventListener?: (type: 'statechange', listener: () => void) => void;
+  removeEventListener?: (type: 'statechange', listener: () => void) => void;
+}
+
 const defaultDeps: SpeakingMonitorDeps = {
-  createContext: defaultCreateContext,
+  createContext: () => sharedMeterContext(),
   now: () => Date.now(),
   setInterval: (handler, ms) => setInterval(handler, ms),
   clearInterval: (timer) => clearInterval(timer),

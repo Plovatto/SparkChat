@@ -148,6 +148,16 @@ class FakePeer implements PeerSessionLike {
   applyDegrade(): Promise<void> {
     return Promise.resolve();
   }
+  loadLevels: number[] = [];
+  setLoadLevel(level: number): Promise<void> {
+    this.loadLevels.push(level);
+    return Promise.resolve();
+  }
+  keyFrameRequests = 0;
+  requestScreenKeyFrame(): boolean {
+    this.keyFrameRequests += 1;
+    return true;
+  }
   statsReport: Map<string, Record<string, unknown>> = new Map();
   getStats(): Promise<RTCStatsReport> {
     return Promise.resolve(this.statsReport as unknown as RTCStatsReport);
@@ -2209,6 +2219,7 @@ describe('voice leveling', () => {
     inputs: unknown[];
     volumes: number[];
     mutes: boolean[];
+    lights: boolean[];
     closed: number;
   }
 
@@ -2234,6 +2245,7 @@ describe('voice leveling', () => {
       inputs: [],
       volumes: [],
       mutes: [],
+      lights: [],
       closed: 0,
       sendStream: () => sendStream,
       setInput: (track) => {
@@ -2242,6 +2254,7 @@ describe('voice leveling', () => {
       },
       setVolume: (volume) => void leveler.volumes.push(volume),
       setMuted: (muted) => void leveler.mutes.push(muted),
+      setLight: (light) => void leveler.lights.push(light),
       close: () => void (leveler.closed += 1),
     };
     return leveler;
@@ -2274,6 +2287,83 @@ describe('voice leveling', () => {
     await connectCall(w);
     return { w, media, levelers, sentTracks, peer: w.a.peers[0]! };
   }
+
+  it('lightens video and voice processing under cpu load from the regular stats tick and recovers later', async () => {
+    const media = micMedia();
+    const levelers: FakeLeveler[] = [];
+    let pressure: 'nominal' | 'serious' = 'nominal';
+    let stopped = 0;
+    const w = await world({
+      alice: {
+        acquireMedia: () => Promise.resolve({ stream: media.stream, cameraFailed: false }),
+        createVoiceLeveler: () => {
+          const leveler = fakeLeveler(true);
+          levelers.push(leveler);
+          return leveler;
+        },
+        watchPressure: () => ({ current: () => pressure, stop: () => void (stopped += 1) }),
+      },
+    });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    let cpu = 0;
+    let total = 10;
+    const tick = async (cpuSeconds: number) => {
+      cpu += cpuSeconds;
+      total += 2;
+      peer.statsReport = new Map([['out', { type: 'outbound-rtp', kind: 'video', mid: '2', qualityLimitationDurations: { cpu, none: total - cpu } }]]);
+      await vi.advanceTimersByTimeAsync(2_000);
+    };
+
+    await tick(0);
+    await tick(2);
+    await tick(2);
+    expect(peer.loadLevels.at(-1)).toBe(1);
+    await tick(2);
+    await tick(2);
+    expect(peer.loadLevels.at(-1)).toBe(2);
+    await tick(0);
+    expect(levelers[0]!.lights.at(-1)).toBe(true);
+
+    pressure = 'serious';
+    await tick(0);
+    await tick(0);
+    expect(peer.loadLevels.at(-1)).toBe(3);
+
+    pressure = 'nominal';
+    for (let index = 0; index < 40; index += 1) {
+      await tick(0);
+    }
+    expect(peer.loadLevels.at(-1)).toBe(0);
+
+    w.a.controller.hangup();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stopped).toBeGreaterThan(0);
+  });
+
+  it('asks the sharer for a key frame when the shared screen stops decoding while packets still arrive', async () => {
+    const w = await world({ alice: { watchPressure: () => ({ current: () => null, stop: () => undefined }) } });
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    const screenTrack = { kind: 'video', id: 'remote-screen', readyState: 'live' } as unknown as MediaStreamTrack;
+    peer.options.onControl({ t: 'screen', on: true });
+    peer.options.onRemoteScreen({ id: 'screen', getTracks: () => [screenTrack], getVideoTracks: () => [screenTrack], getAudioTracks: () => [] } as unknown as MediaStream);
+    expect(w.a.controller.getSnapshot().remoteScreenStream?.getVideoTracks()[0]?.id).toBe('remote-screen');
+    let packets = 100;
+    const tick = async () => {
+      packets += 50;
+      peer.statsReport = new Map([['in', { type: 'inbound-rtp', kind: 'video', trackIdentifier: 'remote-screen', framesDecoded: 40, packetsReceived: packets }]]);
+      await vi.advanceTimersByTimeAsync(2_000);
+    };
+    await tick();
+    await tick();
+    expect(peer.keyFrameRequests).toBe(0);
+    await tick();
+    await tick();
+    expect(peer.keyFrameRequests).toBe(1);
+  });
 
   it('sends the leveled microphone instead of the raw track', async () => {
     const { media, levelers, peer } = await leveledCall();
@@ -2560,6 +2650,7 @@ describe('live device switching', () => {
       },
       setVolume: () => undefined,
       setMuted: () => undefined,
+      setLight: () => undefined,
       close: () => undefined,
     };
     const call = await cameraCall({ mics: [next], leveler });
@@ -2584,6 +2675,7 @@ describe('live device switching', () => {
       },
       setVolume: () => undefined,
       setMuted: () => undefined,
+      setLight: () => undefined,
       close: () => undefined,
     };
     const call = await cameraCall({ mics: [next], leveler });

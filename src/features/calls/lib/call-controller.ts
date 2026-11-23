@@ -31,6 +31,8 @@ import {
   type CallMachine,
   type CallState,
 } from '../state/call-machine';
+import { watchCpuPressure, type PressureWatch } from './cpu-pressure';
+import { LoadAdapter, type LoadLevel } from './load-adaptation';
 import { nextInstability, nextRelay, readQuality, RELAY_UNKNOWN, selectedPairRelayed, STABLE, type RelayState, STATS_INTERVAL_MS, type InstabilityState, type QualityBars, type QualitySample } from './call-stats';
 import type { LocalMedia } from './media-devices';
 import { onPageResume } from './page-resume';
@@ -135,6 +137,8 @@ export interface PeerSessionLike {
   setNetworkUnstable: (unstable: boolean) => Promise<void>;
   applyDegrade: (step: DegradeStep | null) => Promise<void>;
   refreshBandwidth?: () => Promise<void>;
+  setLoadLevel?: (level: LoadLevel) => Promise<void>;
+  requestScreenKeyFrame?: () => boolean;
   getStats: () => Promise<RTCStatsReport>;
   isIceHealthy: () => boolean;
   dropRelayCredentials: () => void;
@@ -191,6 +195,7 @@ export interface CallControllerDeps {
   stopMedia: (stream: MediaStream | null) => void;
   createPeerSession: (options: PeerSessionFactoryOptions) => PeerSessionLike;
   createVoiceLeveler?: (track: MediaStreamTrack) => VoiceLeveler;
+  watchPressure?: () => PressureWatch;
   isMobile: () => boolean;
   startRingtone: (pattern: 'incoming' | 'outgoing') => void;
   stopRingtone: () => void;
@@ -263,6 +268,7 @@ interface Session {
   screenDetached: boolean;
   screenCleanup: (() => void) | null;
   instability: InstabilityState;
+  load: LoadAdapter;
   transferDeviceId: string | null;
   rawSignals: RawSignal[];
   seenTransfers: Set<string>;
@@ -371,6 +377,7 @@ export class CallController {
   private preparing = false;
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
+  private pressure: PressureWatch | null = null;
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private reconnectingSince: number | null = null;
@@ -621,6 +628,7 @@ export class CallController {
         screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
+        load: new LoadAdapter(),
         transferDeviceId: null,
         rawSignals: [],
         seenTransfers: new Set(),
@@ -783,6 +791,7 @@ export class CallController {
         screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
+        load: new LoadAdapter(),
         transferDeviceId: null,
         rawSignals: [],
         seenTransfers: new Set(),
@@ -1749,6 +1758,7 @@ export class CallController {
         screenDetached: false,
         screenCleanup: null,
         instability: STABLE,
+        load: new LoadAdapter(),
         transferDeviceId: deviceId,
         rawSignals: [],
         seenTransfers: new Set(),
@@ -2269,6 +2279,7 @@ export class CallController {
 
   private startStats(session: Session): void {
     this.stopStats();
+    this.pressure = (this.deps.watchPressure ?? watchCpuPressure)();
     this.statsTimer = setInterval(() => {
       const peer = session.peerSession;
       if (!peer || this.session !== session || this.machine.getState().phase !== 'active') {
@@ -2293,10 +2304,13 @@ export class CallController {
           const wasUnstable = session.instability.unstable;
           session.instability = nextInstability(session.instability, Math.max(reading.lossRatio, reading.outboundLoss), this.deps.now());
           const unstable = session.instability.unstable;
-          this.update({ quality: reading.bars, unstable, relayed: session.relay.relayed });
+          if (this.snapshot.quality !== reading.bars || this.snapshot.unstable !== unstable || this.snapshot.relayed !== session.relay.relayed) {
+            this.update({ quality: reading.bars, unstable, relayed: session.relay.relayed });
+          }
           if (unstable !== wasUnstable) {
             void peer.setNetworkUnstable(unstable);
           }
+          this.adaptToLoad(session, peer, report);
           void peer.refreshBandwidth?.().catch(() => undefined);
         })
         .catch(() => undefined);
@@ -2307,6 +2321,19 @@ export class CallController {
     if (this.statsTimer !== null) {
       clearInterval(this.statsTimer);
       this.statsTimer = null;
+    }
+    this.pressure?.stop();
+    this.pressure = null;
+  }
+
+  private adaptToLoad(session: Session, peer: PeerSessionLike, report: RTCStatsReport): void {
+    const sharing = this.snapshot.remoteScreenOn && !this.snapshot.remoteScreenPaused;
+    const shareTrackId = sharing ? (this.snapshot.remoteScreenStream?.getVideoTracks()[0]?.id ?? null) : null;
+    const verdict = session.load.observe(report, { pressure: this.pressure?.current() ?? null, shareTrackId }, this.deps.now());
+    void peer.setLoadLevel?.(verdict.level).catch(() => undefined);
+    this.voice?.setLight(verdict.light);
+    if (verdict.keyFrame) {
+      peer.requestScreenKeyFrame?.();
     }
   }
 
