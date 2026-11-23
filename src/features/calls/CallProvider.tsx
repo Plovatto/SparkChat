@@ -21,6 +21,7 @@ import { showSelfSpeaking } from './lib/self-speaking';
 import { autoplay } from './lib/autoplay';
 import { PeerSession } from './lib/peer-session';
 import { copyStyles, STREAM_WINDOW_SIZE, streamWindowMode, type DocumentPipHost } from './lib/picture-in-picture';
+import { useBackgroundAnchor } from './components/use-background-anchor';
 import { useCallMediaSession } from './components/use-media-session';
 import { StreamWindow } from './components/StreamWindow';
 import { createShareAudio } from './lib/share-audio';
@@ -287,7 +288,9 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   }, [sharedStream, streamWindow]);
 
   const mediaSessionActive = phase === 'outgoing-ringing' || phase === 'connecting' || phase === 'active' || phase === 'reconnecting';
+  const reviveAnchor = useBackgroundAnchor(mediaSessionActive);
   useCallMediaSession(mediaSessionActive, {
+    onResume: reviveAnchor,
     title: sharedPeerName || translate('calls.mediaSession.title'),
     artist: translate(snapshot.state.kind === 'video' ? 'calls.mediaSession.video' : 'calls.mediaSession.voice'),
     muted: snapshot.muted,

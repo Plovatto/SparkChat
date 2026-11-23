@@ -14,6 +14,7 @@ export function useCallMediaSession(active: boolean, options: CallMediaSessionOp
       ...latest.current,
       onHangup: () => latest.current.onHangup(),
       onToggleMicrophone: () => latest.current.onToggleMicrophone(),
+      onResume: () => latest.current.onResume?.(),
     });
     sessionRef.current = session;
     return () => {
