@@ -1,4 +1,4 @@
-import { render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { useToggleRipple } from './call-hooks';
@@ -9,18 +9,26 @@ import type { TorchControl } from './use-torch';
 describe('useToggleRipple', () => {
   it('stays quiet when a control mounts already pressed', () => {
     const { result } = renderHook(() => useToggleRipple(true));
-    expect(result.current).toBeUndefined();
+    expect(result.current[0]).toBeUndefined();
   });
 
-  it('ripples only when the pressed state turns on after mount', () => {
+  it('stays quiet when the call turns a toggle on by itself, as when the camera starts with the call', () => {
     const { result, rerender } = renderHook(({ pressed }) => useToggleRipple(pressed), { initialProps: { pressed: false } });
-    expect(result.current).toBeUndefined();
     rerender({ pressed: true });
-    expect(result.current).toBe('true');
+    expect(result.current[0]).toBeUndefined();
+  });
+
+  it('ripples when the user toggle turns the control on, even when the change lands later', () => {
+    const { result, rerender } = renderHook(({ pressed }) => useToggleRipple(pressed), { initialProps: { pressed: false } });
+    act(() => result.current[1]());
+    expect(result.current[0]).toBeUndefined();
+    rerender({ pressed: true });
+    expect(result.current[0]).toBe('true');
+    act(() => result.current[1]());
     rerender({ pressed: false });
-    expect(result.current).toBeUndefined();
+    expect(result.current[0]).toBeUndefined();
     rerender({ pressed: true });
-    expect(result.current).toBe('true');
+    expect(result.current[0]).toBeUndefined();
   });
 });
 
@@ -35,14 +43,19 @@ describe('toggle ripple on call controls', () => {
     expect(button().hasAttribute('data-ripple')).toBe(false);
     view.rerender(pip(false));
     view.rerender(pip(true));
+    expect(button().hasAttribute('data-ripple')).toBe(false);
+    view.rerender(pip(false));
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
+    view.rerender(pip(true));
     expect(button().getAttribute('data-ripple')).toBe('true');
   });
 
-  it('ripples the torch only when it is switched on after mount', () => {
+  it('ripples the torch only when the user switches it on', () => {
     const torch = (on: boolean) => ({ supported: true, on, toggle: vi.fn() }) as unknown as TorchControl;
     const view = render(<TorchButton torch={torch(true)} />);
     expect(screen.getByRole('button', { pressed: true }).hasAttribute('data-ripple')).toBe(false);
     view.rerender(<TorchButton torch={torch(false)} />);
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
     view.rerender(<TorchButton torch={torch(true)} />);
     expect(screen.getByRole('button', { pressed: true }).getAttribute('data-ripple')).toBe('true');
   });

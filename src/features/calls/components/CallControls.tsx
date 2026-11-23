@@ -36,9 +36,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const popover = useMediaQuery('(min-width: 600px)');
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
-  const muteRipple = useToggleRipple(snapshot.muted);
-  const cameraRipple = useToggleRipple(snapshot.cameraOn);
-  const shareRipple = useToggleRipple(snapshot.screenSharing);
+  const [muteRipple, armMuteRipple] = useToggleRipple(snapshot.muted);
+  const [cameraRipple, armCameraRipple] = useToggleRipple(snapshot.cameraOn);
+  const [shareRipple, armShareRipple] = useToggleRipple(snapshot.screenSharing);
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
   const muteTitle = localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
@@ -84,7 +84,10 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
         type="button"
         className={speakingClass('sc-call-round', localSpeaking)}
         data-tone={snapshot.muted ? 'off' : undefined}
-        onClick={call.toggleMute}
+        onClick={() => {
+          armMuteRipple();
+          call.toggleMute();
+        }}
         title={muteTitle}
         aria-label={muteLabel}
         aria-pressed={snapshot.muted}
@@ -102,6 +105,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
           if (snapshot.cameraOn) {
             torch.release();
           }
+          armCameraRipple();
           call.toggleCamera();
         }}
         title={cameraLabel}
@@ -120,7 +124,10 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
           type="button"
           className="sc-call-round"
           data-tone={snapshot.screenSharing ? 'live' : undefined}
-          onClick={call.toggleScreenShare}
+          onClick={() => {
+            armShareRipple();
+            call.toggleScreenShare();
+          }}
           title={shareLabel}
           aria-label={shareLabel}
           aria-pressed={snapshot.screenSharing}
