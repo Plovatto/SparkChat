@@ -17,7 +17,6 @@ function renderBar(state: Partial<CallState>, patch: Partial<CallSnapshot> = {},
   const api = {
     snapshot: { ...EMPTY_CALL_SNAPSHOT, ...patch, state: { ...EMPTY_CALL_SNAPSHOT.state, peerId: 'p', ...state } },
     minimized: true,
-    localSpeaking: false,
     hasStatusBar: false,
     registerStatusBar: vi.fn(() => () => undefined),
     setMinimized: vi.fn(),

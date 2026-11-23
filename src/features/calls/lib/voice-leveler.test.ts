@@ -54,7 +54,7 @@ function fakeContext(state = 'running') {
     nodes.push(created);
     return created;
   };
-  const calls = { closed: 0, resumed: 0 };
+  const calls = { closed: 0, resumed: 0, suspended: 0 };
   const raw: Record<string, unknown> = {
     state,
     currentTime: 3,
@@ -72,6 +72,10 @@ function fakeContext(state = 'running') {
     createMediaStreamDestination: () => node('destination', { stream: { getAudioTracks: () => [output] } }),
     resume: () => {
       calls.resumed += 1;
+      return Promise.resolve();
+    },
+    suspend: () => {
+      calls.suspended += 1;
       return Promise.resolve();
     },
     close: () => {
@@ -352,6 +356,63 @@ describe('ML noise suppression in the leveler', () => {
     closing.close();
     expect(second.posted).toEqual([{ type: 'stop' }]);
     expect(second.disconnected).toBe(1);
+  });
+
+  it('drops the model for the browser suppression while the machine is strained and brings it back afterwards', async () => {
+    const fake = fakeContext();
+    const first = denoiseNode();
+    const second = denoiseNode();
+    const nodes = [first, second];
+    const raw = micTrack('raw');
+    const leveler = createVoiceLeveler(raw as unknown as MediaStreamTrack, 1, { createContext: () => fake.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(() => nodes.shift() as never) });
+    await flush();
+    expect(fake.find('source0').targets.at(-1)?.name).toBe('denoise');
+
+    leveler.setLight(true);
+    expect(first.posted).toEqual([{ type: 'stop' }]);
+    expect(fake.find('source0').targets.at(-1)?.name).toBe('highpass');
+    expect(raw.applied.at(-1)).toEqual({ echoCancellation: true, noiseSuppression: true });
+
+    leveler.setLight(true);
+    expect(raw.applied).toHaveLength(1);
+
+    leveler.setLight(false);
+    await flush();
+    expect(second.targets).toEqual(['highpass']);
+    expect(fake.find('source0').targets.at(-1)?.name).toBe('denoise');
+    expect(raw.applied.at(-1)).toEqual({ echoCancellation: true, noiseSuppression: false });
+  });
+
+  it('pauses the whole audio graph while light and resumes it afterwards', () => {
+    const fake = fakeContext();
+    const leveler = createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => false });
+    leveler.setLight(true);
+    expect(fake.calls.suspended).toBe(1);
+    fake.raw.state = 'suspended';
+    const resumedBefore = fake.calls.resumed;
+    leveler.setLight(false);
+    expect(fake.calls.resumed).toBe(resumedBefore + 1);
+  });
+
+  it('stays light when the microphone is reopened during strain', async () => {
+    const fake = fakeContext();
+    const node = denoiseNode();
+    const leveler = createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => true, prepareDenoiser: () => Promise.resolve(() => node as never) });
+    await flush();
+    leveler.setLight(true);
+    const next = micTrack('next');
+    leveler.setInput(next as unknown as MediaStreamTrack);
+    await flush();
+    expect(fake.find('source1').targets.map((target) => target.name)).toEqual(['highpass']);
+    expect(next.applied).toEqual([{ echoCancellation: true, noiseSuppression: true }]);
+  });
+
+  it('ignores the strain switch without WebAudio', () => {
+    const raw = micTrack('raw');
+    const leveler = createVoiceLeveler(raw as unknown as MediaStreamTrack, 1, { createContext: () => null, createStream, denoise: () => true });
+    leveler.setLight(true);
+    leveler.setLight(false);
+    expect(raw.applied).toEqual([{ echoCancellation: true, noiseSuppression: true }]);
   });
 
   it('switches the browser suppression back on when WebAudio cannot run', () => {

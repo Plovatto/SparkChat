@@ -1787,8 +1787,97 @@ describe('movie mode encodings', () => {
 
     await h.session.setMovieMode(false);
     expect(video.contentHint).toBe('detail');
-    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: SCREEN_MAX_BITRATE });
-    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).not.toHaveProperty('maxFramerate');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]).toMatchObject({ maxBitrate: SCREEN_MAX_BITRATE, maxFramerate: 15, scaleResolutionDownBy: 2 });
+    expect(h.connection.transceivers[2]!.sender.parameters.degradationPreference).toBe('maintain-resolution');
+  });
+});
+
+describe('cpu load adaptation', () => {
+  async function sharing() {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    await verify(h);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"caps","screen":true}' });
+    const video = { kind: 'video', contentHint: '', getSettings: () => ({ width: 1920, height: 1080 }) } as unknown as MediaStreamTrack;
+    await h.session.setScreenTracks(video, null);
+    return h;
+  }
+
+  it('lowers the screen frame rate first and the resolution later as load grows, then recovers', async () => {
+    const h = await sharing();
+    const screen = () => h.connection.transceivers[2]!.sender.parameters.encodings[0];
+    expect(screen()).toMatchObject({ maxFramerate: 15, scaleResolutionDownBy: 1 });
+    await h.session.setLoadLevel(1);
+    expect(screen()).toMatchObject({ maxFramerate: 8, scaleResolutionDownBy: 1 });
+    await h.session.setLoadLevel(3);
+    expect(screen()).toMatchObject({ maxFramerate: 3, scaleResolutionDownBy: 1.5 });
+    await h.session.setLoadLevel(0);
+    expect(screen()).toMatchObject({ maxFramerate: 15, scaleResolutionDownBy: 1, maxBitrate: SCREEN_MAX_BITRATE });
+  });
+
+  it('keeps voice at high priority whatever the load', async () => {
+    const h = await sharing();
+    await h.session.setLoadLevel(3);
+    expect(h.connection.transceivers[0]!.sender.parameters.encodings[0]).toMatchObject({ priority: 'high', networkPriority: 'high' });
+  });
+
+  it('lets an unstable network trade resolution for frame rate so the share keeps moving', async () => {
+    const h = await sharing();
+    await h.session.setNetworkUnstable(true);
+    expect(h.connection.transceivers[2]!.sender.parameters.degradationPreference).toBe('balanced');
+    expect(h.connection.transceivers[2]!.sender.parameters.encodings[0]!.maxBitrate).toBeLessThanOrEqual(1_000_000);
+  });
+
+  it('restarts the screen encoder with a fresh key frame when the viewer reports a frozen share', async () => {
+    const h = await sharing();
+    const sender = h.connection.transceivers[2]!.sender;
+    const seen: boolean[] = [];
+    const original = sender.setParameters.bind(sender);
+    sender.setParameters = async (parameters) => {
+      seen.push(parameters.encodings[0]?.active !== false);
+      return original(parameters);
+    };
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(seen).toEqual([false, true]);
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(seen).toHaveLength(2);
+  });
+
+  it('retries turning the screen encoder back on and never leaves it off after a caps update', async () => {
+    const h = await sharing();
+    const sender = h.connection.transceivers[2]!.sender;
+    const original = sender.setParameters.bind(sender);
+    let failures = 1;
+    sender.setParameters = async (parameters) => {
+      if (parameters.encodings[0]?.active === true && failures > 0) {
+        failures -= 1;
+        throw new Error('stale transaction');
+      }
+      return original(parameters);
+    };
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+    sender.parameters.encodings[0]!.active = false;
+    await h.session.setLoadLevel(2);
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+  });
+
+  it('asks the sharer for a key frame over the control channel', async () => {
+    const h = await sharing();
+    const sent: string[] = [];
+    const channel = h.connection.channels[0]!;
+    const send = channel.send.bind(channel);
+    channel.send = (data: string) => {
+      sent.push(data);
+      send(data);
+    };
+    expect(h.session.requestScreenKeyFrame()).toBe(true);
+    expect(sent).toContain('{"t":"keyframe"}');
   });
 });
 
