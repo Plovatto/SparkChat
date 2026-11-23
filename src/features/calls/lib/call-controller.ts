@@ -2341,6 +2341,9 @@ export class CallController {
     if (voice && track && verdict.light !== this.voiceLight && !this.voiceSwitching) {
       const light = verdict.light;
       this.voiceSwitching = true;
+      if (!light) {
+        voice.setLight(false);
+      }
       void peer
         .setAudioTrack(track)
         .then(() => {
@@ -2349,7 +2352,11 @@ export class CallController {
             voice.setLight(light);
           }
         })
-        .catch(() => undefined)
+        .catch(() => {
+          if (!light && this.voice === voice) {
+            voice.setLight(true);
+          }
+        })
         .finally(() => {
           this.voiceSwitching = false;
         });
