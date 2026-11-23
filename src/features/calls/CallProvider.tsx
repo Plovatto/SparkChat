@@ -395,26 +395,26 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   return (
     <CallContext value={api}>
       <LocalSpeakingScope stream={snapshot.localStream} enabled={(phase === 'active' || phase === 'reconnecting') && !snapshot.muted} muted={snapshot.muted}>
-      {children}
-      <div ref={mediaRootRef} style={{ display: 'contents' }}>
-        <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
-      </div>
-      <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
-      <CallMiniBar />
-      <IncomingCallModal />
-      <CallNotices />
-      {streamWindow && sharedStream && (
-        <StreamWindow
-          target={streamWindow}
-          stream={sharedStream}
-          title={sharedTitle}
-          onFullscreen={() => {
-            streamWindow.close();
-            setStreamWindow(null);
-            fullscreenStage();
-          }}
-        />
-      )}
+        {children}
+        <div ref={mediaRootRef} style={{ display: 'contents' }}>
+          <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
+        </div>
+        <CallScreen videoRef={remoteRef} shareAudioRef={shareAudioRef} shareMonitorRef={shareMonitorRef} />
+        <CallMiniBar />
+        <IncomingCallModal />
+        <CallNotices />
+        {streamWindow && sharedStream && (
+          <StreamWindow
+            target={streamWindow}
+            stream={sharedStream}
+            title={sharedTitle}
+            onFullscreen={() => {
+              streamWindow.close();
+              setStreamWindow(null);
+              fullscreenStage();
+            }}
+          />
+        )}
       </LocalSpeakingScope>
     </CallContext>
   );

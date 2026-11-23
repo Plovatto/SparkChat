@@ -379,6 +379,7 @@ export class CallController {
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private pressure: PressureWatch | null = null;
   private voiceLight = false;
+  private voiceSwitching = false;
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private reconnectingSince: number | null = null;
@@ -2336,13 +2337,22 @@ export class CallController {
     const verdict = session.load.observe(report, { pressure: this.pressure?.current() ?? null, shareTrackId, voiceTrackId }, this.deps.now());
     void peer.setLoadLevel?.(verdict.level).catch(() => undefined);
     const voice = this.voice;
-    if (voice && verdict.light !== this.voiceLight) {
-      this.voiceLight = verdict.light;
-      voice.setLight(verdict.light);
-      const track = verdict.light ? session.media?.stream.getAudioTracks()[0] : voice.track;
-      if (track) {
-        void peer.setAudioTrack(track).catch(() => undefined);
-      }
+    const track = voice ? (verdict.light ? session.media?.stream.getAudioTracks()[0] : voice.track) : undefined;
+    if (voice && track && verdict.light !== this.voiceLight && !this.voiceSwitching) {
+      const light = verdict.light;
+      this.voiceSwitching = true;
+      void peer
+        .setAudioTrack(track)
+        .then(() => {
+          if (this.voice === voice) {
+            this.voiceLight = light;
+            voice.setLight(light);
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          this.voiceSwitching = false;
+        });
     }
     if (verdict.keyFrame) {
       peer.requestScreenKeyFrame?.();

@@ -383,7 +383,7 @@ describe('ML noise suppression in the leveler', () => {
     expect(raw.applied.at(-1)).toEqual({ echoCancellation: true, noiseSuppression: false });
   });
 
-  it('pauses the whole audio graph while light and resumes it afterwards', async () => {
+  it('pauses the whole audio graph while light and resumes it afterwards', () => {
     const fake = fakeContext();
     const leveler = createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => false });
     leveler.setLight(true);

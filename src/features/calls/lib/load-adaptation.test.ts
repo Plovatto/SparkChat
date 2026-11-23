@@ -20,8 +20,8 @@ import {
 } from './load-adaptation';
 
 function report(entries: Array<Record<string, unknown>>): RTCStatsReport {
-  const map = new Map(entries.map((entry, index) => [String(entry.id ?? index), entry]));
-  return map as unknown as RTCStatsReport;
+  const map = new Map(entries.map((entry, index) => [typeof entry.id === 'string' ? entry.id : String(index), entry]));
+  return map;
 }
 
 function outbound(mid: string, cpu: number, total: number, extra: Record<string, unknown> = {}): Record<string, unknown> {

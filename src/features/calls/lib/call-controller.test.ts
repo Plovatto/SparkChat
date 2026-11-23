@@ -2368,10 +2368,21 @@ describe('voice leveling', () => {
       },
     });
     await connectCall(w);
-    w.a.peers[0]!.options.onConnection('connected');
+    const peer = w.a.peers[0]!;
+    const deliver = peer.setAudioTrack;
+    let failNext = true;
+    peer.setAudioTrack = (track?: MediaStreamTrack) => {
+      if (failNext) {
+        failNext = false;
+        return Promise.reject(new Error('busy'));
+      }
+      return (deliver as (track?: MediaStreamTrack) => Promise<void>)(track);
+    };
+    peer.options.onConnection('connected');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(levelers[0]!.lights).toEqual([]);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(levelers[0]!.lights).toEqual([true]);
-    expect(sent).toEqual([media.mic]);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(sent).toHaveLength(1);
 

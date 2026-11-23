@@ -439,6 +439,7 @@ type ExtendedEncoding = RTCRtpEncodingParameters & { priority?: RTCPriorityType;
 export function senderParameters(current: RTCRtpSendParameters, cap: SenderCap, extended: boolean): RTCRtpSendParameters {
   const encodings: ExtendedEncoding[] = current.encodings?.length ? current.encodings.map((encoding) => ({ ...encoding })) : [{}];
   const first: ExtendedEncoding = encodings[0] ?? {};
+  first.active = true;
   first.maxBitrate = cap.maxBitrate;
   if (cap.scaleResolutionDownBy !== undefined) {
     first.scaleResolutionDownBy = cap.scaleResolutionDownBy;
@@ -1326,7 +1327,14 @@ export class PeerSession {
     } catch {
       return;
     }
-    await sender.setParameters(withActive(sender.getParameters(), true)).catch(() => undefined);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        await sender.setParameters(withActive(sender.getParameters(), true));
+        return;
+      } catch {
+        continue;
+      }
+    }
   }
 
   private transceiversOf(kind: 'audio' | 'video'): RTCRtpTransceiver[] {

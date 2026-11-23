@@ -75,7 +75,7 @@ export function readLoad(report: RTCStatsReport, previous: LoadStatsSample | nul
   let voice: VoiceCounters | undefined;
   report.forEach((entry: Record<string, unknown>) => {
     if (entry.type === 'outbound-rtp' && entry.kind === 'video') {
-      const key = String(entry.mid ?? entry.id ?? '');
+      const key = typeof entry.mid === 'string' ? entry.mid : typeof entry.id === 'string' ? entry.id : '';
       const totals = durationTotals(entry.qualityLimitationDurations);
       if (!totals) {
         if (entry.qualityLimitationReason === 'cpu') {

@@ -1779,6 +1779,26 @@ describe('cpu load adaptation', () => {
     expect(seen).toHaveLength(2);
   });
 
+  it('retries turning the screen encoder back on and never leaves it off after a caps update', async () => {
+    const h = await sharing();
+    const sender = h.connection.transceivers[2]!.sender;
+    const original = sender.setParameters.bind(sender);
+    let failures = 1;
+    sender.setParameters = async (parameters) => {
+      if (parameters.encodings[0]?.active === true && failures > 0) {
+        failures -= 1;
+        throw new Error('stale transaction');
+      }
+      return original(parameters);
+    };
+    h.connection.channels[0]?.onmessage?.({ data: '{"t":"keyframe"}' });
+    await settle();
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+    sender.parameters.encodings[0]!.active = false;
+    await h.session.setLoadLevel(2);
+    expect(sender.parameters.encodings[0]?.active).toBe(true);
+  });
+
   it('asks the sharer for a key frame over the control channel', async () => {
     const h = await sharing();
     const sent: string[] = [];
