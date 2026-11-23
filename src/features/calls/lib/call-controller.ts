@@ -378,6 +378,7 @@ export class CallController {
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private pressure: PressureWatch | null = null;
+  private voiceLight = false;
   private surfaceTimer: ReturnType<typeof setInterval> | null = null;
   private lastPhase = IDLE_CALL_STATE.phase;
   private reconnectingSince: number | null = null;
@@ -954,6 +955,7 @@ export class CallController {
   private releaseVoice(): void {
     this.voice?.close();
     this.voice = null;
+    this.voiceLight = false;
   }
 
   async toggleCamera(): Promise<void> {
@@ -1279,7 +1281,8 @@ export class CallController {
     track.enabled = !this.snapshot.muted;
     const voice = this.voice;
     try {
-      await peer.setAudioTrack(voice ? voice.setInput(track) : track);
+      const leveled = voice ? voice.setInput(track) : track;
+      await peer.setAudioTrack(this.voiceLight ? track : leveled);
     } catch {
       track.stop();
       const restore = previous.find((old) => old.readyState !== 'ended');
@@ -2332,7 +2335,15 @@ export class CallController {
     const voiceTrackId = this.snapshot.remoteStream?.getAudioTracks()[0]?.id ?? null;
     const verdict = session.load.observe(report, { pressure: this.pressure?.current() ?? null, shareTrackId, voiceTrackId }, this.deps.now());
     void peer.setLoadLevel?.(verdict.level).catch(() => undefined);
-    this.voice?.setLight(verdict.light);
+    const voice = this.voice;
+    if (voice && verdict.light !== this.voiceLight) {
+      this.voiceLight = verdict.light;
+      voice.setLight(verdict.light);
+      const track = verdict.light ? session.media?.stream.getAudioTracks()[0] : voice.track;
+      if (track) {
+        void peer.setAudioTrack(track).catch(() => undefined);
+      }
+    }
     if (verdict.keyFrame) {
       peer.requestScreenKeyFrame?.();
     }

@@ -2342,6 +2342,45 @@ describe('voice leveling', () => {
     expect(stopped).toBeGreaterThan(0);
   });
 
+  it('sends the raw microphone with browser processing while light and goes back to the leveled voice later', async () => {
+    const media = micMedia();
+    const levelers: FakeLeveler[] = [];
+    const sent: unknown[] = [];
+    let pressure: 'nominal' | 'critical' = 'critical';
+    const w = await world({
+      alice: {
+        acquireMedia: () => Promise.resolve({ stream: media.stream, cameraFailed: false }),
+        createVoiceLeveler: () => {
+          const leveler = fakeLeveler(true);
+          levelers.push(leveler);
+          return leveler;
+        },
+        watchPressure: () => ({ current: () => pressure, stop: () => undefined }),
+        createPeerSession: (options) => {
+          const peer = new FakePeer(options);
+          peer.setAudioTrack = (track?: MediaStreamTrack) => {
+            sent.push(track);
+            return Promise.resolve();
+          };
+          w.a.peers.push(peer);
+          return peer;
+        },
+      },
+    });
+    await connectCall(w);
+    w.a.peers[0]!.options.onConnection('connected');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(levelers[0]!.lights).toEqual([true]);
+    expect(sent).toEqual([media.mic]);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sent).toHaveLength(1);
+
+    pressure = 'nominal';
+    await vi.advanceTimersByTimeAsync(70_000);
+    expect(levelers[0]!.lights.at(-1)).toBe(false);
+    expect(sent.at(-1)).toBe(levelers[0]!.track);
+  });
+
   it('asks the sharer for a key frame when the shared screen stops decoding while packets still arrive', async () => {
     const w = await world({ alice: { watchPressure: () => ({ current: () => null, stop: () => undefined }) } });
     await connectCall(w);

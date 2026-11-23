@@ -52,6 +52,7 @@ export interface VoiceContextLike extends DenoiseContextLike {
   createGain: () => GainNodeLike;
   createMediaStreamDestination: () => DestinationLike;
   resume?: () => Promise<void>;
+  suspend?: () => Promise<void>;
   close: () => Promise<void>;
   addEventListener?: (type: 'statechange', listener: () => void) => void;
   removeEventListener?: (type: 'statechange', listener: () => void) => void;
@@ -293,7 +294,7 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
     };
     syncDenoise();
     const onState = () => {
-      if (!closed && (context.state === 'suspended' || context.state === 'interrupted')) {
+      if (!closed && !light && (context.state === 'suspended' || context.state === 'interrupted')) {
         void context.resume?.().catch(() => undefined);
       }
     };
@@ -337,6 +338,11 @@ export function createVoiceLeveler(input: MediaStreamTrack, volume: number, deps
         }
         light = next;
         syncDenoise();
+        if (light) {
+          void context.suspend?.().catch(() => undefined);
+        } else {
+          void context.resume?.().catch(() => undefined);
+        }
         if (light && resolved.denoise()) {
           setBrowserNoiseSuppression(current, true);
           browserSuppressing = true;

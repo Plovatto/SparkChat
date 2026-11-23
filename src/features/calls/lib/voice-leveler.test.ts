@@ -54,7 +54,7 @@ function fakeContext(state = 'running') {
     nodes.push(created);
     return created;
   };
-  const calls = { closed: 0, resumed: 0 };
+  const calls = { closed: 0, resumed: 0, suspended: 0 };
   const raw: Record<string, unknown> = {
     state,
     currentTime: 3,
@@ -72,6 +72,10 @@ function fakeContext(state = 'running') {
     createMediaStreamDestination: () => node('destination', { stream: { getAudioTracks: () => [output] } }),
     resume: () => {
       calls.resumed += 1;
+      return Promise.resolve();
+    },
+    suspend: () => {
+      calls.suspended += 1;
       return Promise.resolve();
     },
     close: () => {
@@ -377,6 +381,17 @@ describe('ML noise suppression in the leveler', () => {
     expect(second.targets).toEqual(['highpass']);
     expect(fake.find('source0').targets.at(-1)?.name).toBe('denoise');
     expect(raw.applied.at(-1)).toEqual({ echoCancellation: true, noiseSuppression: false });
+  });
+
+  it('pauses the whole audio graph while light and resumes it afterwards', async () => {
+    const fake = fakeContext();
+    const leveler = createVoiceLeveler(mic, 1, { createContext: () => fake.context, createStream, denoise: () => false });
+    leveler.setLight(true);
+    expect(fake.calls.suspended).toBe(1);
+    fake.raw.state = 'suspended';
+    const resumedBefore = fake.calls.resumed;
+    leveler.setLight(false);
+    expect(fake.calls.resumed).toBe(resumedBefore + 1);
   });
 
   it('stays light when the microphone is reopened during strain', async () => {
