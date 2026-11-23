@@ -60,21 +60,41 @@
   outline-offset: 3px;
 }
 
-.sc-call-round[data-tone='off'] {
+.sc-call-round[data-tone='off'],
+.sc-call-round[data-tone='off']:hover:not(:disabled),
+.sc-call-round[data-tone='off']:active:not(:disabled) {
   background: #ffffff;
   color: var(--sc-danger);
 }
 
-.sc-call-round[data-tone='on'] {
+.sc-call-round[data-tone='on'],
+.sc-call-round[data-tone='on']:hover:not(:disabled),
+.sc-call-round[data-tone='on']:active:not(:disabled) {
   background: var(--sc-accent);
   color: var(--sc-text-on-accent);
   box-shadow: 0 6px 18px color-mix(in srgb, var(--sc-accent) 45%, transparent);
 }
 
-.sc-call-round[data-tone='live'] {
+.sc-call-round[data-tone='live'],
+.sc-call-round[data-tone='live']:hover:not(:disabled),
+.sc-call-round[data-tone='live']:active:not(:disabled) {
   background: color-mix(in srgb, var(--sc-success) 26%, transparent);
   color: #ffffff;
   box-shadow: inset 0 0 0 2px var(--sc-success), 0 0 18px color-mix(in srgb, var(--sc-success) 40%, transparent);
+}
+
+.sc-call-round::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px currentColor;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sc-call-round[aria-pressed='true']::before {
+  animation: scCallToggleRipple 340ms var(--sc-ease-enter);
 }
 
 .sc-call-round__live {
@@ -119,7 +139,39 @@
 
 .sc-call-speaking {
   box-shadow: 0 0 0 3px var(--sc-success), 0 0 18px 4px color-mix(in srgb, var(--sc-success) 55%, transparent);
-  animation: scCallSpeak 1.2s ease-in-out 240ms infinite alternate;
+}
+
+.sc-call-avatar::after,
+.sc-call-self::after,
+.sc-call-tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sc-call-avatar.sc-call-speaking::after {
+  box-shadow: 0 0 0 3px var(--sc-success);
+  animation: scCallSpeakWave 1.6s var(--sc-ease-enter) 200ms infinite;
+}
+
+.sc-call-person .sc-call-avatar.sc-call-speaking::after {
+  animation: none;
+}
+
+.sc-call-self::after,
+.sc-call-tile::after {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--sc-success), inset 0 0 22px color-mix(in srgb, var(--sc-success) 38%, transparent);
+  transition: opacity 200ms ease;
+}
+
+.sc-call-self.sc-call-speaking::after,
+.sc-call-tile.sc-call-speaking::after {
+  opacity: 1;
+  animation: scCallSpeakGlow 1.2s ease-in-out 200ms infinite alternate;
 }
 
 .sc-call-muted-badge {
@@ -172,7 +224,7 @@
 
 .sc-call-icon-swap {
   display: inline-flex;
-  animation: scCallIconSwap 200ms var(--sc-ease-spring-soft);
+  animation: scCallIconSwap 280ms var(--sc-spring-lively);
 }
 
 .sc-call-quality {
@@ -312,12 +364,34 @@
   transition: box-shadow 260ms var(--sc-ease-spring-soft);
 }
 
-@keyframes scCallSpeak {
+@keyframes scCallSpeakWave {
+  0% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.32);
+  }
+}
+
+@keyframes scCallSpeakGlow {
   from {
-    box-shadow: 0 0 0 3px var(--sc-success), 0 0 10px 2px color-mix(in srgb, var(--sc-success) 45%, transparent);
+    opacity: 0.6;
   }
   to {
-    box-shadow: 0 0 0 4px var(--sc-success), 0 0 22px 6px color-mix(in srgb, var(--sc-success) 60%, transparent);
+    opacity: 1;
+  }
+}
+
+@keyframes scCallToggleRipple {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.38);
   }
 }
 
@@ -356,11 +430,13 @@
 @keyframes scCallIconSwap {
   from {
     opacity: 0;
-    transform: scale(0.6) rotate(-30deg);
+    transform: scale(0.55) rotate(-24deg);
+    filter: blur(3px);
   }
   to {
     opacity: 1;
     transform: none;
+    filter: none;
   }
 }
 
@@ -410,7 +486,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-call-speaking,
+  .sc-call-speaking::after,
+  .sc-call-round::before,
   .sc-call-icon-swap,
   .sc-call-muted-badge,
   .sc-call-round__live,

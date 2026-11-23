@@ -7,6 +7,7 @@ import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
 import { formatCallDuration } from '@lib/format';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
+import { Collapse } from '@features/motion';
 import { useCall } from '../call-context';
 import { autoplay } from '../lib/autoplay';
 import { pipMode } from '../lib/picture-in-picture';
@@ -253,6 +254,14 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
   const ended = state.phase === 'ended';
   const ringing = state.phase === 'outgoing-ringing' || state.phase === 'connecting';
   const reconnecting = state.phase === 'reconnecting';
+  const statusOpen = ringing || reconnecting;
+  const statusStage = usePresence(statusOpen, 220, 160);
+  const remoteMutedStage = usePresence(snapshot.remoteMuted && running, 260, 160);
+  const lastStatusRef = useRef({ text: statusText, reconnecting });
+  if (statusOpen) {
+    lastStatusRef.current = { text: statusText, reconnecting };
+  }
+  const shownStatus = lastStatusRef.current;
   const view = selectCallView({ ended, stageActive, remoteVideo: showRemoteVideo });
   const cinema = stageActive && (call.remoteShareMovie || (localStage && call.movieMode));
 
@@ -308,8 +317,8 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
     },
   };
 
-  const mutedBadge = (small: boolean) => (
-    <span className={`sc-call-muted-badge${small ? ' sc-call-muted-badge--small' : ''}`} role="img" aria-label={t('calls.mutedBadge')}>
+  const mutedBadge = (small: boolean, exiting = false) => (
+    <span className={`sc-call-muted-badge${small ? ' sc-call-muted-badge--small' : ''}`} role="img" aria-label={t('calls.mutedBadge')} data-exiting={exiting || undefined}>
       <LuMicOff size={small ? 12 : 15} />
     </span>
   );
@@ -375,14 +384,16 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
             className={`sc-call-avatar${remoteSpeaking ? ' sc-call-speaking' : ''}`}
             style={{ width: undefined, height: undefined }}
           >
-            {snapshot.remoteMuted && running && mutedBadge(false)}
+            {isMounted(remoteMutedStage) && mutedBadge(false, remoteMutedStage === 'exiting')}
           </Avatar>
         </span>
-        {(ringing || reconnecting) && (
-          <span className="sc-call-person__status" aria-hidden="true">
-            {reconnecting && <LuLoaderCircle size={15} className="sc-call-spin" />}
-            {statusText}
-          </span>
+        {isMounted(statusStage) && (
+          <Collapse isExiting={statusStage === 'exiting'} className="sc-call-person__slot">
+            <span className="sc-call-person__status" aria-hidden="true">
+              {shownStatus.reconnecting && <LuLoaderCircle size={15} className="sc-call-spin" />}
+              {shownStatus.text}
+            </span>
+          </Collapse>
         )}
         {state.kind === 'video' && snapshot.remoteStream !== null && !snapshot.remoteCameraOn && (
           <span className="sc-call-person__status">
