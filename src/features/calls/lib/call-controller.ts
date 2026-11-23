@@ -56,6 +56,7 @@ export const NOTIFICATION_ACTION_TTL_MS = 60_000;
 export const GLARE_WINDOW_MS = 15_000;
 export const FALLBACK_STUN: RTCIceServer = { urls: 'stun:stun.cloudflare.com:3478' };
 const MAX_KNOWN_CALL_IDS = 200;
+const CAMERA_MUTE_GRACE_MS = 2_500;
 const END_REASONS: ReadonlySet<string> = new Set(['completed', 'missed', 'declined', 'cancelled', 'busy', 'failed', 'connection-lost']);
 const PORT_53 = /:53(?:\?|$)/;
 
@@ -393,6 +394,8 @@ export class CallController {
   private voice: VoiceLeveler | null = null;
   private deviceChain: Promise<void> = Promise.resolve();
   private cameraEpoch = 0;
+  private readonly watchedCameras = new WeakSet<MediaStreamTrack>();
+  private cameraMuteTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAnswer: { callId: string; until: number } | null = null;
   private readonly pendingDeclines = new Map<string, number>();
   private preparingPeerId: string | null = null;
@@ -811,6 +814,7 @@ export class CallController {
       media = null;
       ek = null;
       this.update({ muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      this.watchCamera(this.session);
       this.machine.dispatch({ type: 'start', callId, roomId: input.roomId, peerId: input.peerId, kind: input.kind });
     } catch {
       this.update({ notice: { kind: 'interrupted' } });
@@ -882,6 +886,7 @@ export class CallController {
       const handedOver = media;
       media = null;
       this.update({ muted: false, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      this.watchCamera(session);
       this.machine.dispatch({ type: 'accept-local', callId: session.callId });
     } catch {
       this.update({ notice: { kind: 'interrupted' } });
@@ -1023,6 +1028,7 @@ export class CallController {
     }
     stream.addTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+    this.watchCamera(session);
     this.reportMediaChange();
   }
 
@@ -1231,6 +1237,7 @@ export class CallController {
     if (!session?.media || !peer || !this.isConnected() || !this.snapshot.cameraOn) {
       return;
     }
+    const epoch = this.cameraEpoch;
     const stream = session.media.stream;
     const previous = stream.getVideoTracks();
     let track = await this.deps.acquireCamera().catch(() => null);
@@ -1240,7 +1247,7 @@ export class CallController {
       }
       track = await this.deps.acquireCamera().catch(() => null);
     }
-    if (this.session !== session || session.peerSession !== peer || !this.snapshot.cameraOn) {
+    if (this.session !== session || session.peerSession !== peer || !this.snapshot.cameraOn || this.cameraEpoch !== epoch) {
       track?.stop();
       return;
     }
@@ -1261,13 +1268,16 @@ export class CallController {
       await peer.setVideoTrack(track);
     } catch {
       track.stop();
-      if (previous.some((old) => old.readyState === 'ended') && this.session === session) {
+      if (previous.some((old) => old.readyState === 'ended') && this.session === session && this.cameraEpoch === epoch) {
         await dropCamera();
       }
       return;
     }
-    if (this.session !== session) {
+    if (this.session !== session || session.peerSession !== peer || this.cameraEpoch !== epoch) {
       track.stop();
+      if (this.session === session && session.peerSession === peer) {
+        await peer.setVideoTrack(stream.getVideoTracks()[0] ?? null).catch(() => undefined);
+      }
       return;
     }
     for (const old of previous) {
@@ -1278,6 +1288,47 @@ export class CallController {
     }
     stream.addTrack(track);
     this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+    this.watchCamera(session);
+  }
+
+  private watchCamera(session: Session | null): void {
+    if (!session) {
+      return;
+    }
+    for (const track of session.media?.stream.getVideoTracks() ?? []) {
+      if (this.watchedCameras.has(track) || typeof track.addEventListener !== 'function') {
+        continue;
+      }
+      this.watchedCameras.add(track);
+      track.addEventListener('ended', () => {
+        if (this.isLiveCamera(session, track)) {
+          void this.queueDeviceChange(() => (this.isLiveCamera(session, track) ? this.swapCamera() : Promise.resolve()));
+        }
+      });
+      track.addEventListener('mute', () => this.scheduleCameraCheck(session, track));
+      track.addEventListener('unmute', () => this.clearCameraMuteTimer());
+    }
+  }
+
+  private isLiveCamera(session: Session, track: MediaStreamTrack): boolean {
+    return this.session === session && this.snapshot.cameraOn && this.isConnected() && (session.media?.stream.getVideoTracks().includes(track) ?? false);
+  }
+
+  private scheduleCameraCheck(session: Session, track: MediaStreamTrack): void {
+    this.clearCameraMuteTimer();
+    this.cameraMuteTimer = setTimeout(() => {
+      this.cameraMuteTimer = null;
+      if (track.muted && !this.pageHidden() && this.isLiveCamera(session, track)) {
+        void this.queueDeviceChange(() => (track.muted && this.isLiveCamera(session, track) ? this.swapCamera() : Promise.resolve()));
+      }
+    }, CAMERA_MUTE_GRACE_MS);
+  }
+
+  private clearCameraMuteTimer(): void {
+    if (this.cameraMuteTimer !== null) {
+      clearTimeout(this.cameraMuteTimer);
+      this.cameraMuteTimer = null;
+    }
   }
 
   private async installAudioInput(session: Session, track: MediaStreamTrack): Promise<void> {
@@ -1356,6 +1407,7 @@ export class CallController {
       }
       stream.addTrack(track);
       this.update({ cameraOn: true, cameraFailed: false, localStream: stream });
+      this.watchCamera(session);
     });
   }
 
@@ -1794,6 +1846,7 @@ export class CallController {
         track.enabled = !startMuted;
       }
       this.update({ otherDevice: null, muted: startMuted, cameraOn: handedOver.stream.getVideoTracks().length > 0, cameraFailed: handedOver.cameraFailed, localStream: handedOver.stream });
+      this.watchCamera(this.session);
       this.deps.socket.emit('call:transfer', { callId: other.callId, envelope, ...this.deviceField() });
     } catch {
       this.update({ otherDevice: null, notice: { kind: 'transfer-failed' } });
@@ -2281,6 +2334,11 @@ export class CallController {
       this.requestSync();
     }
     this.session?.peerSession?.recoverIfUnhealthy('resync');
+    const session = this.session;
+    const camera = session?.media?.stream.getVideoTracks()[0];
+    if (session && camera?.muted) {
+      this.scheduleCameraCheck(session, camera);
+    }
   }
 
   private stopHeartbeat(): void {
@@ -2496,6 +2554,7 @@ export class CallController {
   private teardown(state: CallState): void {
     const session = this.session;
     this.session = null;
+    this.clearCameraMuteTimer();
     this.stopHeartbeat();
     this.stopStats();
     this.deps.stopRingtone();
