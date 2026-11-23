@@ -93,7 +93,7 @@
   pointer-events: none;
 }
 
-.sc-call-round[aria-pressed='true']::before {
+.sc-call-round[aria-pressed='true'][data-ripple]::before {
   animation: scCallToggleRipple 340ms var(--sc-ease-enter);
 }
 
@@ -489,7 +489,7 @@
   .sc-call-avatar.sc-call-speaking::after,
   .sc-call-self.sc-call-speaking::after,
   .sc-call-tile.sc-call-speaking::after,
-  .sc-call-round[aria-pressed='true']::before,
+  .sc-call-round[aria-pressed='true'][data-ripple]::before,
   .sc-call-icon-swap,
   .sc-call-muted-badge,
   .sc-call-round__live,

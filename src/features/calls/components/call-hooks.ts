@@ -83,6 +83,14 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
   });
 }
 
+export function useToggleRipple(pressed: boolean): 'true' | undefined {
+  const [state, setState] = useState({ last: pressed, ripple: false });
+  if (state.last !== pressed) {
+    setState({ last: pressed, ripple: pressed });
+  }
+  return state.ripple && pressed ? 'true' : undefined;
+}
+
 export function useVideoOnly(stream: MediaStream | null): MediaStream | null {
   const track = stream?.getVideoTracks()[0] ?? null;
   return useMemo(() => (track && typeof MediaStream !== 'undefined' ? new MediaStream([track]) : null), [track]);

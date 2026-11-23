@@ -10,6 +10,7 @@ import { usePresence } from './use-presence';
 import { DevicePicker, type BroadcastSettings, type DeviceSelection } from './DevicePicker';
 import { TorchButton } from './TorchButton';
 import { useTorch } from './use-torch';
+import { useToggleRipple } from './call-hooks';
 
 interface CallControlsProps {
   supportsOutput: boolean;
@@ -35,6 +36,9 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const popover = useMediaQuery('(min-width: 600px)');
   const { snapshot } = call;
   const connected = snapshot.state.phase === 'active' || snapshot.state.phase === 'reconnecting';
+  const muteRipple = useToggleRipple(snapshot.muted);
+  const cameraRipple = useToggleRipple(snapshot.cameraOn);
+  const shareRipple = useToggleRipple(snapshot.screenSharing);
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
   const muteTitle = localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
@@ -84,6 +88,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
         title={muteTitle}
         aria-label={muteLabel}
         aria-pressed={snapshot.muted}
+        data-ripple={muteRipple}
       >
         <span key={snapshot.muted ? 'muted' : 'live'} className="sc-call-icon-swap">
           {snapshot.muted ? <LuMicOff size={22} /> : <LuMic size={22} />}
@@ -102,6 +107,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
         title={cameraLabel}
         aria-label={cameraLabel}
         aria-pressed={snapshot.cameraOn}
+        data-ripple={cameraRipple}
         disabled={!connected}
       >
         <span key={snapshot.cameraOn ? 'on' : 'off'} className="sc-call-icon-swap">
@@ -118,6 +124,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
           title={shareLabel}
           aria-label={shareLabel}
           aria-pressed={snapshot.screenSharing}
+          data-ripple={shareRipple}
           data-active={snapshot.screenSharing}
           disabled={!connected || (!snapshot.screenSharing && shareBlocked)}
         >
