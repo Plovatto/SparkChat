@@ -76,8 +76,10 @@ export function startCallMediaSession(
     session.playbackState = 'playing';
     current.onResume?.();
   };
-  register('play', keepPlaying);
-  register('pause', keepPlaying);
+  if (options.onResume) {
+    register('play', keepPlaying);
+    register('pause', keepPlaying);
+  }
   apply(options);
 
   return {

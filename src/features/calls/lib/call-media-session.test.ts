@@ -68,9 +68,16 @@ describe('startCallMediaSession', () => {
     expect(onResume).toHaveBeenCalledTimes(2);
   });
 
+  it('leaves the system play and pause behaviour alone when nothing needs to be kept playing', () => {
+    const { session, handlers } = fakeSession();
+    startCallMediaSession(options(), session, metadata);
+    expect(handlers.has('play')).toBe(false);
+    expect(handlers.has('pause')).toBe(false);
+  });
+
   it('clears everything on stop and ignores later updates', () => {
     const { session, handlers } = fakeSession();
-    const call = startCallMediaSession(options(), session, metadata);
+    const call = startCallMediaSession(options({ onResume: vi.fn() }), session, metadata);
 
     call.stop();
     call.update(options({ title: 'Late' }));
@@ -85,7 +92,7 @@ describe('startCallMediaSession', () => {
 
   it('copes with browsers that reject an action or lack the media session', () => {
     const { session, handlers } = fakeSession(['togglemicrophone', 'play', 'pause']);
-    const call = startCallMediaSession(options(), session, metadata);
+    const call = startCallMediaSession(options({ onResume: vi.fn() }), session, metadata);
     expect([...handlers.keys()]).toEqual(['hangup']);
     expect(session.playbackState).toBe('playing');
     call.stop();

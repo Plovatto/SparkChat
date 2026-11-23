@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ANCHOR_RETRY_MS, ANCHOR_SAMPLE_RATE, ANCHOR_SECONDS, anchorWav, needsBackgroundAnchor, startBackgroundAnchor, type AnchorDeps, type AnchorElement } from './background-anchor';
+import { ANCHOR_RETRY_MS, ANCHOR_STABLE_MS, ANCHOR_SAMPLE_RATE, ANCHOR_SECONDS, anchorWav, needsBackgroundAnchor, startBackgroundAnchor, type AnchorDeps, type AnchorElement } from './background-anchor';
 
 class FakeElement implements AnchorElement {
   src = '';
@@ -92,6 +92,7 @@ function harness(element = new FakeElement()) {
   const revoked: string[] = [];
   const page = fakeSource();
   const interactions = fakeSource();
+  const clock = { now: 0 };
   const deps: Partial<AnchorDeps> = {
     createElement: () => element,
     createUrl: () => 'blob:anchor',
@@ -104,6 +105,7 @@ function harness(element = new FakeElement()) {
     clearTimer: (handle) => {
       (handle as { cleared: boolean }).cleared = true;
     },
+    now: () => clock.now,
     source: page.source,
     interactions: interactions.source.document,
   };
@@ -114,7 +116,7 @@ function harness(element = new FakeElement()) {
       }
     }
   };
-  return { element, deps, timers, revoked, page, interactions, runTimers };
+  return { element, deps, timers, revoked, page, interactions, runTimers, clock };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -187,6 +189,24 @@ describe('startBackgroundAnchor', () => {
       await flush();
     }
     expect(delays).toEqual([1000, 3000, 10000, 30000, 30000]);
+  });
+
+  it('keeps backing off when focus is taken again right after each resume, and resets once playback is stable', async () => {
+    const { element, deps, timers, runTimers, clock } = harness();
+    startBackgroundAnchor(deps);
+    await flush();
+    const delays: number[] = [];
+    for (let round = 0; round < 3; round += 1) {
+      clock.now += 500;
+      element.systemPause();
+      delays.push(timers[0]?.ms ?? -1);
+      runTimers();
+      await flush();
+    }
+    clock.now += ANCHOR_STABLE_MS;
+    element.systemPause();
+    delays.push(timers[0]?.ms ?? -1);
+    expect(delays).toEqual([1000, 3000, 10000, 1000]);
   });
 
   it('revives on page resume and on the next interaction', async () => {

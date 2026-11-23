@@ -5,6 +5,7 @@ export const ANCHOR_SECONDS = 8;
 export const ANCHOR_TONE_HZ = 30;
 export const ANCHOR_AMPLITUDE = 100;
 export const ANCHOR_RETRY_MS = [1000, 3000, 10000, 30000] as const;
+export const ANCHOR_STABLE_MS = 5000;
 
 export function needsBackgroundAnchor(userAgent: string | undefined = typeof navigator === 'undefined' ? undefined : navigator.userAgent): boolean {
   return typeof userAgent === 'string' && /Android/i.test(userAgent);
@@ -61,6 +62,7 @@ export interface AnchorDeps {
   revokeUrl: (url: string) => void;
   setTimer: (callback: () => void, ms: number) => unknown;
   clearTimer: (handle: unknown) => void;
+  now: () => number;
   source?: ResumeSource | null;
   interactions?: Pick<Document, 'addEventListener' | 'removeEventListener'> | null;
 }
@@ -98,6 +100,7 @@ const defaultDeps: AnchorDeps = {
   },
   setTimer: (callback, ms) => setTimeout(callback, ms),
   clearTimer: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  now: () => Date.now(),
   interactions: typeof document === 'undefined' ? null : document,
 };
 
@@ -124,6 +127,7 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
   let stopped = false;
   let retry: unknown = null;
   let failures = 0;
+  let playingSince: number | null = null;
 
   const clearRetry = () => {
     if (retry !== null) {
@@ -147,7 +151,7 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     }
     void Promise.resolve(attempt).then(
       () => {
-        failures = 0;
+        playingSince = deps.now();
       },
       () => schedule(),
     );
@@ -168,9 +172,14 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
   };
 
   const onPause = () => {
-    if (!stopped) {
-      schedule();
+    if (stopped) {
+      return;
     }
+    if (playingSince !== null && deps.now() - playingSince >= ANCHOR_STABLE_MS) {
+      failures = 0;
+    }
+    playingSince = null;
+    schedule();
   };
 
   const revive = () => {
