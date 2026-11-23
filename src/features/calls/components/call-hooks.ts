@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { monitorSpeaking } from '../lib/audio-level';
 import { autoplay } from '../lib/autoplay';
 import { onPageResume } from '../lib/page-resume';
@@ -83,12 +83,33 @@ export function useStreamOn(ref: RefObject<HTMLMediaElement | null>, stream: Med
   });
 }
 
-export function useToggleRipple(pressed: boolean): 'true' | undefined {
-  const [state, setState] = useState({ last: pressed, ripple: false });
+const RIPPLE_ARM_MS = 4000;
+
+export function useToggleRipple(pressed: boolean): readonly ['true' | undefined, () => void] {
+  const [state, setState] = useState({ last: pressed, armed: false, ripple: false });
   if (state.last !== pressed) {
-    setState({ last: pressed, ripple: pressed });
+    setState({ last: pressed, armed: false, ripple: pressed && state.armed });
   }
-  return state.ripple && pressed ? 'true' : undefined;
+  const disarm = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (disarm.current !== null) {
+        clearTimeout(disarm.current);
+      }
+    },
+    [],
+  );
+  const arm = useCallback(() => {
+    setState((current) => (current.armed ? current : { ...current, armed: true }));
+    if (disarm.current !== null) {
+      clearTimeout(disarm.current);
+    }
+    disarm.current = setTimeout(() => {
+      disarm.current = null;
+      setState((current) => (current.armed ? { ...current, armed: false } : current));
+    }, RIPPLE_ARM_MS);
+  }, []);
+  return [state.ripple && pressed ? 'true' : undefined, arm] as const;
 }
 
 export function useVideoOnly(stream: MediaStream | null): MediaStream | null {

@@ -11,7 +11,7 @@ interface TorchButtonProps {
 
 export function TorchButton({ torch, disabled = false }: TorchButtonProps) {
   const { t } = useTranslation();
-  const ripple = useToggleRipple(torch.on);
+  const [ripple, armRipple] = useToggleRipple(torch.on);
   if (!torch.supported) {
     return null;
   }
@@ -21,7 +21,10 @@ export function TorchButton({ torch, disabled = false }: TorchButtonProps) {
       type="button"
       className="sc-call-round sc-call-round--torch"
       data-tone={torch.on ? 'on' : undefined}
-      onClick={() => void torch.toggle()}
+      onClick={() => {
+        armRipple();
+        void torch.toggle();
+      }}
       title={label}
       aria-label={label}
       aria-pressed={torch.on}
