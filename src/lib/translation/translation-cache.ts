@@ -1,9 +1,10 @@
 import { BoundedMap } from '@lib/cache/bounded-map';
 import type { Language } from '@lib/i18n/language';
+import type { SourceLanguage } from './types';
 
 export const TRANSLATION_CACHE_SIZE = 500;
 
-export type CachedTranslation = { status: 'translated'; text: string; sourceLanguage: Language; explicit?: true } | { status: 'none' };
+export type CachedTranslation = { status: 'translated'; text: string; sourceLanguage: SourceLanguage; explicit?: true } | { status: 'none' };
 
 type Entry = { value: CachedTranslation; roomId: string; messageIndexKey: string };
 

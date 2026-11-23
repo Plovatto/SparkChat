@@ -1,9 +1,12 @@
-import { useEffect, useLayoutEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuMic, LuMicOff, LuPhone, LuPhoneOff, LuVideo } from 'react-icons/lu';
 import { formatCallDuration } from '@lib/format';
 import { speakingClass } from '../lib/self-speaking';
+import { Collapse } from '@features/motion';
 import { useCall } from '../call-context';
+import { isMounted } from '../lib/presence';
+import { usePresence } from './use-presence';
 import { FRAME_GAP_PX, FRAME_SELECTOR, frameInsets, type FrameInsets } from '../lib/frame-anchor';
 
 function useFrameInsets(enabled: boolean): FrameInsets | null {
@@ -54,7 +57,9 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
   const { registerStatusBar, hasStatusBar } = call;
   const [now, setNow] = useState(() => Date.now());
   const live = state.phase !== 'idle' && state.phase !== 'incoming-ringing' && state.phase !== 'ended';
-  const floating = !attached && minimized && live && !hasStatusBar;
+  const visible = minimized && live && (attached || !hasStatusBar);
+  const stage = usePresence(visible, 340, 180);
+  const floating = !attached && isMounted(stage);
   const insets = useFrameInsets(floating);
 
   useEffect(() => {
@@ -72,22 +77,29 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
     return () => clearInterval(timer);
   }, [minimized, live]);
 
-  if (!minimized || !live || (!attached && hasStatusBar)) {
-    return null;
-  }
   const peer = call.peerDisplay(state.peerId);
   const connected = state.phase === 'active' && state.connectedAt !== null;
   const label = connected
     ? formatCallDuration((now - (state.connectedAt ?? now)) / 1000)
     : t(state.phase === 'reconnecting' ? 'calls.status.reconnecting' : state.phase === 'connecting' ? 'calls.status.connecting' : 'calls.status.calling');
-  const KindIcon = state.kind === 'video' ? LuVideo : LuPhone;
+  const shownRef = useRef({ name: peer?.name ?? '', label, connected, video: state.kind === 'video' });
+  if (visible) {
+    shownRef.current = { name: peer?.name ?? '', label, connected, video: state.kind === 'video' };
+  }
+  if (!isMounted(stage)) {
+    return null;
+  }
+  const shown = shownRef.current;
+  const exiting = stage === 'exiting';
+  const KindIcon = shown.video ? LuVideo : LuPhone;
   const muteLabel = snapshot.muted ? t('calls.unmute') : t('calls.mute');
 
-  return (
+  const bar = (
     <div
       role="status"
       className={`sc-livebar ${attached ? 'sc-livebar--attached' : 'sc-livebar--floating'}`}
-      data-connected={connected}
+      data-connected={shown.connected}
+      data-state={exiting ? 'exiting' : undefined}
       style={insets ? ({ '--sc-livebar-right': `${insets.right}px`, '--sc-livebar-bottom': `${insets.bottom}px` } as CSSProperties) : undefined}
       onClick={(event) => {
         if (!(event.target instanceof Element) || event.target.closest('[data-bar-action]') === null) {
@@ -102,8 +114,8 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
           <span className="sc-livebar__dot" />
         </span>
         <span className="sc-livebar__text">
-          <span className="sc-livebar__name">{peer?.name ?? ''}</span>
-          <span className="sc-livebar__meta">{label}</span>
+          <span className="sc-livebar__name">{shown.name}</span>
+          <span className="sc-livebar__meta">{shown.label}</span>
         </span>
       </button>
       <div className="sc-livebar__actions">
@@ -124,5 +136,14 @@ export function CallMiniBar({ attached = false }: CallMiniBarProps) {
         </button>
       </div>
     </div>
+  );
+
+  if (!attached) {
+    return bar;
+  }
+  return (
+    <Collapse isExiting={exiting} className="sc-livebar-slot">
+      {bar}
+    </Collapse>
   );
 }

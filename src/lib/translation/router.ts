@@ -1,7 +1,7 @@
 import type { Language } from '@lib/i18n/language';
 import { loadBergamotEngine } from './engines/bergamot-loader';
 import { nativeEngine } from './engines/native-engine';
-import { pairKey, type PairKey, type TranslationEngine, type TranslationSupport } from './types';
+import { pairKey, type PairKey, type SourceLanguage, type TranslationEngine, type TranslationSupport } from './types';
 
 export const ENGINE_ROUTE_MEMO_MS = 30_000;
 
@@ -33,7 +33,7 @@ function loadFallback(): Promise<TranslationEngine> | null {
   return fallbackEngine;
 }
 
-async function computeRoute(source: Language, target: Language): Promise<EngineRoute | null> {
+async function computeRoute(source: SourceLanguage, target: Language): Promise<EngineRoute | null> {
   if ('Translator' in globalThis) {
     const support = await nativeEngine.support(source, target);
     if (support !== 'unavailable') {
@@ -52,7 +52,7 @@ async function computeRoute(source: Language, target: Language): Promise<EngineR
   }
 }
 
-export function resolveEngine(source: Language, target: Language): Promise<EngineRoute | null> {
+export function resolveEngine(source: SourceLanguage, target: Language): Promise<EngineRoute | null> {
   const key = pairKey(source, target);
   const now = Date.now();
   const memo = routes.get(key);
