@@ -7,7 +7,7 @@ import { formatFileSize } from '@lib/format';
 import type { ChatMessage } from '../types';
 import type { FileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail, type PdfThumbnail } from '../utils/render-pdf-thumbnail';
-import { PdfPreviewModal } from './PdfPreviewModal';
+import { PdfPreviewModal } from './lazy-panels';
 
 const PDF_THUMBNAIL_WIDTH = 380;
 const CHAT_FILE_CARD_MAX_WIDTH = 280;

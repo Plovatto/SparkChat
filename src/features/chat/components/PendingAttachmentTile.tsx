@@ -7,9 +7,9 @@ import { getAttachmentKind } from '../utils/get-attachment-kind';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { renderPdfThumbnail } from '../utils/render-pdf-thumbnail';
 import { renderVideoThumbnail } from '../utils/render-video-thumbnail';
-import { ImageModal } from './ImageModal';
-import { PdfPreviewModal } from './PdfPreviewModal';
-import { VideoPreviewModal } from './VideoPreviewModal';
+import { ImageModal } from './lazy-panels';
+import { PdfPreviewModal } from './lazy-panels';
+import { VideoPreviewModal } from './lazy-panels';
 
 interface PendingAttachmentTileProps {
   file: File;

@@ -7,7 +7,7 @@ import { isGifMimeType } from '@lib/media/media-type';
 import type { ChatMessage } from '../types';
 import { CHAT_ATTACHMENT_MAX_WIDTH, CHAT_GIF_MAX_WIDTH, fitAttachmentHeight } from '../utils/chat-attachment-layout';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
-import { ImageModal } from './ImageModal';
+import { ImageModal } from './lazy-panels';
 import { useMediaViewer } from './media-viewer/media-viewer-context';
 
 interface ImageMessageContentProps {

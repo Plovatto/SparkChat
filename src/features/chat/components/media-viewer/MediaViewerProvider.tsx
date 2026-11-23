@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import type { RoomParticipant } from '@lib/socket';
 import type { ChatMessage } from '../../types';
-import { MediaViewer } from './MediaViewer';
+import { MediaViewer } from '../lazy-panels';
 import { MediaViewerContext } from './media-viewer-context';
 import { toMediaViewerItems } from './media-viewer-items';
 

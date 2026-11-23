@@ -15,7 +15,7 @@ import {
 import type { RoomSummary } from '@lib/socket';
 import { useContactTrust } from '../hooks/useContactTrust';
 import { isAssistantRoom } from '../utils/assistant';
-import { SafetyNumberDialog } from './SafetyNumberDialog';
+import { SafetyNumberDialog } from './lazy-panels';
 
 interface ContactKeyBannerProps {
   room: RoomSummary;
