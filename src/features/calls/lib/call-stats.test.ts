@@ -141,6 +141,35 @@ describe('outbound loss', () => {
     expect(reading.bars).toBe(1);
   });
 
+  it('stops counting a report the other side no longer refreshes, such as a stopped share or camera', () => {
+    const entries = (sent: number) => [
+      { type: 'inbound-rtp', kind: 'audio', packetsReceived: 100 + sent, packetsLost: 0 },
+      { type: 'outbound-rtp', id: 'out-screen', kind: 'video', packetsSent: 900 },
+      { type: 'remote-inbound-rtp', id: 'ri-screen', localId: 'out-screen', kind: 'video', fractionLost: 0.2, packetsLost: 40, roundTripTimeMeasurements: 12 },
+      { type: 'outbound-rtp', id: 'out-audio', kind: 'audio', packetsSent: sent },
+      { type: 'remote-inbound-rtp', id: 'ri-audio', localId: 'out-audio', kind: 'audio', fractionLost: 0, packetsLost: 0, roundTripTimeMeasurements: sent },
+    ];
+    const first = readQuality(report(entries(100)), null);
+    const second = readQuality(report(entries(200)), first.sample);
+    const third = readQuality(report(entries(300)), second.sample);
+
+    expect(second.outboundLoss).toBe(0);
+    expect(third.outboundLoss).toBe(0);
+    expect(third.bars).toBe(3);
+  });
+
+  it('keeps counting a report the other side refreshes', () => {
+    const entries = (lost: number, sent: number) => [
+      { type: 'outbound-rtp', id: 'out-video', kind: 'video', packetsSent: sent },
+      { type: 'remote-inbound-rtp', id: 'ri-video', localId: 'out-video', kind: 'video', fractionLost: 0.08, packetsLost: lost, roundTripTimeMeasurements: sent },
+    ];
+    const first = readQuality(report(entries(10, 100)), null);
+    const second = readQuality(report(entries(18, 200)), first.sample);
+
+    expect(second.outboundLoss).toBe(0.08);
+    expect(second.bars).toBe(1);
+  });
+
   it('ignores invalid fractions', () => {
     expect(readQuality(report([{ type: 'remote-inbound-rtp', fractionLost: Number.NaN }, { type: 'remote-inbound-rtp', fractionLost: -1 }]), null).outboundLoss).toBe(0);
   });
@@ -231,11 +260,9 @@ describe('relay hysteresis', () => {
 });
 
 describe('qualityTone', () => {
-  it('keeps the poor and fair colors and shows relay only when quality is good', () => {
-    expect(qualityTone(1, true)).toBe('poor');
-    expect(qualityTone(2, false)).toBe('fair');
-    expect(qualityTone(3, true)).toBe('relay');
-    expect(qualityTone(3, false)).toBe('good');
-    expect(qualityTone(3, null)).toBe('good');
+  it('colors only by measured quality, so a good relayed call is green', () => {
+    expect(qualityTone(1)).toBe('poor');
+    expect(qualityTone(2)).toBe('fair');
+    expect(qualityTone(3)).toBe('good');
   });
 });

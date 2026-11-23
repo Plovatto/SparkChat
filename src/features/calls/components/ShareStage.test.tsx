@@ -103,3 +103,51 @@ describe('ShareStage frozen share', () => {
     expect(document.querySelector('canvas')).toBeNull();
   });
 });
+
+describe('ShareStage self view', () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(() => Promise.resolve());
+    Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', { configurable: true, writable: true, value: null });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function camera(facingMode?: string): MediaStream {
+    const track = Object.assign(new FakeTrack(), { getSettings: () => (facingMode ? { facingMode } : {}) });
+    return { getVideoTracks: () => [track], getAudioTracks: () => [], getTracks: () => [track] } as unknown as MediaStream;
+  }
+
+  function selfVideo(facingMode?: string): HTMLVideoElement {
+    const self = { name: 'You', avatar: undefined, stream: camera(facingMode), speaking: false, muted: false };
+    render(<ShareStage {...props(new FakeStream(), { self })} />);
+    return screen.getByRole('button', { name: 'calls.you' }).querySelector('video') as HTMLVideoElement;
+  }
+
+  it('mirrors a front camera self view', () => {
+    expect(selfVideo('user').style.transform).toBe('scaleX(-1)');
+  });
+
+  it('mirrors a desktop webcam self view', () => {
+    expect(selfVideo().style.transform).toBe('scaleX(-1)');
+  });
+
+  it('does not mirror a rear camera self view', () => {
+    expect(selfVideo('environment').style.transform).toBe('');
+  });
+
+  it('shows the full camera frame and never mirrors the remote camera or the share', () => {
+    const remote = { name: 'Ada', avatar: undefined, stream: camera('user'), speaking: false, muted: false };
+    render(<ShareStage {...props(new FakeStream(), { remote })} />);
+    const remoteVideo = screen.getByRole('button', { name: 'Ada' }).querySelector('video') as HTMLVideoElement;
+    expect(remoteVideo.style.transform).toBe('');
+    expect(remoteVideo.style.objectFit).toBe('contain');
+    for (const video of document.querySelectorAll('video')) {
+      expect(video.style.objectFit).toBe('contain');
+      if (video.closest('.sc-call-tile') === null) {
+        expect(video.style.transform).toBe('');
+      }
+    }
+  });
+});

@@ -260,14 +260,37 @@ describe('handlePush', () => {
     }
   });
 
-  it('only closes the call notification when it was answered elsewhere or declined', async () => {
+  it('replaces the ringing notification with a quiet call ended one when nothing else would stay visible', async () => {
     for (const reason of ['answered', 'declined', 'completed']) {
       const { env, visible } = fakeEnv();
       const state = createWorkerState();
       await handlePush(env, state, { t: 'call', callId: 'c1', roomId: 'r1', kind: 'voice' });
       await handlePush(env, state, { t: 'call-end', callId: 'c1', reason });
-      expect(visible()).toHaveLength(0);
+      expect(visible()).toHaveLength(1);
+      expect(visible()[0]!.title).toBe('Chamada encerrada');
+      expect(visible()[0]!.options).toMatchObject({ tag: callTag('c1'), silent: true, data: { kind: 'ended', callId: 'c1', roomId: 'r1' } });
+      expect(visible()[0]!.options.renotify).toBeFalsy();
+      expect(visible()[0]!.options.vibrate).toBeUndefined();
     }
+  });
+
+  it('shows a call ended notification even when the ring push never arrived', async () => {
+    const { env, visible } = fakeEnv({ language: 'en' });
+    await handlePush(env, createWorkerState(), { t: 'call-end', callId: 'c1', reason: 'answered' });
+    expect(visible().map((entry) => entry.title)).toEqual(['Call ended']);
+  });
+
+  it('only closes the call notification when a focused window or another notification stays visible', async () => {
+    const focused = fakeEnv({ clients: [fakeClient({ focused: true, visibilityState: 'visible' })] });
+    await handlePush(focused.env, createWorkerState(), { t: 'call-end', callId: 'c1', reason: 'answered' });
+    expect(focused.visible()).toHaveLength(0);
+
+    const { env, visible } = fakeEnv();
+    const state = createWorkerState();
+    await handlePush(env, state, { t: 'msg', roomId: 'r2' });
+    await handlePush(env, state, { t: 'call', callId: 'c1', roomId: 'r1', kind: 'voice' });
+    await handlePush(env, state, { t: 'call-end', callId: 'c1', reason: 'declined' });
+    expect(visible().map((entry) => entry.options.tag)).toEqual([messageTag('r2')]);
   });
 
   it('shows a content-free message notification that collapses per room', async () => {
