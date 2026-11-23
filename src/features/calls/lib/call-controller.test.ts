@@ -522,6 +522,24 @@ describe('full call between two controllers', () => {
     expect(w.a.controller.getSnapshot().state.phase).toBe('active');
   });
 
+  it('clears the quality and relay reading while reconnecting and reads them again once connected', async () => {
+    const w = await world();
+    await connectCall(w);
+    const peer = w.a.peers[0]!;
+    peer.options.onConnection('connected');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().quality).toBe(3);
+
+    peer.options.onConnection('interrupted');
+    expect(w.a.controller.getSnapshot()).toMatchObject({ quality: null, relayed: null });
+    await vi.advanceTimersByTimeAsync(4_000);
+    expect(w.a.controller.getSnapshot().quality).toBeNull();
+
+    peer.options.onConnection('connected');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(w.a.controller.getSnapshot().quality).toBe(3);
+  });
+
   it('handles control messages for mute, camera and hangup', async () => {
     const w = await world();
     await connectCall(w);
