@@ -871,6 +871,10 @@
     "unmute": "Unmute microphone",
     "cameraOn": "Turn camera on",
     "cameraOff": "Turn camera off",
+    "torch": {
+      "on": "Turn flashlight on",
+      "off": "Turn flashlight off"
+    },
     "devices": "Devices",
     "mediaSession": {
       "title": "SparkChat",
