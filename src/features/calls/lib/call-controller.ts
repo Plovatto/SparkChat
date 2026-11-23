@@ -2369,7 +2369,7 @@ export class CallController {
           if (wasRelayed !== null && wasRelayed !== session.relay.relayed && session.screen && this.snapshot.movieMode) {
             void peer.setMovieMode(true);
           }
-          if (this.session !== session) {
+          if (this.session !== session || this.machine.getState().phase !== 'active') {
             return;
           }
           const wasUnstable = session.instability.unstable;
@@ -2499,6 +2499,13 @@ export class CallController {
       this.offlineSince = null;
     }
     const patch: Partial<CallSnapshot> = { state };
+    if (state.phase === 'reconnecting' && previous !== 'reconnecting') {
+      patch.quality = null;
+      patch.relayed = null;
+      if (this.session) {
+        this.session.relay = RELAY_UNKNOWN;
+      }
+    }
     if (state.phase === 'ended' && previous !== 'ended') {
       patch.durationSeconds = state.connectedAt === null ? null : Math.max(0, Math.round((this.deps.now() - state.connectedAt) / 1000));
       this.teardown(state);
