@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { useToggleRipple } from './call-hooks';
 import { CallPip } from './CallPip';
+import { TorchButton } from './TorchButton';
+import type { TorchControl } from './use-torch';
 
 describe('useToggleRipple', () => {
   it('stays quiet when a control mounts already pressed', () => {
@@ -34,6 +36,15 @@ describe('toggle ripple on call controls', () => {
     view.rerender(pip(false));
     view.rerender(pip(true));
     expect(button().getAttribute('data-ripple')).toBe('true');
+  });
+
+  it('ripples the torch only when it is switched on after mount', () => {
+    const torch = (on: boolean) => ({ supported: true, on, toggle: vi.fn() }) as unknown as TorchControl;
+    const view = render(<TorchButton torch={torch(true)} />);
+    expect(screen.getByRole('button', { pressed: true }).hasAttribute('data-ripple')).toBe(false);
+    view.rerender(<TorchButton torch={torch(false)} />);
+    view.rerender(<TorchButton torch={torch(true)} />);
+    expect(screen.getByRole('button', { pressed: true }).getAttribute('data-ripple')).toBe('true');
   });
 
   it('keys the ripple animation on the data-ripple attribute, not on aria-pressed alone', () => {
