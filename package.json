@@ -26,7 +26,7 @@
     "bootstrap": "^5.3.9",
     "date-fns": "^4.1.0",
     "frimousse": "0.4.0",
-    "i18next": "^26.5.2",
+    "i18next": "^27.2.5",
     "libsodium-wrappers-sumo": "^0.8.4",
     "pdfjs-dist": "^6.5.438",
     "qrcode": "^1.5.4",
@@ -34,7 +34,7 @@
     "react-bootstrap": "^2.10.7",
     "react-dom": "^19.0.0",
     "react-easy-crop": "6.2.4",
-    "react-i18next": "^17.1.0",
+    "react-i18next": "^18.0.3",
     "react-icons": "^5.4.0",
     "socket.io-client": "^4.8.1"
   },
