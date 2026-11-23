@@ -194,8 +194,11 @@ function serviceWorkerVersion(fileNames: readonly string[]): string {
 function workerImportMetaUrl(): Plugin {
   return {
     name: 'sparkchat:worker-import-meta-url',
-    resolveImportMeta(property) {
-      return property === 'url' ? 'self.location.href' : null;
+    transform(code) {
+      if (!code.includes('import.meta.url')) {
+        return null;
+      }
+      return { code: code.replaceAll('import.meta.url', 'self.location.href'), map: null };
     },
   };
 }
