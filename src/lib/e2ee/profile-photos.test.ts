@@ -183,7 +183,7 @@ function summary(roomId: string, type: 'private' | 'group', participants: Record
 
 async function settle(): Promise<void> {
   for (let round = 0; round < 30; round += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setImmediate(resolve));
   }
 }
 

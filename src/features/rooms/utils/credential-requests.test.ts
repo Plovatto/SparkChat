@@ -10,6 +10,7 @@ import {
   resolveProfileUpdateProof,
 } from './credential-requests';
 
+vi.mock('@lib/e2ee/sodium', async (importOriginal) => (await import('../../../test/fast-sodium')).fastSodiumModule(importOriginal));
 vi.mock('@config/env', () => ({ env: { apiUrl: 'https://api.test', socketUrl: 'https://api.test' } }));
 
 const identityState = vi.hoisted(() => ({ value: null as { publicKey: string; privateKey: Uint8Array } | null }));
