@@ -11,6 +11,7 @@ export interface CallMediaSessionOptions {
   muted: boolean;
   onHangup: () => void;
   onToggleMicrophone: () => void;
+  onResume?: () => void;
 }
 
 export interface CallMediaSession {
@@ -20,7 +21,7 @@ export interface CallMediaSession {
 
 export type MetadataFactory = (init: { title: string; artist: string }) => unknown;
 
-type CallAction = 'hangup' | 'togglemicrophone';
+type CallAction = 'hangup' | 'togglemicrophone' | 'play' | 'pause';
 
 function browserSession(): MediaSessionLike | null {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
@@ -71,6 +72,14 @@ export function startCallMediaSession(
 
   register('hangup', () => current.onHangup());
   register('togglemicrophone', () => current.onToggleMicrophone());
+  const keepPlaying = () => {
+    session.playbackState = 'playing';
+    current.onResume?.();
+  };
+  if (options.onResume) {
+    register('play', keepPlaying);
+    register('pause', keepPlaying);
+  }
   apply(options);
 
   return {

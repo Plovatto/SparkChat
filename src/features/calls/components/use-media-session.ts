@@ -10,10 +10,12 @@ export function useCallMediaSession(active: boolean, options: CallMediaSessionOp
     if (!active) {
       return;
     }
+    const resumable = latest.current.onResume !== undefined;
     const session = startCallMediaSession({
       ...latest.current,
       onHangup: () => latest.current.onHangup(),
       onToggleMicrophone: () => latest.current.onToggleMicrophone(),
+      onResume: resumable ? () => latest.current.onResume?.() : undefined,
     });
     sessionRef.current = session;
     return () => {
