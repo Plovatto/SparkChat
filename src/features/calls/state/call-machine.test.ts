@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  blocksNewCall,
   CALL_CONNECT_TIMEOUT_MS,
   CALL_ENDED_LINGER_MS,
   CALL_RECONNECT_TIMEOUT_MS,
@@ -422,5 +423,18 @@ describe('call machine properties', () => {
         }
       }),
     );
+  });
+});
+
+describe('blocksNewCall', () => {
+  it('lets the user call back the room that is ringing and blocks everything else in a call', () => {
+    const ringing = { ...IDLE_CALL_STATE, phase: 'incoming-ringing' as const, roomId: 'room-1', peerId: 'alice', callId: 'c1' };
+    expect(blocksNewCall(IDLE_CALL_STATE, 'room-1')).toBe(false);
+    expect(blocksNewCall({ ...IDLE_CALL_STATE, phase: 'ended' }, 'room-1')).toBe(false);
+    expect(blocksNewCall(ringing, 'room-1')).toBe(false);
+    expect(blocksNewCall(ringing, 'room-2')).toBe(true);
+    expect(blocksNewCall(ringing, null)).toBe(true);
+    expect(blocksNewCall({ ...ringing, phase: 'active' }, 'room-1')).toBe(true);
+    expect(blocksNewCall({ ...ringing, phase: 'outgoing-ringing' }, 'room-1')).toBe(true);
   });
 });

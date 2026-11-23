@@ -501,6 +501,12 @@ export class CallController {
     return state.phase === 'outgoing-ringing' && this.session?.role === 'caller' ? this.session.peerId : null;
   }
 
+  isRingingFrom(roomId: string, peerId: string): boolean {
+    const state = this.machine.getState();
+    const session = this.session;
+    return state.phase === 'incoming-ringing' && session !== null && session.role === 'callee' && session.peerId === peerId && session.roomId === roomId && state.callId === session.callId;
+  }
+
   private takeGlare(callerId: string): boolean {
     const glare = this.glarePeer;
     if (!glare || glare.peerId !== callerId) {
@@ -717,6 +723,9 @@ export class CallController {
   }
 
   async startCall(input: { roomId: string; peerId: string; kind: CallKind }): Promise<void> {
+    if (!this.disposed && !this.preparing && this.isRingingFrom(input.roomId, input.peerId)) {
+      return this.accept();
+    }
     if (this.disposed || this.preparing || isCallLive(this.machine.getState())) {
       return;
     }
