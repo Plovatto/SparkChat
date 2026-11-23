@@ -6,7 +6,6 @@ import { onWorkerMessage, postToWorker } from '../lib/sw-registration';
 
 interface PwaChatShellOptions {
   socket: AppSocket | null;
-  connected: boolean;
   selectedRoomId: string | null;
   language: 'pt' | 'en';
   onOpenRoom: (roomId: string) => void;
@@ -17,7 +16,7 @@ function syncQuietly(socket: AppSocket): void {
   void syncPushSubscription(socket).catch(() => null);
 }
 
-export function usePwaChatShell({ socket, connected, selectedRoomId, language, onOpenRoom, onNewChat }: PwaChatShellOptions): void {
+export function usePwaChatShell({ socket, selectedRoomId, language, onOpenRoom, onNewChat }: PwaChatShellOptions): void {
   const handlersRef = useRef({ onOpenRoom, onNewChat });
   handlersRef.current = { onOpenRoom, onNewChat };
 
@@ -44,10 +43,45 @@ export function usePwaChatShell({ socket, connected, selectedRoomId, language, o
   );
 
   useEffect(() => {
-    if (socket && connected) {
+    if (!socket) {
+      return;
+    }
+    if (socket.connected) {
       syncQuietly(socket);
     }
-  }, [socket, connected]);
+    const handleResumed = () => syncQuietly(socket);
+    socket.on('user:resumed', handleResumed);
+    return () => {
+      socket.off('user:resumed', handleResumed);
+    };
+  }, [socket]);
+
+  useEffect(() => {
+    const permissions = typeof navigator === 'undefined' ? undefined : navigator.permissions;
+    if (!socket || typeof permissions?.query !== 'function') {
+      return;
+    }
+    let active = true;
+    let status: PermissionStatus | null = null;
+    const handleChange = () => {
+      if (status?.state === 'granted') {
+        syncQuietly(socket);
+      }
+    };
+    permissions
+      .query({ name: 'notifications' })
+      .then((value) => {
+        if (active) {
+          status = value;
+          status.addEventListener('change', handleChange);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      status?.removeEventListener('change', handleChange);
+    };
+  }, [socket]);
 
   useEffect(() => {
     postToWorker({ type: 'sparkchat:active-room', roomId: selectedRoomId });

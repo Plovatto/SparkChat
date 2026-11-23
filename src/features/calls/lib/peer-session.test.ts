@@ -559,6 +559,38 @@ describe('ice restart', () => {
     expect(h.connection.restartCalls).toBe(1);
   });
 
+  it('does not report an interruption for a brief disconnect that recovers on its own', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+
+    for (let blip = 0; blip < 5; blip += 1) {
+      h.connection.setIce('disconnected');
+      await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS - 500);
+      h.connection.setIce('connected');
+      await vi.advanceTimersByTimeAsync(10_000);
+    }
+
+    expect(h.statuses).not.toContain('interrupted');
+    expect(h.connection.restartCalls).toBe(0);
+  });
+
+  it('reports the interruption once the disconnect outlasts the grace period', async () => {
+    const h = build('caller');
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+
+    h.connection.setIce('disconnected');
+    await vi.advanceTimersByTimeAsync(DISCONNECTED_RESTART_DELAY_MS - 1);
+    expect(h.statuses).not.toContain('interrupted');
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(h.statuses).toContain('interrupted');
+    expect(h.connection.restartCalls).toBe(1);
+  });
+
   it('starts direct only and falls back to the relay when nothing connects within 8 seconds', async () => {
     const h = build('caller');
     h.session.start();
@@ -1093,6 +1125,42 @@ describe('credential refresh', () => {
 
     expect(CREDENTIAL_REFRESH_MS).toBe(40 * 60 * 1000);
     expect(refresh).toHaveBeenCalledTimes(6);
+    expect(h.connection.restartCalls).toBe(restarts);
+  });
+
+  it('moves a relayed call onto each refreshed credential with one ice restart, because the server revokes the previous one', async () => {
+    const fresh = [{ urls: 'turn:fresh.example:3478', username: 'n', credential: 'k' }];
+    const refresh = vi.fn().mockResolvedValue({ iceServers: fresh });
+    const h = build('caller', { refreshIceServers: refresh });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    const restarts = h.connection.restartCalls;
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(h.connection.restartCalls).toBe(restarts + 1);
+    expect(h.signals.filter((signal) => signal.type === 'ice-restart')).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+    expect(h.connection.restartCalls).toBe(restarts + 2);
+  });
+
+  it('does not restart a relayed call when the refresh brings nothing', async () => {
+    const refresh = vi.fn().mockResolvedValue(null);
+    const h = build('caller', { refreshIceServers: refresh });
+    relayed(h.connection);
+    h.session.start();
+    await settle();
+    h.connection.setIce('connected');
+    const restarts = h.connection.restartCalls;
+
+    await vi.advanceTimersByTimeAsync(CREDENTIAL_REFRESH_MS);
+    await settle();
+
     expect(h.connection.restartCalls).toBe(restarts);
   });
 

@@ -849,12 +849,15 @@ export class PeerSession {
       return;
     }
     if (state === 'disconnected') {
-      this.options.onConnection('interrupted');
       this.failingSince ??= this.deps.now();
       this.clearDisconnectTimer();
       this.disconnectTimer = setTimeout(() => {
         this.disconnectTimer = null;
-        if (this.connection.iceConnectionState === 'disconnected' && this.retryTimer === null) {
+        if (this.closed || this.connection.iceConnectionState !== 'disconnected') {
+          return;
+        }
+        this.options.onConnection('interrupted');
+        if (this.retryTimer === null) {
           this.recover('disconnected');
         }
       }, DISCONNECTED_RESTART_DELAY_MS);
@@ -1510,10 +1513,20 @@ export class PeerSession {
         return;
       }
       void refresh()
-        .then((result) => this.applyRefresh(result))
+        .then((result) => {
+          this.applyRefresh(result);
+          return result ? this.moveRelayToFreshCredentials() : undefined;
+        })
         .catch(() => undefined)
         .finally(() => this.scheduleCredentialRefresh());
     }, CREDENTIAL_REFRESH_MS);
+  }
+
+  private async moveRelayToFreshCredentials(): Promise<void> {
+    if (this.closed || !this.isIceHealthy() || !(await this.isRelayed()) || this.closed) {
+      return;
+    }
+    this.restartIce(true);
   }
 
   dropRelayCredentials(): void {

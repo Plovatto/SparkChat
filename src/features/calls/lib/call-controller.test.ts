@@ -2369,14 +2369,14 @@ describe('voice leveling', () => {
     });
     await connectCall(w);
     const peer = w.a.peers[0]!;
-    const deliver = peer.setAudioTrack;
     let failNext = true;
     peer.setAudioTrack = (track?: MediaStreamTrack) => {
       if (failNext) {
         failNext = false;
         return Promise.reject(new Error('busy'));
       }
-      return (deliver as (track?: MediaStreamTrack) => Promise<void>)(track);
+      sent.push(track);
+      return Promise.resolve();
     };
     peer.options.onConnection('connected');
     await vi.advanceTimersByTimeAsync(2_000);

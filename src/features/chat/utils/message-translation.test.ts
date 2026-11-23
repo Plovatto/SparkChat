@@ -28,9 +28,9 @@ describe('shouldRequestTranslation', () => {
     expect(shouldRequestTranslation({ ...base, requested: true, assessment: null })).toBe(true);
   });
 
-  it('requests a visible message in automatic mode unless it is confidently in the interface language', () => {
+  it('requests a visible message in automatic mode only when it is confidently in another language', () => {
     expect(shouldRequestTranslation({ ...base, mode: 'auto' })).toBe(true);
-    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'unsure' })).toBe(true);
+    expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'unsure' })).toBe(false);
     expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'target' })).toBe(false);
     expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: 'skip' })).toBe(false);
     expect(shouldRequestTranslation({ ...base, mode: 'auto', assessment: null })).toBe(false);
@@ -100,9 +100,9 @@ describe('resolveDisplayText', () => {
 describe('resolveTranslationControl', () => {
   const base = { current: undefined, cached: undefined, requested: false, autoPending: false, assessment: 'other', showingOriginal: false } as const;
 
-  it('offers the link when the message is not confidently in the interface language', () => {
+  it('offers the link only when the message is confidently in another language', () => {
     expect(resolveTranslationControl(base)).toBe('offer');
-    expect(resolveTranslationControl({ ...base, assessment: 'unsure' })).toBe('offer');
+    expect(resolveTranslationControl({ ...base, assessment: 'unsure' })).toBe('none');
   });
 
   it('offers nothing when the message is in the interface language, untranslatable or not assessed yet', () => {

@@ -8,6 +8,8 @@ import { isMounted } from '../lib/presence';
 import { useDevicePrefs } from '../lib/call-settings';
 import { usePresence } from './use-presence';
 import { DevicePicker, type BroadcastSettings, type DeviceSelection } from './DevicePicker';
+import { TorchButton } from './TorchButton';
+import { useTorch } from './use-torch';
 
 interface CallControlsProps {
   supportsOutput: boolean;
@@ -37,6 +39,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
   const muteTitle = localSpeaking ? `${muteLabel} · ${t('calls.micPickingUp')}` : muteLabel;
   const cameraLabel = snapshot.cameraOn ? t('calls.cameraOff') : t('calls.cameraOn');
   const shareBlocked = !snapshot.canShareScreen || snapshot.degrade === 'audio-only-relay';
+  const torch = useTorch(snapshot.cameraOn ? (snapshot.localStream?.getVideoTracks()[0] ?? null) : null);
   const shareLabel = snapshot.screenSharing ? t('calls.share.stop') : shareBlocked ? t('calls.share.unavailable') : t('calls.share.start');
 
   useEffect(() => {
@@ -90,7 +93,12 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
         type="button"
         className="sc-call-round"
         data-tone={snapshot.cameraOn ? 'on' : undefined}
-        onClick={call.toggleCamera}
+        onClick={() => {
+          if (snapshot.cameraOn) {
+            torch.release();
+          }
+          call.toggleCamera();
+        }}
         title={cameraLabel}
         aria-label={cameraLabel}
         aria-pressed={snapshot.cameraOn}
@@ -100,6 +108,7 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
           {snapshot.cameraOn ? <LuVideo size={22} /> : <LuVideoOff size={22} />}
         </span>
       </button>
+      <TorchButton torch={torch} disabled={!connected} />
       {call.canShareScreen && (
         <button
           type="button"
@@ -149,7 +158,16 @@ export function CallControls({ supportsOutput, onAudioOutput, infoRef, broadcast
         )}
       </span>
       <span className="sc-call-controls__divider" aria-hidden="true" />
-      <button type="button" className="sc-call-round sc-call-round--danger" onClick={call.hangup} title={t('calls.hangup')} aria-label={t('calls.hangup')}>
+      <button
+        type="button"
+        className="sc-call-round sc-call-round--danger"
+        onClick={() => {
+          torch.release();
+          call.hangup();
+        }}
+        title={t('calls.hangup')}
+        aria-label={t('calls.hangup')}
+      >
         <LuPhoneOff size={22} />
       </button>
     </div>

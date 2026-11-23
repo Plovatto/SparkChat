@@ -606,7 +606,8 @@
       "autoRoomCaption": "Traduz no seu aparelho o que chegar em outro idioma.",
       "languages": {
         "pt": "português",
-        "en": "inglês"
+        "en": "inglês",
+        "es": "espanhol"
       }
     },
     "keyTrust": {
@@ -871,6 +872,10 @@
     "unmute": "Ativar microfone",
     "cameraOn": "Ligar câmera",
     "cameraOff": "Desligar câmera",
+    "torch": {
+      "on": "Ligar lanterna",
+      "off": "Desligar lanterna"
+    },
     "devices": "Dispositivos",
     "mediaSession": {
       "title": "SparkChat",
