@@ -41,6 +41,7 @@ import type { ShareAudio } from './share-audio';
 import { describeShareSurface, type ShareSurfaceKind } from './share-surface';
 import type { TabCallInfo, TabCallMessage, TabOwnership } from './tab-ownership';
 import type { VoiceLeveler } from './voice-leveler';
+import { cancelInterval, cancelTimeout, sleep, takeTimed } from './timers';
 
 export const HEARTBEAT_INTERVAL_MS = 10_000;
 export const OTHER_DEVICE_RECHECK_MS = 15_000;
@@ -553,10 +554,7 @@ export class CallController {
   }
 
   private clearOtherDeviceRecheck(): void {
-    if (this.otherDeviceRecheck !== null) {
-      clearTimeout(this.otherDeviceRecheck);
-      this.otherDeviceRecheck = null;
-    }
+    this.otherDeviceRecheck = cancelTimeout(this.otherDeviceRecheck);
   }
 
   private onConfig(payload: CallConfigPayload): void {
@@ -1169,10 +1167,7 @@ export class CallController {
   }
 
   private stopSurfaceWatch(): void {
-    if (this.surfaceTimer !== null) {
-      clearInterval(this.surfaceTimer);
-      this.surfaceTimer = null;
-    }
+    this.surfaceTimer = cancelInterval(this.surfaceTimer);
   }
 
   private releaseScreen(session: Session): void {
@@ -1325,10 +1320,7 @@ export class CallController {
   }
 
   private clearCameraMuteTimer(): void {
-    if (this.cameraMuteTimer !== null) {
-      clearTimeout(this.cameraMuteTimer);
-      this.cameraMuteTimer = null;
-    }
+    this.cameraMuteTimer = cancelTimeout(this.cameraMuteTimer);
   }
 
   private async installAudioInput(session: Session, track: MediaStreamTrack): Promise<void> {
@@ -1587,21 +1579,11 @@ export class CallController {
   }
 
   private onIceResult(payload: CallIceServersResult): void {
-    const pending = this.pendingIce.get(payload.callId);
-    if (pending) {
-      clearTimeout(pending.timer);
-      this.pendingIce.delete(payload.callId);
-      pending.resolve(payload);
-    }
+    takeTimed(this.pendingIce, payload.callId)?.resolve(payload);
   }
 
   private requestIce(session: Session): Promise<CallIceServersResult | null> {
-    const previous = this.pendingIce.get(session.callId);
-    if (previous) {
-      clearTimeout(previous.timer);
-      this.pendingIce.delete(session.callId);
-      previous.resolve(null);
-    }
+    takeTimed(this.pendingIce, session.callId)?.resolve(null);
     return new Promise<CallIceServersResult | null>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingIce.delete(session.callId);
@@ -1634,12 +1616,7 @@ export class CallController {
       return;
     }
     if (event === 'call:ice-servers' && session) {
-      const pending = this.pendingIce.get(session.callId);
-      if (pending) {
-        clearTimeout(pending.timer);
-        this.pendingIce.delete(session.callId);
-        pending.reject(new Error(code));
-      }
+      takeTimed(this.pendingIce, session.callId)?.reject(new Error(code));
       return;
     }
     if (event === 'call:start' && code === 'call.peerBusy' && !(session && this.machine.getState().phase === 'outgoing-ringing')) {
@@ -2077,7 +2054,7 @@ export class CallController {
         return true;
       }
       if (attempt < ROOM_WAIT_ATTEMPTS) {
-        await new Promise<void>((resolve) => setTimeout(resolve, ROOM_WAIT_INTERVAL_MS));
+        await sleep(ROOM_WAIT_INTERVAL_MS);
       }
     }
     return false;
@@ -2112,7 +2089,7 @@ export class CallController {
         if (!(error instanceof Error) || error.message !== 'call.invalidState' || delay === undefined) {
           throw error;
         }
-        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+        await sleep(delay);
         if (this.session !== session) {
           return null;
         }
@@ -2342,10 +2319,7 @@ export class CallController {
   }
 
   private stopHeartbeat(): void {
-    if (this.heartbeat !== null) {
-      clearInterval(this.heartbeat);
-      this.heartbeat = null;
-    }
+    this.heartbeat = cancelInterval(this.heartbeat);
   }
 
   private startStats(session: Session): void {
@@ -2389,10 +2363,7 @@ export class CallController {
   }
 
   private stopStats(): void {
-    if (this.statsTimer !== null) {
-      clearInterval(this.statsTimer);
-      this.statsTimer = null;
-    }
+    this.statsTimer = cancelInterval(this.statsTimer);
     this.pressure?.stop();
     this.pressure = null;
   }
@@ -2567,11 +2538,8 @@ export class CallController {
     this.deps.stopRingtone();
     this.deps.tabs.releaseRingtone();
     this.deps.releaseWakeLock();
-    const pending = state.callId ? this.pendingIce.get(state.callId) : undefined;
-    if (pending && state.callId) {
-      clearTimeout(pending.timer);
-      this.pendingIce.delete(state.callId);
-      pending.resolve(null);
+    if (state.callId) {
+      takeTimed(this.pendingIce, state.callId)?.resolve(null);
     }
     if (session) {
       this.confirmAccept(session);

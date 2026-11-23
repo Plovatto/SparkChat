@@ -1,6 +1,7 @@
 import type { CallKind, CallRole, SignalType } from '@lib/e2ee/call-crypto';
 import { cameraLoadCap, shareLoadCap, type LoadLevel } from './load-adaptation';
 import type { ShareSurfaceKind } from './share-surface';
+import { cancelInterval, cancelTimeout } from './timers';
 
 export type DegradeStep = 'video-360' | 'audio-only-relay';
 
@@ -854,10 +855,7 @@ export class PeerSession {
       this.failingSince = null;
       const first = !this.connected;
       this.connected = true;
-      if (this.connectTimer !== null) {
-        clearTimeout(this.connectTimer);
-        this.connectTimer = null;
-      }
+      this.connectTimer = cancelTimeout(this.connectTimer);
       if (this.verified) {
         this.options.onConnection('connected');
       }
@@ -964,10 +962,7 @@ export class PeerSession {
   }
 
   private clearRetryTimer(): void {
-    if (this.retryTimer !== null) {
-      clearTimeout(this.retryTimer);
-      this.retryTimer = null;
-    }
+    this.retryTimer = cancelTimeout(this.retryTimer);
   }
 
   private async updateRelayProbe(): Promise<void> {
@@ -1018,10 +1013,7 @@ export class PeerSession {
   }
 
   private stopProbe(): void {
-    if (this.probeTimer !== null) {
-      clearInterval(this.probeTimer);
-      this.probeTimer = null;
-    }
+    this.probeTimer = cancelInterval(this.probeTimer);
   }
 
   private startKeepalive(): void {
@@ -1036,10 +1028,7 @@ export class PeerSession {
   }
 
   private clearDisconnectTimer(): void {
-    if (this.disconnectTimer !== null) {
-      clearTimeout(this.disconnectTimer);
-      this.disconnectTimer = null;
-    }
+    this.disconnectTimer = cancelTimeout(this.disconnectTimer);
   }
 
   restartIce(force = false): void {
@@ -1151,10 +1140,7 @@ export class PeerSession {
     }
     this.verified = true;
     this.startKeepalive();
-    if (this.dtlsTimer !== null) {
-      clearTimeout(this.dtlsTimer);
-      this.dtlsTimer = null;
-    }
+    this.dtlsTimer = cancelTimeout(this.dtlsTimer);
     const pending = Array.from(this.pendingRemoteStreams.values());
     this.pendingRemoteStreams.clear();
     for (const stream of pending) {
@@ -1608,21 +1594,11 @@ export class PeerSession {
     this.closed = true;
     this.clearDisconnectTimer();
     this.clearRetryTimer();
-    for (const interval of [this.probeTimer, this.keepaliveTimer]) {
-      if (interval !== null) {
-        clearInterval(interval);
-      }
-    }
-    this.probeTimer = null;
-    this.keepaliveTimer = null;
-    for (const timer of [this.connectTimer, this.refreshTimer, this.dtlsTimer]) {
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
-    }
-    this.connectTimer = null;
-    this.refreshTimer = null;
-    this.dtlsTimer = null;
+    this.probeTimer = cancelInterval(this.probeTimer);
+    this.keepaliveTimer = cancelInterval(this.keepaliveTimer);
+    this.connectTimer = cancelTimeout(this.connectTimer);
+    this.refreshTimer = cancelTimeout(this.refreshTimer);
+    this.dtlsTimer = cancelTimeout(this.dtlsTimer);
     this.pendingRemoteStreams.clear();
     this.remoteScreen = null;
     this.pendingCandidates = [];
