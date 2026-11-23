@@ -1,6 +1,5 @@
-import { env } from '@config/env';
 import { ApiError, toApiError } from '@lib/api/api-error';
-import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
+import { authorizedFetch, type SessionAuth } from '@lib/api/session-auth';
 import { sealAttachment, type AttachmentBinding } from '@lib/e2ee';
 import { GifTooLargeError, padGif } from '@lib/media/gif-padding';
 import { buildImageVariants, canDecodeImage } from '@lib/media/image-compression';
@@ -117,9 +116,8 @@ async function uploadEncryptedAttachment(kind: UploadKind, content: Blob, auth: 
   formData.append('encrypted', '1');
   formData.append(kind, uploadFile);
 
-  const response = await fetch(`${env.apiUrl}${UPLOAD_ENDPOINT[kind]}`, {
+  const response = await authorizedFetch(auth, UPLOAD_ENDPOINT[kind], {
     method: 'POST',
-    headers: buildAuthHeader(auth),
     body: formData,
   });
 

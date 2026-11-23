@@ -1,11 +1,10 @@
-import { env } from '@config/env';
 import type { MessageLinkPreview } from '@lib/socket';
-import { buildAuthHeader, type SessionAuth } from './session-auth';
+import { authorizedFetch, type SessionAuth } from './session-auth';
 
 function postJson(path: string, body: unknown, auth: SessionAuth): Promise<Response> {
-  return fetch(`${env.apiUrl}${path}`, {
+  return authorizedFetch(auth, path, {
     method: 'POST',
-    headers: { ...buildAuthHeader(auth), 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 }

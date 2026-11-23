@@ -32,7 +32,14 @@
       "invalidCredentials": "Invalid username or password.",
       "loginFailed": "Couldn't sign in. Please try again!",
       "keyfileRequired": "A recovery file is required!",
-      "keyfileInvalid": "Invalid recovery file."
+      "keyfileInvalid": "Invalid recovery file.",
+      "signatureRequired": "This session only works on the device where it started. Please sign in again.",
+      "signatureInvalid": "Couldn't verify this device. Please sign in again.",
+      "signatureStale": "This device's clock is out of sync. Fix the date and time and try again.",
+      "signatureReplayed": "Repeated request refused. Please try again.",
+      "deviceKeyRequired": "This session needs to be linked to this device. Please sign in again.",
+      "deviceKeyConflict": "This session is already linked to another device. Please sign in again.",
+      "deviceKeyInvalid": "Invalid device key."
     },
     "user": {
       "notFound": "User not found.",

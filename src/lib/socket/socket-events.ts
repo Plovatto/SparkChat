@@ -101,8 +101,9 @@ type JoinPayload =
       authSalt: string;
       recoveryVerifier: string;
       passwordLength?: number;
+      devicePublicKey?: string;
     }
-  | { mode: 'resume'; userId: string; sessionToken: string };
+  | { mode: 'resume'; userId: string; sessionToken: string; proof?: { timestamp: number; nonce: string; signature: string } };
 
 export type AuthMethod = 'password' | 'keyfile';
 
@@ -355,6 +356,7 @@ export interface ServerToClientEvents {
     user: SocketUser;
     sessionToken: string;
     authMethod: AuthMethod;
+    deviceKeyBound?: boolean;
   }) => void;
   'user:resumed': (payload: { user: SocketUser; authMethod: AuthMethod }) => void;
   'user:auth-failed': (payload: SocketErrorPayload & { mode: 'register' | 'resume'; reason: 'invalid' | 'temporary' }) => void;

@@ -1,6 +1,5 @@
-import { env } from '@config/env';
 import { readApiErrorPayload } from '@lib/api/api-error';
-import { buildAuthHeader, type SessionAuth } from '@lib/api/session-auth';
+import { authorizedFetch, type SessionAuth } from '@lib/api/session-auth';
 import { createProfilePhotoError } from '@lib/e2ee';
 import { isAvatarStorageUrl } from '@lib/media/media-origin';
 import { ENCRYPTED_UPLOAD_FILENAME, ENCRYPTED_UPLOAD_MIME_TYPE } from '@features/chat/api/chat-api';
@@ -20,9 +19,8 @@ export async function uploadEncryptedAvatar(ciphertext: Blob, auth: SessionAuth)
 
   let response: Response;
   try {
-    response = await fetch(`${env.apiUrl}${AVATAR_UPLOAD_ENDPOINT}`, {
+    response = await authorizedFetch(auth, AVATAR_UPLOAD_ENDPOINT, {
       method: 'POST',
-      headers: buildAuthHeader(auth),
       body: formData,
     });
   } catch {

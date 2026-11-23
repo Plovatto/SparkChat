@@ -122,7 +122,7 @@ describe('uploadMyPhoto', () => {
     expect(state.sealed).toEqual([{ binding: { kind: 'user', userId: 'u1', version: 2 }, size: 1000 }]);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.example.com/api/avatars/upload');
-    expect(init.headers).toEqual({ Authorization: 'Bearer u1:token' });
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer u1:token');
     const form = init.body as FormData;
     expect(form.get('encrypted')).toBe('1');
     const file = form.get('image') as File;

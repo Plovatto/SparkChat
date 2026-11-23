@@ -21,9 +21,9 @@ describe('createGifSource', () => {
     await source.search('cat', 2, signal);
 
     const calls = fetchSpy.mock.calls as unknown as [string, RequestInit][];
-    expect((calls[0]?.[1].headers as Record<string, string>).Authorization).toBe('Bearer u:old');
+    expect(new Headers(calls[0]?.[1].headers).get('Authorization')).toBe('Bearer u:old');
     expect(JSON.parse(calls[0]?.[1].body as string)).toEqual({ page: 1, locale: 'br' });
-    expect((calls[1]?.[1].headers as Record<string, string>).Authorization).toBe('Bearer u:new');
+    expect(new Headers(calls[1]?.[1].headers).get('Authorization')).toBe('Bearer u:new');
     expect(JSON.parse(calls[1]?.[1].body as string)).toEqual({ q: 'cat', page: 2, locale: 'us' });
   });
 });
