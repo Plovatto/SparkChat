@@ -2311,7 +2311,7 @@ export class CallController {
           if (wasRelayed !== null && wasRelayed !== session.relay.relayed && session.screen && this.snapshot.movieMode) {
             void peer.setMovieMode(true);
           }
-          if (this.session !== session) {
+          if (this.session !== session || this.machine.getState().phase !== 'active') {
             return;
           }
           const wasUnstable = session.instability.unstable;
