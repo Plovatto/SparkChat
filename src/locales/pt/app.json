@@ -32,7 +32,14 @@
       "invalidCredentials": "Nickname ou senha inválidos.",
       "loginFailed": "Erro ao entrar. Tente novamente!",
       "keyfileRequired": "Arquivo de recuperação é obrigatório!",
-      "keyfileInvalid": "Arquivo de recuperação inválido."
+      "keyfileInvalid": "Arquivo de recuperação inválido.",
+      "signatureRequired": "Esta sessão só funciona no dispositivo em que foi iniciada. Entre de novo.",
+      "signatureInvalid": "Não foi possível confirmar este dispositivo. Entre de novo.",
+      "signatureStale": "O relógio deste dispositivo está fora de sincronia. Ajuste a data e a hora e tente de novo.",
+      "signatureReplayed": "Requisição repetida recusada. Tente novamente.",
+      "deviceKeyRequired": "Esta sessão precisa ser ligada a este dispositivo. Entre de novo.",
+      "deviceKeyConflict": "Esta sessão já está ligada a outro dispositivo. Entre de novo.",
+      "deviceKeyInvalid": "Chave do dispositivo inválida."
     },
     "user": {
       "notFound": "Usuário não encontrado.",

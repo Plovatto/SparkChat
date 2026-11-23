@@ -1,11 +1,12 @@
 import { clearGifMediaCache } from '@features/gifs/utils/gif-media-cache';
 import { clearGifStatusCache } from '@features/gifs/utils/gif-status-cache';
 import { clearLocalPushSubscription } from '@features/pwa/lib/push-subscription';
+import { DEVICE_KEY_DB_NAME, resetDeviceKeyCache } from '@lib/api/device-key';
 import { clearIdentity, clearRoomKeys } from '@lib/e2ee';
 import { clearNotificationIcons } from '@features/profile-photos/lib/notification-icon-cache';
 import { clearStoredSession } from '../api/session-storage';
 
-export const ACCOUNT_INDEXED_DB_NAMES: readonly string[] = ['sparkchat-e2ee', 'sparkchat-recovery-files', 'sparkchat-notify'];
+export const ACCOUNT_INDEXED_DB_NAMES: readonly string[] = ['sparkchat-e2ee', 'sparkchat-recovery-files', 'sparkchat-notify', DEVICE_KEY_DB_NAME];
 export const DELETE_DATABASE_TIMEOUT_MS = 3000;
 
 export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_TIMEOUT_MS): Promise<void> {
@@ -32,6 +33,7 @@ export function deleteIndexedDatabase(name: string, timeoutMs = DELETE_DATABASE_
 
 export async function clearLocalAccountData(): Promise<void> {
   clearStoredSession();
+  resetDeviceKeyCache();
   clearGifMediaCache();
   clearGifStatusCache();
   await Promise.allSettled([clearIdentity(), clearRoomKeys(), clearLocalPushSubscription(), clearNotificationIcons()]);

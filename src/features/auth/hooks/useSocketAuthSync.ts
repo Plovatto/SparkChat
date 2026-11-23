@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { translateErrorPayload, type ApiErrorPayload } from '@lib/api/api-error';
+import { adjustClockOffset, buildSocketJoinProof, completeLoginDeviceKey, prepareLoginDeviceKey } from '@lib/api/device-key';
+import { ensureSessionDeviceKey } from '@lib/api/session-auth';
 import { useSocket, type AuthMethod, type SocketUser } from '@lib/socket';
 import type { PendingRegistration, User } from '../types';
 
@@ -7,6 +9,7 @@ export interface RegisteredPayload {
   user: SocketUser;
   sessionToken: string;
   authMethod: AuthMethod;
+  deviceKeyBound?: boolean;
 }
 
 export interface ResumedPayload {
@@ -53,6 +56,7 @@ export function useSocketAuthSync({
   const credentialsRef = useRef({ user, pendingRegistration });
   const retryTimeoutRef = useRef<number | null>(null);
   const emitJoinRef = useRef<() => void>(() => undefined);
+  const registrationKeyRef = useRef<string | null>(null);
   const rejectedResumesRef = useRef(0);
 
   credentialsRef.current = { user, pendingRegistration };
@@ -71,24 +75,44 @@ export function useSocketAuthSync({
       return;
     }
 
+    const emitResume = async (currentUser: User) => {
+      const auth = { userId: currentUser.id, sessionToken: currentUser.sessionToken };
+      await ensureSessionDeviceKey(auth);
+      const proof = await buildSocketJoinProof(currentUser.id);
+      if (credentialsRef.current.user?.sessionToken !== currentUser.sessionToken || !socket.connected) {
+        return;
+      }
+      socket.emit('user:join', { mode: 'resume', ...auth, ...(proof ? { proof } : {}) });
+    };
+
+    const emitRegister = async (currentRegistration: PendingRegistration) => {
+      const devicePublicKey = await prepareLoginDeviceKey();
+      if (credentialsRef.current.pendingRegistration !== currentRegistration || !socket.connected) {
+        return;
+      }
+      registrationKeyRef.current = devicePublicKey;
+      socket.emit('user:join', {
+        mode: 'register',
+        nickname: currentRegistration.nickname,
+        avatar: currentRegistration.avatar,
+        password: currentRegistration.credentials.authKey,
+        authSalt: currentRegistration.credentials.authSalt,
+        recoveryVerifier: currentRegistration.credentials.recoveryVerifier,
+        passwordLength: currentRegistration.credentials.passwordLength,
+        ...(devicePublicKey ? { devicePublicKey } : {}),
+      });
+    };
+
     const emitJoin = () => {
       const { user: currentUser, pendingRegistration: currentRegistration } = credentialsRef.current;
 
       if (currentUser) {
-        socket.emit('user:join', { mode: 'resume', userId: currentUser.id, sessionToken: currentUser.sessionToken });
+        void emitResume(currentUser);
         return;
       }
 
       if (currentRegistration) {
-        socket.emit('user:join', {
-          mode: 'register',
-          nickname: currentRegistration.nickname,
-          avatar: currentRegistration.avatar,
-          password: currentRegistration.credentials.authKey,
-          authSalt: currentRegistration.credentials.authSalt,
-          recoveryVerifier: currentRegistration.credentials.recoveryVerifier,
-          passwordLength: currentRegistration.credentials.passwordLength,
-        });
+        void emitRegister(currentRegistration);
       }
     };
 
@@ -173,7 +197,12 @@ export function useSocketAuthSync({
 
     const handleRegistered = (payload: RegisteredPayload) => {
       clearRetry();
-      onRegistered(payload, credentialsRef.current.pendingRegistration);
+      const registration = credentialsRef.current.pendingRegistration;
+      const devicePublicKey = registrationKeyRef.current;
+      registrationKeyRef.current = null;
+      void completeLoginDeviceKey(payload.user.id, devicePublicKey, payload.deviceKeyBound === true).finally(() => {
+        onRegistered(payload, registration);
+      });
     };
 
     const handleResumed = (payload: ResumedPayload) => {
@@ -193,6 +222,11 @@ export function useSocketAuthSync({
     };
 
     const handleAuthFailed = ({ mode, reason, ...error }: AuthFailedPayload) => {
+      const serverTime = error.params?.serverTime;
+      if (error.code === 'auth.signatureStale' && typeof serverTime === 'number') {
+        adjustClockOffset(serverTime);
+      }
+
       if (reason === 'temporary') {
         scheduleRejoin();
         return;
