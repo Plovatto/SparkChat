@@ -5,6 +5,7 @@ import { LuCheck, LuPipette } from 'react-icons/lu';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useMediaQuery } from '@hooks/useMediaQuery';
+import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 import {
   COLOR_PRESETS,
   hexToHsv,
@@ -94,25 +95,19 @@ export function ColorPicker({ value, onChange, label, className, presets = COLOR
     }
   }, [isOpen, reposition]);
 
+  useOutsidePointerDown(isOpen, [panelRef, triggerRef], () => close(false));
+
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!panelRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
-        close(false);
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
     return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('resize', reposition);
       window.removeEventListener('scroll', reposition, true);
     };
-  }, [isOpen, close, reposition]);
+  }, [isOpen, reposition]);
 
   const emit = (next: Hsv) => {
     const hex = hsvToHex(next);
