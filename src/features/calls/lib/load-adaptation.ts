@@ -1,13 +1,22 @@
 export type LoadLevel = 0 | 1 | 2 | 3;
 export type PressureState = 'nominal' | 'fair' | 'serious' | 'critical';
 
+export interface VoiceCounters {
+  concealed: number;
+  total: number;
+  received: number;
+  lost: number;
+}
+
 export interface LoadStatsSample {
   durations: Record<string, { cpu: number; total: number }>;
+  voice?: VoiceCounters;
 }
 
 export interface LoadReading {
   cpuRatio: number;
   voiceJitterMs: number | null;
+  voiceConcealRatio: number;
   sample: LoadStatsSample;
 }
 
@@ -44,10 +53,26 @@ function durationTotals(value: unknown): { cpu: number; total: number } | null {
   return { cpu: finite((value as Record<string, unknown>).cpu) ?? 0, total };
 }
 
-export function readLoad(report: RTCStatsReport, previous: LoadStatsSample | null): LoadReading {
+export const VOICE_LOSS_TOLERANCE = 0.01;
+
+function concealRatio(voice: VoiceCounters | undefined, before: VoiceCounters | undefined): number {
+  if (!voice || !before) {
+    return 0;
+  }
+  const samples = voice.total - before.total;
+  const received = voice.received - before.received;
+  const lost = Math.max(0, voice.lost - before.lost);
+  if (samples <= 0 || received + lost <= 0 || lost / (received + lost) > VOICE_LOSS_TOLERANCE) {
+    return 0;
+  }
+  return Math.min(1, Math.max(0, (voice.concealed - before.concealed) / samples));
+}
+
+export function readLoad(report: RTCStatsReport, previous: LoadStatsSample | null, voiceTrackId: string | null = null): LoadReading {
   const durations: LoadStatsSample['durations'] = {};
   let cpuRatio = 0;
   let voiceJitterMs: number | null = null;
+  let voice: VoiceCounters | undefined;
   report.forEach((entry: Record<string, unknown>) => {
     if (entry.type === 'outbound-rtp' && entry.kind === 'video') {
       const key = String(entry.mid ?? entry.id ?? '');
@@ -65,6 +90,9 @@ export function readLoad(report: RTCStatsReport, previous: LoadStatsSample | nul
         cpuRatio = Math.max(cpuRatio, Math.min(1, Math.max(0, (totals.cpu - before.cpu) / elapsed)));
       }
     }
+    if (voiceTrackId !== null && entry.type === 'inbound-rtp' && entry.kind === 'audio' && entry.trackIdentifier === voiceTrackId) {
+      voice = { concealed: finite(entry.concealedSamples) ?? 0, total: finite(entry.totalSamplesReceived) ?? 0, received: finite(entry.packetsReceived) ?? 0, lost: finite(entry.packetsLost) ?? 0 };
+    }
     if (entry.type === 'remote-inbound-rtp' && entry.kind === 'audio') {
       const jitter = finite(entry.jitter);
       if (jitter !== null) {
@@ -72,7 +100,7 @@ export function readLoad(report: RTCStatsReport, previous: LoadStatsSample | nul
       }
     }
   });
-  return { cpuRatio, voiceJitterMs, sample: { durations } };
+  return { cpuRatio, voiceJitterMs, voiceConcealRatio: concealRatio(voice, previous?.voice), sample: voice ? { durations, voice } : { durations } };
 }
 
 function isHot(sample: LoadSample): boolean {
@@ -158,6 +186,7 @@ export function cameraLoadCap(level: LoadLevel): CameraLoadCap {
 
 export interface StrainSample {
   voiceJitterMs: number | null;
+  voiceConcealRatio?: number;
   pressure: PressureState | null;
   level: LoadLevel;
 }
@@ -170,13 +199,19 @@ export interface StrainState {
 }
 
 export const AUDIO_STRAIN_JITTER_MS = 30;
+export const AUDIO_STRAIN_CONCEAL_RATIO = 0.03;
 export const STRAIN_TICKS = 2;
 export const STRAIN_RECOVER_MS = 60_000;
 export const STRAIN_MAX_RECOVER_MS = 8 * STRAIN_RECOVER_MS;
 export const STRAIN_CALM: StrainState = { light: false, strainTicks: 0, calmSince: null, recoverMs: STRAIN_RECOVER_MS };
 
 function strained(sample: StrainSample): boolean {
-  return (sample.voiceJitterMs !== null && sample.voiceJitterMs >= AUDIO_STRAIN_JITTER_MS) || sample.pressure === 'serious' || sample.level >= 2;
+  return (
+    (sample.voiceJitterMs !== null && sample.voiceJitterMs >= AUDIO_STRAIN_JITTER_MS) ||
+    (sample.voiceConcealRatio ?? 0) >= AUDIO_STRAIN_CONCEAL_RATIO ||
+    sample.pressure === 'serious' ||
+    sample.level >= 2
+  );
 }
 
 export function nextStrain(state: StrainState, sample: StrainSample, now: number): StrainState {
@@ -245,6 +280,7 @@ export function readShareFrames(report: RTCStatsReport, trackId: string | null):
 export interface LoadContext {
   pressure: PressureState | null;
   shareTrackId: string | null;
+  voiceTrackId?: string | null;
 }
 
 export interface LoadVerdict {
@@ -260,10 +296,10 @@ export class LoadAdapter {
   private freeze: FreezeState = FREEZE_IDLE;
 
   observe(report: RTCStatsReport, context: LoadContext, now: number): LoadVerdict {
-    const reading = readLoad(report, this.sample);
+    const reading = readLoad(report, this.sample, context.voiceTrackId ?? null);
     this.sample = reading.sample;
     this.load = nextLoad(this.load, { cpuRatio: reading.cpuRatio, pressure: context.pressure }, now);
-    this.strain = nextStrain(this.strain, { voiceJitterMs: reading.voiceJitterMs, pressure: context.pressure, level: this.load.level }, now);
+    this.strain = nextStrain(this.strain, { voiceJitterMs: reading.voiceJitterMs, voiceConcealRatio: reading.voiceConcealRatio, pressure: context.pressure, level: this.load.level }, now);
     const freeze = nextFreeze(this.freeze, readShareFrames(report, context.shareTrackId), now);
     this.freeze = { frames: freeze.frames, packets: freeze.packets, progressAt: freeze.progressAt, requestedAt: freeze.requestedAt };
     return { level: this.load.level, light: this.strain.light, keyFrame: freeze.request };

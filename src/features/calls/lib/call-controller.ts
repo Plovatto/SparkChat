@@ -2329,7 +2329,8 @@ export class CallController {
   private adaptToLoad(session: Session, peer: PeerSessionLike, report: RTCStatsReport): void {
     const sharing = this.snapshot.remoteScreenOn && !this.snapshot.remoteScreenPaused;
     const shareTrackId = sharing ? (this.snapshot.remoteScreenStream?.getVideoTracks()[0]?.id ?? null) : null;
-    const verdict = session.load.observe(report, { pressure: this.pressure?.current() ?? null, shareTrackId }, this.deps.now());
+    const voiceTrackId = this.snapshot.remoteStream?.getAudioTracks()[0]?.id ?? null;
+    const verdict = session.load.observe(report, { pressure: this.pressure?.current() ?? null, shareTrackId, voiceTrackId }, this.deps.now());
     void peer.setLoadLevel?.(verdict.level).catch(() => undefined);
     this.voice?.setLight(verdict.light);
     if (verdict.keyFrame) {

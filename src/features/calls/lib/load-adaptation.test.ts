@@ -59,6 +59,17 @@ describe('readLoad', () => {
     expect(readLoad(report(entries), null).voiceJitterMs).toBeCloseTo(45);
   });
 
+  it('measures how much incoming voice had to be concealed without packet loss', () => {
+    const voice = (concealed: number, total: number, received: number, lost: number) => ({ id: 'iv', type: 'inbound-rtp', kind: 'audio', trackIdentifier: 'voice', concealedSamples: concealed, totalSamplesReceived: total, packetsReceived: received, packetsLost: lost });
+    const share = { id: 'is', type: 'inbound-rtp', kind: 'audio', trackIdentifier: 'share', concealedSamples: 9_000, totalSamplesReceived: 10_000, packetsReceived: 10, packetsLost: 0 };
+    const first = readLoad(report([voice(0, 48_000, 50, 0), share]), null, 'voice');
+    expect(first.voiceConcealRatio).toBe(0);
+    const choppy = readLoad(report([voice(4_800, 144_000, 150, 0), share]), first.sample, 'voice');
+    expect(choppy.voiceConcealRatio).toBeCloseTo(0.05);
+    const lossy = readLoad(report([voice(4_800, 144_000, 150, 10), share]), first.sample, 'voice');
+    expect(lossy.voiceConcealRatio).toBe(0);
+  });
+
   it('reports no voice jitter when the peer sent no report yet', () => {
     expect(readLoad(report([]), null).voiceJitterMs).toBeNull();
   });
@@ -201,6 +212,13 @@ describe('nextStrain', () => {
     expect(state.light).toBe(true);
     state = nextStrain(state, clean, relapse + 4_000 + STRAIN_RECOVER_MS * 2);
     expect(state.light).toBe(false);
+  });
+
+  it('turns on when incoming voice keeps needing concealment on a clean network', () => {
+    const choppy = { ...clean, voiceConcealRatio: 0.05 };
+    expect(nextStrain(nextStrain(STRAIN_CALM, choppy, 0), choppy, 2_000).light).toBe(true);
+    const slight = { ...clean, voiceConcealRatio: 0.01 };
+    expect(nextStrain(nextStrain(STRAIN_CALM, slight, 0), slight, 2_000).light).toBe(false);
   });
 
   it('ignores unknown jitter', () => {
