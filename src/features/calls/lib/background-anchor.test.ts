@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ANCHOR_RETRY_MS, ANCHOR_STABLE_MS, ANCHOR_SAMPLE_RATE, ANCHOR_SECONDS, anchorWav, needsBackgroundAnchor, startBackgroundAnchor, type AnchorDeps, type AnchorElement } from './background-anchor';
+import { ANCHOR_SAMPLE_RATE, ANCHOR_SECONDS, anchorWav, needsBackgroundAnchor, startBackgroundAnchor, type AnchorDeps, type AnchorElement } from './background-anchor';
 
 class FakeElement implements AnchorElement {
   src = '';
@@ -164,19 +164,49 @@ describe('startBackgroundAnchor', () => {
     expect(element.attributes.get('data-call-audio')).toBe('anchor');
   });
 
-  it('starts playing again after the system pauses it while the page is hidden', async () => {
-    const { element, deps, timers, runTimers } = harness();
+  it('yields to another app that pauses stable playback and never replays it on a timer', async () => {
+    const { element, deps, timers, runTimers, clock } = harness();
     startBackgroundAnchor(deps);
     await flush();
+    clock.now += 60_000;
     element.systemPause();
-    expect(timers[0]?.ms).toBe(ANCHOR_RETRY_MS[0]);
+    expect(timers).toHaveLength(0);
     runTimers();
+    await flush();
+    expect(element.plays).toBe(1);
+    expect(element.paused).toBe(true);
+  });
+
+  it('yields even when focus is taken right after playback started', async () => {
+    const { element, deps, timers, clock } = harness();
+    startBackgroundAnchor(deps);
+    await flush();
+    clock.now += 100;
+    element.systemPause();
+    expect(timers).toHaveLength(0);
+    expect(element.plays).toBe(1);
+  });
+
+  it('comes back after an external pause only on page resume or interaction, not within a second', async () => {
+    const { element, deps, page, interactions, clock } = harness();
+    startBackgroundAnchor(deps);
+    await flush();
+    clock.now += 10_000;
+    element.systemPause();
+    clock.now += 500;
+    interactions.fire('pointerdown');
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(element.plays).toBe(1);
+    clock.now += 600;
+    interactions.fire('pointerdown');
     await flush();
     expect(element.plays).toBe(2);
     expect(element.paused).toBe(false);
   });
 
-  it('backs off between failed attempts instead of fighting for audio focus', async () => {
+  it('retries a blocked start up to three times with back off, then waits for the user', async () => {
     const element = new FakeElement();
     element.reject = new DOMException('focus', 'NotAllowedError');
     const { deps, timers, runTimers } = harness(element);
@@ -188,25 +218,8 @@ describe('startBackgroundAnchor', () => {
       runTimers();
       await flush();
     }
-    expect(delays).toEqual([1000, 3000, 10000, 30000, 30000]);
-  });
-
-  it('keeps backing off when focus is taken again right after each resume, and resets once playback is stable', async () => {
-    const { element, deps, timers, runTimers, clock } = harness();
-    startBackgroundAnchor(deps);
-    await flush();
-    const delays: number[] = [];
-    for (let round = 0; round < 3; round += 1) {
-      clock.now += 500;
-      element.systemPause();
-      delays.push(timers[0]?.ms ?? -1);
-      runTimers();
-      await flush();
-    }
-    clock.now += ANCHOR_STABLE_MS;
-    element.systemPause();
-    delays.push(timers[0]?.ms ?? -1);
-    expect(delays).toEqual([1000, 3000, 10000, 1000]);
+    expect(delays).toEqual([1000, 3000, 10000, -1, -1]);
+    expect(element.plays).toBe(4);
   });
 
   it('revives on page resume and on the next interaction', async () => {

@@ -4,8 +4,8 @@ export const ANCHOR_SAMPLE_RATE = 8000;
 export const ANCHOR_SECONDS = 8;
 export const ANCHOR_TONE_HZ = 30;
 export const ANCHOR_AMPLITUDE = 100;
-export const ANCHOR_RETRY_MS = [1000, 3000, 10000, 30000] as const;
-export const ANCHOR_STABLE_MS = 5000;
+export const ANCHOR_RETRY_MS = [1000, 3000, 10000] as const;
+export const ANCHOR_RESUME_GUARD_MS = 1000;
 
 export function needsBackgroundAnchor(userAgent: string | undefined = typeof navigator === 'undefined' ? undefined : navigator.userAgent): boolean {
   return typeof userAgent === 'string' && /Android/i.test(userAgent);
@@ -128,6 +128,7 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
   let retry: unknown = null;
   let failures = 0;
   let playingSince: number | null = null;
+  let yieldedAt: number | null = null;
 
   const clearRetry = () => {
     if (retry !== null) {
@@ -158,10 +159,10 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
   };
 
   const schedule = () => {
-    if (stopped || retry !== null) {
+    if (stopped || retry !== null || yieldedAt !== null || failures >= ANCHOR_RETRY_MS.length) {
       return;
     }
-    const delay = ANCHOR_RETRY_MS[Math.min(failures, ANCHOR_RETRY_MS.length - 1)] ?? ANCHOR_RETRY_MS[0];
+    const delay = ANCHOR_RETRY_MS[failures] ?? ANCHOR_RETRY_MS[0];
     failures += 1;
     retry = deps.setTimer(() => {
       retry = null;
@@ -175,17 +176,24 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     if (stopped) {
       return;
     }
-    if (playingSince !== null && deps.now() - playingSince >= ANCHOR_STABLE_MS) {
-      failures = 0;
+    if (playingSince === null) {
+      return;
     }
     playingSince = null;
-    schedule();
+    yieldedAt = deps.now();
+    clearRetry();
   };
 
   const revive = () => {
-    if (!stopped && element.paused) {
-      play();
+    if (stopped || !element.paused) {
+      return;
     }
+    if (yieldedAt !== null && deps.now() - yieldedAt < ANCHOR_RESUME_GUARD_MS) {
+      return;
+    }
+    yieldedAt = null;
+    failures = 0;
+    play();
   };
 
   element.addEventListener('pause', onPause);
