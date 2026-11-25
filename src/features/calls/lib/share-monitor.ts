@@ -37,11 +37,14 @@ export function shareMonitorSupport(stream: MediaStream | null, chromium: boolea
   if (!stream || !audio) {
     return 'none';
   }
+  const surface = settingsOf(stream.getVideoTracks()[0]).displaySurface;
+  if (surface === 'window' || surface === 'monitor') {
+    return 'unsupported';
+  }
   const suppressed = settingsOf(audio).suppressLocalAudioPlayback;
   if (typeof suppressed === 'boolean') {
     return suppressed ? 'local' : 'unsupported';
   }
-  const surface = settingsOf(stream.getVideoTracks()[0]).displaySurface;
   return chromium && surface === 'browser' ? 'local' : 'unsupported';
 }
 

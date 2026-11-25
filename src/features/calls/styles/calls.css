@@ -168,6 +168,12 @@
   transition: opacity 200ms ease;
 }
 
+.sc-stage-tiles .sc-call-tile::after {
+  background: none;
+  transform: none;
+  transition: opacity 200ms ease;
+}
+
 .sc-call-self.sc-call-speaking::after,
 .sc-call-tile.sc-call-speaking::after {
   opacity: 1;
