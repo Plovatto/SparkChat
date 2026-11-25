@@ -110,9 +110,15 @@ describe('shareMonitorSupport', () => {
     expect(shareMonitorSupport(stream([track('audio', {}, 'ended')]), true)).toBe('none');
   });
 
-  it('trusts the suppressLocalAudioPlayback setting when the browser exposes it', () => {
-    expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: true })], [track('video', { displaySurface: 'monitor' })]), false)).toBe('local');
+  it('trusts the suppressLocalAudioPlayback setting for a tab or an unknown surface', () => {
+    expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: true })]), false)).toBe('local');
+    expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: true })], [track('video')]), false)).toBe('local');
     expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: false })]), true)).toBe('unsupported');
+  });
+
+  it('never monitors a window or screen share because the source keeps playing locally', () => {
+    expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: true })], [track('video', { displaySurface: 'window' })]), true)).toBe('unsupported');
+    expect(shareMonitorSupport(stream([track('audio', { suppressLocalAudioPlayback: true })], [track('video', { displaySurface: 'monitor' })]), true)).toBe('unsupported');
   });
 
   it('only assumes suppression for a Chromium tab capture when the setting is missing', () => {
