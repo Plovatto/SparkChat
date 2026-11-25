@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from 'react';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { translate } from '@lib/i18n/app-i18n';
 import { getCurrentIdentity } from '@lib/e2ee';
@@ -400,7 +400,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
 
   return (
     <CallContext value={api}>
-      <LocalSpeakingScope stream={snapshot.localStream} enabled={(phase === 'active' || phase === 'reconnecting') && !snapshot.muted} muted={snapshot.muted}>
+      <LocalSpeakingScope stream={snapshot.localStream} voiceTrack={snapshot.voiceTrack} enabled={(phase === 'active' || phase === 'reconnecting') && !snapshot.muted} muted={snapshot.muted}>
         {children}
         <div ref={mediaRootRef} style={{ display: 'contents' }}>
           <CallAudio voiceRef={voiceRef} shareRef={shareAudioRef} monitorRef={shareMonitorRef} />
@@ -426,7 +426,8 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
   );
 }
 
-function LocalSpeakingScope({ stream, enabled, muted, children }: { stream: MediaStream | null; enabled: boolean; muted: boolean; children: ReactNode }) {
-  const speaking = showSelfSpeaking(useSpeaking(stream, enabled), muted);
+function LocalSpeakingScope({ stream, voiceTrack, enabled, muted, children }: { stream: MediaStream | null; voiceTrack: MediaStreamTrack | null; enabled: boolean; muted: boolean; children: ReactNode }) {
+  const voice = useMemo(() => (voiceTrack ? new MediaStream([voiceTrack]) : null), [voiceTrack]);
+  const speaking = showSelfSpeaking(useSpeaking(voice ?? stream, enabled), muted);
   return <LocalSpeakingContext value={speaking}>{children}</LocalSpeakingContext>;
 }

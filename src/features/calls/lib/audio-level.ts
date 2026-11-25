@@ -1,6 +1,7 @@
 import { keepAudioContextRunning } from './audio-keepalive';
 
 export const LEVEL_INTERVAL_MS = 100;
+export const ANALYSER_FFT_SIZE = 2048;
 export const SPEAKING_THRESHOLD = 0.04;
 export const SILENCE_THRESHOLD = 0.025;
 export const SPEAKING_HOLD_MS = 400;
@@ -133,7 +134,7 @@ function connectAnalyser(context: AudioContextLike, stream: MediaStream): { sour
   try {
     const source = context.createMediaStreamSource(stream);
     const analyser = context.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = ANALYSER_FFT_SIZE;
     source.connect(analyser);
     return { source, analyser };
   } catch {

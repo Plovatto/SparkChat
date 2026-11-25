@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVEL_INTERVAL_MS, QUIET, SPEAKING_HOLD_MS, monitorSpeaking, nextSpeaking, rmsLevel, sharedMeterContext, type AudioContextLike } from './audio-level';
+import { ANALYSER_FFT_SIZE, LEVEL_INTERVAL_MS, QUIET, SPEAKING_HOLD_MS, monitorSpeaking, nextSpeaking, rmsLevel, sharedMeterContext, type AudioContextLike } from './audio-level';
 
 function samples(amplitude: number, length = 64): Uint8Array {
   return Uint8Array.from({ length }, (_, index) => 128 + (index % 2 === 0 ? amplitude : -amplitude));
@@ -32,12 +32,17 @@ describe('nextSpeaking', () => {
 });
 
 function fakeContext(levels: number[]) {
-  const calls = { closed: 0, disconnected: 0, resumed: 0 };
+  const calls = { closed: 0, disconnected: 0, resumed: 0, fftSize: 0 };
   const context: AudioContextLike = {
     state: 'suspended',
     createMediaStreamSource: () => ({ connect: () => undefined, disconnect: () => void (calls.disconnected += 1) }),
     createAnalyser: () => ({
-      fftSize: 0,
+      get fftSize() {
+        return calls.fftSize;
+      },
+      set fftSize(value: number) {
+        calls.fftSize = value;
+      },
       getByteTimeDomainData: (array: Uint8Array) => array.set(samples(Math.round((levels.shift() ?? 0) * 128), array.length)),
       disconnect: () => void (calls.disconnected += 1),
     }),
@@ -77,6 +82,7 @@ describe('monitorSpeaking', () => {
     });
 
     expect(interval).toBe(LEVEL_INTERVAL_MS);
+    expect(calls.fftSize).toBe(ANALYSER_FFT_SIZE);
     expect(calls.resumed).toBe(1);
     for (let index = 0; index < 8; index += 1) {
       tick();

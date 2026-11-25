@@ -2448,6 +2448,24 @@ describe('voice leveling', () => {
     expect(levelers[0]!.closed).toBe(1);
   });
 
+  it('exposes the leveled voice so the self speaking ring hears what the peer hears', async () => {
+    const { w, levelers } = await leveledCall();
+
+    expect(w.a.controller.getSnapshot().voiceTrack).toBe(levelers[0]!.track);
+
+    await w.a.controller.toggleCamera();
+    expect(w.a.controller.getSnapshot().voiceTrack).toBe(levelers[0]!.track);
+
+    w.a.controller.hangup();
+    expect(w.a.controller.getSnapshot().voiceTrack).toBeNull();
+  });
+
+  it('has no leveled voice when the leveler cannot process audio', async () => {
+    const { w } = await leveledCall(false);
+
+    expect(w.a.controller.getSnapshot().voiceTrack).toBeNull();
+  });
+
   it('mutes the leveled output while keeping the raw track alive', async () => {
     const { w, media, levelers, peer } = await leveledCall();
 

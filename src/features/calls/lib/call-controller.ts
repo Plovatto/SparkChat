@@ -119,6 +119,7 @@ export interface CallSnapshot {
   otherDevice: OtherDeviceCall | null;
   transferring: boolean;
   localStream: MediaStream | null;
+  voiceTrack: MediaStreamTrack | null;
   remoteStream: MediaStream | null;
   durationSeconds: number | null;
 }
@@ -362,6 +363,7 @@ function initialSnapshot(): CallSnapshot {
     otherDevice: null,
     transferring: false,
     localStream: null,
+    voiceTrack: null,
     remoteStream: null,
     durationSeconds: null,
   };
@@ -962,6 +964,7 @@ export class CallController {
     }
     voice.setMuted(this.snapshot.muted);
     this.voice = voice;
+    this.update({ voiceTrack: voice.track });
     return voice.sendStream(stream);
   }
 
@@ -969,6 +972,9 @@ export class CallController {
     this.voice?.close();
     this.voice = null;
     this.voiceLight = false;
+    if (this.snapshot.voiceTrack) {
+      this.update({ voiceTrack: null });
+    }
   }
 
   async toggleCamera(): Promise<void> {
