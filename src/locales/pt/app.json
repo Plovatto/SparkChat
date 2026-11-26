@@ -457,7 +457,10 @@
         "confirmDeleteNote": "Apagar nota: {{preview}}",
         "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
         "lookSuggestion": "Sugestão de visual",
-        "lookApplied": "Visual aplicado"
+        "lookApplied": "Visual aplicado",
+        "lookTheme": "Tema: {{name}}",
+        "lookWallpaper": "Papel de parede: {{name}}",
+        "lookAppearance": "Ajusta: {{items}}"
       }
     },
     "empty": {

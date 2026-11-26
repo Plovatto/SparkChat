@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { LuCheck, LuImage, LuMessagesSquare, LuRotateCcw } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_CHAT_APPEARANCE, toSixDigitHex, useTheme } from '@features/theme';
+import { APPEARANCE_RANGES, DEFAULT_CHAT_APPEARANCE, toSixDigitHex, useTheme } from '@features/theme';
 import type { ChatAppearance } from '@features/theme/constants/chat-appearance';
 import { AppearanceBubbleCard } from './appearance/AppearanceBubbleCard';
 import { AppearanceBubblePreview } from './appearance/AppearanceBubblePreview';
@@ -115,16 +115,16 @@ export function ChatAppearanceView({ roomId }: ChatAppearanceProps) {
               label={t('chat.appearance.dim')}
               valueLabel={`${appearance.overlayOpacity}%`}
               value={appearance.overlayOpacity}
-              min={0}
-              max={100}
+              min={APPEARANCE_RANGES.overlayOpacity[0]}
+              max={APPEARANCE_RANGES.overlayOpacity[1]}
               onChange={(value) => update({ overlayOpacity: value })}
             />
             <AppearanceSlider
               label={t('chat.appearance.blur')}
               valueLabel={appearance.overlayBlur === 0 ? t('chat.appearance.none') : `${appearance.overlayBlur}px`}
               value={appearance.overlayBlur}
-              min={0}
-              max={20}
+              min={APPEARANCE_RANGES.overlayBlur[0]}
+              max={APPEARANCE_RANGES.overlayBlur[1]}
               onChange={(value) => update({ overlayBlur: value })}
             />
           </div>
@@ -166,8 +166,8 @@ export function ChatAppearanceView({ roomId }: ChatAppearanceProps) {
             label={t('chat.appearance.bubbleBlur')}
             valueLabel={appearance.bubbleBlur === 0 ? t('chat.appearance.none') : `${appearance.bubbleBlur}px`}
             value={appearance.bubbleBlur}
-            min={0}
-            max={20}
+            min={APPEARANCE_RANGES.bubbleBlur[0]}
+            max={APPEARANCE_RANGES.bubbleBlur[1]}
             onChange={(value) => update({ bubbleBlur: value })}
           />
         </Section>

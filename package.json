@@ -14,6 +14,7 @@
     "models:fetch": "node scripts/fetch-translation-models.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "assistant:catalog": "node --experimental-strip-types --no-warnings scripts/export-assistant-catalog.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",

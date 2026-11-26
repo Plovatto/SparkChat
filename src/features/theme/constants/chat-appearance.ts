@@ -28,3 +28,13 @@ export const DEFAULT_CHAT_APPEARANCE: ChatAppearance = {
   otherTextIntensity: null,
   bubbleBlur: 0,
 };
+
+export const APPEARANCE_RANGES = {
+  overlayOpacity: [0, 100],
+  overlayBlur: [0, 20],
+  ownBubbleOpacity: [10, 100],
+  ownTextIntensity: [0, 100],
+  otherBubbleOpacity: [10, 100],
+  otherTextIntensity: [0, 100],
+  bubbleBlur: [0, 20],
+} as const;

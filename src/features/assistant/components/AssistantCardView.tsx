@@ -4,6 +4,7 @@ import { formatLocalDateTime } from '@lib/format/date';
 import { cardButtons, type AssistantButton, type AssistantCard, type ConfirmAction, type QuickReplyChoice } from '@lib/assistant/assistant-card';
 import { AssistantCapabilities } from './AssistantCapabilities';
 import { AssistantHelpCard } from './AssistantHelpCard';
+import { AssistantLookCard } from './AssistantLookCard';
 import { AssistantQuickReplies } from './AssistantQuickReplies';
 import '../styles/assistant.css';
 
@@ -72,6 +73,10 @@ export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, 
           <AssistantCapabilities onSendPrompt={onSendPrompt} onPickPhoto={onPickPhoto} />
         </div>
       );
+    case 'look-suggestion':
+      return <AssistantLookCard look={card.look} applied={false} replies={replies} />;
+    case 'look-applied':
+      return <AssistantLookCard look={card.look} applied replies={replies} />;
     case 'help':
       return <AssistantHelpCard target={card.target} />;
     default:
