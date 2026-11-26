@@ -33,6 +33,7 @@ import { CallProvider } from '@features/calls';
 import { KeyTransparencyBanner } from '@features/key-transparency';
 import { PendingPhotoFailedToast, queuePendingMyPhoto } from '@features/profile-photos';
 import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, useNotificationMirror, usePwaChatShell } from '@features/pwa';
+import { useHelpOpener } from '@features/assistant/help-targets';
 import { GroupRemovedToast, NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -307,6 +308,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const isSidebarCollapsed = isWideLayout && isInfoColumnOpen;
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const openNewChatFromHelp = useCallback(() => setIsNewChatOpen(true), []);
+  useHelpOpener('new-group', openNewChatFromHelp);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
   const [deepLinkIntents, setDeepLinkIntents] = useState<DeepLinkIntent[]>(() =>
@@ -371,6 +374,12 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const handleNotificationsGranted = useCallback(() => {
     void enableNotificationPreference();
   }, [enableNotificationPreference]);
+
+  const canEnableNotificationsFromHelp = notificationPreference.isSupported && !notificationPreference.isEnabled && notificationPreference.permission !== 'denied';
+  const enableNotificationsFromHelp = useCallback(() => {
+    void enableNotificationPreference();
+  }, [enableNotificationPreference]);
+  useHelpOpener('notifications-settings', canEnableNotificationsFromHelp ? enableNotificationsFromHelp : null);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {

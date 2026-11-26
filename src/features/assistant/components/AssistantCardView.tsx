@@ -2,6 +2,8 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { formatLocalDateTime } from '@lib/format/date';
 import { cardButtons, type AssistantButton, type AssistantCard, type ConfirmAction, type QuickReplyChoice } from '@lib/assistant/assistant-card';
+import { AssistantCapabilities } from './AssistantCapabilities';
+import { AssistantHelpCard } from './AssistantHelpCard';
 import { AssistantQuickReplies } from './AssistantQuickReplies';
 import '../styles/assistant.css';
 
@@ -11,6 +13,8 @@ interface AssistantCardViewProps {
   resolvedChoice?: QuickReplyChoice | undefined;
   sendFailed?: boolean;
   onQuickReply: (cardId: string, button: AssistantButton) => void;
+  onSendPrompt?: ((text: string) => void) | undefined;
+  onPickPhoto?: (() => void) | undefined;
 }
 
 function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
@@ -32,7 +36,7 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
   }
 }
 
-export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = false, onQuickReply }: AssistantCardViewProps) {
+export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = false, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
   const { t } = useTranslation();
   const buttons = cardButtons(card);
   const replies =
@@ -62,6 +66,14 @@ export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = f
           </ul>
         </div>
       );
+    case 'capabilities':
+      return (
+        <div className="sc-assistant-card">
+          <AssistantCapabilities onSendPrompt={onSendPrompt} onPickPhoto={onPickPhoto} />
+        </div>
+      );
+    case 'help':
+      return <AssistantHelpCard target={card.target} />;
     default:
       return replies ? <div className="sc-assistant-card">{replies}</div> : null;
   }

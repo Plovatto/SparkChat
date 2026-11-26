@@ -6,6 +6,7 @@ import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
 import type { AssistantButton } from '@lib/assistant/assistant-card';
+import { useHelpOpener } from '@features/assistant/help-targets';
 import { AssistantComposerChips } from '@features/assistant/components/AssistantComposerChips';
 import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
@@ -358,6 +359,12 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const [isComposerEmpty, setIsComposerEmpty] = useState(true);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [requestedInfoView, setRequestedInfoView] = useState<{ view: 'appearance'; nonce: number } | undefined>(undefined);
+  const openAppearanceFromHelp = useCallback(() => {
+    setRequestedInfoView((previous) => ({ view: 'appearance', nonce: (previous?.nonce ?? 0) + 1 }));
+    setIsInfoOpen(true);
+  }, []);
+  useHelpOpener('appearance', room ? openAppearanceFromHelp : null);
   const isInfoInline = useMediaQuery(minWidthQuery(INFO_COLUMN_MIN_WIDTH_PX));
   const isInfoColumnOpen = isInfoOpen && isInfoInline && room !== null;
 
@@ -1070,6 +1077,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     void sendPayload(payload);
   };
 
+  const sendAssistantPrompt = (text: string) => {
+    sendMessage({ content: text, type: 'text' });
+  };
+
+  const openAssistantPhotoPicker = () => {
+    messageInputRef.current?.openAttachmentPicker();
+  };
+
   const handleQuickReply = (cardId: string, button: AssistantButton) => {
     sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
   };
@@ -1340,6 +1355,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   roomId={room.id}
                                   isAssistantRoom={isAssistantRoom(room)}
                                   onQuickReply={handleQuickReply}
+                                  onAssistantPrompt={sendAssistantPrompt}
+                                  onAssistantPhoto={openAssistantPhotoPicker}
                                   quickReplyFailed={failedQuickReplyCardIds.has(item.message.id)}
                                   participants={room.participants}
                                   currentUserId={user.id}
@@ -1524,7 +1541,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           isSelecting={isSelecting}
           isComposerEmpty={isComposerEmpty}
           inputRef={messageInputRef}
-          sendText={(text) => sendMessage({ content: text, type: 'text' })}
+          sendText={sendAssistantPrompt}
         />
 
         <ComposerSlot
@@ -1576,6 +1593,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         messages={messages}
         messagesLoaded={areMessagesLoaded}
         onLeftGroup={handleLeftGroup}
+        requestedView={requestedInfoView}
         autoTranslate={
           translationMode === 'off'
             ? undefined

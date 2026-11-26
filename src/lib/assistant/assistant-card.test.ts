@@ -38,4 +38,10 @@ describe('parseAssistantCard', () => {
     expect(parseAssistantCard({ v: 1, kind: 'list', title: 'Notas', items: [{ id: '1', text: 'a' }] })).not.toBeNull();
     expect(parseAssistantCard({ v: 1, kind: 'list', title: 'Notas', items: [{ id: 1, text: 'a' }] })).toBeNull();
   });
+
+  it('validates help cards', () => {
+    expect(parseAssistantCard({ v: 1, kind: 'help', topic: 'themes', target: 'appearance' })).not.toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'help', topic: 'nope', target: 'appearance' })).toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'help', topic: 'themes', target: 'elsewhere' })).toBeNull();
+  });
 });

@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuBan, LuChevronRight, LuCopy, LuCheck, LuImage, LuLink, LuLogOut, LuPhone, LuSearch, LuVideo } from 'react-icons/lu';
 import { MdTranslate } from 'react-icons/md';
@@ -40,6 +40,7 @@ interface RoomInfoPanelProps {
   messagesLoaded: boolean;
   onLeftGroup: () => void;
   autoTranslate?: RoomAutoTranslateProps;
+  requestedView?: { view: InfoView; nonce: number } | undefined;
 }
 
 interface RoomAutoTranslateProps {
@@ -129,11 +130,16 @@ function FooterRow({ icon, label, onClick, tone, withChevron = false }: FooterRo
   );
 }
 
-export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate }: RoomInfoPanelProps) {
+export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate, requestedView }: RoomInfoPanelProps) {
   const { t } = useTranslation();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [view, setView] = useState<InfoView>('main');
+  useEffect(() => {
+    if (isOpen && requestedView) {
+      setView(requestedView.view);
+    }
+  }, [isOpen, requestedView]);
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);

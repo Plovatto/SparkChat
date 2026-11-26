@@ -88,7 +88,7 @@ describe('AssistantCardView', () => {
   });
 
   it('renders nothing for cards without a body yet', () => {
-    const { container } = render(<AssistantCardView card={{ v: 1, kind: 'capabilities' }} cardId="m" onQuickReply={vi.fn()} />);
+    const { container } = render(<AssistantCardView card={{ v: 1, kind: 'help', topic: 'themes', target: 'none' }} cardId="m" onQuickReply={vi.fn()} />);
     expect(container.firstChild).toBeNull();
   });
 

@@ -42,6 +42,30 @@ export type ConfirmAction =
   | { type: 'delete-note'; noteId: string; preview: string }
   | { type: 'cancel-reminder'; reminderId: string; preview: string };
 
+export const HELP_TOPICS = [
+  'themes',
+  'wallpaper',
+  'bubbles',
+  'calls',
+  'screen-share',
+  'gifs',
+  'reactions',
+  'profile-photo',
+  'groups',
+  'invite-link',
+  'translation',
+  'notifications',
+  'install-app',
+  'reminders',
+  'scheduled-messages',
+] as const;
+
+export type HelpTopic = (typeof HELP_TOPICS)[number];
+
+export const HELP_TARGETS = ['appearance', 'profile', 'new-group', 'notifications-settings', 'install', 'none'] as const;
+
+export type HelpTarget = (typeof HELP_TARGETS)[number];
+
 export interface AssistantListItem {
   id: string;
   text: string;
@@ -56,10 +80,11 @@ export type AssistantCard =
   | { v: 1; kind: 'scheduled-failed'; roomId: string; text: string; buttons: AssistantButton[] }
   | { v: 1; kind: 'list'; title: string; items: AssistantListItem[] }
   | { v: 1; kind: 'capabilities' }
+  | { v: 1; kind: 'help'; topic: HelpTopic; target: HelpTarget }
   | { v: 1; kind: 'choices'; buttons: AssistantButton[] };
 
 const BUTTON_KINDS: ReadonlySet<string> = new Set(['look-suggestion', 'look-applied', 'confirm', 'reminder-fired', 'scheduled-failed', 'choices']);
-const KNOWN_KINDS: ReadonlySet<string> = new Set([...BUTTON_KINDS, 'list', 'capabilities']);
+const KNOWN_KINDS: ReadonlySet<string> = new Set([...BUTTON_KINDS, 'list', 'capabilities', 'help']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -102,6 +127,12 @@ export function parseAssistantCard(raw: unknown): AssistantCard | null {
     return null;
   }
   if (value.kind === 'list' && (typeof value.title !== 'string' || !areValidItems(value.items))) {
+    return null;
+  }
+  if (
+    value.kind === 'help' &&
+    (!(HELP_TOPICS as readonly unknown[]).includes(value.topic) || !(HELP_TARGETS as readonly unknown[]).includes(value.target))
+  ) {
     return null;
   }
   if (value.kind === 'confirm' && (!isRecord(value.action) || typeof value.action.type !== 'string')) {
