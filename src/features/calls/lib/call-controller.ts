@@ -403,6 +403,7 @@ export class CallController {
   private readonly pendingDeclines = new Map<string, number>();
   private preparingPeerId: string | null = null;
   private readonly incomingPeers = new Map<string, number>();
+  private preparingCallerId: string | null = null;
   private glareInvite: Parameters<CallController['onIncoming']>[0] | null = null;
   private glarePeer: { peerId: string; until: number } | null = null;
   private readonly resumeAttempts = new Set<string>();
@@ -614,6 +615,7 @@ export class CallController {
       return;
     }
     this.preparing = true;
+    this.preparingCallerId = payload.callerId;
     let autoAnswer: boolean;
     try {
       const resolved = await this.deps.resolvePeer(payload.callerId);
@@ -678,6 +680,10 @@ export class CallController {
       return;
     } finally {
       this.preparing = false;
+      this.preparingCallerId = null;
+      if (this.glarePeer?.peerId === payload.callerId) {
+        this.glarePeer = null;
+      }
     }
     if (autoAnswer) {
       await this.accept();
@@ -752,7 +758,7 @@ export class CallController {
     if (!this.disposed && !this.preparing && this.isRingingFrom(input.roomId, input.peerId)) {
       return this.accept();
     }
-    if (!this.disposed && this.preparing && this.preparingPeerId === null && this.incomingPeers.has(input.peerId)) {
+    if (!this.disposed && this.preparing && this.preparingCallerId === input.peerId) {
       this.glarePeer = { peerId: input.peerId, until: this.deps.now() + GLARE_WINDOW_MS };
       return;
     }

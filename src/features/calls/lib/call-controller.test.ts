@@ -3557,6 +3557,41 @@ describe('same tab recovery and glare', () => {
     expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
   });
 
+  it('does not keep auto answering after calling back during an invite that then fails to open', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    let w: World | null = null;
+    w = await world({
+      bobResolve: async () => {
+        calls += 1;
+        if (calls === 1) {
+          await gate;
+          return { error: 'unverifiable' };
+        }
+        return { peer: (w as World).alice.pinned };
+      },
+    });
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+    release();
+    await settle();
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+    w.a.controller.hangup();
+    await settle();
+    w.a.controller.dismissEnded();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+  });
+
   it('keeps the invite of the person it is calling when it arrives while the private room is still loading', async () => {
     let roomReady = false;
     const w = await world({ bob: { isPrivateRoomWith: () => roomReady } });
