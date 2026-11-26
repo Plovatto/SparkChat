@@ -5,3 +5,4 @@
 *.ico binary
 *.wasm binary
 *.woff2 binary
+src/features/assistant/look-catalog.json text eol=lf

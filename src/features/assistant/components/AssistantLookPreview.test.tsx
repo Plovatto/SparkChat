@@ -54,3 +54,11 @@ describe('AssistantLookPreview', () => {
     ).toBeTruthy();
   });
 });
+
+describe('AssistantLookPreview clamping', () => {
+  it('clamps out of range appearance values before rendering', () => {
+    const { container } = render(wrap(<AssistantLookPreview look={{ colorTheme: 'standard', wallpaper: 'unsplash1', appearance: { overlayOpacity: 900 } }} />));
+    const overlay = container.querySelector('.sc-appearance-preview-overlay') as HTMLElement;
+    expect(overlay.style.backgroundColor).toBe('rgb(0, 0, 0)');
+  });
+});

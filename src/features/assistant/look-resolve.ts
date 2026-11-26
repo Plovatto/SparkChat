@@ -3,6 +3,7 @@ import {
   COLOR_THEMES,
   DEFAULT_CHAT_APPEARANCE,
   THEME_BASES,
+  APPEARANCE_RANGES,
   buildTheme,
   type ColorThemeId,
   type ThemeBaseId,
@@ -30,6 +31,21 @@ export interface ResolvedLook {
   changesWallpaper: boolean;
 }
 
+function clampAppearance(patch: AssistantLook['appearance']): Partial<ChatAppearance> {
+  const result: Partial<ChatAppearance> = {};
+  for (const [field, value] of Object.entries(patch ?? {})) {
+    const range = (APPEARANCE_RANGES as Record<string, readonly [number, number]>)[field];
+    if (range && typeof value === 'number') {
+      if (Number.isFinite(value)) {
+        Object.assign(result, { [field]: Math.min(range[1], Math.max(range[0], value)) });
+      }
+    } else {
+      Object.assign(result, { [field]: value });
+    }
+  }
+  return result;
+}
+
 function findWallpaper(id: string | null | undefined): ChatBackground | undefined {
   return id ? CHAT_BACKGROUNDS.find((background) => background.id === id) : undefined;
 }
@@ -48,7 +64,7 @@ export function resolveLook(look: AssistantLook, current: CurrentLook): Resolved
     theme: buildTheme(baseTheme, colorTheme).tokens,
     wallpaperId: wallpaper?.id ?? null,
     wallpaper,
-    appearance: { ...DEFAULT_CHAT_APPEARANCE, ...(current.chatSettings.globalAppearance ?? {}), ...look.appearance },
+    appearance: { ...DEFAULT_CHAT_APPEARANCE, ...(current.chatSettings.globalAppearance ?? {}), ...clampAppearance(look.appearance) },
     changesBase: knownBase,
     changesColor: knownColor,
     changesWallpaper: chosenWallpaper !== undefined,

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { ColorPicker } from '@components/common/ColorPicker';
+import { APPEARANCE_RANGES } from '@features/theme';
 import { AppearanceSlider } from './AppearanceSlider';
 
 interface AppearanceBubbleCardProps {
@@ -42,8 +43,8 @@ export function AppearanceBubbleCard({
         label={t('chat.appearance.transparency')}
         valueLabel={`${opacity}%`}
         value={opacity}
-        min={10}
-        max={100}
+        min={APPEARANCE_RANGES.ownBubbleOpacity[0]}
+        max={APPEARANCE_RANGES.ownBubbleOpacity[1]}
         onChange={onOpacityChange}
       />
       <div className="sc-appearance-stack">
@@ -51,8 +52,8 @@ export function AppearanceBubbleCard({
           label={t('chat.appearance.textDim')}
           valueLabel={textIntensity === null ? t('chat.appearance.auto') : `${textIntensity}%`}
           value={textIntensity ?? 50}
-          min={0}
-          max={100}
+          min={APPEARANCE_RANGES.ownTextIntensity[0]}
+          max={APPEARANCE_RANGES.ownTextIntensity[1]}
           onChange={onTextIntensityChange}
         />
         {textIntensity !== null && (
