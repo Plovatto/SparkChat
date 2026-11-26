@@ -538,6 +538,81 @@ describe('handleNotificationClick', () => {
   });
 });
 
+describe('reminder notifications', () => {
+  function reminderNotification(data: unknown): WorkerNotification & { closed: boolean } {
+    const entry = {
+      tag: 'r-rem1',
+      data,
+      closed: false,
+      close: () => {
+        entry.closed = true;
+      },
+    };
+    return entry;
+  }
+
+  it('parses reminder pushes and rejects unsafe ids', () => {
+    expect(parsePushMessage({ t: 'reminder', id: 'rem1', roomId: 'r1', x: 'Call mom' })).toEqual({ t: 'reminder', id: 'rem1', roomId: 'r1', text: 'Call mom' });
+    expect(parsePushMessage({ t: 'reminder', id: 'rem1', roomId: 'r1' })).toEqual({ t: 'reminder', id: 'rem1', roomId: 'r1', text: '' });
+    expect(parsePushMessage({ t: 'reminder', id: 'bad id', roomId: 'r1', x: 'a' })).toBeNull();
+  });
+
+  it('shows a priority notification with two actions', async () => {
+    const { env, visible } = fakeEnv();
+    await handlePush(env, createWorkerState(), { t: 'reminder', id: 'rem1', roomId: 'r1', x: 'Call mom' });
+    const [shown] = visible();
+    expect(shown?.title).toBe('⏰ Lembrete');
+    expect(shown?.options).toMatchObject({
+      body: 'Call mom',
+      tag: 'r-rem1',
+      requireInteraction: true,
+      renotify: true,
+      vibrate: [200, 100, 200, 100, 400],
+      data: { kind: 'reminder', reminderId: 'rem1', roomId: 'r1' },
+      actions: [
+        { action: 'reminder-done', title: 'Concluído' },
+        { action: 'reminder-snooze10', title: 'Adiar 10 min' },
+      ],
+    });
+  });
+
+  it('falls back to a generic body and omits actions when unsupported', async () => {
+    const { env, visible } = fakeEnv({ maxActions: 1, language: 'en' });
+    await handlePush(env, createWorkerState(), { t: 'reminder', id: 'rem1', roomId: 'r1', x: '' });
+    const [shown] = visible();
+    expect(shown?.options.body).toBe('You have a reminder from SparkAI');
+    expect(shown?.options.actions).toBeUndefined();
+  });
+
+  it('tells an open window which reminder action was chosen', async () => {
+    const client = fakeClient({ visibilityState: 'visible' });
+    const { env, opened } = fakeEnv({ clients: [client] });
+    const clicked = reminderNotification({ kind: 'reminder', reminderId: 'rem1', roomId: 'r1' });
+    await handleNotificationClick(env, clicked, 'reminder-snooze10');
+    expect(clicked.closed).toBe(true);
+    expect(opened).toEqual([]);
+    expect(client.focusCalls).toBe(1);
+    expect(client.messages).toEqual([{ type: 'sparkchat:reminder-action', reminderId: 'rem1', roomId: 'r1', action: 'snooze10' }]);
+  });
+
+  it('opens the app with the reminder action when no window exists', async () => {
+    const { env, opened } = fakeEnv();
+    await handleNotificationClick(env, reminderNotification({ kind: 'reminder', reminderId: 'rem1', roomId: 'r1' }), 'reminder-done');
+    expect(opened).toEqual(['https://chat.example/app/?room=r1&reminder=rem1&reminderAction=done']);
+  });
+
+  it('opens the room on a plain click', async () => {
+    const { env, opened } = fakeEnv();
+    await handleNotificationClick(env, reminderNotification({ kind: 'reminder', reminderId: 'rem1', roomId: 'r1' }), '');
+    expect(opened).toEqual(['https://chat.example/app/?room=r1']);
+  });
+
+  it('validates the reminder action message', () => {
+    expect(isWorkerToClientMessage({ type: 'sparkchat:reminder-action', reminderId: 'rem1', roomId: 'r1', action: 'done' })).toBe(true);
+    expect(isWorkerToClientMessage({ type: 'sparkchat:reminder-action', reminderId: 'rem1', roomId: 'r1', action: 'snooze60' })).toBe(false);
+  });
+});
+
 describe('handleClientMessage', () => {
   it('stores the language and tracks or clears the active room per window', async () => {
     const { env, savedLanguages } = fakeEnv();

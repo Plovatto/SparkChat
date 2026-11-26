@@ -4,6 +4,9 @@ import {
   isSafeId,
   NOTIFICATION_ACTION_ANSWER,
   NOTIFICATION_ACTION_DECLINE,
+  NOTIFICATION_ACTION_REMINDER_DONE,
+  NOTIFICATION_ACTION_REMINDER_SNOOZE,
+  reminderChoiceFromNotificationAction,
   type WorkerToClientMessage,
 } from './protocol';
 import type { NotificationText, PushMessagePreview } from './message-preview';
@@ -13,12 +16,14 @@ import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 export type PushMessage =
   | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string; e?: number; r?: 1 }
   | { t: 'call-end'; callId: string; reason: string }
-  | { t: 'msg'; roomId: string; preview?: PushMessagePreview };
+  | { t: 'msg'; roomId: string; preview?: PushMessagePreview }
+  | { t: 'reminder'; id: string; roomId: string; text: string };
 
 export type NotificationData =
   | { kind: 'call'; callId: string; roomId: string }
   | { kind: 'missed' | 'ended'; callId: string; roomId?: string }
   | { kind: 'msg'; roomId: string }
+  | { kind: 'reminder'; reminderId: string; roomId: string }
   | { kind: 'generic' };
 
 export interface WorkerNotificationOptions {
@@ -77,6 +82,8 @@ export interface WorkerState {
 export const NOTIFICATION_ICON = '/icon-192.png';
 export const NOTIFICATION_BADGE = '/badge-96.png';
 export const CALL_VIBRATION = [400, 200, 400, 200, 400, 200, 400];
+export const REMINDER_VIBRATION = [200, 100, 200, 100, 400];
+const MAX_REMINDER_TEXT_LENGTH = 300;
 export const MISSED_CALL_REASONS: readonly string[] = ['missed', 'cancelled'];
 export const MAX_ROOM_ICON_BYTES = 256 * 1024;
 
@@ -157,6 +164,12 @@ export function parsePushMessage(raw: unknown): PushMessage | null {
       const preview = parsePreview(value.m);
       return preview ? { t: 'msg', roomId: value.roomId, preview } : { t: 'msg', roomId: value.roomId };
     }
+    case 'reminder':
+      if (isSafeId(value.id) && isSafeId(value.roomId)) {
+        const text = typeof value.x === 'string' ? value.x.slice(0, MAX_REMINDER_TEXT_LENGTH) : '';
+        return { t: 'reminder', id: value.id, roomId: value.roomId, text };
+      }
+      return null;
     default:
       return null;
   }
@@ -366,6 +379,36 @@ async function showMessage(
   });
 }
 
+function reminderTag(reminderId: string): string {
+  return `r-${reminderId}`;
+}
+
+async function showReminder(
+  env: WorkerEnvironment,
+  strings: WorkerStrings,
+  language: 'pt' | 'en',
+  message: Extract<PushMessage, { t: 'reminder' }>,
+): Promise<void> {
+  const base = baseOptions(language, env);
+  const options: WorkerNotificationOptions = {
+    ...base,
+    icon: await roomIconOr(env, message.roomId, base.icon),
+    body: message.text || strings.reminderBodyFallback,
+    tag: reminderTag(message.id),
+    renotify: true,
+    requireInteraction: true,
+    vibrate: REMINDER_VIBRATION,
+    data: { kind: 'reminder', reminderId: message.id, roomId: message.roomId },
+  };
+  if (env.maxActions() >= 2) {
+    options.actions = [
+      { action: NOTIFICATION_ACTION_REMINDER_DONE, title: strings.reminderDone },
+      { action: NOTIFICATION_ACTION_REMINDER_SNOOZE, title: strings.reminderSnooze10 },
+    ];
+  }
+  await env.showNotification(strings.reminderTitle, options);
+}
+
 async function showGeneric(env: WorkerEnvironment, strings: WorkerStrings, language: 'pt' | 'en'): Promise<void> {
   await env.showNotification(strings.generic, {
     ...baseOptions(language, env),
@@ -391,6 +434,9 @@ export async function handlePush(env: WorkerEnvironment, state: WorkerState, raw
       case 'msg':
         await showMessage(env, state, strings, language, message);
         return;
+      case 'reminder':
+        await showReminder(env, strings, language, message);
+        return;
       default:
         await showGeneric(env, strings, language);
     }
@@ -403,7 +449,7 @@ function pickClient(clients: WorkerWindowClient[]): WorkerWindowClient | undefin
   return clients.find((client) => client.focused) ?? clients.find((client) => client.visibilityState === 'visible') ?? clients[0];
 }
 
-function readNotificationData(data: unknown): { kind?: string; callId?: string; roomId?: string; declineToken?: string; ringExpiresAt?: number } {
+function readNotificationData(data: unknown): { kind?: string; callId?: string; reminderId?: string; roomId?: string; declineToken?: string; ringExpiresAt?: number } {
   if (typeof data !== 'object' || data === null) {
     return {};
   }
@@ -411,6 +457,7 @@ function readNotificationData(data: unknown): { kind?: string; callId?: string; 
   return {
     kind: typeof value.kind === 'string' ? value.kind : undefined,
     callId: isSafeId(value.callId) ? value.callId : undefined,
+    reminderId: isSafeId(value.reminderId) ? value.reminderId : undefined,
     roomId: isSafeId(value.roomId) ? value.roomId : undefined,
     declineToken: isDeclineToken(value.declineToken) ? value.declineToken : undefined,
     ringExpiresAt: typeof value.ringExpiresAt === 'number' ? value.ringExpiresAt : undefined,
@@ -449,6 +496,19 @@ export async function handleNotificationClick(env: WorkerEnvironment, notificati
         await env.declineCall(callId, data.declineToken).catch(() => undefined);
       }
     }
+    return;
+  }
+
+  const reminderChoice = data.kind === 'reminder' ? reminderChoiceFromNotificationAction(action) : null;
+  if (reminderChoice && data.reminderId && data.roomId) {
+    const { reminderId, roomId } = data;
+    const target = pickClient(clients);
+    if (target) {
+      await target.focus().catch(() => undefined);
+      target.postMessage({ type: 'sparkchat:reminder-action', reminderId, roomId, action: reminderChoice });
+      return;
+    }
+    await env.openWindow(buildLaunchUrl(env.scope, { roomId, reminderId, reminderAction: reminderChoice }));
     return;
   }
 

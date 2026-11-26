@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { AppSocket } from '@lib/socket';
-import { takePendingLaunch } from '../lib/launch-params';
+import { takePendingLaunch, takePendingReminder } from '../lib/launch-params';
+import { queueReminderAction } from '../lib/reminder-actions';
 import { syncPushSubscription } from '../lib/push-subscription';
 import { onWorkerMessage, postToWorker } from '../lib/sw-registration';
 
@@ -28,6 +29,11 @@ export function usePwaChatShell({ socket, selectedRoomId, language, onOpenRoom, 
     if (launch.newChat) {
       handlersRef.current.onNewChat();
     }
+    const reminder = takePendingReminder();
+    if (reminder) {
+      handlersRef.current.onOpenRoom(reminder.roomId);
+      queueReminderAction(reminder);
+    }
   }, []);
 
   useEffect(
@@ -35,6 +41,9 @@ export function usePwaChatShell({ socket, selectedRoomId, language, onOpenRoom, 
       onWorkerMessage((message) => {
         if (message.type === 'sparkchat:open-room') {
           handlersRef.current.onOpenRoom(message.roomId);
+        } else if (message.type === 'sparkchat:reminder-action') {
+          handlersRef.current.onOpenRoom(message.roomId);
+          queueReminderAction({ reminderId: message.reminderId, roomId: message.roomId, action: message.action });
         } else if (message.type === 'sparkchat:push-subscription-changed' && socket) {
           syncQuietly(socket);
         }

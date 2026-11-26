@@ -381,3 +381,76 @@
     animation: none;
   }
 }
+
+.sc-assistant-card-reminder {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sc-accent) 10%, var(--sc-surface));
+  border: 1px solid color-mix(in srgb, var(--sc-accent) 40%, var(--sc-border-subtle));
+  animation: scAssistantRise 260ms var(--sc-ease-enter) backwards;
+}
+
+.sc-assistant-reminder-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sc-assistant-reminder-bell {
+  display: inline-flex;
+  flex: none;
+  color: var(--sc-accent);
+  transform-origin: 50% 4px;
+  animation: scAssistantBellRing 1.4s var(--sc-ease-enter) 300ms 2;
+}
+
+.sc-assistant-reminder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sc-assistant-reminder-label {
+  color: var(--sc-accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sc-assistant-reminder-text {
+  margin: 0;
+  color: var(--sc-text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@keyframes scAssistantBellRing {
+  0%,
+  40%,
+  100% {
+    transform: rotate(0deg);
+  }
+  8% {
+    transform: rotate(16deg);
+  }
+  16% {
+    transform: rotate(-14deg);
+  }
+  24% {
+    transform: rotate(10deg);
+  }
+  32% {
+    transform: rotate(-6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-assistant-card-reminder,
+  .sc-assistant-reminder-bell {
+    animation: none;
+  }
+}
