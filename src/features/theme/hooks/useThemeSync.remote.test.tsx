@@ -8,7 +8,9 @@ const handlers = new Map<string, Set<Handler>>();
 const emit = vi.fn();
 const fakeSocket = {
   active: true,
-  emit: (...args: unknown[]) => emit(...args),
+  emit: (...args: unknown[]) => {
+    emit(...args);
+  },
   on: (event: string, handler: Handler) => {
     if (!handlers.has(event)) handlers.set(event, new Set());
     handlers.get(event)?.add(handler);
