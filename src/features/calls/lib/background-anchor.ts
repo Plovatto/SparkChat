@@ -175,19 +175,29 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
       return;
     }
     clearRetry();
+    if (audible && isVisible()) {
+      replace();
+    }
     applyAudibility();
+    const target = element;
     let attempt: Promise<void>;
     try {
-      attempt = element.play();
+      attempt = target.play();
     } catch {
       schedule();
       return;
     }
     void Promise.resolve(attempt).then(
       () => {
-        playingSince = deps.now();
+        if (target === element && !stopped) {
+          playingSince = deps.now();
+        }
       },
-      () => schedule(),
+      () => {
+        if (target === element) {
+          schedule();
+        }
+      },
     );
   };
 
@@ -206,11 +216,7 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
   };
 
   const replace = () => {
-    const next = deps.createElement();
-    if (!next) {
-      return;
-    }
-    clearRetry();
+    const next = deps.createElement() ?? element;
     release(element);
     audible = false;
     playingSince = null;
@@ -226,9 +232,6 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     }
     yieldedAt = null;
     failures = 0;
-    if (audible && isVisible()) {
-      replace();
-    }
     play();
   };
 
@@ -236,13 +239,17 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     if (stopped) {
       return;
     }
-    if (!isVisible() || !audible || element.paused) {
+    if (!isVisible() || !audible) {
+      applyAudibility();
+      return;
+    }
+    if (element.paused) {
+      clearRetry();
       applyAudibility();
       return;
     }
     yieldedAt = null;
     failures = 0;
-    replace();
     play();
   };
 

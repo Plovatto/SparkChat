@@ -239,6 +239,50 @@ describe('startBackgroundAnchor', () => {
     expect(second.paused).toBe(false);
   });
 
+  it('ignores a late result from an element it already swapped out', async () => {
+    const first = new FakeElement();
+    const second = new FakeElement();
+    let rejectFirst: (error: Error) => void = () => undefined;
+    first.play = vi.fn(() => {
+      first.plays += 1;
+      first.paused = false;
+      return new Promise<void>((_resolve, reject) => {
+        rejectFirst = reject;
+      });
+    });
+    const queue = [first, second];
+    const { deps, page, timers } = harness(first);
+    deps.createElement = () => queue.shift() ?? null;
+    startBackgroundAnchor(deps);
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    rejectFirst(new DOMException('aborted', 'AbortError'));
+    await flush();
+    expect(timers).toHaveLength(0);
+    expect(second.paused).toBe(false);
+    expect(second.muted).toBe(true);
+  });
+
+  it('reloads the same element when no new one can be created, so the old media player is still dropped', async () => {
+    const { element, deps, page } = harness();
+    let created = 0;
+    deps.createElement = () => {
+      created += 1;
+      return created === 1 ? element : null;
+    };
+    startBackgroundAnchor(deps);
+    await flush();
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(element.loads).toBe(1);
+    expect(element.src).toBe('blob:anchor');
+    expect(element.muted).toBe(true);
+    expect(element.paused).toBe(false);
+    expect(element.listenerCount).toBe(1);
+  });
+
   it('keeps the same muted element when the app comes back without ever having been audible', async () => {
     const { element, deps, page } = harness();
     let created = 0;
