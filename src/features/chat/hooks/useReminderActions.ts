@@ -33,9 +33,6 @@ export function useReminderActions({ roomId, isLoaded, messages, onQuickReply }:
   useEffect(
     () =>
       subscribeReminderActions((action) => {
-        if (sentRef.current.has(action.reminderId)) {
-          return;
-        }
         setPending((current) =>
           current.some((entry) => entry.reminderId === action.reminderId)
             ? current
@@ -60,16 +57,16 @@ export function useReminderActions({ roomId, isLoaded, messages, onQuickReply }:
         continue;
       }
       const message = findReminderCard(messages, entry.reminderId);
-      if (!message || message.card?.kind !== 'reminder-fired') {
+      if (!message || message.card?.kind !== 'reminder-fired' || sentRef.current.has(message.id)) {
         remaining.push(entry);
         continue;
       }
-      if (message.resolvedChoice || sentRef.current.has(entry.reminderId)) {
+      if (message.resolvedChoice) {
         continue;
       }
       const button = message.card.buttons.find((candidate) => candidate.choice === entry.action);
       if (button) {
-        sentRef.current.add(entry.reminderId);
+        sentRef.current.add(message.id);
         onQuickReplyRef.current(message.id, button);
       }
     }

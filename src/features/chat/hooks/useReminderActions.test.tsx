@@ -59,6 +59,20 @@ describe('useReminderActions', () => {
     expect(onQuickReply).toHaveBeenCalledTimes(1);
   });
 
+  it('answers a re-fired card with the same reminder id after a snooze on the first card', () => {
+    const onQuickReply = vi.fn();
+    const first = [card('A', 'rem1')];
+    const { rerender } = renderHook((props: { messages: ChatMessage[] }) => useReminderActions({ roomId: 'room', isLoaded: true, onQuickReply, ...props }), {
+      initialProps: { messages: first },
+    });
+    act(() => queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'snooze10' }));
+    expect(onQuickReply).toHaveBeenLastCalledWith('A', BUTTONS[1]);
+    rerender({ messages: [card('A', 'rem1', { resolvedChoice: 'snooze10' }), card('B', 'rem1')] });
+    act(() => queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'done' }));
+    expect(onQuickReply).toHaveBeenCalledTimes(2);
+    expect(onQuickReply).toHaveBeenLastCalledWith('B', BUTTONS[0]);
+  });
+
   it('does nothing when the card is missing or already answered', () => {
     vi.useFakeTimers();
     const onQuickReply = vi.fn();
