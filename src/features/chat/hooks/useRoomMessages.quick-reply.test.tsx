@@ -92,6 +92,24 @@ afterEach(() => {
 });
 
 describe('useRoomMessages quick replies', () => {
+  it('keeps the card and resolved choice across message:updated', () => {
+    const card = { v: 1 as const, kind: 'choices' as const, buttons: [{ choice: 'yes' as const, label: 'Aplicar' }] };
+    const { result } = renderHook(() => useRoomMessages(ROOM, ME));
+    act(() => {
+      socket.fire('messages:list', { roomId: ROOM, messages: [{ ...message('card', 1), card }], hasMore: false });
+    });
+    act(() => socket.fire('message:card-resolved', { roomId: ROOM, cardId: 'card', choice: 'yes' }));
+
+    act(() => socket.fire('message:updated', { ...message('card', 1), content: 'edited' }));
+
+    expect(result.current.messages[0]?.card).toEqual(card);
+    expect(result.current.messages[0]?.resolvedChoice).toBe('yes');
+    expect(result.current.messages[0]?.content).toBe('edited');
+
+    act(() => socket.fire('message:updated', { ...message('card', 1), card, resolvedChoice: 'no' }));
+    expect(result.current.messages[0]?.resolvedChoice).toBe('no');
+  });
+
   it('sends the button label as text with the quickReply payload', () => {
     const { result } = renderHook(() => useRoomMessages(ROOM, ME));
     act(() => {

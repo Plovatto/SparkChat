@@ -1,4 +1,4 @@
-import type { QuickReply } from '@features/assistant/assistant-card';
+import type { QuickReply } from '@lib/assistant/assistant-card';
 import type { MessageView } from '@lib/socket';
 
 export interface ChatMessage extends MessageView {

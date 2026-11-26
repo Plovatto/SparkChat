@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { AssistantButton, QuickReplyChoice } from '../assistant-card';
+import type { AssistantButton, QuickReplyChoice } from '@lib/assistant/assistant-card';
 import '../styles/assistant.css';
+
+const SEND_TIMEOUT_MS = 15000;
 
 interface AssistantQuickRepliesProps {
   buttons: AssistantButton[];
   resolvedChoice?: QuickReplyChoice | undefined;
+  sendFailed?: boolean;
   onSelect: (button: AssistantButton) => void;
 }
 
-export function AssistantQuickReplies({ buttons, resolvedChoice, onSelect }: AssistantQuickRepliesProps) {
+export function AssistantQuickReplies({ buttons, resolvedChoice, sendFailed = false, onSelect }: AssistantQuickRepliesProps) {
   const { t } = useTranslation();
   const [sentChoice, setSentChoice] = useState<QuickReplyChoice | null>(null);
 
@@ -18,6 +21,20 @@ export function AssistantQuickReplies({ buttons, resolvedChoice, onSelect }: Ass
       setSentChoice(null);
     }
   }, [resolvedChoice]);
+
+  useEffect(() => {
+    if (sendFailed) {
+      setSentChoice(null);
+    }
+  }, [sendFailed]);
+
+  useEffect(() => {
+    if (sentChoice === null) {
+      return;
+    }
+    const timeout = window.setTimeout(() => setSentChoice(null), SEND_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [sentChoice]);
 
   if (buttons.length === 0) {
     return null;

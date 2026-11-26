@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { QuickReply, QuickReplyChoice } from '@features/assistant/assistant-card';
+import type { QuickReply, QuickReplyChoice } from '@lib/assistant/assistant-card';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
 import { translateErrorPayload } from '@lib/api/api-error';
@@ -557,10 +557,15 @@ export function useRoomMessages(
       }
       const current = messagesRef.current.find((message) => message.id === updated.id);
       const reactions = overlayPendingReaction(updated.id, updated.reactions ?? current?.reactions ?? []);
-      updatePendingSnapshots(updated.id, (message) => ({ ...updated, reactions, exiting: message.exiting }));
+      const resolvedChoice = updated.resolvedChoice ?? current?.resolvedChoice;
+      const resolved = {
+        ...(resolvedChoice ? { resolvedChoice } : {}),
+        ...(!updated.card && current?.card ? { card: current.card } : {}),
+      };
+      updatePendingSnapshots(updated.id, (message) => ({ ...updated, ...resolved, reactions, exiting: message.exiting }));
       setMessages((previous) =>
         mapChanged(previous, (message) =>
-          message.id === updated.id ? { ...updated, reactions, ...(message.exiting ? { exiting: true } : {}) } : message,
+          message.id === updated.id ? { ...updated, ...resolved, reactions, ...(message.exiting ? { exiting: true } : {}) } : message,
         ),
       );
     };

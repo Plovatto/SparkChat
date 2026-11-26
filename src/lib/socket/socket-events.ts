@@ -1,5 +1,5 @@
 import type { ApiErrorParams } from '@lib/api/api-error';
-import type { AssistantCard, QuickReply, QuickReplyChoice } from '@features/assistant/assistant-card';
+import type { AssistantCard, QuickReply, QuickReplyChoice } from '@lib/assistant/assistant-card';
 import type { SystemEvent } from '@lib/format/system-event';
 
 export interface SocketErrorPayload {

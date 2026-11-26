@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import type { AssistantButton } from '../assistant-card';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AssistantButton } from '@lib/assistant/assistant-card';
 import { AssistantCardView } from './AssistantCardView';
 import { AssistantQuickReplies } from './AssistantQuickReplies';
 
@@ -16,7 +16,39 @@ const buttons: AssistantButton[] = [
   { choice: 'no', label: 'Não' },
 ];
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('AssistantQuickReplies', () => {
+  it('re-enables the buttons when the send failed', () => {
+    const { rerender } = render(<AssistantQuickReplies buttons={buttons} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(true);
+
+    rerender(<AssistantQuickReplies buttons={buttons} sendFailed onSelect={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Aplicar' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('re-enables the buttons after 15s without a resolution', () => {
+    vi.useFakeTimers();
+    render(<AssistantQuickReplies buttons={buttons} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(14000);
+    });
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(true);
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(false);
+  });
+
   it('reports the tapped button and locks the others', () => {
     const onSelect = vi.fn();
     render(<AssistantQuickReplies buttons={buttons} onSelect={onSelect} />);

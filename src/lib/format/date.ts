@@ -1,4 +1,4 @@
-import { formatDistanceToNow, isToday, isYesterday } from 'date-fns';
+import { format, formatDistanceToNow, isToday, isValid, isYesterday, parseISO } from 'date-fns';
 import { enUS, ptBR } from 'date-fns/locale';
 import { currentLanguage, translate } from '@lib/i18n/app-i18n';
 import { HTML_LANG, type Language } from '@lib/i18n/language';
@@ -45,6 +45,20 @@ export function formatDayLabel(value: string | number | Date): string {
     return translate('dates.yesterday');
   }
   return formatter(currentLanguage(), 'date').format(date);
+}
+
+const LOCAL_DATE_TIME_PATTERNS: Record<Language, string> = {
+  pt: "EEEEEE, dd/MM 'às' HH:mm",
+  en: "EEE, MMM d 'at' h:mm a",
+};
+
+export function formatLocalDateTime(local: string): string {
+  const parsed = parseISO(local);
+  if (!isValid(parsed)) {
+    return local;
+  }
+  const language = currentLanguage();
+  return format(parsed, LOCAL_DATE_TIME_PATTERNS[language], { locale: DATE_FNS_LOCALES[language] });
 }
 
 export function formatTimeAgo(value: string | number | Date): string {

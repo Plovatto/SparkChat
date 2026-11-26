@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
-import { cardButtons, type AssistantButton, type AssistantCard, type ConfirmAction, type QuickReplyChoice } from '../assistant-card';
+import { formatLocalDateTime } from '@lib/format/date';
+import { cardButtons, type AssistantButton, type AssistantCard, type ConfirmAction, type QuickReplyChoice } from '@lib/assistant/assistant-card';
 import { AssistantQuickReplies } from './AssistantQuickReplies';
 import '../styles/assistant.css';
 
@@ -8,24 +9,21 @@ interface AssistantCardViewProps {
   card: AssistantCard;
   cardId: string;
   resolvedChoice?: QuickReplyChoice | undefined;
+  sendFailed?: boolean;
   onQuickReply: (cardId: string, button: AssistantButton) => void;
-}
-
-function formatLocal(value: string): string {
-  return value.replace('T', ' ');
 }
 
 function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
   switch (action.type) {
     case 'reminder':
-      return t('chat.assistant.card.confirmReminder', { text: action.text, when: formatLocal(action.fireAtLocal) });
+      return t('chat.assistant.card.confirmReminder', { text: action.text, when: formatLocalDateTime(action.fireAtLocal) });
     case 'status':
-      return t('chat.assistant.card.confirmStatus', { text: action.text, when: formatLocal(action.untilLocal) });
+      return t('chat.assistant.card.confirmStatus', { text: action.text, when: formatLocalDateTime(action.untilLocal) });
     case 'scheduled-message':
       return t('chat.assistant.card.confirmScheduled', {
         recipient: action.recipient,
         text: action.text,
-        when: formatLocal(action.sendAtLocal),
+        when: formatLocalDateTime(action.sendAtLocal),
       });
     case 'delete-note':
       return t('chat.assistant.card.confirmDeleteNote', { preview: action.preview });
@@ -34,12 +32,12 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
   }
 }
 
-export function AssistantCardView({ card, cardId, resolvedChoice, onQuickReply }: AssistantCardViewProps) {
+export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = false, onQuickReply }: AssistantCardViewProps) {
   const { t } = useTranslation();
   const buttons = cardButtons(card);
   const replies =
     buttons.length > 0 ? (
-      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} onSelect={(button) => onQuickReply(cardId, button)} />
+      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} sendFailed={sendFailed} onSelect={(button) => onQuickReply(cardId, button)} />
     ) : null;
 
   switch (card.kind) {

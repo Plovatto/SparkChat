@@ -3,7 +3,7 @@ import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import { isStorageMediaUrl } from '@lib/media/media-origin';
 import { unpadGif } from '@lib/media/gif-padding';
 import { isGifMimeType, resolveSafeMediaType } from '@lib/media/media-type';
-import { parseAssistantCard, type AssistantCard } from '@features/assistant/assistant-card';
+import { parseAssistantCard, type AssistantCard } from '@lib/assistant/assistant-card';
 import type {
   AppSocket,
   MessageFileMeta,

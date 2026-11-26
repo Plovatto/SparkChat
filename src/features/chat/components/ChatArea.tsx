@@ -5,9 +5,8 @@ import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
-import type { AssistantButton } from '@features/assistant/assistant-card';
-import type { AssistantChipId } from '@features/assistant/assistant-chips';
-import { AssistantSuggestionChips } from '@features/assistant/components/AssistantSuggestionChips';
+import type { AssistantButton } from '@lib/assistant/assistant-card';
+import { AssistantComposerChips } from '@features/assistant/components/AssistantComposerChips';
 import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -309,6 +308,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     reactToMessage,
     reactionFailure,
   } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
+  const failedQuickReplyCardIds = useMemo(
+    () => new Set(messages.filter((message) => message.failed && message.quickReply).map((message) => message.quickReply?.cardId)),
+    [messages],
+  );
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
   const lastRepliedMessageRef = useRef<MessageView | null>(null);
@@ -1071,14 +1074,6 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
   };
 
-  const handleAssistantChip = (id: AssistantChipId, prompt: string) => {
-    if (id === 'themeFromPhoto') {
-      messageInputRef.current?.openAttachmentPicker();
-      return;
-    }
-    sendMessage({ content: prompt, type: 'text' });
-  };
-
   const handleLeftGroup = () => {
     setIsInfoOpen(false);
     onBack();
@@ -1345,6 +1340,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   roomId={room.id}
                                   isAssistantRoom={isAssistantRoom(room)}
                                   onQuickReply={handleQuickReply}
+                                  quickReplyFailed={failedQuickReplyCardIds.has(item.message.id)}
                                   participants={room.participants}
                                   currentUserId={user.id}
                                   currentNickname={user.nickname}
@@ -1523,7 +1519,13 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           </Collapse>
         )}
 
-        {isAssistantRoom(room) && !isSelecting && <AssistantSuggestionChips visible={isComposerEmpty} onPick={handleAssistantChip} />}
+        <AssistantComposerChips
+          room={room}
+          isSelecting={isSelecting}
+          isComposerEmpty={isComposerEmpty}
+          inputRef={messageInputRef}
+          sendText={(text) => sendMessage({ content: text, type: 'text' })}
+        />
 
         <ComposerSlot
           isSelecting={isSelecting}
