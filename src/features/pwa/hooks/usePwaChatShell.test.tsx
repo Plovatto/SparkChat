@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../lib/push-subscription', () => ({ syncPushSubscription: mocks.sync }));
-vi.mock('../lib/launch-params', () => ({ takePendingLaunch: () => ({}) }));
+vi.mock('../lib/launch-params', () => ({ takePendingLaunch: () => ({}), takePendingReminder: () => null }));
 vi.mock('../lib/sw-registration', () => ({
   postToWorker: vi.fn(),
   onWorkerMessage: (listener: (message: WorkerToClientMessage) => void) => {

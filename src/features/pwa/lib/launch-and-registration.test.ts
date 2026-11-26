@@ -13,12 +13,15 @@ import {
 
 describe('launch params', () => {
   it('reads the room, the new chat shortcut and the install flag', () => {
-    expect(readLaunchIntent('?room=r1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null });
-    expect(readLaunchIntent('?action=new-chat')).toEqual({ roomId: null, newChat: true, install: false, answerCallId: null });
-    expect(readLaunchIntent('?install=1')).toEqual({ roomId: null, newChat: false, install: true, answerCallId: null });
-    expect(readLaunchIntent('?room=r1&call=c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: 'c1' });
-    expect(readLaunchIntent('?room=r1&call=../c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null });
-    expect(readLaunchIntent('?room=../../x&install=yes')).toEqual({ roomId: null, newChat: false, install: false, answerCallId: null });
+    expect(readLaunchIntent('?room=r1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null, reminder: null });
+    expect(readLaunchIntent('?action=new-chat')).toEqual({ roomId: null, newChat: true, install: false, answerCallId: null, reminder: null });
+    expect(readLaunchIntent('?install=1')).toEqual({ roomId: null, newChat: false, install: true, answerCallId: null, reminder: null });
+    expect(readLaunchIntent('?room=r1&call=c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: 'c1', reminder: null });
+    expect(readLaunchIntent('?room=r1&call=../c1')).toEqual({ roomId: 'r1', newChat: false, install: false, answerCallId: null, reminder: null });
+    expect(readLaunchIntent('?room=../../x&install=yes')).toEqual({ roomId: null, newChat: false, install: false, answerCallId: null, reminder: null });
+    expect(readLaunchIntent('?room=r1&reminder=rem1&reminderAction=snooze10').reminder).toEqual({ roomId: 'r1', reminderId: 'rem1', action: 'snooze10' });
+    expect(readLaunchIntent('?room=r1&reminder=rem1&reminderAction=snooze60').reminder).toBeNull();
+    expect(readLaunchIntent('?reminder=rem1&reminderAction=done').reminder).toBeNull();
   });
 
   it('strips only its own params and keeps deep links and the invite fragment', () => {
@@ -26,6 +29,7 @@ describe('launch params', () => {
     expect(stripLaunchParams('https://chat.example/app/?startChat=bob')).toBeNull();
     expect(stripLaunchParams('https://chat.example/app/?room=r1&call=c1&startChat=bob#invite=abc')).toBe('/app/?startChat=bob#invite=abc');
     expect(stripLaunchParams('https://chat.example/app/?install=1')).toBe('/app/');
+    expect(stripLaunchParams('https://chat.example/app/?room=r1&reminder=rem1&reminderAction=done')).toBe('/app/');
   });
 });
 

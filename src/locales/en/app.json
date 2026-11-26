@@ -450,6 +450,7 @@
       },
       "card": {
         "choicesLabel": "Quick replies",
+        "reminderFired": "Reminder",
         "resolved": "✓ {{label}}",
         "confirmReminder": "Reminder: {{text}} at {{when}}",
         "confirmStatus": "Status: {{text}} until {{when}}",

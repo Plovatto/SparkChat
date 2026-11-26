@@ -6,10 +6,27 @@ export const LAUNCH_ROOM_PARAM = 'room';
 export const LAUNCH_CALL_PARAM = 'call';
 export const LAUNCH_ACTION_PARAM = 'action';
 export const LAUNCH_INSTALL_PARAM = 'install';
+export const LAUNCH_REMINDER_PARAM = 'reminder';
+export const LAUNCH_REMINDER_ACTION_PARAM = 'reminderAction';
 export const LAUNCH_NEW_CHAT_ACTION = 'new-chat';
 
 export const NOTIFICATION_ACTION_ANSWER = 'answer';
 export const NOTIFICATION_ACTION_DECLINE = 'decline';
+export const NOTIFICATION_ACTION_REMINDER_DONE = 'reminder-done';
+export const NOTIFICATION_ACTION_REMINDER_SNOOZE = 'reminder-snooze10';
+
+export type ReminderActionChoice = 'done' | 'snooze10';
+
+export function isReminderActionChoice(value: unknown): value is ReminderActionChoice {
+  return value === 'done' || value === 'snooze10';
+}
+
+export function reminderChoiceFromNotificationAction(action: string): ReminderActionChoice | null {
+  if (action === NOTIFICATION_ACTION_REMINDER_DONE) {
+    return 'done';
+  }
+  return action === NOTIFICATION_ACTION_REMINDER_SNOOZE ? 'snooze10' : null;
+}
 
 export type ClientToWorkerMessage =
   | { type: 'sparkchat:locale'; language: 'pt' | 'en' }
@@ -18,6 +35,7 @@ export type ClientToWorkerMessage =
 export type WorkerToClientMessage =
   | { type: 'sparkchat:open-room'; roomId: string; callId?: string }
   | { type: 'sparkchat:call-decline'; callId: string }
+  | { type: 'sparkchat:reminder-action'; reminderId: string; roomId: string; action: ReminderActionChoice }
   | { type: 'sparkchat:push-subscription-changed' };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -36,6 +54,8 @@ export function isWorkerToClientMessage(value: unknown): value is WorkerToClient
       return isSafeId(message.roomId) && (message.callId === undefined || isSafeId(message.callId));
     case 'sparkchat:call-decline':
       return isSafeId(message.callId);
+    case 'sparkchat:reminder-action':
+      return isSafeId(message.reminderId) && isSafeId(message.roomId) && isReminderActionChoice(message.action);
     case 'sparkchat:push-subscription-changed':
       return true;
     default:
@@ -57,13 +77,17 @@ export function isClientToWorkerMessage(value: unknown): value is ClientToWorker
   return false;
 }
 
-export function buildLaunchUrl(scope: string, params: { roomId?: string; callId?: string } = {}): string {
+export function buildLaunchUrl(scope: string, params: { roomId?: string; callId?: string; reminderId?: string; reminderAction?: ReminderActionChoice } = {}): string {
   const url = new URL(scope);
   if (params.roomId) {
     url.searchParams.set(LAUNCH_ROOM_PARAM, params.roomId);
   }
   if (params.callId) {
     url.searchParams.set(LAUNCH_CALL_PARAM, params.callId);
+  }
+  if (params.reminderId && params.reminderAction) {
+    url.searchParams.set(LAUNCH_REMINDER_PARAM, params.reminderId);
+    url.searchParams.set(LAUNCH_REMINDER_ACTION_PARAM, params.reminderAction);
   }
   return url.href;
 }

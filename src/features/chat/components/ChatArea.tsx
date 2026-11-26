@@ -21,6 +21,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
 import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { ActiveRoomContext } from '../hooks/active-room-context';
+import { useReminderActions } from '../hooks/useReminderActions';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
 import { useDeleteForEveryone } from '../hooks/useDeleteForEveryone';
@@ -927,6 +928,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     },
     [sendMessage],
   );
+
+  useReminderActions({ roomId: room?.id ?? null, isLoaded: areMessagesLoaded, messages, onQuickReply: handleQuickReply });
 
   if (!room) {
     return <EmptyChatState />;

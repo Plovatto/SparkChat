@@ -77,6 +77,24 @@ export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, 
       return <AssistantLookCard look={card.look} applied={false} replies={replies} />;
     case 'look-applied':
       return <AssistantLookCard look={card.look} applied replies={replies} />;
+    case 'reminder-fired':
+      return (
+        <div className="sc-assistant-card sc-assistant-card-reminder" data-testid="assistant-reminder-card">
+          <div className="sc-assistant-reminder-head">
+            <span className="sc-assistant-reminder-bell" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+              </svg>
+            </span>
+            <div className="sc-assistant-reminder-body">
+              <span className="sc-assistant-reminder-label">{t('chat.assistant.card.reminderFired')}</span>
+              <p className="sc-assistant-reminder-text">{card.text}</p>
+            </div>
+          </div>
+          {replies}
+        </div>
+      );
     case 'help':
       return <AssistantHelpCard target={card.target} />;
     default:

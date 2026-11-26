@@ -4,7 +4,11 @@ import {
   LAUNCH_CALL_PARAM,
   LAUNCH_INSTALL_PARAM,
   LAUNCH_NEW_CHAT_ACTION,
+  LAUNCH_REMINDER_ACTION_PARAM,
+  LAUNCH_REMINDER_PARAM,
   LAUNCH_ROOM_PARAM,
+  isReminderActionChoice,
+  type ReminderActionChoice,
 } from '../sw/protocol';
 
 export interface LaunchIntent {
@@ -12,15 +16,19 @@ export interface LaunchIntent {
   newChat: boolean;
   install: boolean;
   answerCallId: string | null;
+  reminder: { roomId: string; reminderId: string; action: ReminderActionChoice } | null;
 }
 
-const LAUNCH_PARAMS = [LAUNCH_ROOM_PARAM, LAUNCH_CALL_PARAM, LAUNCH_ACTION_PARAM, LAUNCH_INSTALL_PARAM];
+const LAUNCH_PARAMS = [LAUNCH_ROOM_PARAM, LAUNCH_CALL_PARAM, LAUNCH_ACTION_PARAM, LAUNCH_INSTALL_PARAM, LAUNCH_REMINDER_PARAM, LAUNCH_REMINDER_ACTION_PARAM];
 
 export function readLaunchIntent(search: string): LaunchIntent {
   const params = new URLSearchParams(search);
   const roomId = params.get(LAUNCH_ROOM_PARAM);
   const callId = params.get(LAUNCH_CALL_PARAM);
+  const reminderId = params.get(LAUNCH_REMINDER_PARAM);
+  const reminderAction = params.get(LAUNCH_REMINDER_ACTION_PARAM);
   return {
+    reminder: isSafeId(roomId) && isSafeId(reminderId) && isReminderActionChoice(reminderAction) ? { roomId, reminderId, action: reminderAction } : null,
     roomId: isSafeId(roomId) ? roomId : null,
     answerCallId: isSafeId(callId) ? callId : null,
     newChat: params.get(LAUNCH_ACTION_PARAM) === LAUNCH_NEW_CHAT_ACTION,
@@ -37,7 +45,7 @@ export function stripLaunchParams(href: string): string | null {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-let pending: LaunchIntent = { roomId: null, newChat: false, install: false, answerCallId: null };
+let pending: LaunchIntent = { roomId: null, newChat: false, install: false, answerCallId: null, reminder: null };
 
 export function captureLaunchIntent(): LaunchIntent {
   if (typeof window === 'undefined') {
@@ -61,4 +69,10 @@ export function takePendingAnswer(): string | null {
   const { answerCallId } = pending;
   pending = { ...pending, answerCallId: null };
   return answerCallId;
+}
+
+export function takePendingReminder(): { roomId: string; reminderId: string; action: ReminderActionChoice } | null {
+  const { reminder } = pending;
+  pending = { ...pending, reminder: null };
+  return reminder;
 }

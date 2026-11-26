@@ -15,6 +15,10 @@ export interface WorkerStrings {
   photo: string;
   audio: string;
   file: string;
+  reminderTitle: string;
+  reminderBodyFallback: string;
+  reminderDone: string;
+  reminderSnooze10: string;
 }
 
 export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
@@ -35,6 +39,10 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     photo: '📷 Foto',
     audio: '🎤 Áudio',
     file: '📎 Arquivo',
+    reminderTitle: '⏰ Lembrete',
+    reminderBodyFallback: 'Você tem um lembrete do SparkAI',
+    reminderDone: 'Concluído',
+    reminderSnooze10: 'Adiar 10 min',
   },
   en: {
     incomingCall: 'Incoming call',
@@ -53,5 +61,9 @@ export const WORKER_STRINGS: Record<'pt' | 'en', WorkerStrings> = {
     photo: '📷 Photo',
     audio: '🎤 Audio',
     file: '📎 File',
+    reminderTitle: '⏰ Reminder',
+    reminderBodyFallback: 'You have a reminder from SparkAI',
+    reminderDone: 'Done',
+    reminderSnooze10: 'Snooze 10 min',
   },
 };

@@ -8,5 +8,6 @@ export { UpdateToast } from './components/UpdateToast';
 export { isInstallAvailable, requestInstall } from './lib/install-state';
 export { useInstallState } from './hooks/useInstallState';
 export { useNotificationMirror } from './hooks/useNotificationMirror';
+export { queueReminderAction, subscribeReminderActions, type ReminderAction } from './lib/reminder-actions';
 export { usePwaChatShell } from './hooks/usePwaChatShell';
 export { clearLocalPushSubscription, emitPushUnsubscribeForLogout } from './lib/push-subscription';
