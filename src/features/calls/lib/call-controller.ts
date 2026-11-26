@@ -402,6 +402,8 @@ export class CallController {
   private pendingAnswer: { callId: string; until: number } | null = null;
   private readonly pendingDeclines = new Map<string, number>();
   private preparingPeerId: string | null = null;
+  private readonly incomingPeers = new Map<string, number>();
+  private preparingCallerId: string | null = null;
   private glareInvite: Parameters<CallController['onIncoming']>[0] | null = null;
   private glarePeer: { peerId: string; until: number } | null = null;
   private readonly resumeAttempts = new Set<string>();
@@ -563,7 +565,26 @@ export class CallController {
     this.update({ enabled: payload.enabled === true });
   }
 
-  private async onIncoming(payload: {
+  private async onIncoming(payload: Parameters<CallController['receiveIncoming']>[0]): Promise<void> {
+    const callerId = typeof payload.callerId === 'string' ? payload.callerId : null;
+    if (callerId) {
+      this.incomingPeers.set(callerId, (this.incomingPeers.get(callerId) ?? 0) + 1);
+    }
+    try {
+      await this.receiveIncoming(payload);
+    } finally {
+      if (callerId) {
+        const left = (this.incomingPeers.get(callerId) ?? 1) - 1;
+        if (left > 0) {
+          this.incomingPeers.set(callerId, left);
+        } else {
+          this.incomingPeers.delete(callerId);
+        }
+      }
+    }
+  }
+
+  private async receiveIncoming(payload: {
     callId: string;
     roomId: string;
     kind: CallKind;
@@ -588,9 +609,13 @@ export class CallController {
       return;
     }
     if (this.preparing || isCallLive(this.machine.getState()) || this.knownCallIds.has(payload.callId)) {
+      if (!this.knownCallIds.has(payload.callId) && payload.callerId === this.outgoingPeer()) {
+        this.glareInvite = payload;
+      }
       return;
     }
     this.preparing = true;
+    this.preparingCallerId = payload.callerId;
     let autoAnswer: boolean;
     try {
       const resolved = await this.deps.resolvePeer(payload.callerId);
@@ -655,6 +680,10 @@ export class CallController {
       return;
     } finally {
       this.preparing = false;
+      this.preparingCallerId = null;
+      if (this.glarePeer?.peerId === payload.callerId) {
+        this.glarePeer = null;
+      }
     }
     if (autoAnswer) {
       await this.accept();
@@ -728,6 +757,10 @@ export class CallController {
   async startCall(input: { roomId: string; peerId: string; kind: CallKind }): Promise<void> {
     if (!this.disposed && !this.preparing && this.isRingingFrom(input.roomId, input.peerId)) {
       return this.accept();
+    }
+    if (!this.disposed && this.preparing && this.preparingCallerId === input.peerId) {
+      this.glarePeer = { peerId: input.peerId, until: this.deps.now() + GLARE_WINDOW_MS };
+      return;
     }
     if (this.disposed || this.preparing || isCallLive(this.machine.getState())) {
       return;
@@ -1630,7 +1663,8 @@ export class CallController {
     }
     if (event === 'call:start' && session && this.machine.getState().phase === 'outgoing-ringing') {
       const invite = this.glareInvite?.callerId === session.peerId ? this.glareInvite : null;
-      if ((invite && code === 'call.peerBusy') || code === 'call.alreadyInCall') {
+      const crossing = invite !== null || this.incomingPeers.has(session.peerId);
+      if ((crossing && code === 'call.peerBusy') || code === 'call.alreadyInCall') {
         this.resolveGlare(session, invite);
         return;
       }

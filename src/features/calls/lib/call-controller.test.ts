@@ -3529,6 +3529,105 @@ describe('same tab recovery and glare', () => {
     expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
   });
 
+  it('answers the call when calling back the same person while their invite is still being opened', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let w: World | null = null;
+    w = await world({
+      bobResolve: async () => {
+        await gate;
+        return { peer: (w as World).alice.pinned };
+      },
+    });
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state.phase).toBe('idle');
+
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+    release();
+    await settle();
+    await settle();
+
+    expect(w.b.socket.sent('call:start')).toEqual([]);
+    expect(w.b.socket.sent('call:accept')).toHaveLength(1);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+    expect(w.a.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
+  it('does not keep auto answering after calling back during an invite that then fails to open', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let calls = 0;
+    let w: World | null = null;
+    w = await world({
+      bobResolve: async () => {
+        calls += 1;
+        if (calls === 1) {
+          await gate;
+          return { error: 'unverifiable' };
+        }
+        return { peer: (w as World).alice.pinned };
+      },
+    });
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await settle();
+    release();
+    await settle();
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+    w.a.controller.hangup();
+    await settle();
+    w.a.controller.dismissEnded();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(w.b.controller.getSnapshot().state.phase).toBe('incoming-ringing');
+    expect(w.b.socket.sent('call:accept')).toEqual([]);
+  });
+
+  it('keeps the invite of the person it is calling when it arrives while the private room is still loading', async () => {
+    let roomReady = false;
+    const w = await world({ bob: { isPrivateRoomWith: () => roomReady } });
+    const bRoute = w.b.socket.onEmit;
+    let aStart: Record<string, unknown> | null = null;
+    const aRoute = w.a.socket.onEmit;
+    w.a.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        aStart = payload;
+      }
+      aRoute?.(event, payload);
+    };
+    let bStarts = 0;
+    w.b.socket.onEmit = (event, payload) => {
+      if (event === 'call:start') {
+        bStarts += 1;
+        w.b.socket.receive('error', { event: 'call:start', code: 'call.peerBusy', message: 'x', params: { callId: payload.callId } });
+        return;
+      }
+      bRoute?.(event, payload);
+    };
+
+    void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
+    await settle();
+    expect(aStart).not.toBeNull();
+    roomReady = true;
+    void w.b.controller.startCall({ roomId: 'room-1', peerId: 'alice', kind: 'voice' });
+    await vi.advanceTimersByTimeAsync(2_000);
+    await settle();
+
+    expect(bStarts).toBe(1);
+    expect(w.b.controller.getSnapshot().notice).toBeNull();
+    expect(w.b.socket.sent('call:accept')).toEqual([expect.objectContaining({ callId: (aStart as unknown as Record<string, unknown>).callId })]);
+    expect(w.b.controller.getSnapshot().state.phase).toBe('connecting');
+  });
+
   it('keeps ignoring a call to someone else while another person is ringing', async () => {
     const w = await world();
     void w.a.controller.startCall({ roomId: 'room-1', peerId: 'bob', kind: 'voice' });
