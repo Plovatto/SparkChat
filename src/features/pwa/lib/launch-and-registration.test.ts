@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { resolvePushStatus, type PushStatusInput } from '../hooks/usePushNotifications';
-import { readLaunchIntent, stripLaunchParams } from './launch-params';
+import { captureLaunchIntent, readLaunchIntent, stripLaunchParams, takePendingReminder } from './launch-params';
 import {
   dismissUpdate,
   isUpdateAvailable,
@@ -10,6 +10,21 @@ import {
   resetServiceWorkerStateForTests,
   SW_UPDATE_CHECK_INTERVAL_MS,
 } from './sw-registration';
+
+describe('pending reminder launch', () => {
+  it('captures the reminder once from the url and clears it after taking', () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', {
+      location: { search: '?room=r1&reminder=rem1&reminderAction=done', href: 'https://chat.example/app/?room=r1&reminder=rem1&reminderAction=done' },
+      history: { state: null, replaceState },
+    });
+    captureLaunchIntent();
+    expect(takePendingReminder()).toEqual({ roomId: 'r1', reminderId: 'rem1', action: 'done' });
+    expect(takePendingReminder()).toBeNull();
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/app/');
+    vi.unstubAllGlobals();
+  });
+});
 
 describe('launch params', () => {
   it('reads the room, the new chat shortcut and the install flag', () => {

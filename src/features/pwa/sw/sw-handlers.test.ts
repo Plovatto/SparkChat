@@ -591,6 +591,7 @@ describe('reminder notifications', () => {
     await handleNotificationClick(env, clicked, 'reminder-snooze10');
     expect(clicked.closed).toBe(true);
     expect(opened).toEqual([]);
+    expect(client.focusCalls).toBe(1);
     expect(client.messages).toEqual([{ type: 'sparkchat:reminder-action', reminderId: 'rem1', roomId: 'r1', action: 'snooze10' }]);
   });
 

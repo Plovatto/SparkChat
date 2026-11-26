@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { subscribeReminderActions, type ReminderAction } from '@features/pwa';
+import { REMINDER_ACTION_TTL_MS, subscribeReminderActions, type ReminderAction } from '@features/pwa';
 import type { AssistantButton } from '@lib/assistant/assistant-card';
 import type { ChatMessage } from '../types';
-
-const REMINDER_ACTION_TTL_MS = 15000;
 
 interface PendingReminderAction extends ReminderAction {
   expiresAt: number;
@@ -28,13 +26,21 @@ function findReminderCard(messages: ChatMessage[], reminderId: string): ChatMess
 
 export function useReminderActions({ roomId, isLoaded, messages, onQuickReply }: UseReminderActionsOptions): void {
   const [pending, setPending] = useState<PendingReminderAction[]>([]);
+  const sentRef = useRef(new Set<string>());
   const onQuickReplyRef = useRef(onQuickReply);
   onQuickReplyRef.current = onQuickReply;
 
   useEffect(
     () =>
       subscribeReminderActions((action) => {
-        setPending((current) => [...current, { ...action, expiresAt: Date.now() + REMINDER_ACTION_TTL_MS }]);
+        if (sentRef.current.has(action.reminderId)) {
+          return;
+        }
+        setPending((current) =>
+          current.some((entry) => entry.reminderId === action.reminderId)
+            ? current
+            : [...current, { ...action, expiresAt: action.queuedAt + REMINDER_ACTION_TTL_MS }],
+        );
       }),
     [],
   );
@@ -58,11 +64,12 @@ export function useReminderActions({ roomId, isLoaded, messages, onQuickReply }:
         remaining.push(entry);
         continue;
       }
-      if (message.resolvedChoice) {
+      if (message.resolvedChoice || sentRef.current.has(entry.reminderId)) {
         continue;
       }
       const button = message.card.buttons.find((candidate) => candidate.choice === entry.action);
       if (button) {
+        sentRef.current.add(entry.reminderId);
         onQuickReplyRef.current(message.id, button);
       }
     }

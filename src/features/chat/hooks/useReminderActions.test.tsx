@@ -47,6 +47,18 @@ describe('useReminderActions', () => {
     expect(onQuickReply).toHaveBeenCalledTimes(1);
   });
 
+  it('sends a single quick reply when the same reminder action arrives twice', () => {
+    const onQuickReply = vi.fn();
+    const messages = [card('c1', 'rem1')];
+    renderHook(() => useReminderActions({ roomId: 'room', isLoaded: true, messages, onQuickReply }));
+    act(() => {
+      queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'done' });
+      queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'done' });
+    });
+    act(() => queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'done' }));
+    expect(onQuickReply).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing when the card is missing or already answered', () => {
     vi.useFakeTimers();
     const onQuickReply = vi.fn();

@@ -2,15 +2,17 @@ import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from '@lib/socket';
 import type { WorkerToClientMessage } from '../sw/protocol';
+import { subscribeReminderActions } from '../lib/reminder-actions';
 import { usePwaChatShell } from './usePwaChatShell';
 
 const mocks = vi.hoisted(() => ({
   sync: vi.fn<(socket: unknown) => Promise<string | null>>(),
   workerListeners: new Set<(message: WorkerToClientMessage) => void>(),
+  pendingReminder: { current: null as { roomId: string; reminderId: string; action: 'done' | 'snooze10' } | null },
 }));
 
 vi.mock('../lib/push-subscription', () => ({ syncPushSubscription: mocks.sync }));
-vi.mock('../lib/launch-params', () => ({ takePendingLaunch: () => ({}), takePendingReminder: () => null }));
+vi.mock('../lib/launch-params', () => ({ takePendingLaunch: () => ({}), takePendingReminder: () => mocks.pendingReminder.current }));
 vi.mock('../lib/sw-registration', () => ({
   postToWorker: vi.fn(),
   onWorkerMessage: (listener: (message: WorkerToClientMessage) => void) => {
@@ -114,5 +116,35 @@ describe('usePwaChatShell push sync', () => {
 
     unmount();
     expect(socket.listeners('user:resumed')).toBe(0);
+  });
+});
+
+describe('usePwaChatShell reminder actions', () => {
+  beforeEach(() => {
+    mocks.sync.mockResolvedValue(null);
+    mocks.workerListeners.clear();
+    mocks.pendingReminder.current = null;
+  });
+
+  it('opens the room and queues the action when the service worker reports one', () => {
+    const onOpenRoom = vi.fn();
+    const received = vi.fn();
+    const unsubscribe = subscribeReminderActions(received);
+    renderHook(() => usePwaChatShell({ socket: null, selectedRoomId: null, language: 'pt', onOpenRoom, onNewChat: vi.fn() }));
+    mocks.workerListeners.forEach((listener) => listener({ type: 'sparkchat:reminder-action', reminderId: 'rem1', roomId: 'r1', action: 'snooze10' }));
+    unsubscribe();
+    expect(onOpenRoom).toHaveBeenCalledWith('r1');
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ reminderId: 'rem1', roomId: 'r1', action: 'snooze10' }));
+  });
+
+  it('opens the room and queues the action captured from the launch url', () => {
+    mocks.pendingReminder.current = { roomId: 'r2', reminderId: 'rem2', action: 'done' };
+    const onOpenRoom = vi.fn();
+    const received = vi.fn();
+    const unsubscribe = subscribeReminderActions(received);
+    renderHook(() => usePwaChatShell({ socket: null, selectedRoomId: null, language: 'pt', onOpenRoom, onNewChat: vi.fn() }));
+    unsubscribe();
+    expect(onOpenRoom).toHaveBeenCalledWith('r2');
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ reminderId: 'rem2', roomId: 'r2', action: 'done' }));
   });
 });

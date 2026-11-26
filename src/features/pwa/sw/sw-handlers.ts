@@ -504,6 +504,7 @@ export async function handleNotificationClick(env: WorkerEnvironment, notificati
     const { reminderId, roomId } = data;
     const target = pickClient(clients);
     if (target) {
+      await target.focus().catch(() => undefined);
       target.postMessage({ type: 'sparkchat:reminder-action', reminderId, roomId, action: reminderChoice });
       return;
     }
