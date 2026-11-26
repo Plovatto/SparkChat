@@ -13,6 +13,7 @@ interface AssistantCardViewProps {
   cardId: string;
   resolvedChoice?: QuickReplyChoice | undefined;
   failureToken?: string | undefined;
+  error?: string | undefined;
   onQuickReply: (cardId: string, button: AssistantButton) => void;
   onSendPrompt?: ((text: string) => void) | undefined;
   onPickPhoto?: (() => void) | undefined;
@@ -37,12 +38,19 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
   }
 }
 
-export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
+export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, error, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
   const { t } = useTranslation();
   const buttons = cardButtons(card);
   const replies =
     buttons.length > 0 ? (
-      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
+      <>
+        <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
+        {error && !resolvedChoice && (
+          <p className="sc-assistant-card-error" role="alert">
+            {error}
+          </p>
+        )}
+      </>
     ) : null;
 
   switch (card.kind) {

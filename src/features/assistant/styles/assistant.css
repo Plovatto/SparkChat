@@ -101,6 +101,13 @@
   background: color-mix(in srgb, var(--sc-accent) 18%, var(--sc-surface));
 }
 
+.sc-assistant-card-error {
+  margin: 0;
+  color: var(--sc-danger, #e5484d);
+  font-size: 0.8125rem;
+  animation: scAssistantRise 200ms var(--sc-ease-enter) backwards;
+}
+
 .sc-assistant-resolved {
   align-self: flex-start;
   padding: 4px 12px;
@@ -192,6 +199,7 @@
 @media (prefers-reduced-motion: reduce) {
   .sc-assistant-reply,
   .sc-assistant-resolved,
+  .sc-assistant-card-error,
   .sc-assistant-chips-wrap,
   .sc-assistant-chip {
     animation: none;

@@ -535,6 +535,16 @@ export interface ClientToServerEvents {
     attachmentUrls?: string[];
     quickReply?: QuickReply;
   }) => void;
+  'message:schedule': (payload: {
+    cardId: string;
+    roomId: string;
+    sendAt: number;
+    messageId?: string;
+    content: string;
+    type: 'text';
+    clientTempId?: string;
+  }) => void;
+  'message:unschedule': (payload: { id: string }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'user:set-locale': (payload: { locale: 'pt' | 'en' }) => void;
   'user:set-timezone': (payload: { timeZone: string }) => void;
