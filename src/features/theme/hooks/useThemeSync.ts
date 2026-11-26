@@ -27,7 +27,7 @@ function setPendingThemeChange(pending: boolean): void {
 
 export function useThemeSync(): void {
   const { socket } = useSocket();
-  const { baseTheme, colorTheme, changeTheme, changeBaseTheme, changeColorTheme } = useTheme();
+  const { baseTheme, colorTheme, changeTheme } = useTheme();
   const lastSyncedThemeId = useRef<string | null>(null);
   const hasResolvedServerTheme = useRef(false);
   const localThemeRef = useRef({ baseTheme, colorTheme });
@@ -64,13 +64,12 @@ export function useThemeSync(): void {
     };
 
     const applyRemoteTheme = (payload: SocketUserTheme) => {
-      if (!isThemeBaseId(payload.baseTheme) || !isColorThemeId(payload.colorTheme)) {
+      if (typeof payload !== 'object' || payload === null || !isThemeBaseId(payload.baseTheme) || !isColorThemeId(payload.colorTheme)) {
         return;
       }
       lastSyncedThemeId.current = `${payload.baseTheme}-${payload.colorTheme}`;
       setPendingThemeChange(false);
-      changeBaseTheme(payload.baseTheme);
-      changeColorTheme(payload.colorTheme);
+      changeTheme(lastSyncedThemeId.current);
     };
 
     socket.on('user:resumed', resolveFromServer);
@@ -81,7 +80,7 @@ export function useThemeSync(): void {
       socket.off('user:registered', resolveFromServer);
       socket.off('user:theme-updated', applyRemoteTheme);
     };
-  }, [socket, changeTheme, changeBaseTheme, changeColorTheme]);
+  }, [socket, changeTheme]);
 
   useEffect(() => {
     if (!socket || !hasResolvedServerTheme.current || !socket.active) {

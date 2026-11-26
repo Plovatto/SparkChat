@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildTheme } from '@features/theme';
 import type { ChatSettings } from '@features/theme/constants/chat-appearance';
 import { ThemeContext, type ThemeContextValue } from '@features/theme/theme-context';
+import type { AssistantLook } from '@lib/assistant/assistant-card';
 import { AssistantLookPreview } from './AssistantLookPreview';
 
 vi.mock('react-i18next', () => ({
@@ -60,5 +61,18 @@ describe('AssistantLookPreview clamping', () => {
     const { container } = render(wrap(<AssistantLookPreview look={{ colorTheme: 'standard', wallpaper: 'unsplash1', appearance: { overlayOpacity: 900 } }} />));
     const overlay = container.querySelector('.sc-appearance-preview-overlay') as HTMLElement;
     expect(overlay.style.backgroundColor).toBe('rgb(0, 0, 0)');
+  });
+});
+
+describe('AssistantLookPreview untrusted values', () => {
+  it('ignores non-numeric ranged values and invalid colors', () => {
+    const look = { wallpaper: 'unsplash1', appearance: { overlayOpacity: '900', ownBubbleColor: 'red', otherBubbleColor: '#00ff00' } } as unknown as AssistantLook;
+    const { container } = render(wrap(<AssistantLookPreview look={look} />));
+    const overlay = container.querySelector('.sc-appearance-preview-overlay') as HTMLElement;
+    expect(overlay.style.backgroundColor).toBe('rgba(0, 0, 0, 0.32)');
+    const outgoing = screen.getByText('chat.appearanceModal.previewOutgoing').parentElement as HTMLElement;
+    expect(outgoing.style.backgroundColor).not.toBe('red');
+    const incoming = screen.getByText('chat.appearanceModal.previewIncoming').parentElement as HTMLElement;
+    expect(incoming.style.backgroundColor).toContain('0, 255, 0');
   });
 });

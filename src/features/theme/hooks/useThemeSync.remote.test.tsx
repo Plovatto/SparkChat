@@ -39,7 +39,10 @@ vi.mock('../theme-context', async () => {
       themeState.current = state;
       return {
         ...state,
-        changeTheme: vi.fn(),
+        changeTheme: (themeId: string) => {
+          const [baseTheme = '', colorTheme = ''] = themeId.split('-');
+          setState((s) => ({ ...s, baseTheme, colorTheme }));
+        },
         changeBaseTheme: (baseTheme: string) => setState((s) => ({ ...s, baseTheme })),
         changeColorTheme: (colorTheme: string) => setState((s) => ({ ...s, colorTheme })),
       };

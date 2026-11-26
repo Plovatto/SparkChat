@@ -31,6 +31,9 @@ export interface ResolvedLook {
   changesWallpaper: boolean;
 }
 
+const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
+const COLOR_FIELDS = { ownBubbleColor: true, otherBubbleColor: true };
+
 function clampAppearance(patch: AssistantLook['appearance']): Partial<ChatAppearance> {
   const result: Partial<ChatAppearance> = {};
   for (const [field, value] of Object.entries(patch ?? {})) {
@@ -39,7 +42,7 @@ function clampAppearance(patch: AssistantLook['appearance']): Partial<ChatAppear
       if (Number.isFinite(value)) {
         Object.assign(result, { [field]: Math.min(range[1], Math.max(range[0], value)) });
       }
-    } else {
+    } else if (field in COLOR_FIELDS && (value === null || (typeof value === 'string' && HEX_COLOR.test(value)))) {
       Object.assign(result, { [field]: value });
     }
   }

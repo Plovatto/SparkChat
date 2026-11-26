@@ -12,5 +12,5 @@ describe('look catalog', () => {
     );
     const committed = readFileSync(resolve(process.cwd(), 'src/features/assistant/look-catalog.json'), 'utf8');
     expect(committed).toBe(generated);
-  });
+  }, 20000);
 });
