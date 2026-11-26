@@ -218,6 +218,7 @@
   display: flex;
   min-width: 0;
   animation: scAssistantCapIn 280ms var(--sc-ease-enter) backwards;
+  animation-delay: calc(var(--i, 0) * 40ms);
 }
 
 .sc-assistant-cap {

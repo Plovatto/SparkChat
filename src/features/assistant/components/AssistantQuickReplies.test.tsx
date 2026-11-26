@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AssistantButton } from '@lib/assistant/assistant-card';
+import { registerHelpOpener } from '../help-targets';
 import { AssistantCardView } from './AssistantCardView';
 import { AssistantQuickReplies } from './AssistantQuickReplies';
 
@@ -90,6 +91,18 @@ describe('AssistantCardView', () => {
   it('renders nothing for cards without a body yet', () => {
     const { container } = render(<AssistantCardView card={{ v: 1, kind: 'help', topic: 'themes', target: 'none' }} cardId="m" onQuickReply={vi.fn()} />);
     expect(container.firstChild).toBeNull();
+  });
+
+  it('renders the capabilities grid', () => {
+    render(<AssistantCardView card={{ v: 1, kind: 'capabilities' }} cardId="m" onQuickReply={vi.fn()} />);
+    expect(screen.getAllByRole('button')).toHaveLength(9);
+  });
+
+  it('renders the open button of a help card when the target can open', () => {
+    const unregister = registerHelpOpener('appearance', vi.fn());
+    render(<AssistantCardView card={{ v: 1, kind: 'help', topic: 'themes', target: 'appearance' }} cardId="m" onQuickReply={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'chat.assistant.help.open' })).toBeTruthy();
+    unregister();
   });
 
   it('renders list items', () => {

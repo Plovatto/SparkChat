@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ASSISTANT_CAPABILITY_ICONS, ASSISTANT_CAPABILITY_IDS, type AssistantCapabilityId } from '../assistant-capabilities';
 import '../styles/assistant.css';
@@ -23,7 +24,7 @@ export function AssistantCapabilities({ onSendPrompt, onPickPhoto }: AssistantCa
       {ASSISTANT_CAPABILITY_IDS.map((id, index) => {
         const Icon = ASSISTANT_CAPABILITY_ICONS[id];
         return (
-          <li key={id} className="sc-assistant-cap-item" style={{ animationDelay: `${index * 40}ms` }}>
+          <li key={id} className="sc-assistant-cap-item" style={{ '--i': index } as CSSProperties}>
             <button type="button" className="sc-assistant-cap" onClick={() => handlePick(id)}>
               <span className="sc-assistant-cap-icon" aria-hidden="true">
                 <Icon size={16} />

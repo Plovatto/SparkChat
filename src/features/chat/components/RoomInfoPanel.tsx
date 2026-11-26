@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuBan, LuChevronRight, LuCopy, LuCheck, LuImage, LuLink, LuLogOut, LuPhone, LuSearch, LuVideo } from 'react-icons/lu';
 import { MdTranslate } from 'react-icons/md';
@@ -18,6 +18,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isAssistantRoom } from '../utils/assistant';
 import { getGalleryMedia } from '../utils/gallery-media';
 import { jumpToMessage } from '../utils/jump-to-message';
+import { useConsumeViewRequest } from '../hooks/useConsumeViewRequest';
 import { ChatAppearanceActions, ChatAppearanceView } from './ChatAppearanceView';
 import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
@@ -135,11 +136,7 @@ export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUs
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [view, setView] = useState<InfoView>('main');
-  useEffect(() => {
-    if (isOpen && requestedView) {
-      setView(requestedView.view);
-    }
-  }, [isOpen, requestedView]);
+  useConsumeViewRequest(isOpen, requestedView, setView);
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);
