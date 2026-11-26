@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { MOTION_DURATION_MS, usePresence, type EntrancePhase } from '@features/motion';
 import { resolveBubbleStyle, useTheme } from '@features/theme';
 import { useInViewport } from '@hooks/useInViewport';
+import { AssistantCardView } from '@features/assistant/components/AssistantCardView';
+import type { AssistantButton } from '@lib/assistant/assistant-card';
 import { useAppLanguage } from '@lib/i18n/app-i18n';
 import { getMessageStatus, type MessageReceiptInfo } from '@lib/message-status';
 import type { RoomParticipant } from '@lib/socket';
@@ -50,6 +52,10 @@ interface MessageBubbleProps extends MessageBubbleActions {
   isGroupChat: boolean;
   roomId: string;
   isAssistantRoom?: boolean;
+  onQuickReply?: ((cardId: string, button: AssistantButton) => void) | undefined;
+  onAssistantPrompt?: ((text: string) => void) | undefined;
+  onAssistantPhoto?: (() => void) | undefined;
+  quickReplyFailureToken?: string | undefined;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
@@ -95,6 +101,10 @@ export const MessageBubble = memo(function MessageBubble({
   isGroupChat,
   roomId,
   isAssistantRoom = false,
+  onQuickReply,
+  onAssistantPrompt,
+  onAssistantPhoto,
+  quickReplyFailureToken,
   participants,
   currentUserId,
   currentNickname,
@@ -373,6 +383,9 @@ export const MessageBubble = memo(function MessageBubble({
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
           {reactionUi.overlays}
+          {isAssistantRoom && message.card && onQuickReply && (
+            <AssistantCardView card={message.card} cardId={message.id} resolvedChoice={message.resolvedChoice} failureToken={quickReplyFailureToken} onQuickReply={onQuickReply} onSendPrompt={onAssistantPrompt} onPickPhoto={onAssistantPhoto} />
+          )}
         </>
       }
     >

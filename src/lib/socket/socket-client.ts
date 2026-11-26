@@ -1,5 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import { currentLanguage } from '@lib/i18n/app-i18n';
+import { currentTimeZone } from './time-zone';
 import { wrapSocketWithE2e } from './e2e-socket';
 import { isSocketAuthenticated, setSocketAuthenticated } from './socket-auth-state';
 import type { ClientToServerEvents, ServerToClientEvents } from './socket-events';
@@ -49,7 +50,7 @@ export function createSocket(url: string): AppSocket {
     transports: ['websocket', 'polling'],
     rememberUpgrade: true,
     timeout: 20000,
-    auth: (callback) => callback({ locale: currentLanguage() }),
+    auth: (callback) => callback({ locale: currentLanguage(), timeZone: currentTimeZone() }),
   });
 
   holdEmitsUntilAuthenticated(socket);

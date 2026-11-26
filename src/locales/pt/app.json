@@ -364,7 +364,101 @@
   },
   "chat": {
     "assistant": {
-      "welcome": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!"
+      "welcome": "Oi! Eu sou o SparkAI 🤖✨ Bato papo e também te dou uma mão de verdade: troco seu tema, anoto, te lembro das coisas e muito mais. Dá uma olhada no que eu sei fazer 👇",
+      "welcomeLegacy": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!",
+      "capabilities": {
+        "label": "O que o SparkAI sabe fazer",
+        "themes": {
+          "title": "Sugiro temas 🎨",
+          "description": "Cores pro seu app",
+          "example": "Sugere um tema pra mim"
+        },
+        "fullLook": {
+          "title": "Monto um visual completo 🪄",
+          "description": "Tema, fundo e bolhas",
+          "example": "Sugere um visual completo pra mim"
+        },
+        "photoTheme": {
+          "title": "Crio um tema da sua foto 📸",
+          "description": "Sua foto vira tema",
+          "example": "Quero um tema a partir de uma foto"
+        },
+        "notes": {
+          "title": "Anoto o que quiser 📝",
+          "description": "Ideias e listas",
+          "example": "Anota que preciso comprar café"
+        },
+        "reminders": {
+          "title": "Te lembro (até toda semana) ⏰",
+          "description": "Eu te cutuco na hora",
+          "example": "Me lembra de beber água amanhã às 9h"
+        },
+        "status": {
+          "title": "Status com hora pra acabar 💬",
+          "description": "Some sozinho",
+          "example": "Põe meu status em reunião até 15h"
+        },
+        "scheduled": {
+          "title": "Agendo mensagens 📨",
+          "description": "Chega na hora certa",
+          "example": "Quero agendar uma mensagem"
+        },
+        "help": {
+          "title": "Te ensino a usar o SparkChat 🧭",
+          "description": "Dúvidas? Pergunta!",
+          "example": "Como eu mudo o papel de parede?"
+        },
+        "chat": {
+          "title": "E bato papo 😄",
+          "description": "Piada, ideia, desabafo",
+          "example": "Me conta uma piada"
+        }
+      },
+      "help": {
+        "open": "Abrir",
+        "openTarget": {
+          "appearance": "Abrir a aparência",
+          "profile": "Abrir o perfil",
+          "new-group": "Abrir novo grupo",
+          "notifications-settings": "Abrir as notificações",
+          "install": "Instalar o app",
+          "none": "Abrir"
+        }
+      },
+      "chips": {
+        "label": "Sugestões para o SparkAI",
+        "suggestTheme": "Sugere um tema 🎨",
+        "pickTheme": "Escolhe um tema pra mim ✨",
+        "suggestLook": "Sugere um visual completo 🪄",
+        "themeFromPhoto": "Tema da minha foto 📸",
+        "remindMe": "Me lembra de algo ⏰",
+        "myNotes": "Minhas notas 📝",
+        "timedStatus": "Status com prazo 💬",
+        "scheduleMessage": "Agendar mensagem 📨",
+        "whatCanYouDo": "O que você faz? 🤔"
+      },
+      "prompts": {
+        "suggestTheme": "Sugere um tema",
+        "pickTheme": "Escolhe um tema pra mim",
+        "suggestLook": "Sugere um visual completo",
+        "themeFromPhoto": "Quero um tema a partir de uma foto",
+        "remindMe": "Me lembra de algo",
+        "myNotes": "Minhas notas",
+        "timedStatus": "Quero um status com prazo",
+        "scheduleMessage": "Quero agendar uma mensagem",
+        "whatCanYouDo": "/ajuda"
+      },
+      "card": {
+        "choicesLabel": "Respostas rápidas",
+        "resolved": "✓ {{label}}",
+        "confirmReminder": "Lembrete: {{text}} em {{when}}",
+        "confirmStatus": "Status: {{text}} até {{when}}",
+        "confirmScheduled": "Mensagem para {{recipient}}: {{text}} em {{when}}",
+        "confirmDeleteNote": "Apagar nota: {{preview}}",
+        "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
+        "lookSuggestion": "Sugestão de visual",
+        "lookApplied": "Visual aplicado"
+      }
     },
     "empty": {
       "title": "Selecione uma conversa",

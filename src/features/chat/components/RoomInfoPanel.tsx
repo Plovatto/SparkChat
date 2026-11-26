@@ -18,6 +18,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isAssistantRoom } from '../utils/assistant';
 import { getGalleryMedia } from '../utils/gallery-media';
 import { jumpToMessage } from '../utils/jump-to-message';
+import { useConsumeViewRequest } from '../hooks/useConsumeViewRequest';
 import { ChatAppearanceActions, ChatAppearanceView } from './ChatAppearanceView';
 import { ContactSecurityLink } from './ContactSecurityLink';
 import { GroupInviteSection } from './GroupInviteSection';
@@ -40,6 +41,7 @@ interface RoomInfoPanelProps {
   messagesLoaded: boolean;
   onLeftGroup: () => void;
   autoTranslate?: RoomAutoTranslateProps;
+  requestedView?: { view: InfoView; nonce: number } | undefined;
 }
 
 interface RoomAutoTranslateProps {
@@ -129,11 +131,12 @@ function FooterRow({ icon, label, onClick, tone, withChevron = false }: FooterRo
   );
 }
 
-export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate }: RoomInfoPanelProps) {
+export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate, requestedView }: RoomInfoPanelProps) {
   const { t } = useTranslation();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [view, setView] = useState<InfoView>('main');
+  useConsumeViewRequest(isOpen, requestedView, setView);
   const [selectedMedia, setSelectedMedia] = useState<MessageView | null>(null);
   const [viewerPhoto, setViewerPhoto] = useState<string | null>(null);
   const [isGroupPhotoConfirmOpen, setIsGroupPhotoConfirmOpen] = useState(false);

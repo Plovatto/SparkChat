@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { QuickReply, QuickReplyChoice } from '@lib/assistant/assistant-card';
 import { MOTION_DURATION_MS } from '@features/motion';
 import { isEncryptedMediaUrl, subscribeRoomKeyAvailable } from '@lib/e2ee';
 import { translateErrorPayload } from '@lib/api/api-error';
@@ -50,6 +51,7 @@ export interface SendMessageInput {
   caption?: string;
   linkPreview?: MessageLinkPreview;
   messageId?: string;
+  quickReply?: QuickReply;
 }
 
 export interface RoomMessagesState {
@@ -555,11 +557,25 @@ export function useRoomMessages(
       }
       const current = messagesRef.current.find((message) => message.id === updated.id);
       const reactions = overlayPendingReaction(updated.id, updated.reactions ?? current?.reactions ?? []);
-      updatePendingSnapshots(updated.id, (message) => ({ ...updated, reactions, exiting: message.exiting }));
+      const resolvedChoice = updated.resolvedChoice ?? current?.resolvedChoice;
+      const resolved = {
+        ...(resolvedChoice ? { resolvedChoice } : {}),
+        ...(!updated.card && current?.card ? { card: current.card } : {}),
+      };
+      updatePendingSnapshots(updated.id, (message) => ({ ...updated, ...resolved, reactions, exiting: message.exiting }));
       setMessages((previous) =>
         mapChanged(previous, (message) =>
-          message.id === updated.id ? { ...updated, reactions, ...(message.exiting ? { exiting: true } : {}) } : message,
+          message.id === updated.id ? { ...updated, ...resolved, reactions, ...(message.exiting ? { exiting: true } : {}) } : message,
         ),
+      );
+    };
+
+    const handleCardResolved = ({ roomId: resolvedRoomId, cardId, choice }: { roomId: string; cardId: string; choice: QuickReplyChoice }) => {
+      if (resolvedRoomId !== roomId) {
+        return;
+      }
+      setMessages((previous) =>
+        mapChanged(previous, (message) => (message.id === cardId ? { ...message, resolvedChoice: choice } : message)),
       );
     };
 
@@ -590,6 +606,7 @@ export function useRoomMessages(
     socket.on('message:updated', handleMessageUpdated);
     socket.on('message:hidden', handleMessageHidden);
     socket.on('message:reactions-updated', handleReactionsUpdated);
+    socket.on('message:card-resolved', handleCardResolved);
 
     return () => {
       socket.off('messages:list', handleMessagesList);
@@ -604,6 +621,7 @@ export function useRoomMessages(
       socket.off('message:updated', handleMessageUpdated);
       socket.off('message:hidden', handleMessageHidden);
       socket.off('message:reactions-updated', handleReactionsUpdated);
+      socket.off('message:card-resolved', handleCardResolved);
     };
   }, [
     socket,
@@ -646,6 +664,7 @@ export function useRoomMessages(
         linkPreview: input.linkPreview ?? null,
         clientTempId,
         ...(input.messageId ? { messageId: input.messageId } : {}),
+        ...(input.quickReply ? { quickReply: input.quickReply } : {}),
         pending: true,
       };
 
@@ -667,6 +686,7 @@ export function useRoomMessages(
         caption: input.caption,
         linkPreview: input.linkPreview,
         attachmentUrls: linkPreviewAttachmentUrls(input.linkPreview),
+        quickReply: input.quickReply,
       });
     },
     [socket, roomId, currentUser, schedulePendingTimeout],
@@ -699,6 +719,7 @@ export function useRoomMessages(
         caption: target.caption ?? undefined,
         linkPreview: target.linkPreview ?? undefined,
         attachmentUrls: linkPreviewAttachmentUrls(target.linkPreview),
+        quickReply: target.quickReply,
       });
     },
     [socket, schedulePendingTimeout],

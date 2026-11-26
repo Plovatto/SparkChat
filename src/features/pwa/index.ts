@@ -5,6 +5,8 @@ export { PushNotificationsRow } from './components/PushNotificationsRow';
 export { PwaCallBridge } from './components/PwaCallBridge';
 export { PwaOnboardingCard } from './components/PwaOnboardingCard';
 export { UpdateToast } from './components/UpdateToast';
+export { isInstallAvailable, requestInstall } from './lib/install-state';
+export { useInstallState } from './hooks/useInstallState';
 export { useNotificationMirror } from './hooks/useNotificationMirror';
 export { usePwaChatShell } from './hooks/usePwaChatShell';
 export { clearLocalPushSubscription, emitPushUnsubscribeForLogout } from './lib/push-subscription';

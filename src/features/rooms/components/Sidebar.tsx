@@ -17,6 +17,7 @@ import {
   FaTimes,
   FaTrash,
 } from 'react-icons/fa';
+import { useHelpOpener } from '@features/assistant/help-targets';
 import { ConfirmDialog } from '@components/common/ConfirmDialog';
 import { IconPillButton } from '@components/common/IconPillButton';
 import type { User } from '@features/auth';
@@ -112,6 +113,8 @@ export function Sidebar({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const openProfileFromHelp = useCallback(() => setIsProfileOpen(true), []);
+  useHelpOpener('profile', openProfileFromHelp);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [themeMenuPosition, setThemeMenuPosition] = useState({ top: 0, right: 0 });
   const [isEditingStatus, setIsEditingStatus] = useState(false);

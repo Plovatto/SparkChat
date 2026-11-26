@@ -33,6 +33,7 @@ import { CallProvider } from '@features/calls';
 import { KeyTransparencyBanner } from '@features/key-transparency';
 import { PendingPhotoFailedToast, queuePendingMyPhoto } from '@features/profile-photos';
 import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardingCard, UpdateToast, useNotificationMirror, usePwaChatShell } from '@features/pwa';
+import { useHelpOpener } from '@features/assistant/help-targets';
 import { GroupRemovedToast, NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -48,6 +49,7 @@ import { AppBackground } from './AppBackground';
 import { DEFERRED_FEATURE_PRELOADS } from './deferred-preloads';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
 import { hasDeepLinkParams, isDeepLinkError, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
+import { useTimeZoneSync } from './useTimeZoneSync';
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
@@ -230,6 +232,7 @@ function AuthGate({
     }
   }, [socket, currentUserId, language]);
 
+  useTimeZoneSync(socket, currentUserId);
   useThemeSync();
   useChatSettingsSync();
 
@@ -305,6 +308,8 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const isSidebarCollapsed = isWideLayout && isInfoColumnOpen;
   const { rooms, isLoaded, typingUserIds, recordingUserIds } = useRooms(selectedRoomId, user.id);
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
+  const openNewChatFromHelp = useCallback(() => setIsNewChatOpen(true), []);
+  useHelpOpener('new-group', openNewChatFromHelp);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
 
   const [deepLinkIntents, setDeepLinkIntents] = useState<DeepLinkIntent[]>(() =>
@@ -369,6 +374,12 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const handleNotificationsGranted = useCallback(() => {
     void enableNotificationPreference();
   }, [enableNotificationPreference]);
+
+  const canEnableNotificationsFromHelp = notificationPreference.isSupported && !notificationPreference.isEnabled && notificationPreference.permission !== 'denied';
+  const enableNotificationsFromHelp = useCallback(() => {
+    void enableNotificationPreference();
+  }, [enableNotificationPreference]);
+  useHelpOpener('notifications-settings', canEnableNotificationsFromHelp ? enableNotificationsFromHelp : null);
 
   const handleToggleNotifications = () => {
     if (notificationPreference.isEnabled) {

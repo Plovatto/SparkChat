@@ -5,6 +5,9 @@ import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
+import type { AssistantButton } from '@lib/assistant/assistant-card';
+import { useHelpOpener } from '@features/assistant/help-targets';
+import { AssistantComposerChips } from '@features/assistant/components/AssistantComposerChips';
 import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -129,6 +132,20 @@ function buildDayGroups(renderItems: RenderItem[]): DayGroup[] {
   }
 
   return groups;
+}
+
+const RUN_POSITIONS = {
+  firstLast: { isFirstInRun: true, isLastInRun: true },
+  firstOnly: { isFirstInRun: true, isLastInRun: false },
+  lastOnly: { isFirstInRun: false, isLastInRun: true },
+  middle: { isFirstInRun: false, isLastInRun: false },
+} as const;
+
+function runPosition(isFirstInRun: boolean, isLastInRun: boolean) {
+  if (isFirstInRun) {
+    return isLastInRun ? RUN_POSITIONS.firstLast : RUN_POSITIONS.firstOnly;
+  }
+  return isLastInRun ? RUN_POSITIONS.lastOnly : RUN_POSITIONS.middle;
 }
 
 function receiptKey(receipt: MessageReceiptInfo): string {
@@ -283,6 +300,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const visibleReceiptsRef = useRef<Map<string, MessageReceiptInfo>>(new Map());
   const auth = useMemo(() => ({ userId: user.id, sessionToken: user.sessionToken }), [user.id, user.sessionToken]);
 
+  const messageSender = useMemo(() => ({ id: user.id, nickname: user.nickname, avatar: user.avatar }), [user.id, user.nickname, user.avatar]);
+
   const captureScrollAnchor = useCallback(() => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -305,7 +324,16 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     dismissHideFailure,
     reactToMessage,
     reactionFailure,
-  } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
+  } = useRoomMessages(room?.id ?? null, messageSender, captureScrollAnchor);
+  const failedQuickReplyTokens = useMemo(() => {
+    const tokens = new Map<string, string>();
+    for (const message of messages) {
+      if (message.failed && message.quickReply) {
+        tokens.set(message.quickReply.cardId, message.id);
+      }
+    }
+    return tokens;
+  }, [messages]);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
   const lastRepliedMessageRef = useRef<MessageView | null>(null);
@@ -349,8 +377,15 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const isAtBottomRef = useRef(true);
   const activityRef = useRef({ typing: false, recording: false });
   const messageInputRef = useRef<MessageInputHandle>(null);
+  const [isComposerEmpty, setIsComposerEmpty] = useState(true);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [requestedInfoView, setRequestedInfoView] = useState<{ view: 'appearance'; nonce: number } | undefined>(undefined);
+  const openAppearanceFromHelp = useCallback(() => {
+    setRequestedInfoView((previous) => ({ view: 'appearance', nonce: (previous?.nonce ?? 0) + 1 }));
+    setIsInfoOpen(true);
+  }, []);
+  useHelpOpener('appearance', room ? openAppearanceFromHelp : null);
   const isInfoInline = useMediaQuery(minWidthQuery(INFO_COLUMN_MIN_WIDTH_PX));
   const isInfoColumnOpen = isInfoOpen && isInfoInline && room !== null;
 
@@ -875,6 +910,24 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   );
   const roomNoticePresence = useLatchedPresence(roomNotice, MOTION_DURATION_MS.fast, roomId);
 
+  const sendAssistantPrompt = useCallback(
+    (text: string) => {
+      sendMessage({ content: text, type: 'text' });
+    },
+    [sendMessage],
+  );
+
+  const openAssistantPhotoPicker = useCallback(() => {
+    messageInputRef.current?.openAttachmentPicker();
+  }, []);
+
+  const handleQuickReply = useCallback(
+    (cardId: string, button: AssistantButton) => {
+      sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
+    },
+    [sendMessage],
+  );
+
   if (!room) {
     return <EmptyChatState />;
   }
@@ -1293,10 +1346,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                           const isOwn = anchorMessage.sender.id === user.id;
                           const previousItem = group.items[itemIndex - 1];
                           const nextItem = group.items[itemIndex + 1];
-                          const run = {
-                            isFirstInRun: !previousItem || !canJoinRun(renderItemAnchorMessage(previousItem), renderItemFirstMessage(item)),
-                            isLastInRun: !nextItem || !canJoinRun(anchorMessage, renderItemFirstMessage(nextItem)),
-                          };
+                          const run = runPosition(
+                            !previousItem || !canJoinRun(renderItemAnchorMessage(previousItem), renderItemFirstMessage(item)),
+                            !nextItem || !canJoinRun(anchorMessage, renderItemFirstMessage(nextItem)),
+                          );
                           const itemKey = renderItemKey(item);
                           const entrancePhase = getEntrancePhase();
                           const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
@@ -1328,6 +1381,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   isGroupChat={isGroupChat}
                                   roomId={room.id}
                                   isAssistantRoom={isAssistantRoom(room)}
+                                  onQuickReply={handleQuickReply}
+                                  onAssistantPrompt={sendAssistantPrompt}
+                                  onAssistantPhoto={openAssistantPhotoPicker}
+                                  quickReplyFailureToken={failedQuickReplyTokens.get(item.message.id)}
                                   participants={room.participants}
                                   currentUserId={user.id}
                                   currentNickname={user.nickname}
@@ -1506,6 +1563,14 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           </Collapse>
         )}
 
+        <AssistantComposerChips
+          room={room}
+          isSelecting={isSelecting}
+          isComposerEmpty={isComposerEmpty}
+          inputRef={messageInputRef}
+          sendText={sendAssistantPrompt}
+        />
+
         <ComposerSlot
           isSelecting={isSelecting}
           bar={<SelectionBar count={selectedIds.length} onCancel={clearSelection} onDelete={() => handleDeleteRequest(selectedIds)} />}
@@ -1523,6 +1588,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
             userBlocked={room.userBlocked}
             mentionCandidates={mentionCandidates}
             maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+            onEmptyChange={setIsComposerEmpty}
             auth={auth}
           />
         </ComposerSlot>
@@ -1554,6 +1620,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         messages={messages}
         messagesLoaded={areMessagesLoaded}
         onLeftGroup={handleLeftGroup}
+        requestedView={requestedInfoView}
         autoTranslate={
           translationMode === 'off'
             ? undefined

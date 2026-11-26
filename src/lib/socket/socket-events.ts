@@ -1,4 +1,5 @@
 import type { ApiErrorParams } from '@lib/api/api-error';
+import type { AssistantCard, QuickReply, QuickReplyChoice } from '@lib/assistant/assistant-card';
 import type { SystemEvent } from '@lib/format/system-event';
 
 export interface SocketErrorPayload {
@@ -216,6 +217,9 @@ export interface MessageView {
   eventTrust?: 'verified' | 'legacy' | 'unverified' | 'forged';
   unencrypted?: boolean;
   reactions?: MessageReaction[];
+  assistantCard?: string;
+  card?: AssistantCard | null;
+  resolvedChoice?: QuickReplyChoice;
 }
 
 export interface BlockStatusPayload {
@@ -429,6 +433,7 @@ export interface ServerToClientEvents {
   'typing:update': (payload: { roomId: string; users: string[] }) => void;
   'recording:update': (payload: { roomId: string; users: string[] }) => void;
   'message:deleted': (payload: { messageId: string; roomId: string }) => void;
+  'message:card-resolved': (payload: { roomId: string; cardId: string; choice: QuickReplyChoice }) => void;
   'message:hidden': (payload: MessageHiddenPayload) => void;
   'message:updated': (payload: MessageView) => void;
   'message:reactions-updated': (payload: MessageReactionsUpdatedPayload) => void;
@@ -527,9 +532,11 @@ export interface ClientToServerEvents {
     caption?: string;
     linkPreview?: MessageLinkPreview;
     attachmentUrls?: string[];
+    quickReply?: QuickReply;
   }) => void;
   'message:mark-read': (payload: { roomId: string; messageIds?: string[] }) => void;
   'user:set-locale': (payload: { locale: 'pt' | 'en' }) => void;
+  'user:set-timezone': (payload: { timeZone: string }) => void;
   'messages:get': (payload: { roomId: string; before?: string; limit?: number }) => void;
   'typing:start': (payload: { roomId: string }) => void;
   'typing:stop': (payload: { roomId: string }) => void;

@@ -364,7 +364,101 @@
   },
   "chat": {
     "assistant": {
-      "welcome": "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!"
+      "welcome": "Hi! I'm SparkAI 🤖✨ I chat and I also lend a real hand: I change your theme, take notes, remind you of things and more. Take a look at what I can do 👇",
+      "welcomeLegacy": "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!",
+      "capabilities": {
+        "label": "What SparkAI can do",
+        "themes": {
+          "title": "I suggest themes 🎨",
+          "description": "Colors for your app",
+          "example": "Suggest a theme for me"
+        },
+        "fullLook": {
+          "title": "I build a full look 🪄",
+          "description": "Theme, bg and bubbles",
+          "example": "Suggest a full look for me"
+        },
+        "photoTheme": {
+          "title": "I make a theme from your photo 📸",
+          "description": "Photo becomes a theme",
+          "example": "I want a theme from a photo"
+        },
+        "notes": {
+          "title": "I jot down anything 📝",
+          "description": "Ideas and lists",
+          "example": "Note that I need to buy coffee"
+        },
+        "reminders": {
+          "title": "I remind you (even weekly) ⏰",
+          "description": "I nudge you on time",
+          "example": "Remind me to drink water tomorrow at 9am"
+        },
+        "status": {
+          "title": "Status with an end time 💬",
+          "description": "Clears by itself",
+          "example": "Set my status to in a meeting until 3pm"
+        },
+        "scheduled": {
+          "title": "I schedule messages 📨",
+          "description": "Sent at the right time",
+          "example": "I want to schedule a message"
+        },
+        "help": {
+          "title": "I teach you SparkChat 🧭",
+          "description": "Questions? Just ask",
+          "example": "How do I change the wallpaper?"
+        },
+        "chat": {
+          "title": "And I chat 😄",
+          "description": "Jokes, ideas, venting",
+          "example": "Tell me a joke"
+        }
+      },
+      "help": {
+        "open": "Open",
+        "openTarget": {
+          "appearance": "Open appearance",
+          "profile": "Open profile",
+          "new-group": "Open new group",
+          "notifications-settings": "Open notifications",
+          "install": "Install the app",
+          "none": "Open"
+        }
+      },
+      "chips": {
+        "label": "Suggestions for SparkAI",
+        "suggestTheme": "Suggest a theme 🎨",
+        "pickTheme": "Pick a theme for me ✨",
+        "suggestLook": "Suggest a full look 🪄",
+        "themeFromPhoto": "Theme from my photo 📸",
+        "remindMe": "Remind me of something ⏰",
+        "myNotes": "My notes 📝",
+        "timedStatus": "Timed status 💬",
+        "scheduleMessage": "Schedule a message 📨",
+        "whatCanYouDo": "What can you do? 🤔"
+      },
+      "prompts": {
+        "suggestTheme": "Suggest a theme",
+        "pickTheme": "Pick a theme for me",
+        "suggestLook": "Suggest a full look",
+        "themeFromPhoto": "I want a theme from a photo",
+        "remindMe": "Remind me of something",
+        "myNotes": "My notes",
+        "timedStatus": "I want a timed status",
+        "scheduleMessage": "I want to schedule a message",
+        "whatCanYouDo": "/help"
+      },
+      "card": {
+        "choicesLabel": "Quick replies",
+        "resolved": "✓ {{label}}",
+        "confirmReminder": "Reminder: {{text}} at {{when}}",
+        "confirmStatus": "Status: {{text}} until {{when}}",
+        "confirmScheduled": "Message to {{recipient}}: {{text}} at {{when}}",
+        "confirmDeleteNote": "Delete note: {{preview}}",
+        "confirmCancelReminder": "Cancel reminder: {{preview}}",
+        "lookSuggestion": "Look suggestion",
+        "lookApplied": "Look applied"
+      }
     },
     "empty": {
       "title": "Select a conversation",
