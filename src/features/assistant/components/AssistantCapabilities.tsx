@@ -8,6 +8,10 @@ interface AssistantCapabilitiesProps {
   onPickPhoto?: (() => void) | undefined;
 }
 
+function keepEmojiWithLastWord(title: string): string {
+  return title.replace(/ (\S+)$/, '\u00a0$1');
+}
+
 export function AssistantCapabilities({ onSendPrompt, onPickPhoto }: AssistantCapabilitiesProps) {
   const { t } = useTranslation();
 
@@ -30,7 +34,7 @@ export function AssistantCapabilities({ onSendPrompt, onPickPhoto }: AssistantCa
                 <Icon size={16} />
               </span>
               <span className="sc-assistant-cap-text">
-                <span className="sc-assistant-cap-title">{t(`chat.assistant.capabilities.${id}.title`)}</span>
+                <span className="sc-assistant-cap-title">{keepEmojiWithLastWord(t(`chat.assistant.capabilities.${id}.title`))}</span>
                 <span className="sc-assistant-cap-desc">{t(`chat.assistant.capabilities.${id}.description`)}</span>
               </span>
             </button>

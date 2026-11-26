@@ -20,7 +20,7 @@ describe('AssistantHelpCard', () => {
     const opener = vi.fn();
     unregister = registerHelpOpener('appearance', opener);
     render(<AssistantHelpCard target="appearance" />);
-    fireEvent.click(screen.getByRole('button', { name: 'chat.assistant.help.open' }));
+    fireEvent.click(screen.getByRole('button', { name: 'chat.assistant.help.openTarget.appearance' }));
     expect(opener).toHaveBeenCalledTimes(1);
   });
 

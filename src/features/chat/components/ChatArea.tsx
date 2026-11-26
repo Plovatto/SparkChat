@@ -134,6 +134,20 @@ function buildDayGroups(renderItems: RenderItem[]): DayGroup[] {
   return groups;
 }
 
+const RUN_POSITIONS = {
+  firstLast: { isFirstInRun: true, isLastInRun: true },
+  firstOnly: { isFirstInRun: true, isLastInRun: false },
+  lastOnly: { isFirstInRun: false, isLastInRun: true },
+  middle: { isFirstInRun: false, isLastInRun: false },
+} as const;
+
+function runPosition(isFirstInRun: boolean, isLastInRun: boolean) {
+  if (isFirstInRun) {
+    return isLastInRun ? RUN_POSITIONS.firstLast : RUN_POSITIONS.firstOnly;
+  }
+  return isLastInRun ? RUN_POSITIONS.lastOnly : RUN_POSITIONS.middle;
+}
+
 function receiptKey(receipt: MessageReceiptInfo): string {
   return `${receipt.type}:${receipt.users.map((user) => user.id).sort().join(',')}`;
 }
@@ -286,6 +300,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const visibleReceiptsRef = useRef<Map<string, MessageReceiptInfo>>(new Map());
   const auth = useMemo(() => ({ userId: user.id, sessionToken: user.sessionToken }), [user.id, user.sessionToken]);
 
+  const messageSender = useMemo(() => ({ id: user.id, nickname: user.nickname, avatar: user.avatar }), [user.id, user.nickname, user.avatar]);
+
   const captureScrollAnchor = useCallback(() => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -308,11 +324,16 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     dismissHideFailure,
     reactToMessage,
     reactionFailure,
-  } = useRoomMessages(room?.id ?? null, { id: user.id, nickname: user.nickname, avatar: user.avatar }, captureScrollAnchor);
-  const failedQuickReplyCardIds = useMemo(
-    () => new Set(messages.filter((message) => message.failed && message.quickReply).map((message) => message.quickReply?.cardId)),
-    [messages],
-  );
+  } = useRoomMessages(room?.id ?? null, messageSender, captureScrollAnchor);
+  const failedQuickReplyTokens = useMemo(() => {
+    const tokens = new Map<string, string>();
+    for (const message of messages) {
+      if (message.failed && message.quickReply) {
+        tokens.set(message.quickReply.cardId, message.id);
+      }
+    }
+    return tokens;
+  }, [messages]);
   const { notifyTyping, notifyStoppedTyping } = useTypingIndicator(room?.id ?? null);
   const { getEntrancePhase, suspendEntrance } = useEntranceGate(areMessagesLoaded, room?.id ?? null);
   const lastRepliedMessageRef = useRef<MessageView | null>(null);
@@ -889,6 +910,24 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   );
   const roomNoticePresence = useLatchedPresence(roomNotice, MOTION_DURATION_MS.fast, roomId);
 
+  const sendAssistantPrompt = useCallback(
+    (text: string) => {
+      sendMessage({ content: text, type: 'text' });
+    },
+    [sendMessage],
+  );
+
+  const openAssistantPhotoPicker = useCallback(() => {
+    messageInputRef.current?.openAttachmentPicker();
+  }, []);
+
+  const handleQuickReply = useCallback(
+    (cardId: string, button: AssistantButton) => {
+      sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
+    },
+    [sendMessage],
+  );
+
   if (!room) {
     return <EmptyChatState />;
   }
@@ -1075,18 +1114,6 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
 
   const handleSend = (payload: MessageInputSubmitPayload) => {
     void sendPayload(payload);
-  };
-
-  const sendAssistantPrompt = (text: string) => {
-    sendMessage({ content: text, type: 'text' });
-  };
-
-  const openAssistantPhotoPicker = () => {
-    messageInputRef.current?.openAttachmentPicker();
-  };
-
-  const handleQuickReply = (cardId: string, button: AssistantButton) => {
-    sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
   };
 
   const handleLeftGroup = () => {
@@ -1319,10 +1346,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                           const isOwn = anchorMessage.sender.id === user.id;
                           const previousItem = group.items[itemIndex - 1];
                           const nextItem = group.items[itemIndex + 1];
-                          const run = {
-                            isFirstInRun: !previousItem || !canJoinRun(renderItemAnchorMessage(previousItem), renderItemFirstMessage(item)),
-                            isLastInRun: !nextItem || !canJoinRun(anchorMessage, renderItemFirstMessage(nextItem)),
-                          };
+                          const run = runPosition(
+                            !previousItem || !canJoinRun(renderItemAnchorMessage(previousItem), renderItemFirstMessage(item)),
+                            !nextItem || !canJoinRun(anchorMessage, renderItemFirstMessage(nextItem)),
+                          );
                           const itemKey = renderItemKey(item);
                           const entrancePhase = getEntrancePhase();
                           const entranceIndex = entrancePhase === 'initial' ? (entranceIndexByKey.get(itemKey) ?? 0) : 0;
@@ -1357,7 +1384,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   onQuickReply={handleQuickReply}
                                   onAssistantPrompt={sendAssistantPrompt}
                                   onAssistantPhoto={openAssistantPhotoPicker}
-                                  quickReplyFailed={failedQuickReplyCardIds.has(item.message.id)}
+                                  quickReplyFailureToken={failedQuickReplyTokens.get(item.message.id)}
                                   participants={room.participants}
                                   currentUserId={user.id}
                                   currentNickname={user.nickname}

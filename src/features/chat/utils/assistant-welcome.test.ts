@@ -8,6 +8,7 @@ const PT_WELCOME =
 const EN_WELCOME =
   "Hi! I'm SparkAI 🤖✨ I chat and I also lend a real hand: I change your theme, take notes, remind you of things and more. Take a look at what I can do 👇";
 const PT_LEGACY = 'Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!';
+const EN_LEGACY = enApp.chat.assistant.welcomeLegacy;
 
 describe('localizeAssistantWelcome', () => {
   it('shows the welcome in the current language', () => {
@@ -17,7 +18,9 @@ describe('localizeAssistantWelcome', () => {
   });
 
   it('still localizes the previous welcome stored in existing rooms', () => {
-    expect(localizeAssistantWelcome(PT_LEGACY, 'en')).toBe(EN_WELCOME);
+    expect(localizeAssistantWelcome(PT_LEGACY, 'en')).toBe(EN_LEGACY);
+    expect(localizeAssistantWelcome(PT_LEGACY, 'pt')).toBe(PT_LEGACY);
+    expect(localizeAssistantWelcome(EN_LEGACY, 'pt')).toBe(PT_LEGACY);
   });
 
   it('leaves any other message alone', () => {

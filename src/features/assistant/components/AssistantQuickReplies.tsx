@@ -8,11 +8,11 @@ const SEND_TIMEOUT_MS = 15000;
 interface AssistantQuickRepliesProps {
   buttons: AssistantButton[];
   resolvedChoice?: QuickReplyChoice | undefined;
-  sendFailed?: boolean;
+  failureToken?: string | undefined;
   onSelect: (button: AssistantButton) => void;
 }
 
-export function AssistantQuickReplies({ buttons, resolvedChoice, sendFailed = false, onSelect }: AssistantQuickRepliesProps) {
+export function AssistantQuickReplies({ buttons, resolvedChoice, failureToken, onSelect }: AssistantQuickRepliesProps) {
   const { t } = useTranslation();
   const [sentChoice, setSentChoice] = useState<QuickReplyChoice | null>(null);
 
@@ -23,10 +23,10 @@ export function AssistantQuickReplies({ buttons, resolvedChoice, sendFailed = fa
   }, [resolvedChoice]);
 
   useEffect(() => {
-    if (sendFailed) {
+    if (failureToken) {
       setSentChoice(null);
     }
-  }, [sendFailed]);
+  }, [failureToken]);
 
   useEffect(() => {
     if (sentChoice === null) {
@@ -43,7 +43,7 @@ export function AssistantQuickReplies({ buttons, resolvedChoice, sendFailed = fa
   if (resolvedChoice) {
     const chosen = buttons.find((button) => button.choice === resolvedChoice);
     return (
-      <div className="sc-assistant-resolved" data-testid="assistant-resolved">
+      <div className="sc-assistant-resolved" data-testid="assistant-resolved" role="status">
         {t('chat.assistant.card.resolved', { label: chosen?.label ?? resolvedChoice })}
       </div>
     );

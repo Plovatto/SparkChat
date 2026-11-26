@@ -18,7 +18,7 @@ export function AssistantHelpCard({ target }: AssistantHelpCardProps) {
   return (
     <div className="sc-assistant-card">
       <div className="sc-assistant-replies">
-        <button type="button" className="sc-assistant-reply" onClick={() => openHelpTarget(target)}>
+        <button type="button" className="sc-assistant-reply" aria-label={t(`chat.assistant.help.openTarget.${target}`)} onClick={() => openHelpTarget(target)}>
           {t('chat.assistant.help.open')}
         </button>
       </div>

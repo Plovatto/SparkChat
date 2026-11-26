@@ -27,10 +27,27 @@ describe('AssistantQuickReplies', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(true);
 
-    rerender(<AssistantQuickReplies buttons={buttons} sendFailed onSelect={vi.fn()} />);
+    rerender(<AssistantQuickReplies buttons={buttons} failureToken="m1" onSelect={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(false);
     expect(screen.getByRole('button', { name: 'Aplicar' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('unlocks again on a second failure with a new token', () => {
+    const { rerender } = render(<AssistantQuickReplies buttons={buttons} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    rerender(<AssistantQuickReplies buttons={buttons} failureToken="m1" onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(true);
+
+    rerender(<AssistantQuickReplies buttons={buttons} failureToken="m2" onSelect={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Não' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('announces the resolved choice politely', () => {
+    render(<AssistantQuickReplies buttons={buttons} resolvedChoice="yes" onSelect={vi.fn()} />);
+    expect(screen.getByRole('status').textContent).toBe('✓ Aplicar');
   });
 
   it('re-enables the buttons after 15s without a resolution', () => {
@@ -101,7 +118,7 @@ describe('AssistantCardView', () => {
   it('renders the open button of a help card when the target can open', () => {
     const unregister = registerHelpOpener('appearance', vi.fn());
     render(<AssistantCardView card={{ v: 1, kind: 'help', topic: 'themes', target: 'appearance' }} cardId="m" onQuickReply={vi.fn()} />);
-    expect(screen.getByRole('button', { name: 'chat.assistant.help.open' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'chat.assistant.help.openTarget.appearance' })).toBeTruthy();
     unregister();
   });
 

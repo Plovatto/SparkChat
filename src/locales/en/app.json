@@ -370,37 +370,37 @@
         "label": "What SparkAI can do",
         "themes": {
           "title": "I suggest themes 🎨",
-          "description": "Colors and moods for your app",
+          "description": "Colors for your app",
           "example": "Suggest a theme for me"
         },
         "fullLook": {
           "title": "I build a full look 🪄",
-          "description": "Theme, wallpaper and bubbles that match",
+          "description": "Theme, bg and bubbles",
           "example": "Suggest a full look for me"
         },
         "photoTheme": {
           "title": "I make a theme from your photo 📸",
-          "description": "Send a photo and I'll paint the app",
+          "description": "Photo becomes a theme",
           "example": "I want a theme from a photo"
         },
         "notes": {
           "title": "I jot down anything 📝",
-          "description": "Ideas, lists, the wifi password",
+          "description": "Ideas and lists",
           "example": "Note that I need to buy coffee"
         },
         "reminders": {
           "title": "I remind you (even weekly) ⏰",
-          "description": "I'll nudge you at the right time",
+          "description": "I nudge you on time",
           "example": "Remind me to drink water tomorrow at 9am"
         },
         "status": {
           "title": "Status with an end time 💬",
-          "description": "Clears itself when time is up",
+          "description": "Clears itself later",
           "example": "Set my status to in a meeting until 3pm"
         },
         "scheduled": {
           "title": "I schedule messages 📨",
-          "description": "Write now, delivered later",
+          "description": "Sent at the right time",
           "example": "I want to schedule a message"
         },
         "help": {
@@ -410,12 +410,20 @@
         },
         "chat": {
           "title": "And I chat 😄",
-          "description": "Jokes, ideas or venting",
+          "description": "Jokes, ideas, venting",
           "example": "Tell me a joke"
         }
       },
       "help": {
-        "open": "Open"
+        "open": "Open",
+        "openTarget": {
+          "appearance": "Open appearance",
+          "profile": "Open profile",
+          "new-group": "Open new group",
+          "notifications-settings": "Open notifications",
+          "install": "Install the app",
+          "none": "Open"
+        }
       },
       "chips": {
         "label": "Suggestions for SparkAI",

@@ -4,13 +4,18 @@ import { AssistantCapabilities } from './AssistantCapabilities';
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => undefined },
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => (key.endsWith('.title') ? `${key} 🎨` : key) }),
 }));
 
 describe('AssistantCapabilities', () => {
   it('renders one tile per capability', () => {
     render(<AssistantCapabilities onSendPrompt={vi.fn()} />);
     expect(screen.getAllByRole('button')).toHaveLength(9);
+  });
+
+  it('keeps the emoji glued to the last word of the title', () => {
+    render(<AssistantCapabilities onSendPrompt={vi.fn()} />);
+    expect(document.querySelector('.sc-assistant-cap-title')?.textContent?.endsWith(' 🎨')).toBe(true);
   });
 
   it('sends the example of the tapped tile', () => {

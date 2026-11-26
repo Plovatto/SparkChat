@@ -11,7 +11,7 @@ interface AssistantCardViewProps {
   card: AssistantCard;
   cardId: string;
   resolvedChoice?: QuickReplyChoice | undefined;
-  sendFailed?: boolean;
+  failureToken?: string | undefined;
   onQuickReply: (cardId: string, button: AssistantButton) => void;
   onSendPrompt?: ((text: string) => void) | undefined;
   onPickPhoto?: (() => void) | undefined;
@@ -36,12 +36,12 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
   }
 }
 
-export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = false, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
+export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
   const { t } = useTranslation();
   const buttons = cardButtons(card);
   const replies =
     buttons.length > 0 ? (
-      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} sendFailed={sendFailed} onSelect={(button) => onQuickReply(cardId, button)} />
+      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
     ) : null;
 
   switch (card.kind) {
@@ -68,7 +68,7 @@ export function AssistantCardView({ card, cardId, resolvedChoice, sendFailed = f
       );
     case 'capabilities':
       return (
-        <div className="sc-assistant-card">
+        <div className="sc-assistant-card sc-assistant-card-caps">
           <AssistantCapabilities onSendPrompt={onSendPrompt} onPickPhoto={onPickPhoto} />
         </div>
       );

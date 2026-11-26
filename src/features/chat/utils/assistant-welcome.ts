@@ -4,12 +4,14 @@ import type { Language } from '@lib/i18n/language';
 const WELCOME_KEYS = ['chat.assistant.welcome', 'chat.assistant.welcomeLegacy'] as const;
 const LANGUAGES: readonly Language[] = ['pt', 'en'];
 
-function welcomesIn(language: Language): string[] {
-  const t = appI18n.getFixedT(language);
-  return WELCOME_KEYS.map((key) => t(key));
+type WelcomeKey = (typeof WELCOME_KEYS)[number];
+
+function welcomeIn(language: Language, key: WelcomeKey): string {
+  return appI18n.getFixedT(language)(key);
 }
 
 export function localizeAssistantWelcome(content: string, language: Language): string | null {
   const trimmed = content.trim();
-  return LANGUAGES.some((candidate) => welcomesIn(candidate).includes(trimmed)) ? welcomesIn(language)[0]! : null;
+  const matched = WELCOME_KEYS.find((key) => LANGUAGES.some((candidate) => welcomeIn(candidate, key) === trimmed));
+  return matched ? welcomeIn(language, matched) : null;
 }

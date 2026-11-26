@@ -208,9 +208,22 @@
   gap: 8px;
 }
 
-@media (min-width: 340px) {
+.sc-assistant-card-caps {
+  container-type: inline-size;
+  width: 100%;
+  min-width: min(260px, 100%);
+  max-width: none;
+}
+
+@container (min-width: 220px) {
   .sc-assistant-caps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 420px) {
+  .sc-assistant-caps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -265,7 +278,7 @@
   height: 32px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--sc-accent) 16%, transparent);
-  color: var(--sc-accent);
+  color: var(--sc-accent-text);
 }
 
 .sc-assistant-cap-text {
@@ -283,10 +296,15 @@
 }
 
 .sc-assistant-cap-desc {
-  color: var(--sc-text-muted);
+  color: var(--sc-text-secondary);
   font-size: 0.75rem;
   line-height: 1.3;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 @keyframes scAssistantCapIn {
