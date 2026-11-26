@@ -8,8 +8,19 @@ interface AssistantCapabilitiesProps {
   onPickPhoto?: (() => void) | undefined;
 }
 
-function keepEmojiWithLastWord(title: string): string {
-  return title.replace(/ (\S+)$/, '\u00a0$1');
+const TRAILING_EMOJI = /^(.*?)(\S+)\s+(\p{Extended_Pictographic}\uFE0F?)$/u;
+
+function TitleText({ title }: { title: string }) {
+  const match = TRAILING_EMOJI.exec(title);
+  if (!match) {
+    return <>{title}</>;
+  }
+  return (
+    <>
+      {match[1]}
+      <span className="sc-assistant-cap-nowrap">{`${match[2]}${String.fromCharCode(160)}${match[3]}`}</span>
+    </>
+  );
 }
 
 export function AssistantCapabilities({ onSendPrompt, onPickPhoto }: AssistantCapabilitiesProps) {
@@ -34,7 +45,7 @@ export function AssistantCapabilities({ onSendPrompt, onPickPhoto }: AssistantCa
                 <Icon size={16} />
               </span>
               <span className="sc-assistant-cap-text">
-                <span className="sc-assistant-cap-title">{keepEmojiWithLastWord(t(`chat.assistant.capabilities.${id}.title`))}</span>
+                <span className="sc-assistant-cap-title"><TitleText title={t(`chat.assistant.capabilities.${id}.title`)} /></span>
                 <span className="sc-assistant-cap-desc">{t(`chat.assistant.capabilities.${id}.description`)}</span>
               </span>
             </button>

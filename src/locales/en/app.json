@@ -395,7 +395,7 @@
         },
         "status": {
           "title": "Status with an end time 💬",
-          "description": "Clears itself later",
+          "description": "Clears by itself",
           "example": "Set my status to in a meeting until 3pm"
         },
         "scheduled": {

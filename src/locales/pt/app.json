@@ -395,7 +395,7 @@
         },
         "status": {
           "title": "Status com hora pra acabar 💬",
-          "description": "Some sozinho depois",
+          "description": "Some sozinho",
           "example": "Põe meu status em reunião até 15h"
         },
         "scheduled": {
