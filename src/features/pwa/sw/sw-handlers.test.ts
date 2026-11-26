@@ -9,6 +9,7 @@ import {
   handleClientMessage,
   handleNavigation,
   handleNotificationClick,
+  handleNotificationClose,
   handlePush,
   messageTag,
   NOTIFICATION_ICON,
@@ -50,10 +51,11 @@ function fakeClient(overrides: Partial<WorkerWindowClient> = {}): FakeClient {
   return client;
 }
 
-function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number; language?: 'pt' | 'en'; declineFails?: boolean } = {}) {
+function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number; language?: 'pt' | 'en'; declineFails?: boolean; persistedDismissals?: string[] } = {}) {
   const shown: ShownNotification[] = [];
   const declined: Array<{ callId: string; token: string }> = [];
   const armed: string[] = [];
+  const remembered: string[] = [...(options.persistedDismissals ?? [])];
   const opened: string[] = [];
   const savedLanguages: string[] = [];
   const env: WorkerEnvironment = {
@@ -94,12 +96,17 @@ function fakeEnv(options: { clients?: WorkerWindowClient[]; maxActions?: number;
       armed.push(callId);
       return Promise.resolve();
     },
+    rememberDismissedCall: (callId) => {
+      remembered.push(callId);
+      return Promise.resolve();
+    },
+    wasCallDismissed: (callId) => Promise.resolve(remembered.includes(callId)),
     declineCall: (callId, token) => {
       declined.push({ callId, token });
       return options.declineFails ? Promise.reject(new Error('offline')) : Promise.resolve();
     },
   };
-  return { env, shown, opened, declined, armed, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
+  return { env, shown, opened, declined, armed, remembered, savedLanguages, visible: () => shown.filter((entry) => !entry.closed) };
 }
 
 describe('resolveWorkerLanguage', () => {
@@ -344,6 +351,83 @@ describe('handlePush', () => {
   });
 });
 
+describe('repeated call pushes', () => {
+  const first = { t: 'call', callId: 'c1', roomId: 'r1', kind: 'voice', e: 60_000 };
+  const repeat = { ...first, r: 1 };
+
+  it('parses the repeat marker and ignores anything else', () => {
+    expect(parsePushMessage(repeat)).toMatchObject({ t: 'call', r: 1 });
+    expect(parsePushMessage({ ...first, r: 2 })).not.toHaveProperty('r');
+    expect(parsePushMessage(first)).not.toHaveProperty('r');
+  });
+
+  it('re-alerts on the same tag while the call notification is still displayed', async () => {
+    const { env, shown, visible } = fakeEnv();
+    const state = createWorkerState();
+    await handlePush(env, state, first);
+    await handlePush(env, state, repeat);
+    expect(shown).toHaveLength(2);
+    expect(visible()).toHaveLength(1);
+    expect(visible()[0]?.options).toMatchObject({ tag: callTag('c1'), renotify: true, vibrate: CALL_VIBRATION });
+  });
+
+  it('shows a repeat when the first push was lost and the user did not dismiss', async () => {
+    const { env, visible } = fakeEnv();
+    await handlePush(env, createWorkerState(), repeat);
+    expect(visible()).toHaveLength(1);
+    expect(visible()[0]?.options.renotify).toBe(true);
+  });
+
+  it('never rings again for an expired repeat and only leaves a silent missed call when nothing is shown', async () => {
+    const { env, shown } = fakeEnv();
+    await handlePush(env, createWorkerState(), { ...repeat, e: 1_000 });
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.options).toMatchObject({ tag: callTag('c1'), silent: true, data: { kind: 'missed' } });
+    expect(shown[0]?.options.vibrate).toBeUndefined();
+
+    const busy = fakeEnv();
+    await handlePush(busy.env, createWorkerState(), { t: 'msg', roomId: 'r2' });
+    await handlePush(busy.env, createWorkerState(), { ...repeat, e: 1_000 });
+    expect(busy.shown).toHaveLength(1);
+  });
+
+  it('does not re-show a dismissed call while another notification stays displayed', async () => {
+    const { env, shown, visible } = fakeEnv();
+    const state = createWorkerState();
+    await handlePush(env, state, { t: 'msg', roomId: 'r2' });
+    await handleNotificationClose(env, state, { tag: callTag('c1'), data: { kind: 'call', callId: 'c1', roomId: 'r1' }, close: () => undefined });
+    await handlePush(env, state, repeat);
+    expect(shown).toHaveLength(1);
+    expect(visible()).toHaveLength(1);
+  });
+
+  it('re-shows a dismissed call silently when no other notification exists', async () => {
+    const { env, visible } = fakeEnv();
+    const state = createWorkerState();
+    await handleNotificationClose(env, state, { tag: callTag('c1'), data: { kind: 'call', callId: 'c1', roomId: 'r1' }, close: () => undefined });
+    await handlePush(env, state, repeat);
+    expect(visible()).toHaveLength(1);
+    expect(visible()[0]?.options).toMatchObject({ silent: true, renotify: false });
+    expect(visible()[0]?.options.vibrate).toBeUndefined();
+  });
+
+  it('remembers a dismissal across worker restarts', async () => {
+    const { env, shown } = fakeEnv({ persistedDismissals: ['c1'] });
+    await handlePush(env, createWorkerState(), { t: 'msg', roomId: 'r2' });
+    await handlePush(env, createWorkerState(), repeat);
+    expect(shown).toHaveLength(1);
+  });
+
+  it('remembers only call dismissals', async () => {
+    const { env, remembered } = fakeEnv();
+    const state = createWorkerState();
+    await handleNotificationClose(env, state, { tag: 'msg:r1', data: { kind: 'msg', roomId: 'r1' }, close: () => undefined });
+    await handleNotificationClose(env, state, { tag: callTag('c1'), data: { kind: 'call', callId: 'c1', roomId: 'r1' }, close: () => undefined });
+    expect(remembered).toEqual(['c1']);
+    expect([...state.dismissedCalls]).toEqual(['c1']);
+  });
+});
+
 describe('handleNotificationClick', () => {
   function notification(data: unknown): WorkerNotification & { closed: boolean } {
     const entry = {
@@ -377,9 +461,10 @@ describe('handleNotificationClick', () => {
   });
 
   it('opens the room with the call id for answer without accepting anything itself', async () => {
-    const { env, opened, armed } = fakeEnv();
+    const { env, opened, armed, remembered } = fakeEnv();
     await handleNotificationClick(env, notification({ kind: 'call', callId: 'c1', roomId: 'r1' }), 'answer');
     expect(opened).toEqual(['https://chat.example/app/?room=r1&call=c1']);
+    expect(remembered).toEqual(['c1']);
     expect(armed).toEqual(['c1']);
 
     const client = fakeClient();

@@ -457,7 +457,7 @@ export interface ClientToServerEvents {
   'user:update-theme': (payload: SocketUserTheme) => void;
   'user:update-chat-settings': (payload: SocketChatSettings) => void;
   'user:logout': () => void;
-  'user:visibility': (payload: { visible: boolean }, ack?: () => void) => void;
+  'user:visibility': (payload: { visible: boolean; attentive?: boolean }, ack?: () => void) => void;
   'user:change-password': (payload: {
     currentPassword?: string;
     newPassword: string;
