@@ -5,6 +5,9 @@ import { FaArrowDown, FaBan, FaCheck, FaComments, FaExclamationTriangle, FaTimes
 import { Spinner } from '@components/common/Spinner';
 import { INFO_COLUMN_MIN_WIDTH_PX, minWidthQuery } from '@constants/breakpoints';
 import type { User } from '@features/auth';
+import type { AssistantButton } from '@features/assistant/assistant-card';
+import type { AssistantChipId } from '@features/assistant/assistant-chips';
+import { AssistantSuggestionChips } from '@features/assistant/components/AssistantSuggestionChips';
 import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -349,6 +352,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   const isAtBottomRef = useRef(true);
   const activityRef = useRef({ typing: false, recording: false });
   const messageInputRef = useRef<MessageInputHandle>(null);
+  const [isComposerEmpty, setIsComposerEmpty] = useState(true);
   const currentAudioRef = useRef<CurrentAudioRef | null>(null);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const isInfoInline = useMediaQuery(minWidthQuery(INFO_COLUMN_MIN_WIDTH_PX));
@@ -1063,6 +1067,18 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     void sendPayload(payload);
   };
 
+  const handleQuickReply = (cardId: string, button: AssistantButton) => {
+    sendMessage({ content: button.label, type: 'text', quickReply: { cardId, choice: button.choice } });
+  };
+
+  const handleAssistantChip = (id: AssistantChipId, prompt: string) => {
+    if (id === 'themeFromPhoto') {
+      messageInputRef.current?.openAttachmentPicker();
+      return;
+    }
+    sendMessage({ content: prompt, type: 'text' });
+  };
+
   const handleLeftGroup = () => {
     setIsInfoOpen(false);
     onBack();
@@ -1328,6 +1344,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   isGroupChat={isGroupChat}
                                   roomId={room.id}
                                   isAssistantRoom={isAssistantRoom(room)}
+                                  onQuickReply={handleQuickReply}
                                   participants={room.participants}
                                   currentUserId={user.id}
                                   currentNickname={user.nickname}
@@ -1506,6 +1523,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
           </Collapse>
         )}
 
+        {isAssistantRoom(room) && !isSelecting && <AssistantSuggestionChips visible={isComposerEmpty} onPick={handleAssistantChip} />}
+
         <ComposerSlot
           isSelecting={isSelecting}
           bar={<SelectionBar count={selectedIds.length} onCancel={clearSelection} onDelete={() => handleDeleteRequest(selectedIds)} />}
@@ -1523,6 +1542,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
             userBlocked={room.userBlocked}
             mentionCandidates={mentionCandidates}
             maxLength={isAssistantRoom(room) ? ASSISTANT_MAX_TEXT_CHARS : undefined}
+            onEmptyChange={setIsComposerEmpty}
             auth={auth}
           />
         </ComposerSlot>

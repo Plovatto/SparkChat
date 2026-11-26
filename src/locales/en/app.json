@@ -364,7 +364,41 @@
   },
   "chat": {
     "assistant": {
-      "welcome": "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!"
+      "welcome": "Hi! I'm SparkAI 🤖 — I'm here just to chat. Send me anything, no pressure!",
+      "chips": {
+        "label": "Suggestions for SparkAI",
+        "suggestTheme": "Suggest a theme 🎨",
+        "pickTheme": "Pick a theme for me ✨",
+        "suggestLook": "Suggest a full look 🪄",
+        "themeFromPhoto": "Theme from my photo 📸",
+        "remindMe": "Remind me of something ⏰",
+        "myNotes": "My notes 📝",
+        "timedStatus": "Timed status 💬",
+        "scheduleMessage": "Schedule a message 📨",
+        "whatCanYouDo": "What can you do? 🤔"
+      },
+      "prompts": {
+        "suggestTheme": "Suggest a theme",
+        "pickTheme": "Pick a theme for me",
+        "suggestLook": "Suggest a full look",
+        "themeFromPhoto": "I want a theme from a photo",
+        "remindMe": "Remind me of something",
+        "myNotes": "My notes",
+        "timedStatus": "I want a timed status",
+        "scheduleMessage": "I want to schedule a message",
+        "whatCanYouDo": "/help"
+      },
+      "card": {
+        "choicesLabel": "Quick replies",
+        "resolved": "✓ {{label}}",
+        "confirmReminder": "Reminder: {{text}} at {{when}}",
+        "confirmStatus": "Status: {{text}} until {{when}}",
+        "confirmScheduled": "Message to {{recipient}}: {{text}} at {{when}}",
+        "confirmDeleteNote": "Delete note: {{preview}}",
+        "confirmCancelReminder": "Cancel reminder: {{preview}}",
+        "lookSuggestion": "Look suggestion",
+        "lookApplied": "Look applied"
+      }
     },
     "empty": {
       "title": "Select a conversation",

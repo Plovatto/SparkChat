@@ -32,6 +32,7 @@ import '../styles/composer.css';
 export interface MessageInputHandle {
   focus: () => void;
   addFiles: (files: File[]) => void;
+  openAttachmentPicker: () => void;
 }
 
 export interface MessageInputSubmitPayload {
@@ -73,6 +74,7 @@ interface MessageInputProps {
   userBlocked: boolean;
   mentionCandidates?: MentionCandidate[];
   maxLength?: number;
+  onEmptyChange?: (isEmpty: boolean) => void;
   auth: SessionAuth;
 }
 
@@ -293,7 +295,7 @@ function RecordingBar({ recordingTime, audioLevels, onCancel, onSend }: Recordin
 }
 
 export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(function MessageInput(
-  { onSend, onSendAudio, onSendGif, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, auth },
+  { onSend, onSendAudio, onSendGif, onTyping, onRecordingStart, onRecordingStop, isBlockedBy, userBlocked, mentionCandidates, maxLength, onEmptyChange, auth },
   ref,
 ) {
   const { t } = useTranslation();
@@ -438,7 +440,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
     addFiles: addPendingAttachments,
+    openAttachmentPicker: () => attachmentInputRef.current?.click(),
   }));
+
+  const isComposerEmpty = !message.trim() && pendingAttachments.length === 0;
+  useEffect(() => {
+    onEmptyChange?.(isComposerEmpty);
+  }, [isComposerEmpty, onEmptyChange]);
 
   const removePendingAttachment = (file: File) => {
     setPendingAttachments((previous) => previous.filter((item) => item !== file));

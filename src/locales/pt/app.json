@@ -364,7 +364,41 @@
   },
   "chat": {
     "assistant": {
-      "welcome": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!"
+      "welcome": "Oi! Eu sou o SparkAI 🤖 — apareci aqui só pra gente trocar ideia. Manda o que quiser, é só um papo!",
+      "chips": {
+        "label": "Sugestões para o SparkAI",
+        "suggestTheme": "Sugere um tema 🎨",
+        "pickTheme": "Escolhe um tema pra mim ✨",
+        "suggestLook": "Sugere um visual completo 🪄",
+        "themeFromPhoto": "Tema da minha foto 📸",
+        "remindMe": "Me lembra de algo ⏰",
+        "myNotes": "Minhas notas 📝",
+        "timedStatus": "Status com prazo 💬",
+        "scheduleMessage": "Agendar mensagem 📨",
+        "whatCanYouDo": "O que você faz? 🤔"
+      },
+      "prompts": {
+        "suggestTheme": "Sugere um tema",
+        "pickTheme": "Escolhe um tema pra mim",
+        "suggestLook": "Sugere um visual completo",
+        "themeFromPhoto": "Quero um tema a partir de uma foto",
+        "remindMe": "Me lembra de algo",
+        "myNotes": "Minhas notas",
+        "timedStatus": "Quero um status com prazo",
+        "scheduleMessage": "Quero agendar uma mensagem",
+        "whatCanYouDo": "/ajuda"
+      },
+      "card": {
+        "choicesLabel": "Respostas rápidas",
+        "resolved": "✓ {{label}}",
+        "confirmReminder": "Lembrete: {{text}} em {{when}}",
+        "confirmStatus": "Status: {{text}} até {{when}}",
+        "confirmScheduled": "Mensagem para {{recipient}}: {{text}} em {{when}}",
+        "confirmDeleteNote": "Apagar nota: {{preview}}",
+        "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
+        "lookSuggestion": "Sugestão de visual",
+        "lookApplied": "Visual aplicado"
+      }
     },
     "empty": {
       "title": "Selecione uma conversa",

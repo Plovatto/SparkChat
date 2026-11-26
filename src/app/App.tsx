@@ -48,6 +48,7 @@ import { AppBackground } from './AppBackground';
 import { DEFERRED_FEATURE_PRELOADS } from './deferred-preloads';
 import { DeepLinkConfirmDialog } from './DeepLinkConfirmDialog';
 import { hasDeepLinkParams, isDeepLinkError, readDeepLinkIntents, withInviteIntent, withoutFirstIntent, type DeepLinkIntent } from './deep-link';
+import { useTimeZoneSync } from './useTimeZoneSync';
 import { discardPendingInvite, subscribeInviteFragment, takePendingInvite } from './invite-fragment';
 
 const DEEP_LINK_ERROR_WINDOW_MS = 10000;
@@ -230,6 +231,7 @@ function AuthGate({
     }
   }, [socket, currentUserId, language]);
 
+  useTimeZoneSync(socket, currentUserId);
   useThemeSync();
   useChatSettingsSync();
 

@@ -17,6 +17,8 @@ import { getFileTypeIcon } from '../utils/get-file-type-icon';
 import { hasDisplayableLinkPreviewImage } from '../utils/link-preview-target';
 import { renderRichText } from '../utils/rich-text';
 import { resolveSenderAvatar } from '../utils/sender-avatar';
+import type { AssistantButton } from '@features/assistant/assistant-card';
+import { AssistantCardView } from '@features/assistant/components/AssistantCardView';
 import { truncateLongText } from '../utils/truncate-long-text';
 import { AudioMessageContent, type CurrentAudioRef } from './AudioMessageContent';
 import { FileMessageContent } from './FileMessageContent';
@@ -50,6 +52,7 @@ interface MessageBubbleProps extends MessageBubbleActions {
   isGroupChat: boolean;
   roomId: string;
   isAssistantRoom?: boolean;
+  onQuickReply?: ((cardId: string, button: AssistantButton) => void) | undefined;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
@@ -95,6 +98,7 @@ export const MessageBubble = memo(function MessageBubble({
   isGroupChat,
   roomId,
   isAssistantRoom = false,
+  onQuickReply,
   participants,
   currentUserId,
   currentNickname,
@@ -373,6 +377,9 @@ export const MessageBubble = memo(function MessageBubble({
         <>
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
           {reactionUi.overlays}
+          {isAssistantRoom && message.card && onQuickReply && (
+            <AssistantCardView card={message.card} cardId={message.id} resolvedChoice={message.resolvedChoice} onQuickReply={onQuickReply} />
+          )}
         </>
       }
     >

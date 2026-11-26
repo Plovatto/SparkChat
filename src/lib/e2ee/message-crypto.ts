@@ -3,6 +3,7 @@ import { THUMBNAIL_MIME_TYPE } from '@lib/media/image-compression';
 import { isStorageMediaUrl } from '@lib/media/media-origin';
 import { unpadGif } from '@lib/media/gif-padding';
 import { isGifMimeType, resolveSafeMediaType } from '@lib/media/media-type';
+import { parseAssistantCard, type AssistantCard } from '@features/assistant/assistant-card';
 import type {
   AppSocket,
   MessageFileMeta,
@@ -45,6 +46,7 @@ const FIELD_LABELS = {
   fileKey: 'file-key',
   thumbnailKey: 'thumbnail-key',
   previewKey: 'preview-key',
+  assistantCard: 'assistantCard',
 } as const;
 
 const ENCRYPTED_MEDIA_PARAM = 'e2e';
@@ -180,6 +182,19 @@ async function decryptCaptionIfNeeded(
     return null;
   }
   return decryptTextContentIfNeeded(socket, caption, roomId, source, FIELD_LABELS.caption);
+}
+
+async function decryptAssistantCardIfNeeded(
+  socket: AppSocket,
+  sealed: string | null | undefined,
+  roomId: string,
+  source: FieldSource,
+): Promise<AssistantCard | null> {
+  if (!sealed) {
+    return null;
+  }
+  const opened = await decryptTextContentIfNeeded(socket, sealed, roomId, source, FIELD_LABELS.assistantCard);
+  return parseAssistantCard(opened);
 }
 
 async function decryptFileMetaIfNeeded(
@@ -360,7 +375,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
   const fileMeta = await decryptFileMetaIfNeeded(socket, message.fileMeta, message.roomId, source);
   const deferOriginal =
     message.type === 'image' && (Boolean(fileMeta?.thumbnailUrl) || (options.deferGifMedia === true && isGifImage(message.type, fileMeta)));
-  const [content, replyTo, caption, linkPreview, reactions] = await Promise.all([
+  const [content, replyTo, caption, linkPreview, reactions, card] = await Promise.all([
     deferOriginal ? Promise.resolve(message.content) : resolveContent(socket, message.content, message.roomId, message.type, fileMeta, source),
     decryptReplySnapshot(socket, message.replyTo, message.roomId),
     decryptCaptionIfNeeded(socket, message.caption, message.roomId, source),
@@ -368,6 +383,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     options.skipReactions === true || message.deletedForEveryone
       ? Promise.resolve([])
       : openReactions(socket, message.roomId, message.id, message.reactions, { messageTimestamp: message.timestamp }),
+    decryptAssistantCardIfNeeded(socket, message.assistantCard, message.roomId, source),
   ]);
   return {
     ...message,
@@ -378,6 +394,7 @@ export async function decryptMessageView(socket: AppSocket, message: MessageView
     linkPreview,
     reactions,
     unencrypted,
+    ...(card ? { card } : {}),
     ...(systemEvent ? { systemEvent } : {}),
     ...(eventTrust ? { eventTrust } : {}),
   };
