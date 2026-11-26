@@ -1,3 +1,4 @@
+import { isSocketAuthenticated } from './socket-auth-state';
 import type { AppSocket } from './socket-client';
 
 const AUTHENTICATED_EVENTS = ['user:resumed', 'user:registered'] as const;
@@ -15,6 +16,7 @@ export function requestOverSocket<T>({ socket, send, listen, fallback, replyTime
   return new Promise<T>((resolve) => {
     let settled = false;
     let resendOnAuth = false;
+    let sentLive = false;
     let replyTimer: ReturnType<typeof setTimeout> | undefined;
     let stopListening: () => void = () => undefined;
 
@@ -23,15 +25,20 @@ export function requestOverSocket<T>({ socket, send, listen, fallback, replyTime
       replyTimer = setTimeout(() => finish(fallback), replyTimeoutMs);
     };
 
+    const dispatch = () => {
+      sentLive = isSocketAuthenticated(socket);
+      send();
+    };
+
     const onDisconnect = () => {
       clearTimeout(replyTimer);
-      resendOnAuth = true;
+      resendOnAuth = sentLive;
     };
 
     const onAuthenticated = () => {
       if (resendOnAuth) {
         resendOnAuth = false;
-        send();
+        dispatch();
       }
       armReply();
     };
@@ -58,7 +65,7 @@ export function requestOverSocket<T>({ socket, send, listen, fallback, replyTime
     for (const event of AUTHENTICATED_EVENTS) {
       socket.on(event, onAuthenticated);
     }
-    send();
+    dispatch();
     if (socket.connected !== false) {
       armReply();
     }

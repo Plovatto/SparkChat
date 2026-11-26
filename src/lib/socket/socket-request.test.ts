@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSocket } from './socket-client';
+import { setSocketAuthenticated } from './socket-auth-state';
 import { requestOverSocket } from './socket-request';
 
 type Handler = (...args: unknown[]) => void;
@@ -24,7 +25,14 @@ function fakeSocket(connected = true) {
       return socket;
     },
   };
+  setSocketAuthenticated(socket, connected);
   const fire = (event: string, ...args: unknown[]) => {
+    if (event === 'disconnect') {
+      setSocketAuthenticated(socket, false);
+    }
+    if (event === 'user:resumed' || event === 'user:registered') {
+      setSocketAuthenticated(socket, true);
+    }
     for (const handler of Array.from(handlers.get(event) ?? [])) {
       handler(...args);
     }
@@ -106,6 +114,17 @@ describe('requestOverSocket', () => {
     const fake = fakeSocket(false);
     const result = ask(fake);
     await vi.advanceTimersByTimeAsync(10000);
+    fake.fire('user:resumed');
+    expect(fake.sent).toHaveLength(1);
+    fake.fire('e2e:public-keys', 'keys');
+    await expect(result).resolves.toBe('keys');
+  });
+
+  it('does not resend a request that was still queued when the connection dropped', async () => {
+    const fake = fakeSocket();
+    setSocketAuthenticated(fake.raw, false);
+    const result = ask(fake);
+    fake.fire('disconnect');
     fake.fire('user:resumed');
     expect(fake.sent).toHaveLength(1);
     fake.fire('e2e:public-keys', 'keys');
