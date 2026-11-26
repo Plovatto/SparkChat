@@ -3,6 +3,7 @@ import { translateErrorPayload, type ApiErrorPayload } from '@lib/api/api-error'
 import { adjustClockOffset, buildSocketJoinProof, completeLoginDeviceKey, prepareLoginDeviceKey } from '@lib/api/device-key';
 import { ensureSessionDeviceKey } from '@lib/api/session-auth';
 import { useSocket, type AuthMethod, type SocketUser } from '@lib/socket';
+import { ATTENTION_EVENTS, createAttentionTracker, type AttentionState } from '../lib/attention-tracker';
 import type { PendingRegistration, User } from '../types';
 
 export interface RegisteredPayload {
@@ -34,11 +35,15 @@ export interface SocketAuthSyncOptions {
 
 const AUTH_RETRY_DELAY_MS = 2000;
 
-type VisibilitySocket = { emit: (event: 'user:visibility', payload: { visible: boolean }) => unknown };
+type VisibilitySocket = { emit: (event: 'user:visibility', payload: AttentionState) => unknown };
 
-export function reportBackgroundAfterAuth(socket: VisibilitySocket, visibilityState: DocumentVisibilityState): void {
+export function reportBackgroundAfterAuth(socket: VisibilitySocket, visibilityState: DocumentVisibilityState, attentive = visibilityState === 'visible'): void {
   if (visibilityState === 'hidden') {
-    socket.emit('user:visibility', { visible: false });
+    socket.emit('user:visibility', { visible: false, attentive: false });
+    return;
+  }
+  if (!attentive) {
+    socket.emit('user:visibility', { visible: true, attentive: false });
   }
 }
 const LIVENESS_PROBE_TIMEOUT_MS = 3000;
@@ -141,11 +146,22 @@ export function useSocketAuthSync({
 
     let probeTimer: number | null = null;
 
-    const handleVisibilityChange = () => {
-      const isVisible = document.visibilityState === 'visible';
+    const tracker = createAttentionTracker({
+      now: () => Date.now(),
+      isVisible: () => document.visibilityState === 'visible',
+      hasFocus: () => document.hasFocus(),
+      onChange: (state) => {
+        if (socket.connected) {
+          socket.emit('user:visibility', state);
+        }
+      },
+    });
 
-      if (!isVisible) {
-        socket.emit('user:visibility', { visible: false });
+    const handleVisibilityChange = () => {
+      const state = tracker.report();
+
+      if (!state.visible) {
+        socket.emit('user:visibility', state);
         return;
       }
 
@@ -165,12 +181,17 @@ export function useSocketAuthSync({
         }
       }, LIVENESS_PROBE_TIMEOUT_MS);
 
-      socket.emit('user:visibility', { visible: true }, () => {
+      socket.emit('user:visibility', state, () => {
         acknowledged = true;
       });
     };
 
-    const handleAuthenticated = () => reportBackgroundAfterAuth(socket, document.visibilityState);
+    const handleAuthenticated = () => {
+      const state = tracker.report();
+      reportBackgroundAfterAuth(socket, document.visibilityState, state.attentive);
+    };
+    const handleInteraction = () => tracker.interact();
+    const handleFocusChange = () => tracker.refresh();
 
     handleVisibilityChange();
     socket.on('user:resumed', handleAuthenticated);
@@ -178,7 +199,10 @@ export function useSocketAuthSync({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('pageshow', handleVisibilityChange);
     window.addEventListener('online', handleVisibilityChange);
+    window.addEventListener('blur', handleFocusChange);
+    ATTENTION_EVENTS.forEach((type) => window.addEventListener(type, handleInteraction, { passive: true, capture: true }));
     return () => {
+      tracker.dispose();
       if (probeTimer !== null) {
         window.clearTimeout(probeTimer);
       }
@@ -187,6 +211,8 @@ export function useSocketAuthSync({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pageshow', handleVisibilityChange);
       window.removeEventListener('online', handleVisibilityChange);
+      window.removeEventListener('blur', handleFocusChange);
+      ATTENTION_EVENTS.forEach((type) => window.removeEventListener(type, handleInteraction, { capture: true }));
     };
   }, [socket, user]);
 

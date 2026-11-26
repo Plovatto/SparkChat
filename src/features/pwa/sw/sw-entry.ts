@@ -2,6 +2,7 @@ import { openAuthenticatedField } from '../../../lib/e2ee/authenticated-field';
 import { forgetCachedWrappingKey, loadContactPin, loadRoomKeyGenerations } from '../../../lib/e2ee/key-store';
 import { getSodium } from '../../../lib/e2ee/sodium';
 import { armCallAnswer } from '../lib/armed-answer';
+import { isCallDismissed, rememberDismissedCall } from '../lib/dismissed-call';
 import { readNotificationLanguage, readNotificationMirror, rememberMessageId } from '../lib/notification-mirror';
 import { resolveMessagePreview, type PreviewDeps } from './message-preview';
 import { OFFLINE_PAGE_PATH } from './protocol';
@@ -10,6 +11,7 @@ import {
   handleClientMessage,
   handleNavigation,
   handleNotificationClick,
+  handleNotificationClose,
   handlePush,
   readCachedRoomIcon,
   type WorkerEnvironment,
@@ -157,6 +159,8 @@ const env: WorkerEnvironment = {
   now: () => Date.now(),
   declineCall: declineCallOnServer,
   armCallAnswer: (callId) => armCallAnswer(worker.caches, worker.registration.scope, callId, Date.now()),
+  rememberDismissedCall: (callId) => rememberDismissedCall(worker.caches, worker.registration.scope, callId, Date.now()),
+  wasCallDismissed: (callId) => isCallDismissed(worker.caches, worker.registration.scope, callId, Date.now()),
   previewMessage: (roomId, preview, strings) => {
     forgetCachedWrappingKey();
     return resolveMessagePreview(roomId, preview, strings, previewDeps);
@@ -209,6 +213,10 @@ worker.addEventListener('push', (event: PushEvent) => {
 
 worker.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.waitUntil(handleNotificationClick(env, event.notification, event.action ?? ''));
+});
+
+worker.addEventListener('notificationclose', (event: NotificationEvent) => {
+  event.waitUntil(handleNotificationClose(env, state, event.notification));
 });
 
 worker.addEventListener('message', (event: MessageEvent) => {

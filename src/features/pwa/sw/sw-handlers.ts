@@ -11,7 +11,7 @@ import { NOTIFICATION_ICON_CACHE_NAME, notificationIconUrl } from '../../profile
 import { WORKER_STRINGS, type WorkerStrings } from './sw-strings';
 
 export type PushMessage =
-  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string; e?: number }
+  | { t: 'call'; callId: string; roomId: string; kind: 'voice' | 'video'; d?: string; e?: number; r?: 1 }
   | { t: 'call-end'; callId: string; reason: string }
   | { t: 'msg'; roomId: string; preview?: PushMessagePreview };
 
@@ -65,10 +65,13 @@ export interface WorkerEnvironment {
   roomIcon?: (roomId: string) => Promise<string | null>;
   declineCall?: (callId: string, token: string) => Promise<void>;
   armCallAnswer?: (callId: string) => Promise<void>;
+  rememberDismissedCall?: (callId: string) => Promise<void>;
+  wasCallDismissed?: (callId: string) => Promise<boolean>;
 }
 
 export interface WorkerState {
   activeRooms: Map<string, string>;
+  dismissedCalls: Set<string>;
 }
 
 export const NOTIFICATION_ICON = '/icon-192.png';
@@ -106,7 +109,7 @@ export function resolveWorkerLanguage(stored: string | null, navigatorLanguage: 
 }
 
 export function createWorkerState(): WorkerState {
-  return { activeRooms: new Map() };
+  return { activeRooms: new Map(), dismissedCalls: new Set() };
 }
 
 export function callTag(callId: string): string {
@@ -138,6 +141,7 @@ export function parsePushMessage(raw: unknown): PushMessage | null {
           kind: value.kind,
           ...(isDeclineToken(value.d) ? { d: value.d } : {}),
           ...(typeof value.e === 'number' && Number.isFinite(value.e) ? { e: value.e } : {}),
+          ...(value.r === 1 ? { r: 1 as const } : {}),
         };
       }
       return null;
@@ -217,9 +221,40 @@ async function hasFocusedVisibleClient(env: WorkerEnvironment): Promise<boolean>
   return clients.some((client) => client.focused && client.visibilityState === 'visible');
 }
 
-async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language: 'pt' | 'en', message: Extract<PushMessage, { t: 'call' }>): Promise<void> {
+async function isCallDismissed(env: WorkerEnvironment, state: WorkerState, callId: string): Promise<boolean> {
+  if (state.dismissedCalls.has(callId)) {
+    return true;
+  }
+  return env.wasCallDismissed ? env.wasCallDismissed(callId).catch(() => false) : false;
+}
+
+async function showCall(
+  env: WorkerEnvironment,
+  state: WorkerState,
+  strings: WorkerStrings,
+  language: 'pt' | 'en',
+  message: Extract<PushMessage, { t: 'call' }>,
+): Promise<void> {
   if (await hasFocusedVisibleClient(env)) {
     return;
+  }
+  let quiet = false;
+  if (message.r === 1) {
+    if (message.e !== undefined && message.e <= env.now()) {
+      const anyShown = (await env.getNotifications('').catch(() => [])).length > 0;
+      if (!anyShown) {
+        await env.showNotification(strings.missedCall, { ...baseOptions(language, env), body: strings.missedCallBody, tag: callTag(message.callId), silent: true, data: { kind: 'missed', callId: message.callId, roomId: message.roomId } });
+      }
+      return;
+    }
+    const displayed = (await env.getNotifications(callTag(message.callId)).catch(() => [])).length > 0;
+    if (!displayed && (await isCallDismissed(env, state, message.callId))) {
+      const others = await env.getNotifications('').catch(() => []);
+      if (others.length > 0) {
+        return;
+      }
+      quiet = true;
+    }
   }
   const base = baseOptions(language, env);
   const options: WorkerNotificationOptions = {
@@ -227,9 +262,9 @@ async function showCall(env: WorkerEnvironment, strings: WorkerStrings, language
     icon: await roomIconOr(env, message.roomId, base.icon),
     body: message.kind === 'video' ? strings.videoCallBody : strings.voiceCallBody,
     tag: callTag(message.callId),
-    renotify: true,
+    renotify: !quiet,
     requireInteraction: true,
-    vibrate: CALL_VIBRATION,
+    ...(quiet ? { silent: true } : { vibrate: CALL_VIBRATION }),
     data: { kind: 'call', callId: message.callId, roomId: message.roomId, ...(message.d ? { declineToken: message.d } : {}), ...(message.e ? { ringExpiresAt: message.e } : {}) },
   };
   if (env.maxActions() >= 2) {
@@ -348,7 +383,7 @@ export async function handlePush(env: WorkerEnvironment, state: WorkerState, raw
     switch (message?.t) {
       case 'call':
         await closeExpiredCalls(env);
-        await showCall(env, strings, language, message);
+        await showCall(env, state, strings, language, message);
         return;
       case 'call-end':
         await showCallEnd(env, strings, language, message);
@@ -382,9 +417,23 @@ function readNotificationData(data: unknown): { kind?: string; callId?: string; 
   };
 }
 
+export async function handleNotificationClose(env: WorkerEnvironment, state: WorkerState, notification: WorkerNotification): Promise<void> {
+  const data = readNotificationData(notification.data);
+  if (data.kind !== 'call' || !data.callId) {
+    return;
+  }
+  state.dismissedCalls.add(data.callId);
+  if (env.rememberDismissedCall) {
+    await env.rememberDismissedCall(data.callId).catch(() => undefined);
+  }
+}
+
 export async function handleNotificationClick(env: WorkerEnvironment, notification: WorkerNotification, action: string): Promise<void> {
   notification.close();
   const read = readNotificationData(notification.data);
+  if (read.kind === 'call' && read.callId && env.rememberDismissedCall) {
+    await env.rememberDismissedCall(read.callId).catch(() => undefined);
+  }
   const expired = read.kind === 'call' && read.ringExpiresAt !== undefined && read.ringExpiresAt <= env.now();
   const data = expired ? { kind: 'msg', roomId: read.roomId } : read;
   const clients = await env.windowClients();
