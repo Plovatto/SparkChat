@@ -458,6 +458,7 @@
         "confirmScheduled": "📨 Para {{recipient}}: “{{text}}” · {{when}}",
         "scheduleFailed": "Não foi possível agendar a mensagem. Tente de novo.",
         "confirmDeleteNote": "Apagar nota: {{preview}}",
+        "confirmCancelScheduled": "🗑️ Cancelar envio: “{{preview}}”",
         "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
         "lookSuggestion": "Sugestão de visual",
         "lookApplied": "Visual aplicado",

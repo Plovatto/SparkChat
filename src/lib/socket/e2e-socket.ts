@@ -69,6 +69,8 @@ type RoomKeyRejectedPayload = Parameters<ServerToClientEvents['e2e:room-key-reje
 
 const STALE_ROOM_KEY_CODE = 'message.staleRoomKey';
 
+const SCHEDULE_PENDING_TTL_MS = 30000;
+
 interface PendingSend {
   event: SealedSendEvent;
   payload: OutgoingSealable;
@@ -233,7 +235,16 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       .then(async (generation) => {
         const encrypted = await encryptOutgoingMessage(payload);
         if (payload.clientTempId) {
-          pendingSends.set(payload.clientTempId, { event, payload, keyId: generation.keyId, retried: staleKeyId !== null });
+          const clientTempId = payload.clientTempId;
+          pendingSends.set(clientTempId, { event, payload, keyId: generation.keyId, retried: staleKeyId !== null });
+          if (event === 'message:schedule') {
+            const entry = pendingSends.get(clientTempId);
+            setTimeout(() => {
+              if (pendingSends.get(clientTempId) === entry) {
+                pendingSends.delete(clientTempId);
+              }
+            }, SCHEDULE_PENDING_TTL_MS);
+          }
         }
         originalEmit(event, encrypted);
       })
@@ -513,6 +524,14 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   originalOn('message:new', (payload: { clientTempId?: string }) => {
     if (payload.clientTempId) {
       pendingSends.delete(payload.clientTempId);
+    }
+  });
+
+  originalOn('message:card-resolved', (payload: { cardId?: string }) => {
+    for (const [clientTempId, pending] of pendingSends) {
+      if (pending.event === 'message:schedule' && (pending.payload as OutgoingSchedule).cardId === payload.cardId) {
+        pendingSends.delete(clientTempId);
+      }
     }
   });
 

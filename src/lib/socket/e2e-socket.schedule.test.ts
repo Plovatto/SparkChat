@@ -93,4 +93,18 @@ describe('wrapSocketWithE2e message:schedule', () => {
     expect(e2ee.recoverFromStaleRoomKey).toHaveBeenCalledWith(socket, 'room-1', 'k'.repeat(22));
     expect(appErrors).toHaveLength(0);
   });
+
+  it('forgets the pending schedule when its card resolves', async () => {
+    const { socket, receive } = createFakeSocket();
+    const originalEmit = vi.spyOn(socket, 'emit');
+    wrapSocketWithE2e(socket);
+    socket.emit('message:schedule', payload as never);
+    await vi.waitFor(() => expect(originalEmit).toHaveBeenCalledTimes(1));
+
+    receive('message:card-resolved', { roomId: 'room-1', cardId: 'card-1', choice: 'yes' });
+    receive('error', { code: 'message.staleRoomKey', message: 'stale', clientTempId: 't1' });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(originalEmit).toHaveBeenCalledTimes(1);
+  });
 });

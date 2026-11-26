@@ -40,7 +40,8 @@ export type ConfirmAction =
   | { type: 'status'; text: string; untilLocal: string; timeZone: string }
   | { type: 'scheduled-message'; roomId: string; recipient: string; text: string; sendAtLocal: string; timeZone: string }
   | { type: 'delete-note'; noteId: string; preview: string }
-  | { type: 'cancel-reminder'; reminderId: string; preview: string };
+  | { type: 'cancel-reminder'; reminderId: string; preview: string }
+  | { type: 'cancel-scheduled'; scheduledId: string; preview: string };
 
 export const HELP_TOPICS = [
   'themes',

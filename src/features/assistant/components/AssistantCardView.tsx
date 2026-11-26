@@ -33,6 +33,8 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
       });
     case 'delete-note':
       return t('chat.assistant.card.confirmDeleteNote', { preview: action.preview });
+    case 'cancel-scheduled':
+      return t('chat.assistant.card.confirmCancelScheduled', { preview: action.preview });
     case 'cancel-reminder':
       return t('chat.assistant.card.confirmCancelReminder', { preview: action.preview });
   }
