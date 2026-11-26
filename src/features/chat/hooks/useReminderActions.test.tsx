@@ -73,6 +73,19 @@ describe('useReminderActions', () => {
     expect(onQuickReply).toHaveBeenLastCalledWith('B', BUTTONS[0]);
   });
 
+  it('keeps the action retryable when sending throws', () => {
+    const onQuickReply = vi.fn().mockImplementationOnce(() => {
+      throw new Error('offline');
+    });
+    const { rerender } = renderHook((props: { messages: ChatMessage[] }) => useReminderActions({ roomId: 'room', isLoaded: true, onQuickReply, ...props }), {
+      initialProps: { messages: [card('c1', 'rem1')] },
+    });
+    act(() => queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'done' }));
+    rerender({ messages: [card('c1', 'rem1'), card('c2', 'rem9')] });
+    expect(onQuickReply).toHaveBeenCalledTimes(2);
+    expect(onQuickReply).toHaveBeenLastCalledWith('c1', BUTTONS[0]);
+  });
+
   it('does nothing when the card is missing or already answered', () => {
     vi.useFakeTimers();
     const onQuickReply = vi.fn();
@@ -81,7 +94,7 @@ describe('useReminderActions', () => {
     act(() => queueReminderAction({ reminderId: 'rem1', roomId: 'room', action: 'snooze10' }));
     act(() => queueReminderAction({ reminderId: 'missing', roomId: 'room', action: 'done' }));
     act(() => {
-      vi.advanceTimersByTime(20000);
+      vi.advanceTimersByTime(40000);
     });
     expect(onQuickReply).not.toHaveBeenCalled();
   });

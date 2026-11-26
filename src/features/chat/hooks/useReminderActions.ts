@@ -66,8 +66,12 @@ export function useReminderActions({ roomId, isLoaded, messages, onQuickReply }:
       }
       const button = message.card.buttons.find((candidate) => candidate.choice === entry.action);
       if (button) {
-        sentRef.current.add(message.id);
-        onQuickReplyRef.current(message.id, button);
+        try {
+          onQuickReplyRef.current(message.id, button);
+          sentRef.current.add(message.id);
+        } catch {
+          remaining.push(entry);
+        }
       }
     }
     if (remaining.length !== pending.length) {

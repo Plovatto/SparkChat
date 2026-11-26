@@ -190,8 +190,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-assistant-reminder-bell,
-  .sc-assistant-card-reminder,
   .sc-assistant-reply,
   .sc-assistant-resolved,
   .sc-assistant-chips-wrap,
@@ -447,5 +445,12 @@
   }
   32% {
     transform: rotate(-6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-assistant-card-reminder,
+  .sc-assistant-reminder-bell {
+    animation: none;
   }
 }

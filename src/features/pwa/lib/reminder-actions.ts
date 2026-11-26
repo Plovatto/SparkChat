@@ -12,7 +12,7 @@ export interface QueuedReminderAction extends ReminderAction {
 
 type Listener = (action: QueuedReminderAction) => void;
 
-export const REMINDER_ACTION_TTL_MS = 15000;
+export const REMINDER_ACTION_TTL_MS = 30000;
 export const MAX_QUEUED_REMINDER_ACTIONS = 4;
 const queued: QueuedReminderAction[] = [];
 const listeners = new Set<Listener>();

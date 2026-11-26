@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MAX_QUEUED_REMINDER_ACTIONS, queueReminderAction, REMINDER_ACTION_TTL_MS, subscribeReminderActions } from './reminder-actions';
+import { MAX_QUEUED_REMINDER_ACTIONS, queueReminderAction, REMINDER_ACTION_TTL_MS, subscribeReminderActions, type QueuedReminderAction } from './reminder-actions';
 
 function drain() {
-  const received = vi.fn();
+  const received = vi.fn<(action: QueuedReminderAction) => void>();
   subscribeReminderActions(received)();
   return received;
 }
