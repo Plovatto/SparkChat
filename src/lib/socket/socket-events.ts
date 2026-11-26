@@ -375,6 +375,7 @@ export interface ServerToClientEvents {
   'user:recovery-file-regenerated': () => void;
   'user:sessions': (payload: { sessions: SessionSummary[] }) => void;
   'user:session-revoked': () => void;
+  'user:theme-updated': (payload: SocketUserTheme) => void;
   'user:chat-settings-updated': (payload: { chatSettings: SocketChatSettings }) => void;
   'e2e:public-keys': (payload: { keys: E2ePublicKeyEntry[] }) => void;
   'kt:config': (payload: KtConfigPayload) => void;

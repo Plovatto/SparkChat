@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { isSocketAuthenticated, useSocket, type SocketUser } from '@lib/socket';
+import { isSocketAuthenticated, useSocket, type SocketUser, type SocketUserTheme } from '@lib/socket';
 import { useTheme } from '../theme-context';
+import { isColorThemeId, isThemeBaseId } from '../theme-guards';
 
 export const THEME_PENDING_SYNC_KEY = 'chatThemePendingSync';
 
@@ -62,11 +63,22 @@ export function useThemeSync(): void {
       changeTheme(serverThemeId);
     };
 
+    const applyRemoteTheme = (payload: SocketUserTheme) => {
+      if (typeof payload !== 'object' || payload === null || !isThemeBaseId(payload.baseTheme) || !isColorThemeId(payload.colorTheme)) {
+        return;
+      }
+      lastSyncedThemeId.current = `${payload.baseTheme}-${payload.colorTheme}`;
+      setPendingThemeChange(false);
+      changeTheme(lastSyncedThemeId.current);
+    };
+
     socket.on('user:resumed', resolveFromServer);
     socket.on('user:registered', resolveFromServer);
+    socket.on('user:theme-updated', applyRemoteTheme);
     return () => {
       socket.off('user:resumed', resolveFromServer);
       socket.off('user:registered', resolveFromServer);
+      socket.off('user:theme-updated', applyRemoteTheme);
     };
   }, [socket, changeTheme]);
 

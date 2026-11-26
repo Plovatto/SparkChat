@@ -457,7 +457,10 @@
         "confirmDeleteNote": "Delete note: {{preview}}",
         "confirmCancelReminder": "Cancel reminder: {{preview}}",
         "lookSuggestion": "Look suggestion",
-        "lookApplied": "Look applied"
+        "lookApplied": "Look applied",
+        "lookTheme": "Theme: {{name}}",
+        "lookWallpaper": "Wallpaper: {{name}}",
+        "lookAppearance": "Adjusts: {{items}}"
       }
     },
     "empty": {

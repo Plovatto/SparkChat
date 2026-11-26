@@ -135,6 +135,12 @@ export function parseAssistantCard(raw: unknown): AssistantCard | null {
   ) {
     return null;
   }
+  if ((value.kind === 'look-suggestion' || value.kind === 'look-applied') && !isRecord(value.look)) {
+    return null;
+  }
+  if (value.kind === 'look-applied' && !isRecord(value.previous)) {
+    return null;
+  }
   if (value.kind === 'confirm' && (!isRecord(value.action) || typeof value.action.type !== 'string')) {
     return null;
   }

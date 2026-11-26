@@ -44,4 +44,13 @@ describe('parseAssistantCard', () => {
     expect(parseAssistantCard({ v: 1, kind: 'help', topic: 'nope', target: 'appearance' })).toBeNull();
     expect(parseAssistantCard({ v: 1, kind: 'help', topic: 'themes', target: 'elsewhere' })).toBeNull();
   });
+
+  it('rejects look cards whose look or previous is not an object', () => {
+    expect(parseAssistantCard({ v: 1, kind: 'look-suggestion', look: 'x', buttons })).toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'look-suggestion', look: null, buttons })).toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'look-applied', look: {}, previous: 3, buttons })).toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'look-applied', look: {}, buttons })).toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'look-applied', look: {}, previous: {}, buttons })).not.toBeNull();
+    expect(parseAssistantCard({ v: 1, kind: 'look-suggestion', look: {}, buttons })).not.toBeNull();
+  });
 });

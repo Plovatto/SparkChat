@@ -1,13 +1,14 @@
 import type { CSSProperties } from 'react';
 import { LuCheckCheck } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { resolveBubbleStyle, useTheme, type ResolvedBubbleStyle } from '@features/theme';
+import { resolveBubbleStyle, useTheme, type ResolvedBubbleStyle, type ThemePalette } from '@features/theme';
 import type { ChatBackground } from '@features/theme/constants/chat-backgrounds';
 import type { ChatAppearance } from '@features/theme/constants/chat-appearance';
 
 interface AppearanceBubblePreviewProps {
   appearance: ChatAppearance;
   wallpaper: ChatBackground | null;
+  theme?: ThemePalette | undefined;
 }
 
 function bubbleStyle(bubble: ResolvedBubbleStyle): CSSProperties {
@@ -19,9 +20,10 @@ function bubbleStyle(bubble: ResolvedBubbleStyle): CSSProperties {
   };
 }
 
-export function AppearanceBubblePreview({ appearance, wallpaper }: AppearanceBubblePreviewProps) {
+export function AppearanceBubblePreview({ appearance, wallpaper, theme: themeOverride }: AppearanceBubblePreviewProps) {
   const { t } = useTranslation();
-  const { theme } = useTheme();
+  const { theme: contextTheme } = useTheme();
+  const theme = themeOverride ?? contextTheme;
   const incoming = resolveBubbleStyle(theme, appearance, false);
   const outgoing = resolveBubbleStyle(theme, appearance, true);
   const surfaceStyle: CSSProperties | undefined = wallpaper?.background
