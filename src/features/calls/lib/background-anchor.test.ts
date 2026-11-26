@@ -152,7 +152,7 @@ describe('anchorWav', () => {
 });
 
 describe('startBackgroundAnchor', () => {
-  it('plays an unmuted looping element so the page holds an audible media session', async () => {
+  it('plays an unmuted looping element while the page is hidden so it holds an audible media session', async () => {
     const { element, deps } = harness();
     startBackgroundAnchor(deps);
     await flush();
@@ -162,6 +162,179 @@ describe('startBackgroundAnchor', () => {
     expect(element.volume).toBe(1);
     expect(element.paused).toBe(false);
     expect(element.attributes.get('data-call-audio')).toBe('anchor');
+  });
+
+  it('plays muted while the call is on screen so the volume keys keep controlling the call volume', async () => {
+    const { element, deps, page } = harness();
+    page.doc.visibilityState = 'visible';
+    startBackgroundAnchor(deps);
+    await flush();
+    expect(element.paused).toBe(false);
+    expect(element.loop).toBe(true);
+    expect(element.muted).toBe(true);
+  });
+
+  it('turns audible when the app goes to the background without restarting playback', async () => {
+    const { element, deps, page } = harness();
+    page.doc.visibilityState = 'visible';
+    startBackgroundAnchor(deps);
+    await flush();
+    page.doc.visibilityState = 'hidden';
+    page.fire('visibilitychange');
+    expect(element.muted).toBe(false);
+    expect(element.paused).toBe(false);
+    expect(element.plays).toBe(1);
+  });
+
+  it('replaces the audible element with a fresh muted one when the app comes back, so the browser drops its media session', async () => {
+    const first = new FakeElement();
+    const second = new FakeElement();
+    const queue = [first, second];
+    const { deps, page, revoked, clock } = harness(first);
+    deps.createElement = () => queue.shift() ?? null;
+    page.doc.visibilityState = 'visible';
+    const anchor = startBackgroundAnchor(deps);
+    await flush();
+    page.doc.visibilityState = 'hidden';
+    page.fire('visibilitychange');
+    clock.now += 60_000;
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(first.paused).toBe(true);
+    expect(first.src).toBe('');
+    expect(first.listenerCount).toBe(0);
+    expect(second.src).toBe('blob:anchor');
+    expect(second.loop).toBe(true);
+    expect(second.muted).toBe(true);
+    expect(second.paused).toBe(false);
+    expect(second.attributes.get('data-call-audio')).toBe('anchor');
+    page.doc.visibilityState = 'hidden';
+    page.fire('visibilitychange');
+    expect(second.muted).toBe(false);
+    expect(second.plays).toBe(1);
+    anchor.stop();
+    expect(second.paused).toBe(true);
+    expect(second.listenerCount).toBe(0);
+    expect(revoked).toEqual(['blob:anchor']);
+  });
+
+  it('swaps a yielded audible element for a fresh muted one when it is revived on screen', async () => {
+    const first = new FakeElement();
+    const second = new FakeElement();
+    const queue = [first, second];
+    const { deps, page, clock } = harness(first);
+    deps.createElement = () => queue.shift() ?? null;
+    startBackgroundAnchor(deps);
+    await flush();
+    clock.now += 10_000;
+    first.systemPause();
+    clock.now += 5_000;
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(first.plays).toBe(1);
+    expect(first.src).toBe('');
+    expect(second.muted).toBe(true);
+    expect(second.paused).toBe(false);
+  });
+
+  it('ignores a late result from an element it already swapped out', async () => {
+    const first = new FakeElement();
+    const second = new FakeElement();
+    let rejectFirst: (error: Error) => void = () => undefined;
+    first.play = vi.fn(() => {
+      first.plays += 1;
+      first.paused = false;
+      return new Promise<void>((_resolve, reject) => {
+        rejectFirst = reject;
+      });
+    });
+    const queue = [first, second];
+    const { deps, page, timers } = harness(first);
+    deps.createElement = () => queue.shift() ?? null;
+    startBackgroundAnchor(deps);
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    rejectFirst(new DOMException('aborted', 'AbortError'));
+    await flush();
+    expect(timers).toHaveLength(0);
+    expect(second.paused).toBe(false);
+    expect(second.muted).toBe(true);
+  });
+
+  it('reloads the same element when no new one can be created, so the old media player is still dropped', async () => {
+    const { element, deps, page } = harness();
+    let created = 0;
+    deps.createElement = () => {
+      created += 1;
+      return created === 1 ? element : null;
+    };
+    startBackgroundAnchor(deps);
+    await flush();
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(element.loads).toBe(1);
+    expect(element.src).toBe('blob:anchor');
+    expect(element.muted).toBe(true);
+    expect(element.paused).toBe(false);
+    expect(element.listenerCount).toBe(1);
+  });
+
+  it('keeps the same muted element when the app comes back without ever having been audible', async () => {
+    const { element, deps, page } = harness();
+    let created = 0;
+    deps.createElement = () => {
+      created += 1;
+      return element;
+    };
+    page.doc.visibilityState = 'visible';
+    startBackgroundAnchor(deps);
+    await flush();
+    page.fire('visibilitychange');
+    await flush();
+    expect(created).toBe(1);
+    expect(element.plays).toBe(1);
+    expect(element.muted).toBe(true);
+  });
+
+  it('does not treat its own swap as another app taking audio focus', async () => {
+    const first = new FakeElement();
+    const second = new FakeElement();
+    const queue = [first, second];
+    const { deps, page, timers, clock } = harness(first);
+    deps.createElement = () => queue.shift() ?? null;
+    page.doc.visibilityState = 'hidden';
+    startBackgroundAnchor(deps);
+    await flush();
+    clock.now += 60_000;
+    page.doc.visibilityState = 'visible';
+    page.fire('visibilitychange');
+    await flush();
+    expect(second.paused).toBe(false);
+    clock.now += 60_000;
+    second.systemPause();
+    clock.now += 2_000;
+    page.doc.visibilityState = 'hidden';
+    page.fire('visibilitychange');
+    expect(timers).toHaveLength(0);
+    expect(second.plays).toBe(1);
+  });
+
+  it('keeps a revived element muted while the page is visible', async () => {
+    const { element, deps, page, interactions, clock } = harness();
+    page.doc.visibilityState = 'visible';
+    startBackgroundAnchor(deps);
+    await flush();
+    clock.now += 10_000;
+    element.systemPause();
+    clock.now += 2_000;
+    interactions.fire('pointerdown');
+    await flush();
+    expect(element.plays).toBe(2);
+    expect(element.muted).toBe(true);
   });
 
   it('yields to another app that pauses stable playback and never replays it on a timer', async () => {
