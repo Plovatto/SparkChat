@@ -5,7 +5,7 @@ export interface ResumeSource {
   window: Pick<Window, 'addEventListener' | 'removeEventListener'>;
 }
 
-function browserSource(): ResumeSource | null {
+export function browserSource(): ResumeSource | null {
   if (typeof document === 'undefined' || typeof window === 'undefined') {
     return null;
   }

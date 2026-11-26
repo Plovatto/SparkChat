@@ -1,4 +1,4 @@
-import { onPageResume, type ResumeSource } from './page-resume';
+import { browserSource, onPageResume, type ResumeSource } from './page-resume';
 
 export const ANCHOR_SAMPLE_RATE = 8000;
 export const ANCHOR_SECONDS = 8;
@@ -109,21 +109,19 @@ const INTERACTIONS = ['pointerdown', 'keydown'] as const;
 
 export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): BackgroundAnchor {
   const deps = { ...defaultDeps, ...overrides };
-  const element = deps.createElement();
-  if (!element) {
+  const first = deps.createElement();
+  if (!first) {
     return NOOP_ANCHOR;
   }
   const url = deps.createUrl(anchorWav());
   if (!url) {
     return NOOP_ANCHOR;
   }
-  element.setAttribute('data-call-audio', 'anchor');
-  element.preload = 'auto';
-  element.loop = true;
-  element.muted = false;
-  element.volume = 1;
-  element.src = url;
+  const page = deps.source === undefined ? browserSource() : deps.source;
+  const isVisible = () => page?.document.visibilityState === 'visible';
 
+  let element = first;
+  let audible = false;
   let stopped = false;
   let retry: unknown = null;
   let failures = 0;
@@ -137,12 +135,47 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     }
   };
 
+  const applyAudibility = () => {
+    element.muted = isVisible();
+    audible = audible || !element.muted;
+  };
+
+  const onPause = () => {
+    if (stopped) {
+      return;
+    }
+    if (playingSince === null) {
+      return;
+    }
+    playingSince = null;
+    yieldedAt = deps.now();
+    clearRetry();
+  };
+
+  const mount = (target: AnchorElement) => {
+    target.setAttribute('data-call-audio', 'anchor');
+    target.preload = 'auto';
+    target.loop = true;
+    target.volume = 1;
+    element = target;
+    applyAudibility();
+    target.src = url;
+    target.addEventListener('pause', onPause);
+  };
+
+  const release = (target: AnchorElement) => {
+    target.removeEventListener('pause', onPause);
+    target.pause();
+    target.removeAttribute('src');
+    target.load();
+  };
+
   const play = () => {
     if (stopped) {
       return;
     }
     clearRetry();
-    element.muted = false;
+    applyAudibility();
     let attempt: Promise<void>;
     try {
       attempt = element.play();
@@ -172,16 +205,16 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     }, delay);
   };
 
-  const onPause = () => {
-    if (stopped) {
+  const replace = () => {
+    const next = deps.createElement();
+    if (!next) {
       return;
     }
-    if (playingSince === null) {
-      return;
-    }
-    playingSince = null;
-    yieldedAt = deps.now();
     clearRetry();
+    release(element);
+    audible = false;
+    playingSince = null;
+    mount(next);
   };
 
   const revive = () => {
@@ -193,11 +226,29 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
     }
     yieldedAt = null;
     failures = 0;
+    if (audible && isVisible()) {
+      replace();
+    }
     play();
   };
 
-  element.addEventListener('pause', onPause);
-  const stopResume = deps.source === undefined ? onPageResume(revive) : onPageResume(revive, deps.source);
+  const onVisibility = () => {
+    if (stopped) {
+      return;
+    }
+    if (!isVisible() || !audible || element.paused) {
+      applyAudibility();
+      return;
+    }
+    yieldedAt = null;
+    failures = 0;
+    replace();
+    play();
+  };
+
+  mount(first);
+  page?.document.addEventListener('visibilitychange', onVisibility);
+  const stopResume = onPageResume(revive, page);
   for (const type of INTERACTIONS) {
     deps.interactions?.addEventListener(type, revive, { capture: true, passive: true });
   }
@@ -212,13 +263,11 @@ export function startBackgroundAnchor(overrides: Partial<AnchorDeps> = {}): Back
       stopped = true;
       clearRetry();
       stopResume();
-      element.removeEventListener('pause', onPause);
+      page?.document.removeEventListener('visibilitychange', onVisibility);
       for (const type of INTERACTIONS) {
         deps.interactions?.removeEventListener(type, revive, { capture: true });
       }
-      element.pause();
-      element.removeAttribute('src');
-      element.load();
+      release(element);
       deps.revokeUrl(url);
     },
   };
