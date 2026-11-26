@@ -1,6 +1,7 @@
 import { translate } from '@lib/i18n/app-i18n';
 import type { AppSocket, E2ePublicKeyEntry, RoomParticipant, RoomSummary, RoomType, SealedRoomKeyEntry } from '@lib/socket';
 import type { RoomEncryptedName } from '@lib/socket/socket-events';
+import { requestOverSocket } from '@lib/socket/socket-request';
 import { verifyPublicKeyEntries } from '@lib/kt/kt-verify';
 import { createBatchedLookup } from './batched-lookup';
 import { ASSISTANT_USER_ID } from './assistant';
@@ -119,6 +120,7 @@ export interface InviteJoinRequest {
 export type RoomInviteListener = (roomId: string) => void;
 
 const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_MAX_WAIT_MS = 20000;
 
 const MISSING_GENERATION_RETRY_MS = 30000;
 
@@ -195,41 +197,36 @@ const MAX_ROTATION_RETRY_MS = ROTATION_STALL_MS + 5000;
 const POISON_REASONS: ReadonlySet<string> = new Set(['bad-box', 'bad-signature', 'malformed', 'key-mismatch']);
 
 function requestRoomKeys(socket: AppSocket, roomIds: string[], keyIds?: Map<string, Set<string>>): Promise<RoomKeyResponse> {
-  const run = () =>
-    new Promise<RoomKeyResponse>((resolve) => {
-      const requested = new Set(roomIds);
-      let settled = false;
-      let timeoutId = 0;
-
-      const finish = (value: RoomKeyResponse) => {
-        if (settled) {
-          return;
-        }
-        settled = true;
-        window.clearTimeout(timeoutId);
-        socket.off('e2e:room-keys', handleKeys);
-        resolve(value);
-      };
-
-      const handleKeys = (payload: { keys: SealedRoomKeyEntry[]; truncated?: boolean }) => {
-        finish({
-          entries: (Array.isArray(payload?.keys) ? payload.keys : []).filter(
-            (entry) => requested.has(entry.roomId) && (!keyIds || keyIds.get(entry.roomId)?.has(entry.keyId) === true),
-          ),
-          truncated: payload?.truncated === true,
-        });
-      };
-
-      socket.on('e2e:room-keys', handleKeys);
-      if (keyIds) {
-        socket.emit('e2e:get-room-keys', {
-          roomIds,
-          keyIds: Object.fromEntries(Array.from(keyIds, ([roomId, ids]) => [roomId, Array.from(ids).slice(0, MAX_KEY_IDS_PER_ROOM)])),
-        });
-      } else {
-        socket.emit('e2e:get-room-keys', { roomIds });
+  const requested = new Set(roomIds);
+  const payload = keyIds
+    ? {
+        roomIds,
+        keyIds: Object.fromEntries(Array.from(keyIds, ([roomId, ids]) => [roomId, Array.from(ids).slice(0, MAX_KEY_IDS_PER_ROOM)])),
       }
-      timeoutId = window.setTimeout(() => finish({ entries: [], truncated: false }), REQUEST_TIMEOUT_MS);
+    : { roomIds };
+  const run = () =>
+    requestOverSocket<RoomKeyResponse>({
+      socket,
+      send: () => {
+        socket.emit('e2e:get-room-keys', payload);
+      },
+      listen: (settle) => {
+        const handleKeys = (reply: { keys: SealedRoomKeyEntry[]; truncated?: boolean }) => {
+          settle({
+            entries: (Array.isArray(reply?.keys) ? reply.keys : []).filter(
+              (entry) => requested.has(entry.roomId) && (!keyIds || keyIds.get(entry.roomId)?.has(entry.keyId) === true),
+            ),
+            truncated: reply?.truncated === true,
+          });
+        };
+        socket.on('e2e:room-keys', handleKeys);
+        return () => {
+          socket.off('e2e:room-keys', handleKeys);
+        };
+      },
+      fallback: { entries: [], truncated: false },
+      replyTimeoutMs: REQUEST_TIMEOUT_MS,
+      maxWaitMs: REQUEST_MAX_WAIT_MS,
     });
   const task = roomKeyFetchQueue.then(run, run);
   roomKeyFetchQueue = task.catch(() => undefined);
@@ -264,33 +261,30 @@ async function fetchRoomKeyGenerations(socket: AppSocket, ids: string[]): Promis
 }
 
 function fetchPublicKeys(socket: AppSocket, userIds: string[]): Promise<E2ePublicKeyEntry[]> {
-  return new Promise((resolve) => {
-    const requested = new Set(userIds);
-    let settled = false;
-    let timeoutId = 0;
-
-    const finish = (value: E2ePublicKeyEntry[]) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      window.clearTimeout(timeoutId);
-      socket.off('e2e:public-keys', handleKeys);
-      resolve(value);
-    };
-
-    const handleKeys = (payload: { keys: E2ePublicKeyEntry[] }) => {
-      const received = payload.keys.filter((entry) => requested.has(entry.userId));
-      window.clearTimeout(timeoutId);
-      verifyPublicKeyEntries(socket, received).then(finish, (error: unknown) => {
-        console.error('[kt] key verification crashed, refusing the keys', error);
-        finish([]);
-      });
-    };
-
-    socket.on('e2e:public-keys', handleKeys);
-    socket.emit('e2e:get-public-keys', { userIds });
-    timeoutId = window.setTimeout(() => finish([]), REQUEST_TIMEOUT_MS);
+  const requested = new Set(userIds);
+  return requestOverSocket<E2ePublicKeyEntry[]>({
+    socket,
+    send: () => {
+      socket.emit('e2e:get-public-keys', { userIds });
+    },
+    listen: (settle) => {
+      const handleKeys = (payload: { keys: E2ePublicKeyEntry[] }) => {
+        const received = payload.keys.filter((entry) => requested.has(entry.userId));
+        settle(
+          verifyPublicKeyEntries(socket, received).catch((error: unknown) => {
+            console.error('[kt] key verification crashed, refusing the keys', error);
+            return [];
+          }),
+        );
+      };
+      socket.on('e2e:public-keys', handleKeys);
+      return () => {
+        socket.off('e2e:public-keys', handleKeys);
+      };
+    },
+    fallback: [],
+    replyTimeoutMs: REQUEST_TIMEOUT_MS,
+    maxWaitMs: REQUEST_MAX_WAIT_MS,
   });
 }
 
