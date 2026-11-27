@@ -60,6 +60,10 @@
 }
 
 .sc-assistant-reply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
   min-height: 34px;
   padding: 0 14px;
   border-radius: 999px;
@@ -86,8 +90,8 @@
 
 .sc-assistant-reply[data-variant='quiet'] {
   background: transparent;
-  color: var(--sc-text-secondary);
-  padding: 0 10px;
+  border-color: var(--sc-border-subtle);
+  color: var(--sc-text-primary);
 }
 
 .sc-assistant-reply:hover:not(:disabled) {
@@ -535,8 +539,11 @@ body:has(.sc-assistant-chips-anchor) .sc-jump-latest {
 
 .sc-assistant-look-actions .sc-assistant-reply[data-variant='quiet'] {
   order: 0;
+  min-width: 0;
   margin-right: auto;
   padding-left: 0;
+  border-color: transparent;
+  color: var(--sc-text-secondary);
 }
 
 .sc-assistant-look-actions .sc-assistant-reply[data-variant='primary'] {
