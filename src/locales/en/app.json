@@ -428,6 +428,7 @@
           "none": "Open"
         }
       },
+      "photoCaption": "Create a theme that matches this photo",
       "chips": {
         "label": "Suggestions for SparkAI",
         "scrollBack": "Show previous suggestions",

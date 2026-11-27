@@ -923,8 +923,10 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     [sendMessage],
   );
 
+  const translateRef = useRef(t);
+  translateRef.current = t;
   const openAssistantPhotoPicker = useCallback(() => {
-    messageInputRef.current?.openAttachmentPicker();
+    messageInputRef.current?.openAttachmentPicker(translateRef.current('chat.assistant.photoCaption'));
   }, []);
 
   const handleQuickReply = useCallback(

@@ -428,6 +428,7 @@
           "none": "Abrir"
         }
       },
+      "photoCaption": "Cria um tema combinando com esta foto",
       "chips": {
         "label": "Sugestões para o SparkAI",
         "scrollBack": "Ver sugestões anteriores",

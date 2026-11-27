@@ -102,6 +102,19 @@ describe('AssistantComposerChips with the composer', () => {
     expect(sendText).toHaveBeenCalledWith('chat.assistant.prompts.myNotes');
   });
 
+  it('prefills the photo caption and opens the picker for the photo theme chip', () => {
+    const sendText = vi.fn();
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    render(<Harness target={room(ASSISTANT_NICKNAME)} sendText={sendText} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.assistant.chips.themeFromPhoto' }));
+
+    expect(clickSpy).toHaveBeenCalled();
+    expect(sendText).not.toHaveBeenCalled();
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('chat.assistant.photoCaption');
+    clickSpy.mockRestore();
+  });
+
   it('never renders chips in a normal room', () => {
     render(<Harness target={room('amiga')} sendText={vi.fn()} />);
     expect(screen.queryByRole('group', CHIPS_GROUP)).toBeNull();
