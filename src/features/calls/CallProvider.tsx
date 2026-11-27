@@ -1,3 +1,4 @@
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type PropsWithChildren, type ReactNode } from 'react';
 import { isAssistantRoom } from '@features/chat/utils/assistant';
 import { translate } from '@lib/i18n/app-i18n';
@@ -42,6 +43,7 @@ interface CallProviderProps {
 }
 
 const noopSubscribe = () => () => undefined;
+const noopBack = () => undefined;
 const DEVICE_CHANGE_SETTLE_MS = 300;
 const emptySnapshot = () => EMPTY_CALL_SNAPSHOT;
 
@@ -122,6 +124,7 @@ export function CallProvider({ rooms, onScreenCoverChange, children }: PropsWith
 
   const snapshot = useSyncExternalStore(controller ? controller.subscribe : noopSubscribe, controller ? controller.getSnapshot : emptySnapshot);
   const phase = snapshot.state.phase;
+  useBackLayer(phase !== 'idle', noopBack, undefined, true);
   const coversChat = !minimized && phase !== 'idle' && phase !== 'incoming-ringing';
 
   useEffect(() => {

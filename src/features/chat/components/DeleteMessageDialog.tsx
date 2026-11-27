@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { FaTimes, FaTrashAlt } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useMediaQuery } from '@hooks/useMediaQuery';
@@ -43,6 +44,7 @@ export function DeleteMessageDialog({ isOpen, count, canDeleteForEveryone, onDel
   const backdropDismissProps = useBackdropDismiss(onClose);
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  useBackLayer(isOpen, onClose);
 
   if (isOpen) {
     snapshotRef.current = { count, canDeleteForEveryone };

@@ -5,6 +5,7 @@ import { FaTimes } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import type { MessageReaction, RoomParticipant } from '@lib/socket';
@@ -37,6 +38,7 @@ export function ReactorsSheet({ isOpen, initialEmoji, reactions, participants, c
   const backdropDismiss = useBackdropDismiss(onClose);
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  useBackLayer(isOpen, onClose);
 
   useEffect(() => {
     if (!isOpen) {

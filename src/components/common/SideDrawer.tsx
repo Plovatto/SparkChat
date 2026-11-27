@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { LuArrowLeft, LuX } from 'react-icons/lu';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import './side-drawer.css';
@@ -33,6 +34,7 @@ export function SideDrawer({ isOpen, title, onClose, onBack, footer, viewKey, in
   const lastContentRef = useRef<DrawerContent>({ title, children });
   useBodyScrollLock(isOpen && !inline);
   useEscapeKey(isOpen, onBack ?? onClose);
+  useBackLayer(isOpen && !inline, onBack ?? onClose, viewKey);
   const backdropDismissProps = useBackdropDismiss(onClose);
   const [previousViewKey, setPreviousViewKey] = useState(viewKey);
   const [hasNavigated, setHasNavigated] = useState(false);

@@ -6,6 +6,7 @@ import { getStoredSession } from '@features/auth/api/session-storage';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
 import { CallDuration, CallEndedDuration } from './CallDuration';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { Collapse } from '@features/motion';
 import { useCall, useLocalSpeaking } from '../call-context';
@@ -224,6 +225,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
 
   const sharerPaused = snapshot.screenSharing && snapshot.screenPaused;
   const hidden = minimized || state.phase === 'idle' || state.phase === 'incoming-ringing';
+  useBackLayer(!hidden, minimize);
   const screenStage = usePresence(!hidden, 260, 180);
   const bannerStage = usePresence(snapshot.screenSharing && layout.main !== 'local-screen', 240, 180);
   const me = useMemo(() => (hidden ? null : getStoredSession()), [hidden]);

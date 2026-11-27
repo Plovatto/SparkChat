@@ -36,6 +36,7 @@ import { emitPushUnsubscribeForLogout, InstallSheet, PwaCallBridge, PwaOnboardin
 import { useHelpOpener } from '@features/assistant/help-targets';
 import { GroupRemovedToast, NewChatModal, Sidebar, useMutedRooms, useRooms } from '@features/rooms';
 import { useChatSettingsSync, useTheme, useThemeSync, withAlpha } from '@features/theme';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useSplashPresence } from '@hooks/useSplashPresence';
 import { useSustainedFlag } from '@hooks/useSustainedFlag';
@@ -311,6 +312,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
   const openNewChatFromHelp = useCallback(() => setIsNewChatOpen(true), []);
   useHelpOpener('new-group', openNewChatFromHelp);
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? null;
+  useBackLayer(selectedRoom !== null && !isWideLayout, () => setSelectedRoomId(null));
 
   const [deepLinkIntents, setDeepLinkIntents] = useState<DeepLinkIntent[]>(() =>
     readDeepLinkIntents(window.location.search, user.nickname),
@@ -403,7 +405,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   useEffect(() => {
     if (hasDeepLinkParams(window.location.search)) {
-      window.history.replaceState({}, '', window.location.pathname);
+      window.history.replaceState(window.history.state, '', window.location.pathname);
     }
   }, []);
 

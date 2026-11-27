@@ -5,6 +5,7 @@ import { LuCircleCheck, LuCopy, LuEllipsisVertical, LuForward, LuLanguages, LuRe
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { useOutsidePointerDown } from '@hooks/useOutsidePointerDown';
 import '../styles/message-actions.css';
@@ -85,6 +86,7 @@ function ActionsSheet(props: MessageActionsRowProps) {
   const { primary, secondary, danger } = useActionItems(props);
   const isClosing = Boolean(props.isExiting);
   useEscapeKey(!isClosing, () => props.onDismiss?.());
+  useBackLayer(!isClosing, () => props.onDismiss?.());
 
   const run = (item: ActionItem) => (event: ReactMouseEvent) => {
     event.stopPropagation();
