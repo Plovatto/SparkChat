@@ -457,6 +457,10 @@
       "card": {
         "choicesLabel": "Respostas rápidas",
         "reminderFired": "Lembrete",
+        "reminderDoneShort": "Concluído",
+        "snooze10Short": "+10 min",
+        "snooze60Short": "+1 h",
+        "reminderFallback": "Hora do seu lembrete",
         "resolved": "✓ {{label}}",
         "confirmReminder": "Lembrete: {{text}} em {{when}}",
         "confirmStatus": "💬 “{{text}}” até {{when}}",

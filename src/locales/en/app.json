@@ -457,6 +457,10 @@
       "card": {
         "choicesLabel": "Quick replies",
         "reminderFired": "Reminder",
+        "reminderDoneShort": "Done",
+        "snooze10Short": "+10 min",
+        "snooze60Short": "+1 h",
+        "reminderFallback": "Time for your reminder",
         "resolved": "✓ {{label}}",
         "confirmReminder": "Reminder: {{text}} at {{when}}",
         "confirmStatus": "💬 “{{text}}” until {{when}}",

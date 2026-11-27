@@ -11,9 +11,10 @@ interface AssistantQuickRepliesProps {
   resolvedChoice?: QuickReplyChoice | undefined;
   failureToken?: string | undefined;
   onSelect: (button: AssistantButton) => void;
+  shortLabels?: Partial<Record<QuickReplyChoice, string>> | undefined;
 }
 
-export function AssistantQuickReplies({ buttons, resolvedChoice, failureToken, onSelect }: AssistantQuickRepliesProps) {
+export function AssistantQuickReplies({ buttons, resolvedChoice, failureToken, onSelect, shortLabels }: AssistantQuickRepliesProps) {
   const { t } = useTranslation();
   const [sentChoice, setSentChoice] = useState<QuickReplyChoice | null>(null);
 
@@ -61,12 +62,13 @@ export function AssistantQuickReplies({ buttons, resolvedChoice, failureToken, o
           style={{ animationDelay: `${index * 50}ms` }}
           disabled={sentChoice !== null}
           data-sent={sentChoice === button.choice ? 'true' : undefined}
+          aria-label={shortLabels?.[button.choice] ? button.label : undefined}
           onClick={() => {
             setSentChoice(button.choice);
             onSelect(button);
           }}
         >
-          {button.label}
+          {shortLabels?.[button.choice] ?? button.label}
         </button>
       ))}
     </div>
