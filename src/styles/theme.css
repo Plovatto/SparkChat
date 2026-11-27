@@ -1559,6 +1559,19 @@
   transform-origin: right center;
 }
 
+.sc-switch:disabled:hover {
+  box-shadow: none;
+}
+
+.sc-switch[aria-checked='true']:disabled:hover {
+  box-shadow: 0 0 12px -2px var(--sc-accent);
+}
+
+.sc-switch:disabled:active,
+.sc-switch:disabled:active .sc-switch__thumb {
+  transform: none;
+}
+
 .sc-link {
   background-image: linear-gradient(currentColor, currentColor);
   background-size: 0% 1.5px;
