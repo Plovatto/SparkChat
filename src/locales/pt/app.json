@@ -76,6 +76,8 @@
       "invalidMedia": "Conteúdo de mídia inválido.",
       "blocked": "Você não pode enviar mensagens nesta conversa devido a bloqueios.",
       "unsupportedEncryption": "Esta mensagem usa um formato de criptografia que não é mais aceito.",
+      "scheduleLimit": "Você já tem 20 mensagens agendadas. Cancele alguma para agendar outra.",
+      "scheduleNotFound": "Não encontrei esse agendamento.",
       "scheduleNotAllowed": "Você não pode agendar mensagens nesta conversa.",
       "staleRoomKey": "A chave de criptografia da conversa mudou. Tente enviar de novo.",
       "attachmentKeyRequired": "Não foi possível proteger o anexo. Tente enviar de novo.",

@@ -76,6 +76,8 @@
       "invalidMedia": "Invalid media content.",
       "blocked": "You can't send messages in this conversation because of a block.",
       "unsupportedEncryption": "This message uses an encryption format that is no longer accepted.",
+      "scheduleLimit": "You already have 20 scheduled messages. Cancel one to schedule another.",
+      "scheduleNotFound": "I couldn't find that scheduled message.",
       "scheduleNotAllowed": "You can't schedule messages in this conversation.",
       "staleRoomKey": "The conversation encryption key changed. Please try sending again.",
       "attachmentKeyRequired": "The attachment could not be protected. Please try sending again.",
