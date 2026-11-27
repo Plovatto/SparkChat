@@ -2360,7 +2360,7 @@ describe('voice leveling', () => {
     expect(stopped).toBeGreaterThan(0);
   });
 
-  it('sends the raw microphone with browser processing while light and goes back to the leveled voice later', async () => {
+  it('sends the raw microphone with browser processing while light, meters it for the self ring, and goes back to the leveled voice later', async () => {
     const media = micMedia();
     const levelers: FakeLeveler[] = [];
     const sent: unknown[] = [];
@@ -2399,8 +2399,10 @@ describe('voice leveling', () => {
     peer.options.onConnection('connected');
     await vi.advanceTimersByTimeAsync(2_000);
     expect(levelers[0]!.lights).toEqual([]);
+    expect(w.a.controller.getSnapshot().voiceTrack).toBe(levelers[0]!.track);
     await vi.advanceTimersByTimeAsync(2_000);
     expect(levelers[0]!.lights).toEqual([true]);
+    expect(w.a.controller.getSnapshot().voiceTrack).toBeNull();
     await vi.advanceTimersByTimeAsync(2_000);
     expect(sent).toHaveLength(1);
 
@@ -2408,6 +2410,7 @@ describe('voice leveling', () => {
     await vi.advanceTimersByTimeAsync(70_000);
     expect(levelers[0]!.lights.at(-1)).toBe(false);
     expect(sent.at(-1)).toBe(levelers[0]!.track);
+    expect(w.a.controller.getSnapshot().voiceTrack).toBe(levelers[0]!.track);
   });
 
   it('asks the sharer for a key frame when the shared screen stops decoding while packets still arrive', async () => {

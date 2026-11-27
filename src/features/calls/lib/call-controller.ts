@@ -2428,6 +2428,7 @@ export class CallController {
           if (this.voice === voice) {
             this.voiceLight = light;
             voice.setLight(light);
+            this.update({ voiceTrack: light ? null : voice.track });
           }
         })
         .catch(() => {
