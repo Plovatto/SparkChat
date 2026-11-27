@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { Spinner } from '@components/common/Spinner';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { decryptMediaContentIfNeeded, downloadMessageMedia } from '@lib/e2ee';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import type { MessageFileMeta } from '@lib/socket';
@@ -43,6 +44,7 @@ export function ImageModal({ isOpen, images, fileNames, roomId, messageIds, file
   const { isPresent, isExiting } = usePresence(isOpen, MOTION_DURATION_MS.fast);
   const lastImagesRef = useRef<string[]>([]);
   const backdropDismissProps = useBackdropDismiss(onClose);
+  useBackLayer(isOpen, onClose);
   const hasMultiple = images.length > 1;
 
   if (isOpen && images.length > 0) {

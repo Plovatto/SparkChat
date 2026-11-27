@@ -5,6 +5,7 @@ import { FaTimes } from 'react-icons/fa';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useTheme } from '@features/theme';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 
@@ -33,6 +34,7 @@ export function Modal({ isOpen, title, header, onClose, showCloseButton = true, 
   const lastContentRef = useRef<ModalContent>({ children: null });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  useBackLayer(isOpen, onClose);
   const backdropDismissProps = useBackdropDismiss(onClose);
 
   if (isOpen) {

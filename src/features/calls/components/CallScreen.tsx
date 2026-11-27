@@ -1,3 +1,4 @@
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuEyeOff, LuLoaderCircle, LuMicOff, LuMinimize2, LuPhone, LuScreenShare, LuTriangleAlert, LuUser, LuVideo, LuVolume2, LuVolumeX, LuWifiOff } from 'react-icons/lu';
@@ -224,6 +225,7 @@ export function CallScreen({ videoRef, shareAudioRef, shareMonitorRef }: CallScr
 
   const sharerPaused = snapshot.screenSharing && snapshot.screenPaused;
   const hidden = minimized || state.phase === 'idle' || state.phase === 'incoming-ringing';
+  useBackLayer(!hidden, minimize);
   const screenStage = usePresence(!hidden, 260, 180);
   const bannerStage = usePresence(snapshot.screenSharing && layout.main !== 'local-screen', 240, 180);
   const me = useMemo(() => (hidden ? null : getStoredSession()), [hidden]);

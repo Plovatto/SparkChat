@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { OverlayIconButton } from '@components/common/OverlayIconButton';
 import { MOTION_DURATION_MS, usePresence } from '@features/motion';
 import { useBackdropDismiss } from '@hooks/useBackdropDismiss';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { useBodyScrollLock } from '@hooks/useBodyScrollLock';
 import { useEscapeKey } from '@hooks/useEscapeKey';
 import { downloadMessageMedia } from '@lib/e2ee';
@@ -34,6 +35,7 @@ export function VideoPreviewModal({ isOpen, onClose, url, fileName, roomId, mess
   const lastSourceRef = useRef({ url, fileName, roomId, messageId, fileMeta });
   useBodyScrollLock(isOpen);
   useEscapeKey(isOpen, onClose);
+  useBackLayer(isOpen, onClose);
   const backdropDismissProps = useBackdropDismiss(onClose);
 
   if (isOpen && url) {
