@@ -1,4 +1,5 @@
 export const ASSISTANT_CHIP_IDS = [
+  'whatCanYouDo',
   'suggestTheme',
   'pickTheme',
   'suggestLook',
@@ -7,7 +8,6 @@ export const ASSISTANT_CHIP_IDS = [
   'myNotes',
   'timedStatus',
   'scheduleMessage',
-  'whatCanYouDo',
 ] as const;
 
 export type AssistantChipId = (typeof ASSISTANT_CHIP_IDS)[number];

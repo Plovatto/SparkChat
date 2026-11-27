@@ -430,6 +430,8 @@
       },
       "chips": {
         "label": "Sugestões para o SparkAI",
+        "scrollBack": "Ver sugestões anteriores",
+        "scrollForward": "Ver mais sugestões",
         "suggestTheme": "Sugere um tema 🎨",
         "pickTheme": "Escolhe um tema pra mim ✨",
         "suggestLook": "Sugere um visual completo 🪄",
