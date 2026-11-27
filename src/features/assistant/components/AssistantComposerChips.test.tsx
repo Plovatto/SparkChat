@@ -111,7 +111,7 @@ describe('AssistantComposerChips with the composer', () => {
 
     expect(clickSpy).toHaveBeenCalled();
     expect(sendText).not.toHaveBeenCalled();
-    expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('chat.assistant.photoCaption');
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox').value).toBe('chat.assistant.photoCaption');
     clickSpy.mockRestore();
   });
 
