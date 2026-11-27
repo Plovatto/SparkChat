@@ -101,6 +101,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (applyToAll) {
       setGlobalWallpaperState(backgroundId);
       localStorage.setItem(GLOBAL_WALLPAPER_STORAGE_KEY, backgroundId);
+      setRoomWallpapers({});
+      localStorage.setItem(WALLPAPER_STORAGE_KEY, JSON.stringify({}));
       return;
     }
 
@@ -115,6 +117,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (applyToAll) {
       setGlobalWallpaperState(null);
       localStorage.removeItem(GLOBAL_WALLPAPER_STORAGE_KEY);
+      setRoomWallpapers({});
+      localStorage.setItem(WALLPAPER_STORAGE_KEY, JSON.stringify({}));
       return;
     }
 
@@ -154,6 +158,11 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           localStorage.setItem(GLOBAL_APPEARANCE_STORAGE_KEY, JSON.stringify(next));
           return next;
         });
+        setRoomAppearanceState((previous) => {
+          const next = Object.fromEntries(Object.entries(previous).map(([id, appearance]) => [id, { ...appearance, ...patch }]));
+          localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(next));
+          return next;
+        });
         return;
       }
 
@@ -171,6 +180,8 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     if (applyToAll) {
       setGlobalAppearanceState(null);
       localStorage.removeItem(GLOBAL_APPEARANCE_STORAGE_KEY);
+      setRoomAppearanceState({});
+      localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify({}));
       return;
     }
 
