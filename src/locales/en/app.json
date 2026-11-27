@@ -372,47 +372,47 @@
       "capabilities": {
         "label": "What SparkAI can do",
         "themes": {
-          "title": "I suggest themes 🎨",
+          "title": "Suggest a theme",
           "description": "Colors for your app",
           "example": "Suggest a theme for me"
         },
         "fullLook": {
-          "title": "I build a full look 🪄",
-          "description": "Theme, bg and bubbles",
+          "title": "Full look",
+          "description": "Theme, wallpaper, bubbles",
           "example": "Suggest a full look for me"
         },
         "photoTheme": {
-          "title": "I make a theme from your photo 📸",
-          "description": "Photo becomes a theme",
+          "title": "Theme from a photo",
+          "description": "Your photo as a theme",
           "example": "I want a theme from a photo"
         },
         "notes": {
-          "title": "I jot down anything 📝",
+          "title": "Notes",
           "description": "Ideas and lists",
           "example": "Note that I need to buy coffee"
         },
         "reminders": {
-          "title": "I remind you (even weekly) ⏰",
-          "description": "I nudge you on time",
+          "title": "Reminders",
+          "description": "Even weekly",
           "example": "Remind me to drink water tomorrow at 9am"
         },
         "status": {
-          "title": "Status with an end time 💬",
+          "title": "Timed status",
           "description": "Clears by itself",
           "example": "Set my status to in a meeting until 3pm"
         },
         "scheduled": {
-          "title": "I schedule messages 📨",
-          "description": "Sent at the right time",
+          "title": "Schedule a message",
+          "description": "Sent right on time",
           "example": "I want to schedule a message"
         },
         "help": {
-          "title": "I teach you SparkChat 🧭",
-          "description": "Questions? Just ask",
+          "title": "How to use the app",
+          "description": "Questions? Ask!",
           "example": "How do I change the wallpaper?"
         },
         "chat": {
-          "title": "And I chat 😄",
+          "title": "Just chat",
           "description": "Jokes, ideas, venting",
           "example": "Tell me a joke"
         }
