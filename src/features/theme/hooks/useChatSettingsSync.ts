@@ -104,14 +104,29 @@ export function useChatSettingsSync(): void {
     socket.on('user:registered', resolveFromServer);
     socket.on('user:chat-settings-updated', applyRemoteChange);
 
-    return () => {
-      if (timerRef.current !== null) {
-        clearTimeout(timerRef.current);
-        if (socket.active) {
-          emitIfChanged(socket);
-        }
-        timerRef.current = null;
+    const flushPending = () => {
+      if (timerRef.current === null) {
+        return;
       }
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+      if (socket.active) {
+        emitIfChanged(socket);
+      }
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPending();
+      }
+    };
+
+    window.addEventListener('pagehide', flushPending);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+
+    return () => {
+      window.removeEventListener('pagehide', flushPending);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      flushPending();
       socket.off('user:resumed', resolveFromServer);
       socket.off('user:registered', resolveFromServer);
       socket.off('user:chat-settings-updated', applyRemoteChange);

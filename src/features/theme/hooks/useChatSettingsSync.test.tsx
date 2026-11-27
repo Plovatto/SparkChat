@@ -33,6 +33,7 @@ vi.mock('@lib/socket', () => ({
 }));
 
 const empty: ChatSettings = { roomWallpapers: {}, globalWallpaper: null, roomAppearance: {}, globalAppearance: null };
+let currentSettings: ChatSettings = empty;
 let setSettings: (settings: ChatSettings) => void = () => undefined;
 
 vi.mock('../theme-context', async () => {
@@ -40,6 +41,7 @@ vi.mock('../theme-context', async () => {
   return {
     useTheme: () => {
       const [chatSettings, set] = react.useState<ChatSettings>({ roomWallpapers: {}, globalWallpaper: null, roomAppearance: {}, globalAppearance: null });
+      currentSettings = chatSettings;
       setSettings = set;
       const applyChatSettings = react.useCallback((next: ChatSettings) => set(next), []);
       return { chatSettings, applyChatSettings };
@@ -94,8 +96,8 @@ describe('useChatSettingsSync', () => {
     for (let i = 1; i <= 20; i += 1) {
       edit({ ...empty, roomWallpapers: { r1: `w${i}` } });
       act(() => {
-      vi.advanceTimersByTime(10);
-    });
+        vi.advanceTimersByTime(10);
+      });
     }
     act(() => {
       vi.advanceTimersByTime(CHAT_SETTINGS_SYNC_DEBOUNCE_MS);
@@ -120,6 +122,7 @@ describe('useChatSettingsSync', () => {
     act(() => {
       vi.advanceTimersByTime(CHAT_SETTINGS_SYNC_DEBOUNCE_MS * 3);
     });
+    expect(currentSettings.globalWallpaper).toBe('ocean');
     expect(emit).not.toHaveBeenCalled();
   });
 
@@ -138,6 +141,34 @@ describe('useChatSettingsSync', () => {
     const hook = setup();
     edit({ ...empty, globalWallpaper: 'aurora' });
     hook.unmount();
+    expect(emit).toHaveBeenCalledWith('user:update-chat-settings', expect.objectContaining({ globalWallpaper: 'aurora' }));
+  });
+
+  it('flushes a pending edit on pagehide', () => {
+    setup();
+    edit({ ...empty, globalWallpaper: 'aurora' });
+    act(() => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith('user:update-chat-settings', expect.objectContaining({ globalWallpaper: 'aurora' }));
+  });
+
+  it('flushes a pending edit when the page becomes hidden but not when visible', () => {
+    setup();
+    edit({ ...empty, globalWallpaper: 'aurora' });
+    const state = vi.spyOn(document, 'visibilityState', 'get');
+    state.mockReturnValue('visible');
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(emit).not.toHaveBeenCalled();
+    state.mockReturnValue('hidden');
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    state.mockRestore();
+    expect(emit).toHaveBeenCalledTimes(1);
     expect(emit).toHaveBeenCalledWith('user:update-chat-settings', expect.objectContaining({ globalWallpaper: 'aurora' }));
   });
 });
