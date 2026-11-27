@@ -24,6 +24,9 @@ describe('mobile chat back navigation', () => {
     render(<MobileShell isWide={false} />);
     fireEvent.click(screen.getByText('open-chat'));
     expect(screen.getByTestId('chat')).toBeTruthy();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     act(() => {
       window.history.back();
     });
@@ -31,10 +34,13 @@ describe('mobile chat back navigation', () => {
     expect(screen.getByTestId('list').style.display).toBe('block');
   });
 
-  it('does not add history entries on a wide layout', () => {
+  it('does not add history entries on a wide layout', async () => {
     const before = window.history.length;
     render(<MobileShell isWide />);
     fireEvent.click(screen.getByText('open-chat'));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
     expect(window.history.length).toBe(before);
   });
 });

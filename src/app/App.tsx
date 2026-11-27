@@ -405,7 +405,7 @@ function ChatShell({ user, onUserUpdate, onLogout }: ChatShellProps) {
 
   useEffect(() => {
     if (hasDeepLinkParams(window.location.search)) {
-      window.history.replaceState({}, '', window.location.pathname);
+      window.history.replaceState(window.history.state, '', window.location.pathname);
     }
   }, []);
 

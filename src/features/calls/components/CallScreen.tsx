@@ -1,4 +1,3 @@
-import { useBackLayer } from '@hooks/useBackLayer';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LuEyeOff, LuLoaderCircle, LuMicOff, LuMinimize2, LuPhone, LuScreenShare, LuTriangleAlert, LuUser, LuVideo, LuVolume2, LuVolumeX, LuWifiOff } from 'react-icons/lu';
@@ -7,6 +6,7 @@ import { getStoredSession } from '@features/auth/api/session-storage';
 import { Avatar } from '@features/profile-photos/components/Avatar';
 import { useUserPhoto } from '@features/profile-photos';
 import { CallDuration, CallEndedDuration } from './CallDuration';
+import { useBackLayer } from '@hooks/useBackLayer';
 import { hasTranslation, translate } from '@lib/i18n/app-i18n';
 import { Collapse } from '@features/motion';
 import { useCall, useLocalSpeaking } from '../call-context';

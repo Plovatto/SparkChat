@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { StrictMode, useState } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetBackLayersForTests, useBackLayer } from './useBackLayer';
 
 function pressBack() {
@@ -49,16 +49,18 @@ describe('useBackLayer', () => {
     resetBackLayersForTests();
   });
 
-  it('pushes a history entry when a layer opens', () => {
+  it('pushes a history entry when a layer opens', async () => {
     const before = window.history.length;
     render(<Stack />);
     click('open-first');
+    await settle();
     expect(window.history.length).toBe(before + 1);
   });
 
   it('closes the layer on back', async () => {
     render(<Stack />);
     click('open-first');
+    await settle();
     pressBack();
     await settle();
     expect(screen.queryByTestId('first')).toBeNull();
@@ -67,7 +69,9 @@ describe('useBackLayer', () => {
   it('closes only the top layer per back press', async () => {
     render(<Stack />);
     click('open-first');
+    await settle();
     click('open-second');
+    await settle();
     pressBack();
     await waitFor(() => expect(screen.queryByTestId('second')).toBeNull());
     expect(screen.getByTestId('first')).toBeTruthy();
@@ -79,10 +83,12 @@ describe('useBackLayer', () => {
     render(<Stack />);
     const startIndex = window.history.length;
     click('open-first');
+    await settle();
     click('close-first');
     await settle();
     expect(screen.queryByTestId('first')).toBeNull();
     click('open-second');
+    await settle();
     await settle();
     pressBack();
     await settle();
@@ -93,7 +99,9 @@ describe('useBackLayer', () => {
   it('keeps stack order when a lower layer closes from the UI first', async () => {
     render(<Stack />);
     click('open-first');
+    await settle();
     click('open-second');
+    await settle();
     click('close-first');
     await settle();
     expect(screen.getByTestId('second')).toBeTruthy();
@@ -105,12 +113,137 @@ describe('useBackLayer', () => {
   it('does nothing on back when no layer is open', async () => {
     render(<Stack />);
     click('open-first');
+    await settle();
     click('close-first');
     await settle();
     click('open-second');
+    await settle();
     click('close-second');
     await settle();
     expect(screen.queryByTestId('first')).toBeNull();
     expect(screen.queryByTestId('second')).toBeNull();
+  });
+
+  it('keeps the history entry when the rearm key changes', async () => {
+    function Keyed() {
+      const [key, setKey] = useState(0);
+      useBackLayer(true, () => {}, key);
+      return <button onClick={() => setKey((value) => value + 1)}>bump</button>;
+    }
+    render(<Keyed />);
+    await settle();
+    const length = window.history.length;
+    const layer = (window.history.state as { scLayer: number }).scLayer;
+    click('bump');
+    await settle();
+    expect(window.history.length).toBe(length);
+    expect((window.history.state as { scLayer: number }).scLayer).toBe(layer);
+  });
+
+  it('re-pushes a rearmed layer after back consumed its entry', async () => {
+    function Keyed() {
+      const [key, setKey] = useState(0);
+      useBackLayer(true, () => setKey((value) => value + 1), key);
+      return <span data-testid="key">{key}</span>;
+    }
+    render(<Keyed />);
+    await settle();
+    pressBack();
+    await waitFor(() => expect(screen.getByTestId('key').textContent).toBe('1'));
+    await settle();
+    expect((window.history.state as { scLayer?: number } | null)?.scLayer).toBeTypeOf('number');
+  });
+
+  it('coalesces layers closed in the same tick into one history jump', async () => {
+    const go = vi.spyOn(window.history, 'go');
+    render(<Stack />);
+    click('open-first');
+    await settle();
+    click('open-second');
+    await settle();
+    await settle();
+    go.mockClear();
+    act(() => {
+      fireEvent.click(screen.getByText('close-first'));
+      fireEvent.click(screen.getByText('close-second'));
+    });
+    await settle();
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(go).toHaveBeenCalledWith(-2);
+    go.mockRestore();
+  });
+
+  it('leaves no extra entries under StrictMode', async () => {
+    let closed = 0;
+    const baseLayer = (window.history.state as { scLayer?: number } | null)?.scLayer;
+    render(
+      <StrictMode>
+        <Layer name="strict" open onClose={() => (closed += 1)} />
+      </StrictMode>,
+    );
+    await settle();
+    pressBack();
+    await waitFor(() => expect(closed).toBe(1));
+    await settle();
+    expect((window.history.state as { scLayer?: number } | null)?.scLayer).toBe(baseLayer);
+  });
+
+  it('stacks a parent before its child opened in the same commit', async () => {
+    function Child({ open, onClose }: { open: boolean; onClose: () => void }) {
+      useBackLayer(open, onClose);
+      return open ? <div data-testid="child" /> : null;
+    }
+    function Wrapper() {
+      const [childClosed, setChildClosed] = useState(false);
+      const [open, setOpen] = useState(false);
+      useBackLayer(open, () => setOpen(false));
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>open-both</button>
+          {open ? <div data-testid="parent" /> : null}
+          {open ? <Child open={!childClosed} onClose={() => setChildClosed(true)} /> : null}
+        </>
+      );
+    }
+    render(<Wrapper />);
+    click('open-both');
+    await settle();
+    pressBack();
+    await waitFor(() => expect(screen.queryByTestId('child')).toBeNull());
+    expect(screen.getByTestId('parent')).toBeTruthy();
+  });
+
+  it('keeps a sticky guard armed so back at the bottom does not leave the app', async () => {
+    function Guarded() {
+      useBackLayer(true, () => {}, undefined, true);
+      return null;
+    }
+    render(<Guarded />);
+    await settle();
+    expect((window.history.state as { scLayer?: number } | null)?.scLayer).toBeTypeOf('number');
+    pressBack();
+    await settle();
+    expect((window.history.state as { scLayer?: number } | null)?.scLayer).toBeTypeOf('number');
+  });
+
+  it('lets back close a normal layer before the sticky guard re-arms', async () => {
+    function GuardedStack() {
+      const [open, setOpen] = useState(false);
+      useBackLayer(true, () => {}, undefined, true);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>open-chat</button>
+          <Layer name="chat" open={open} onClose={() => setOpen(false)} />
+        </>
+      );
+    }
+    render(<GuardedStack />);
+    await settle();
+    click('open-chat');
+    await settle();
+    pressBack();
+    await waitFor(() => expect(screen.queryByTestId('chat')).toBeNull());
+    await settle();
+    expect((window.history.state as { scLayer?: number } | null)?.scLayer).toBeTypeOf('number');
   });
 });
