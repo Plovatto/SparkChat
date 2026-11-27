@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { LuCheck, LuImage, LuMessagesSquare, LuRotateCcw } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { APPEARANCE_RANGES, DEFAULT_CHAT_APPEARANCE, toSixDigitHex, useTheme } from '@features/theme';
+import { APPEARANCE_RANGES, blurToPercent, DEFAULT_CHAT_APPEARANCE, toSixDigitHex, useTheme } from '@features/theme';
 import type { ChatAppearance } from '@features/theme/constants/chat-appearance';
 import { AppearanceBubbleCard } from './appearance/AppearanceBubbleCard';
 import { AppearanceBubblePreview } from './appearance/AppearanceBubblePreview';
@@ -121,7 +121,7 @@ export function ChatAppearanceView({ roomId }: ChatAppearanceProps) {
             />
             <AppearanceSlider
               label={t('chat.appearance.blur')}
-              valueLabel={appearance.overlayBlur === 0 ? t('chat.appearance.none') : `${appearance.overlayBlur}px`}
+              valueLabel={appearance.overlayBlur === 0 ? t('chat.appearance.none') : `${blurToPercent(appearance.overlayBlur, 'overlayBlur')}%`}
               value={appearance.overlayBlur}
               min={APPEARANCE_RANGES.overlayBlur[0]}
               max={APPEARANCE_RANGES.overlayBlur[1]}
@@ -164,7 +164,7 @@ export function ChatAppearanceView({ roomId }: ChatAppearanceProps) {
           </div>
           <AppearanceSlider
             label={t('chat.appearance.bubbleBlur')}
-            valueLabel={appearance.bubbleBlur === 0 ? t('chat.appearance.none') : `${appearance.bubbleBlur}px`}
+            valueLabel={appearance.bubbleBlur === 0 ? t('chat.appearance.none') : `${blurToPercent(appearance.bubbleBlur, 'bubbleBlur')}%`}
             value={appearance.bubbleBlur}
             min={APPEARANCE_RANGES.bubbleBlur[0]}
             max={APPEARANCE_RANGES.bubbleBlur[1]}

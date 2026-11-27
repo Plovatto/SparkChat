@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { LuCheckCheck } from 'react-icons/lu';
 import { useTranslation } from 'react-i18next';
-import { resolveBubbleStyle, useTheme, type ResolvedBubbleStyle, type ThemePalette } from '@features/theme';
+import { hasWallpaperOverlay, resolveBubbleStyle, useTheme, type ResolvedBubbleStyle, type ThemePalette } from '@features/theme';
 import type { ChatBackground } from '@features/theme/constants/chat-backgrounds';
 import type { ChatAppearance } from '@features/theme/constants/chat-appearance';
 
@@ -29,7 +29,7 @@ export function AppearanceBubblePreview({ appearance, wallpaper, theme: themeOve
   const surfaceStyle: CSSProperties | undefined = wallpaper?.background
     ? { background: wallpaper.isImage ? `${wallpaper.background} center/cover` : wallpaper.background }
     : undefined;
-  const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
+  const showOverlay = hasWallpaperOverlay(Boolean(wallpaper?.isImage), appearance);
 
   return (
     <div className="sc-appearance-preview" style={surfaceStyle} role="img" aria-label={t('chat.appearanceModal.preview')}>

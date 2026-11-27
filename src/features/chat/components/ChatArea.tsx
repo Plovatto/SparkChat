@@ -9,7 +9,7 @@ import type { AssistantButton } from '@lib/assistant/assistant-card';
 import { useHelpOpener } from '@features/assistant/help-targets';
 import { AssistantComposerChips } from '@features/assistant/components/AssistantComposerChips';
 import { Collapse, MOTION_DURATION_MS, useEntranceGate, useLatchedPresence, usePresence } from '@features/motion';
-import { useTheme } from '@features/theme';
+import { hasWallpaperOverlay, useTheme } from '@features/theme';
 import { useMediaQuery } from '@hooks/useMediaQuery';
 import { translateError } from '@lib/api/api-error';
 import { MissingRoomKeyError } from '@lib/e2ee';
@@ -1138,7 +1138,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       ? `${wallpaper.background} center/cover`
       : wallpaper.background
     : theme.canvas;
-  const showOverlay = Boolean(wallpaper?.isImage) && appearance.overlayOpacity > 0;
+  const showOverlay = hasWallpaperOverlay(Boolean(wallpaper?.isImage), appearance);
 
   const finishDelete = () => {
     setSelectedMessageId(null);

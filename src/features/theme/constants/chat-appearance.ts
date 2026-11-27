@@ -38,3 +38,12 @@ export const APPEARANCE_RANGES = {
   otherTextIntensity: [0, 100],
   bubbleBlur: [0, 20],
 } as const;
+
+export function blurToPercent(value: number, field: 'overlayBlur' | 'bubbleBlur'): number {
+  const [min, max] = APPEARANCE_RANGES[field];
+  return Math.round(((value - min) / (max - min)) * 100);
+}
+
+export function hasWallpaperOverlay(isImage: boolean, appearance: Pick<ChatAppearance, 'overlayOpacity' | 'overlayBlur'>): boolean {
+  return isImage && (appearance.overlayOpacity > 0 || appearance.overlayBlur > 0);
+}
