@@ -21,6 +21,7 @@ import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } f
 import { isTranslationSupportedOnDevice, prepareTranslationOnGesture } from '@lib/translation';
 import { uploadChatAudio, uploadChatFile, uploadChatGif, uploadChatImage, uploadLinkPreviewImage, type UploadedFile } from '../api/chat-api';
 import { ActiveRoomContext } from '../hooks/active-room-context';
+import { useAssistantCardActions } from '../hooks/useAssistantCardActions';
 import { useReminderActions } from '../hooks/useReminderActions';
 import { RoomTranslationContext, type RoomTranslation } from '../hooks/room-translation-context';
 import { useAutoTranslateSuggestion } from '../hooks/useAutoTranslateSuggestion';
@@ -88,6 +89,10 @@ const ENTRANCE_CASCADE_MAX_INDEX = 7;
 const SHOW_IN_CHAT_DELAY_MS = 320;
 const FAILURE_NOTICE_MS = 5000;
 const COPY_NOTICE_MS = 1600;
+
+function mergeFailureTokens(first: string | undefined, second: string | undefined): string | undefined {
+  return first && second ? `${first}|${second}` : (first ?? second);
+}
 
 function uploadErrorText(error: unknown, fallbackKey: string): string {
   return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
@@ -929,6 +934,8 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     [sendMessage],
   );
 
+  const { handleCardReply, failures: cardFailures } = useAssistantCardActions({ socket, messages, onQuickReply: handleQuickReply });
+
   useReminderActions({ roomId: room?.id ?? null, isLoaded: areMessagesLoaded, messages, onQuickReply: handleQuickReply });
 
   if (!room) {
@@ -1384,10 +1391,11 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   isGroupChat={isGroupChat}
                                   roomId={room.id}
                                   isAssistantRoom={isAssistantRoom(room)}
-                                  onQuickReply={handleQuickReply}
+                                  onQuickReply={handleCardReply}
                                   onAssistantPrompt={sendAssistantPrompt}
                                   onAssistantPhoto={openAssistantPhotoPicker}
-                                  quickReplyFailureToken={failedQuickReplyTokens.get(item.message.id)}
+                                  quickReplyFailureToken={mergeFailureTokens(failedQuickReplyTokens.get(item.message.id), cardFailures.get(item.message.id)?.token)}
+                                  quickReplyError={cardFailures.get(item.message.id)?.error}
                                   participants={room.participants}
                                   currentUserId={user.id}
                                   currentNickname={user.nickname}

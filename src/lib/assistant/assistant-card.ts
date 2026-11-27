@@ -38,9 +38,10 @@ export interface Recurrence {
 export type ConfirmAction =
   | { type: 'reminder'; text: string; fireAtLocal: string; timeZone: string; recurrence: Recurrence | null }
   | { type: 'status'; text: string; untilLocal: string; timeZone: string }
-  | { type: 'scheduled-message'; roomId: string; recipient: string; text: string; sendAtLocal: string; timeZone: string }
+  | { type: 'scheduled-message'; roomId: string; recipient: string; text: string; sendAtLocal: string; timeZone: string; sendAt: number }
   | { type: 'delete-note'; noteId: string; preview: string }
-  | { type: 'cancel-reminder'; reminderId: string; preview: string };
+  | { type: 'cancel-reminder'; reminderId: string; preview: string }
+  | { type: 'cancel-scheduled'; scheduledId: string; preview: string };
 
 export const HELP_TOPICS = [
   'themes',
@@ -142,6 +143,9 @@ export function parseAssistantCard(raw: unknown): AssistantCard | null {
     return null;
   }
   if (value.kind === 'confirm' && (!isRecord(value.action) || typeof value.action.type !== 'string')) {
+    return null;
+  }
+  if (value.kind === 'confirm' && isRecord(value.action) && value.action.type === 'scheduled-message' && !Number.isFinite(value.action.sendAt)) {
     return null;
   }
   return value as unknown as AssistantCard;

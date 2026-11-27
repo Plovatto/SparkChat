@@ -13,6 +13,7 @@ interface AssistantCardViewProps {
   cardId: string;
   resolvedChoice?: QuickReplyChoice | undefined;
   failureToken?: string | undefined;
+  error?: string | undefined;
   onQuickReply: (cardId: string, button: AssistantButton) => void;
   onSendPrompt?: ((text: string) => void) | undefined;
   onPickPhoto?: (() => void) | undefined;
@@ -32,17 +33,26 @@ function confirmSummary(action: ConfirmAction, t: TFunction<'app'>): string {
       });
     case 'delete-note':
       return t('chat.assistant.card.confirmDeleteNote', { preview: action.preview });
+    case 'cancel-scheduled':
+      return t('chat.assistant.card.confirmCancelScheduled', { preview: action.preview });
     case 'cancel-reminder':
       return t('chat.assistant.card.confirmCancelReminder', { preview: action.preview });
   }
 }
 
-export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
+export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, error, onQuickReply, onSendPrompt, onPickPhoto }: AssistantCardViewProps) {
   const { t } = useTranslation();
   const buttons = cardButtons(card);
   const replies =
     buttons.length > 0 ? (
-      <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
+      <>
+        <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
+        {error && !resolvedChoice && (
+          <p className="sc-assistant-card-error" role="alert">
+            {error}
+          </p>
+        )}
+      </>
     ) : null;
 
   switch (card.kind) {

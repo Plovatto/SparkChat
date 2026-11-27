@@ -57,14 +57,23 @@ type GenericEmit = (event: string, ...args: unknown[]) => AppSocket;
 
 type OutgoingMessage = Parameters<ClientToServerEvents['message:send']>[0];
 
+type OutgoingSchedule = Parameters<ClientToServerEvents['message:schedule']>[0];
+
+type SealedSendEvent = 'message:send' | 'message:schedule';
+
+type OutgoingSealable = OutgoingMessage | OutgoingSchedule;
+
 type OutgoingReaction = Parameters<ClientToServerEvents['message:react']>[0];
 
 type RoomKeyRejectedPayload = Parameters<ServerToClientEvents['e2e:room-key-rejected']>[0];
 
 const STALE_ROOM_KEY_CODE = 'message.staleRoomKey';
 
+const SCHEDULE_PENDING_TTL_MS = 30000;
+
 interface PendingSend {
-  payload: OutgoingMessage;
+  event: SealedSendEvent;
+  payload: OutgoingSealable;
   keyId: string;
   retried: boolean;
 }
@@ -205,6 +214,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   let dispatchQueue: Promise<void> = Promise.resolve();
 
   const pendingSends = new Map<string, PendingSend>();
+  const scheduleTimers = new Set<ReturnType<typeof setTimeout>>();
   let pendingGroupName: string | null = null;
 
   const takeCreatedGroupName = (room: RoomSummary): string | undefined => {
@@ -218,7 +228,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   };
   const staleRetryDecisions = new WeakMap<object, boolean>();
 
-  const sendEncrypted = (payload: OutgoingMessage, staleKeyId: string | null) => {
+  const sendEncrypted = (payload: OutgoingSealable, staleKeyId: string | null, event: SealedSendEvent = 'message:send') => {
     const obtainKey = staleKeyId
       ? recoverFromStaleRoomKey(socket, payload.roomId, staleKeyId)
       : ensureRoomKeyForSending(socket, payload.roomId);
@@ -226,9 +236,20 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       .then(async (generation) => {
         const encrypted = await encryptOutgoingMessage(payload);
         if (payload.clientTempId) {
-          pendingSends.set(payload.clientTempId, { payload, keyId: generation.keyId, retried: staleKeyId !== null });
+          const clientTempId = payload.clientTempId;
+          pendingSends.set(clientTempId, { event, payload, keyId: generation.keyId, retried: staleKeyId !== null });
+          if (event === 'message:schedule') {
+            const entry = pendingSends.get(clientTempId);
+            const timer = setTimeout(() => {
+              scheduleTimers.delete(timer);
+              if (pendingSends.get(clientTempId) === entry) {
+                pendingSends.delete(clientTempId);
+              }
+            }, SCHEDULE_PENDING_TTL_MS);
+            scheduleTimers.add(timer);
+          }
         }
-        originalEmit('message:send', encrypted);
+        originalEmit(event, encrypted);
       })
       .catch((error: unknown) => {
         console.error('[e2e] failed to encrypt outgoing message, not sending it', error);
@@ -303,7 +324,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       pendingSends.delete(clientTempId);
       if (code === STALE_ROOM_KEY_CODE && !pending.retried) {
         retry = true;
-        sendEncrypted(pending.payload, pending.keyId);
+        sendEncrypted(pending.payload, pending.keyId, pending.event);
       }
     }
     staleRetryDecisions.set(payload, retry);
@@ -358,6 +379,10 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
       sendEncrypted(args[0] as OutgoingMessage, null);
       return socket;
     }
+    if (event === 'message:schedule') {
+      sendEncrypted(args[0] as OutgoingSchedule, null, 'message:schedule');
+      return socket;
+    }
     if (event === REACT_EVENT) {
       sendReaction(args[0] as OutgoingReaction, null);
       return socket;
@@ -400,6 +425,11 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     detachKeyTransparency();
     deferredRoomEvents.clear();
     pendingGroupName = null;
+    for (const timer of scheduleTimers) {
+      clearTimeout(timer);
+    }
+    scheduleTimers.clear();
+    pendingSends.clear();
     return originalClose();
   };
 
@@ -502,6 +532,14 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   originalOn('message:new', (payload: { clientTempId?: string }) => {
     if (payload.clientTempId) {
       pendingSends.delete(payload.clientTempId);
+    }
+  });
+
+  originalOn('message:card-resolved', (payload: { cardId?: string }) => {
+    for (const [clientTempId, pending] of pendingSends) {
+      if (pending.event === 'message:schedule' && (pending.payload as OutgoingSchedule).cardId === payload.cardId) {
+        pendingSends.delete(clientTempId);
+      }
     }
   });
 

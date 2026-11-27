@@ -56,6 +56,7 @@ interface MessageBubbleProps extends MessageBubbleActions {
   onAssistantPrompt?: ((text: string) => void) | undefined;
   onAssistantPhoto?: (() => void) | undefined;
   quickReplyFailureToken?: string | undefined;
+  quickReplyError?: string | undefined;
   participants: RoomParticipant[];
   currentUserId: string | undefined;
   currentNickname: string;
@@ -105,6 +106,7 @@ export const MessageBubble = memo(function MessageBubble({
   onAssistantPrompt,
   onAssistantPhoto,
   quickReplyFailureToken,
+  quickReplyError,
   participants,
   currentUserId,
   currentNickname,
@@ -384,7 +386,7 @@ export const MessageBubble = memo(function MessageBubble({
           {receipt && <MessageReceiptRow receipt={receipt} isOwn={isOwn} />}
           {reactionUi.overlays}
           {isAssistantRoom && message.card && onQuickReply && (
-            <AssistantCardView card={message.card} cardId={message.id} resolvedChoice={message.resolvedChoice} failureToken={quickReplyFailureToken} onQuickReply={onQuickReply} onSendPrompt={onAssistantPrompt} onPickPhoto={onAssistantPhoto} />
+            <AssistantCardView card={message.card} cardId={message.id} resolvedChoice={message.resolvedChoice} failureToken={quickReplyFailureToken} error={quickReplyError} onQuickReply={onQuickReply} onSendPrompt={onAssistantPrompt} onPickPhoto={onAssistantPhoto} />
           )}
         </>
       }

@@ -54,3 +54,16 @@ describe('parseAssistantCard', () => {
     expect(parseAssistantCard({ v: 1, kind: 'look-suggestion', look: {}, buttons })).not.toBeNull();
   });
 });
+
+describe('scheduled-message confirm card sendAt', () => {
+  const action = { type: 'scheduled-message', roomId: 'r', recipient: 'Ana', text: 'oi', sendAtLocal: '2026-11-27T09:00', timeZone: 'UTC' };
+  const buttons = [{ choice: 'yes', label: 'Sim' }];
+
+  it('accepts the card with a numeric sendAt', () => {
+    expect(parseAssistantCard({ v: 1, kind: 'confirm', action: { ...action, sendAt: 1_800_000_000_000 }, buttons })).not.toBeNull();
+  });
+
+  it('drops the card without sendAt so only the text renders', () => {
+    expect(parseAssistantCard({ v: 1, kind: 'confirm', action, buttons })).toBeNull();
+  });
+});
