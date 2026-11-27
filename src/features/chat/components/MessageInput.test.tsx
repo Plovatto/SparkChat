@@ -92,6 +92,15 @@ describe('MessageInput composer', () => {
     expect(screen.queryByTestId('send-button')).toBeNull();
   });
 
+  it('hides the paperclip while there is typed text and shows it again when cleared', () => {
+    renderComposer();
+    const input = screen.getByTestId('message-input');
+    fireEvent.change(input, { target: { value: 'oi' } });
+    expect(screen.queryByTestId('attach-button')).toBeNull();
+    fireEvent.change(input, { target: { value: '' } });
+    expect(screen.queryByTestId('attach-button')).not.toBeNull();
+  });
+
   it('inserts the picked emoji at the caret and keeps the input focused', async () => {
     const { input, onTyping } = renderComposer();
     fireEvent.change(input, { target: { value: 'oi tudo' } });
