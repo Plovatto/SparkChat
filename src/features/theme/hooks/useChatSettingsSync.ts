@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { SocketChatSettings, SocketUser } from '@lib/socket';
 import { isSocketAuthenticated, useSocket } from '@lib/socket';
 import type { ChatSettings } from '../constants/chat-appearance';
 import { useTheme } from '../theme-context';
 import { serializeChatSettings as serialize } from '../utils/serialize-chat-settings';
+
+export const CHAT_SETTINGS_SYNC_DEBOUNCE_MS = 400;
 
 function isEmpty(settings: ChatSettings): boolean {
   return (
@@ -31,9 +33,35 @@ export function useChatSettingsSync(): void {
   const hasUnsyncedLocalChangeRef = useRef(false);
   const localRef = useRef(chatSettings);
   localRef.current = chatSettings;
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const emitIfChanged = useCallback(
+    (target: NonNullable<typeof socket>) => {
+      timerRef.current = null;
+      const current = localRef.current;
+      const serialized = serialize(current);
+      if (lastSyncedRef.current === serialized) {
+        return;
+      }
+      lastSyncedRef.current = serialized;
+      if (!isSocketAuthenticated(target)) {
+        hasUnsyncedLocalChangeRef.current = true;
+      }
+      target.emit('user:update-chat-settings', current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!socket) {
+      clearTimer();
       hasResolvedRef.current = false;
       lastSyncedRef.current = null;
       hasUnsyncedLocalChangeRef.current = false;
@@ -66,6 +94,8 @@ export function useChatSettingsSync(): void {
 
     const applyRemoteChange = ({ chatSettings: incoming }: { chatSettings: SocketChatSettings }) => {
       const next = normalize(incoming);
+      clearTimer();
+      hasUnsyncedLocalChangeRef.current = false;
       lastSyncedRef.current = serialize(next);
       applyChatSettings(next);
     };
@@ -75,26 +105,30 @@ export function useChatSettingsSync(): void {
     socket.on('user:chat-settings-updated', applyRemoteChange);
 
     return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        if (socket.active) {
+          emitIfChanged(socket);
+        }
+        timerRef.current = null;
+      }
       socket.off('user:resumed', resolveFromServer);
       socket.off('user:registered', resolveFromServer);
       socket.off('user:chat-settings-updated', applyRemoteChange);
     };
-  }, [socket, applyChatSettings]);
+  }, [socket, applyChatSettings, clearTimer, emitIfChanged]);
 
   useEffect(() => {
     if (!socket || !hasResolvedRef.current || !socket.active) {
       return;
     }
 
-    const serialized = serialize(chatSettings);
-    if (lastSyncedRef.current === serialized) {
+    if (lastSyncedRef.current === serialize(chatSettings)) {
+      clearTimer();
       return;
     }
 
-    lastSyncedRef.current = serialized;
-    if (!isSocketAuthenticated(socket)) {
-      hasUnsyncedLocalChangeRef.current = true;
-    }
-    socket.emit('user:update-chat-settings', chatSettings);
-  }, [socket, chatSettings]);
+    clearTimer();
+    timerRef.current = setTimeout(() => emitIfChanged(socket), CHAT_SETTINGS_SYNC_DEBOUNCE_MS);
+  }, [socket, chatSettings, clearTimer, emitIfChanged]);
 }
