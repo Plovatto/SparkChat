@@ -1104,6 +1104,7 @@
       "noiseAdvancedHint": "Removes typing, clicks and background noise right on your device.",
       "echo": "Echo cancellation",
       "echoHint": "Stops the other person's voice from coming back through your microphone. You can turn it off with headphones.",
+      "echoAndroidHint": "Always on for Android: it is what makes the phone treat the audio as a call, with the call volume.",
       "gain": "Automatic volume",
       "gainHint": "Adjusts your microphone volume automatically.",
       "isolation": "Voice isolation",

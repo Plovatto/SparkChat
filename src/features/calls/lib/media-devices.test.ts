@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, audioProcessingConstraints, usesAdvancedNoise, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
+import { listDevicesReliably, mergeActiveDevices, resetKnownDevices, SHARE_AUDIO_CONSTRAINTS, acquireLocalMedia, acquireScreenShare, applyShareConstraints, shareVideoConstraints, audioConstraints, audioProcessingConstraints, requiresEchoCancellation, usesAdvancedNoise, screenShareOptions, supportsScreenShare, videoConstraints } from './media-devices';
 
 const stream = (name: string) => ({ name }) as unknown as MediaStream;
 
@@ -14,6 +14,14 @@ describe('constraints', () => {
     expect(audioConstraints(undefined, off)).toMatchObject({ echoCancellation: false, noiseSuppression: false, autoGainControl: false });
     expect(audioConstraints(undefined, { ...off, noiseSuppression: true })).toMatchObject({ noiseSuppression: true, echoCancellation: false });
     expect(audioConstraints(undefined, off)).not.toHaveProperty('voiceIsolation');
+  });
+
+  it('always asks for echo cancellation when the platform needs it for the call audio mode', () => {
+    const off = { noiseSuppression: false, echoCancellation: false, autoGainControl: false, voiceIsolation: false };
+    expect(audioProcessingConstraints(off, false, true)).toMatchObject({ echoCancellation: true, noiseSuppression: false, autoGainControl: false });
+    expect(audioProcessingConstraints(off, false, false)).toMatchObject({ echoCancellation: false });
+    expect(requiresEchoCancellation(true)).toBe(true);
+    expect(requiresEchoCancellation(false)).toBe(false);
   });
 
   it('only asks for voice isolation when the browser supports it', () => {

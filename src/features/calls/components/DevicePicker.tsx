@@ -10,7 +10,7 @@ import { useAudioProcessing, useCallVolume, useMicVolume, type AudioProcessing }
 import { supportsAdvancedNoise } from '../lib/denoiser';
 import { MIC_VOLUME_MAX, MIC_VOLUME_MIN } from '../lib/voice-leveler';
 import { CALL_VOLUME_MAX, CALL_VOLUME_MIN } from '../lib/voice-playback';
-import { listDevicesReliably, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
+import { listDevicesReliably, requiresEchoCancellation, supportsVoiceIsolation, type DeviceLists } from '../lib/media-devices';
 import type { PresenceStage } from '../lib/presence';
 import { DUCK_LEVEL } from '../lib/ducking';
 import type { ShareMonitorSupport } from '../lib/share-monitor';
@@ -104,9 +104,10 @@ interface AudioOptionProps {
   description: string;
   checked: boolean;
   onChange: () => void;
+  locked?: boolean;
 }
 
-function AudioOption({ id, label, description, checked, onChange }: AudioOptionProps) {
+function AudioOption({ id, label, description, checked, onChange, locked = false }: AudioOptionProps) {
   const { theme } = useTheme();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
@@ -118,7 +119,7 @@ function AudioOption({ id, label, description, checked, onChange }: AudioOptionP
           {description}
         </span>
       </div>
-      <Switch checked={checked} onChange={onChange} aria-labelledby={id} aria-describedby={id + '-hint'} />
+      <Switch checked={checked} onChange={onChange} disabled={locked} aria-labelledby={id} aria-describedby={id + '-hint'} />
     </div>
   );
 }
@@ -192,6 +193,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
   const [micLevel, setMicLevel] = useMicVolume();
   const [callLevel, setCallLevel] = useCallVolume();
   const voiceIsolation = supportsVoiceIsolation();
+  const echoLocked = requiresEchoCancellation();
   const advancedNoise = supportsAdvancedNoise();
   const [selectedTab, setTab] = useState<PanelTab>('devices');
   const [devices, setDevices] = useState<DeviceLists>({ audioInputs: [], videoInputs: [], audioOutputs: [] });
@@ -384,7 +386,7 @@ export function DevicePicker({ cameraOn, supportsOutput, selected, onAudioInput,
           />
           <span className="sc-call-panel-section">{t('calls.audio.processingSection')}</span>
           <AudioOption id="call-audio-noise" label={t('calls.audio.noise')} description={advancedNoise ? t('calls.audio.noiseAdvancedHint') : t('calls.audio.noiseHint')} checked={processing.noiseSuppression} onChange={() => toggle('noiseSuppression')} />
-          <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={t('calls.audio.echoHint')} checked={processing.echoCancellation} onChange={() => toggle('echoCancellation')} />
+          <AudioOption id="call-audio-echo" label={t('calls.audio.echo')} description={echoLocked ? t('calls.audio.echoAndroidHint') : t('calls.audio.echoHint')} checked={processing.echoCancellation || echoLocked} locked={echoLocked} onChange={() => toggle('echoCancellation')} />
           <AudioOption id="call-audio-gain" label={t('calls.audio.gain')} description={t('calls.audio.gainHint')} checked={processing.autoGainControl} onChange={() => toggle('autoGainControl')} />
           {voiceIsolation && (
             <AudioOption id="call-audio-isolation" label={t('calls.audio.isolation')} description={t('calls.audio.isolationHint')} checked={processing.voiceIsolation} onChange={() => toggle('voiceIsolation')} />
