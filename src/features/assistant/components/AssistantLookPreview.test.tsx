@@ -31,21 +31,21 @@ function surface(container: HTMLElement): HTMLElement {
 describe('AssistantLookPreview', () => {
   it('shows theme and wallpaper names for the chosen look', () => {
     render(wrap(<AssistantLookPreview look={{ baseTheme: 'light', colorTheme: 'standard', wallpaper: 'gradient2' }} />));
-    expect(screen.getByText('chat.assistant.card.lookTheme|bases.light · colors.standard')).toBeTruthy();
-    expect(screen.getByText('chat.assistant.card.lookWallpaper|wallpapers.gradient2')).toBeTruthy();
+    expect(screen.getByText('bases.light').closest('li')?.className).toBe('sc-assistant-look-tag');
+    expect(screen.getByText('colors.standard').closest('li')?.className).toBe('sc-assistant-look-tag');
+    expect(screen.getByText('wallpapers.gradient2').closest('li')?.className).toBe('sc-assistant-look-tag');
   });
 
   it('falls back to the current wallpaper when the look has none', () => {
     const { container } = render(wrap(<AssistantLookPreview look={{ colorTheme: 'standard' }} />));
     expect(surface(container).style.background).toContain('linear-gradient');
-    expect(screen.queryByText(/lookWallpaper/)).toBeNull();
+    expect(container.querySelectorAll('.sc-assistant-look-tag').length).toBe(1);
   });
 
   it('ignores unknown ids without breaking', () => {
     const { container } = render(wrap(<AssistantLookPreview look={{ baseTheme: 'nope', colorTheme: 'nope', wallpaper: 'nope' }} />));
     expect(surface(container)).toBeTruthy();
-    expect(screen.queryByText(/lookTheme/)).toBeNull();
-    expect(screen.queryByText(/lookWallpaper/)).toBeNull();
+    expect(container.querySelector('.sc-assistant-look-tag')).toBeNull();
   });
 
   it('lists the appearance fields the look adjusts once each', () => {

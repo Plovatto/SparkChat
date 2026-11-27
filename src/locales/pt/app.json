@@ -467,8 +467,6 @@
         "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
         "lookSuggestion": "Sugestão de visual",
         "lookApplied": "Visual aplicado",
-        "lookTheme": "Tema: {{name}}",
-        "lookWallpaper": "Papel de parede: {{name}}",
         "lookAppearance": "Ajusta: {{items}}"
       }
     },

@@ -42,6 +42,11 @@ describe('AssistantLookCard', () => {
       buttons: [{ choice: 'yes', label: 'Apply' }],
     });
     expect(screen.getByText('chat.assistant.card.lookSuggestion')).toBeTruthy();
+    const cards = document.querySelectorAll('.sc-assistant-card');
+    expect(cards.length).toBe(1);
+    expect(cards[0]?.querySelectorAll('.sc-assistant-look-tag').length).toBe(1);
+    expect(cards[0]?.querySelector('.sc-assistant-look-preview')).toBeTruthy();
+    expect(cards[0]?.querySelector('.sc-assistant-look-actions button')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     expect(onQuickReply).toHaveBeenCalledWith('m1', { choice: 'yes', label: 'Apply' });
     spies.forEach((spy) => expect(spy).not.toHaveBeenCalled());
