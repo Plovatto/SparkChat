@@ -1104,6 +1104,7 @@
       "noiseAdvancedHint": "Remove teclado, cliques e ruídos de fundo com IA no seu aparelho.",
       "echo": "Cancelamento de eco",
       "echoHint": "Evita que a voz da outra pessoa volte pelo seu microfone. Pode desligar com fones de ouvido.",
+      "echoAndroidHint": "Sempre ligado no Android: é ele que faz o celular tratar o áudio como ligação, com o volume de chamada.",
       "gain": "Volume automático",
       "gainHint": "Ajusta sozinho o volume do seu microfone.",
       "isolation": "Isolamento de voz",

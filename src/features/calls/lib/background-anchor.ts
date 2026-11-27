@@ -1,4 +1,5 @@
 import { browserSource, onPageResume, type ResumeSource } from './page-resume';
+import { isAndroidBrowser } from './platform';
 
 export const ANCHOR_SAMPLE_RATE = 8000;
 export const ANCHOR_SECONDS = 8;
@@ -7,8 +8,8 @@ export const ANCHOR_AMPLITUDE = 100;
 export const ANCHOR_RETRY_MS = [1000, 3000, 10000] as const;
 export const ANCHOR_RESUME_GUARD_MS = 1000;
 
-export function needsBackgroundAnchor(userAgent: string | undefined = typeof navigator === 'undefined' ? undefined : navigator.userAgent): boolean {
-  return typeof userAgent === 'string' && /Android/i.test(userAgent);
+export function needsBackgroundAnchor(userAgent?: string): boolean {
+  return isAndroidBrowser(userAgent);
 }
 
 export function anchorWav(): Uint8Array {

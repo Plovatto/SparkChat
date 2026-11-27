@@ -1,6 +1,7 @@
 import type { CallKind } from '@lib/e2ee/call-crypto';
 import { DEFAULT_AUDIO_PROCESSING, type AudioProcessing } from './call-settings';
 import { supportsAdvancedNoise } from './denoiser';
+import { isAndroidBrowser } from './platform';
 
 export interface MediaSelection {
   audioProcessing?: AudioProcessing | undefined;
@@ -32,9 +33,13 @@ export function usesAdvancedNoise(processing: AudioProcessing, advanced: boolean
   return processing.noiseSuppression && advanced;
 }
 
-export function audioProcessingConstraints(processing: AudioProcessing, advanced: boolean = supportsAdvancedNoise()): MediaTrackConstraints {
+export function requiresEchoCancellation(android: boolean = isAndroidBrowser()): boolean {
+  return android;
+}
+
+export function audioProcessingConstraints(processing: AudioProcessing, advanced: boolean = supportsAdvancedNoise(), forceEcho: boolean = requiresEchoCancellation()): MediaTrackConstraints {
   return {
-    echoCancellation: processing.echoCancellation,
+    echoCancellation: processing.echoCancellation || forceEcho,
     noiseSuppression: processing.noiseSuppression && !advanced,
     autoGainControl: processing.autoGainControl,
     ...(processing.voiceIsolation && supportsVoiceIsolation() ? ({ voiceIsolation: true } as MediaTrackConstraints) : {}),

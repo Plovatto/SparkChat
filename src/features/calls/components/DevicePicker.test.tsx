@@ -6,9 +6,12 @@ import { DevicePicker, type ReceiverSettings, type SharerSettings } from './Devi
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('@features/theme', () => ({ useTheme: () => ({ theme: {} }) }));
 vi.mock('../call-context', () => ({ useCall: () => ({ snapshot: { localStream: null }, changeAudioProcessing: () => undefined }) }));
+const platform = vi.hoisted(() => ({ android: false }));
+
 vi.mock('../lib/media-devices', () => ({
   listDevicesReliably: () => Promise.resolve({ audioInputs: [], videoInputs: [], audioOutputs: [] }),
   supportsVoiceIsolation: () => false,
+  requiresEchoCancellation: () => platform.android,
 }));
 
 function sharer(monitor: ShareMonitorSupport, extra: Partial<SharerSettings> = {}): SharerSettings {
@@ -27,7 +30,7 @@ function sharer(monitor: ShareMonitorSupport, extra: Partial<SharerSettings> = {
   };
 }
 
-function renderPicker(settings: SharerSettings | null, receiver: ReceiverSettings | null = null) {
+function renderPicker(settings: SharerSettings | null, receiver: ReceiverSettings | null = null, tab = 'calls.tabs.broadcast') {
   render(
     <DevicePicker
       cameraOn={false}
@@ -40,7 +43,7 @@ function renderPicker(settings: SharerSettings | null, receiver: ReceiverSetting
       broadcast={{ sharer: settings, receiver }}
     />,
   );
-  fireEvent.click(screen.getByRole('tab', { name: 'calls.tabs.broadcast' }));
+  fireEvent.click(screen.getByRole('tab', { name: tab }));
 }
 
 describe('DevicePicker sharer monitor', () => {
@@ -122,5 +125,31 @@ describe('DevicePicker share source', () => {
   it('hides the option when the source cannot be changed', () => {
     renderPicker(sharer('none'));
     expect(screen.queryByRole('button', { name: /calls.broadcast.changeSource/ })).toBeNull();
+  });
+});
+
+describe('DevicePicker echo cancellation', () => {
+  function openAudioTab() {
+    localStorage.setItem('chatCallAudioProcessing', JSON.stringify({ noiseSuppression: false, echoCancellation: false, autoGainControl: false, voiceIsolation: false }));
+    renderPicker(sharer('none'), null, 'calls.tabs.audio');
+    return screen.getByRole('switch', { name: 'calls.audio.echo' });
+  }
+
+  it('locks the option on for Android so calls always use the call audio mode', () => {
+    platform.android = true;
+    const toggle = openAudioTab();
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect((toggle as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('calls.audio.echoAndroidHint')).toBeTruthy();
+    platform.android = false;
+    localStorage.clear();
+  });
+
+  it('keeps the option free elsewhere', () => {
+    const toggle = openAudioTab();
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    expect((toggle as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByText('calls.audio.echoHint')).toBeTruthy();
+    localStorage.clear();
   });
 });
