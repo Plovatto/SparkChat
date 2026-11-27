@@ -46,7 +46,17 @@ export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, 
   const replies =
     buttons.length > 0 ? (
       <>
-        <AssistantQuickReplies buttons={buttons} resolvedChoice={resolvedChoice} failureToken={failureToken} onSelect={(button) => onQuickReply(cardId, button)} />
+        <AssistantQuickReplies
+          buttons={buttons}
+          resolvedChoice={resolvedChoice}
+          failureToken={failureToken}
+          onSelect={(button) => onQuickReply(cardId, button)}
+          shortLabels={
+            card.kind === 'reminder-fired'
+              ? { done: t('chat.assistant.card.reminderDoneShort'), snooze10: t('chat.assistant.card.snooze10Short'), snooze60: t('chat.assistant.card.snooze60Short') }
+              : undefined
+          }
+        />
         {error && !resolvedChoice && (
           <p className="sc-assistant-card-error" role="alert">
             {error}
@@ -99,7 +109,7 @@ export function AssistantCardView({ card, cardId, resolvedChoice, failureToken, 
             </span>
             <div className="sc-assistant-reminder-body">
               <span className="sc-assistant-reminder-label">{t('chat.assistant.card.reminderFired')}</span>
-              <p className="sc-assistant-reminder-text">{card.text}</p>
+              <p className="sc-assistant-reminder-text">{card.text.trim() && card.text.trim() !== t('chat.assistant.card.reminderFired') ? card.text : t('chat.assistant.card.reminderFallback')}</p>
             </div>
           </div>
           {replies}

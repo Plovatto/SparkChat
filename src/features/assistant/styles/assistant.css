@@ -567,25 +567,41 @@ body:has(.sc-assistant-chips-anchor) .sc-jump-latest {
 }
 
 .sc-assistant-card-reminder {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--sc-accent) 10%, var(--sc-surface));
-  border: 1px solid color-mix(in srgb, var(--sc-accent) 40%, var(--sc-border-subtle));
-  animation: scAssistantRise 260ms var(--sc-ease-enter) backwards;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 360px);
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--sc-border-subtle);
+  background: var(--sc-surface);
+  animation: scAssistantRise 220ms var(--sc-ease-enter) backwards;
 }
 
 .sc-assistant-reminder-head {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .sc-assistant-reminder-bell {
   display: inline-flex;
   flex: none;
-  color: var(--sc-accent);
-  transform-origin: 50% 4px;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--sc-accent) 14%, transparent);
+  color: var(--sc-accent-text);
+  transform-origin: 50% 30%;
   animation: scAssistantBellRing 1.4s var(--sc-ease-enter) 300ms 2;
+}
+
+.sc-assistant-reminder-bell svg {
+  width: 18px;
+  height: 18px;
 }
 
 .sc-assistant-reminder-body {
@@ -596,11 +612,9 @@ body:has(.sc-assistant-chips-anchor) .sc-jump-latest {
 }
 
 .sc-assistant-reminder-label {
-  color: var(--sc-accent);
+  color: var(--sc-text-secondary);
   font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 500;
 }
 
 .sc-assistant-reminder-text {
@@ -608,8 +622,20 @@ body:has(.sc-assistant-chips-anchor) .sc-jump-latest {
   color: var(--sc-text-primary);
   font-size: 0.9375rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.sc-assistant-card-reminder .sc-assistant-replies {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sc-assistant-card-reminder .sc-assistant-reply {
+  min-width: 0;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 @keyframes scAssistantBellRing {

@@ -28,4 +28,16 @@ describe('reminder-fired card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Snooze 10 min' }));
     expect(onQuickReply).toHaveBeenCalledWith('m1', card.buttons[1]);
   });
+
+  it('shows short labels in one row while keeping the full label as the accessible name', () => {
+    const onQuickReply = vi.fn();
+    render(<AssistantCardView card={card} cardId="m1" onQuickReply={onQuickReply} />);
+    const button = screen.getByRole('button', { name: 'Snooze 10 min' });
+    expect(button.textContent).toBe('chat.assistant.card.snooze10Short');
+  });
+
+  it('falls back to a friendly title when the reminder text is empty', () => {
+    render(<AssistantCardView card={{ ...card, text: '' }} cardId="m1" onQuickReply={vi.fn()} />);
+    expect(screen.getByText('chat.assistant.card.reminderFallback')).toBeTruthy();
+  });
 });
