@@ -90,6 +90,10 @@ const SHOW_IN_CHAT_DELAY_MS = 320;
 const FAILURE_NOTICE_MS = 5000;
 const COPY_NOTICE_MS = 1600;
 
+function mergeFailureTokens(first: string | undefined, second: string | undefined): string | undefined {
+  return first && second ? `${first}|${second}` : (first ?? second);
+}
+
 function uploadErrorText(error: unknown, fallbackKey: string): string {
   return error instanceof MissingRoomKeyError ? translate('errors.e2ee.missingRoomKey') : translateError(error, fallbackKey);
 }
@@ -1390,7 +1394,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
                                   onQuickReply={handleCardReply}
                                   onAssistantPrompt={sendAssistantPrompt}
                                   onAssistantPhoto={openAssistantPhotoPicker}
-                                  quickReplyFailureToken={failedQuickReplyTokens.get(item.message.id) ?? cardFailures.get(item.message.id)?.token}
+                                  quickReplyFailureToken={mergeFailureTokens(failedQuickReplyTokens.get(item.message.id), cardFailures.get(item.message.id)?.token)}
                                   quickReplyError={cardFailures.get(item.message.id)?.error}
                                   participants={room.participants}
                                   currentUserId={user.id}

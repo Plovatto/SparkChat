@@ -48,7 +48,7 @@ function createFakeSocket() {
   return { socket: socket as unknown as AppSocket, receive };
 }
 
-const payload = { cardId: 'card-1', roomId: 'room-1', sendAt: 1_800_000_000_000, content: 'oi', type: 'text', clientTempId: 't1' };
+const payload = { cardId: 'card-1', roomId: 'room-1', sendAt: 1_800_000_000_000, messageId: '11111111-1111-4111-8111-111111111111', content: 'oi', type: 'text', clientTempId: 't1' };
 
 describe('wrapSocketWithE2e message:schedule', () => {
   beforeEach(() => {

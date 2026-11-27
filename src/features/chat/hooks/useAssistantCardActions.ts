@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { translateErrorPayload } from '@lib/api/api-error';
 import { translate } from '@lib/i18n/app-i18n';
 import type { AssistantButton, QuickReplyChoice } from '@lib/assistant/assistant-card';
-import { localDateTimeToEpoch } from '@lib/assistant/schedule-time';
+import { deriveMessageIdFromCard } from '@lib/assistant/card-message-id';
 import type { AppSocket, SocketErrorPayload } from '@lib/socket';
 import { sendTextToRoom } from '../utils/forward-message';
 import type { ChatMessage } from '../types';
 
 const SCHEDULE_TIMEOUT_MS = 15000;
 const SCHEDULE_FAILED_KEY = 'chat.assistant.card.scheduleFailed';
+const SEND_NOW_FAILED_KEY = 'chat.assistant.card.sendNowFailed';
 
 export interface AssistantCardFailure {
   token: string;
@@ -94,9 +95,8 @@ export function useAssistantCardActions({ socket, messages, onQuickReply }: UseA
   }, [socket, settle, fail, clearFailure]);
 
   const schedule = useCallback(
-    (message: ChatMessage, action: { roomId: string; text: string; sendAtLocal: string; timeZone: string }) => {
-      const sendAt = localDateTimeToEpoch(action.sendAtLocal, action.timeZone);
-      if (!socket || sendAt === null) {
+    (message: ChatMessage, action: { roomId: string; text: string; sendAt: number }) => {
+      if (!socket) {
         fail(message.id, translate(SCHEDULE_FAILED_KEY));
         return;
       }
@@ -111,7 +111,7 @@ export function useAssistantCardActions({ socket, messages, onQuickReply }: UseA
       socket.emit('message:schedule', {
         cardId: message.id,
         roomId: action.roomId,
-        sendAt,
+        sendAt: action.sendAt,
         messageId: crypto.randomUUID(),
         content: action.text,
         type: 'text',
@@ -124,14 +124,16 @@ export function useAssistantCardActions({ socket, messages, onQuickReply }: UseA
   const sendNow = useCallback(
     (cardId: string, button: AssistantButton, roomId: string, text: string) => {
       if (!socket) {
-        fail(cardId, translate(SCHEDULE_FAILED_KEY));
+        fail(cardId, translate(SEND_NOW_FAILED_KEY));
         return;
       }
       clearFailure(cardId);
-      sendTextToRoom(socket, roomId, text).then(
-        () => onQuickReply(cardId, button),
-        (error: unknown) => fail(cardId, error instanceof Error && error.message ? error.message : translate(SCHEDULE_FAILED_KEY)),
-      );
+      deriveMessageIdFromCard(cardId)
+        .then((messageId) => sendTextToRoom(socket, roomId, text, messageId))
+        .then(
+          () => onQuickReply(cardId, button),
+          () => fail(cardId, translate(SEND_NOW_FAILED_KEY)),
+        );
     },
     [socket, fail, clearFailure, onQuickReply],
   );

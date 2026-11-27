@@ -103,7 +103,7 @@
 
 .sc-assistant-card-error {
   margin: 0;
-  color: var(--sc-danger, #e5484d);
+  color: var(--sc-danger);
   font-size: 0.8125rem;
   animation: scAssistantRise 200ms var(--sc-ease-enter) backwards;
 }

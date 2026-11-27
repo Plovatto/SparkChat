@@ -539,7 +539,7 @@ export interface ClientToServerEvents {
     cardId: string;
     roomId: string;
     sendAt: number;
-    messageId?: string;
+    messageId: string;
     content: string;
     type: 'text';
     clientTempId?: string;

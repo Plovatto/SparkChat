@@ -456,6 +456,7 @@
         "confirmReminder": "Reminder: {{text}} at {{when}}",
         "confirmStatus": "💬 “{{text}}” until {{when}}",
         "confirmScheduled": "📨 To {{recipient}}: “{{text}}” · {{when}}",
+        "sendNowFailed": "Couldn't send right now. Try again?",
         "scheduleFailed": "Could not schedule the message. Try again.",
         "confirmDeleteNote": "Delete note: {{preview}}",
         "confirmCancelScheduled": "🗑️ Cancel sending: “{{preview}}”",

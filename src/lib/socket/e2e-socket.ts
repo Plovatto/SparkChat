@@ -214,6 +214,7 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
   let dispatchQueue: Promise<void> = Promise.resolve();
 
   const pendingSends = new Map<string, PendingSend>();
+  const scheduleTimers = new Set<ReturnType<typeof setTimeout>>();
   let pendingGroupName: string | null = null;
 
   const takeCreatedGroupName = (room: RoomSummary): string | undefined => {
@@ -239,11 +240,13 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
           pendingSends.set(clientTempId, { event, payload, keyId: generation.keyId, retried: staleKeyId !== null });
           if (event === 'message:schedule') {
             const entry = pendingSends.get(clientTempId);
-            setTimeout(() => {
+            const timer = setTimeout(() => {
+              scheduleTimers.delete(timer);
               if (pendingSends.get(clientTempId) === entry) {
                 pendingSends.delete(clientTempId);
               }
             }, SCHEDULE_PENDING_TTL_MS);
+            scheduleTimers.add(timer);
           }
         }
         originalEmit(event, encrypted);
@@ -422,6 +425,11 @@ export function wrapSocketWithE2e(socket: AppSocket): AppSocket {
     detachKeyTransparency();
     deferredRoomEvents.clear();
     pendingGroupName = null;
+    for (const timer of scheduleTimers) {
+      clearTimeout(timer);
+    }
+    scheduleTimers.clear();
+    pendingSends.clear();
     return originalClose();
   };
 

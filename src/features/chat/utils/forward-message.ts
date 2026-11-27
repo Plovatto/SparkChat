@@ -122,7 +122,7 @@ export async function forwardMessage(socket: AppSocket, auth: SessionAuth, messa
   });
 }
 
-export async function sendTextToRoom(socket: AppSocket, roomId: string, text: string): Promise<void> {
+export async function sendTextToRoom(socket: AppSocket, roomId: string, text: string, messageId?: string): Promise<void> {
   await ensureRoomKeyForSending(socket, roomId);
-  await sendAndConfirm(socket, { roomId, content: text, type: 'text' });
+  await sendAndConfirm(socket, { roomId, content: text, type: 'text', ...(messageId ? { messageId } : {}) });
 }

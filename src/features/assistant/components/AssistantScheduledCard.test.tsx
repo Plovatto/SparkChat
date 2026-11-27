@@ -25,7 +25,7 @@ const sendNowButton: AssistantButton = { choice: 'send-now', label: 'Enviar agor
 const confirmCard: AssistantCard = {
   v: 1,
   kind: 'confirm',
-  action: { type: 'scheduled-message', roomId: 'room-9', recipient: 'Ana', text: 'oi', sendAtLocal: '2026-11-27T09:00', timeZone: 'America/Sao_Paulo' },
+  action: { type: 'scheduled-message', roomId: 'room-9', recipient: 'Ana', text: 'oi', sendAtLocal: '2026-11-27T09:00', timeZone: 'America/Sao_Paulo', sendAt: Date.UTC(2026, 10, 27, 12, 0) },
   buttons: [yes, no],
 };
 
@@ -134,8 +134,10 @@ describe('scheduled message card', () => {
 
     await act(async () => hook.result.current.handleCardReply('f1', sendNowButton));
 
-    expect(sendTextToRoom).toHaveBeenCalledWith(socket, 'room-9', 'oi');
-    expect(onQuickReply).toHaveBeenCalledWith('f1', sendNowButton);
+    await vi.waitFor(() => {
+      expect(sendTextToRoom).toHaveBeenCalledWith(socket, 'room-9', 'oi', expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
+      expect(onQuickReply).toHaveBeenCalledWith('f1', sendNowButton);
+    });
   });
 
   it('send-now keeps the card open and reports the failure', async () => {
@@ -144,7 +146,8 @@ describe('scheduled message card', () => {
 
     await act(async () => hook.result.current.handleCardReply('f1', sendNowButton));
 
+    await vi.waitFor(() => expect(hook.result.current.failures.get('f1')?.error).toBe('chat.assistant.card.sendNowFailed'));
     expect(onQuickReply).not.toHaveBeenCalled();
-    expect(hook.result.current.failures.get('f1')?.error).toBe('offline');
+    expect(hook.result.current.failures.get('f1')?.error).toBe('chat.assistant.card.sendNowFailed');
   });
 });
