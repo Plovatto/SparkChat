@@ -1,5 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as AppI18n from '@lib/i18n/app-i18n';
 import type { AssistantButton, AssistantCard } from '@lib/assistant/assistant-card';
 import type { ChatMessage } from '@features/chat/types';
 import { useAssistantCardActions } from '@features/chat/hooks/useAssistantCardActions';
@@ -9,13 +10,13 @@ const sendTextToRoom = vi.hoisted(() => vi.fn());
 
 vi.mock('@features/chat/utils/forward-message', () => ({ sendTextToRoom }));
 vi.mock('@lib/i18n/app-i18n', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@lib/i18n/app-i18n')>()),
+  ...(await importOriginal<typeof AppI18n>()),
   translate: (key: string) => key,
   hasTranslation: () => false,
 }));
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: () => undefined },
-  useTranslation: () => ({ t: (key: string, options?: Record<string, unknown>) => (options?.recipient ? `${key}|${String(options.recipient)}` : key) }),
+  useTranslation: () => ({ t: (key: string, options?: { recipient?: string }) => (options?.recipient ? `${key}|${options.recipient}` : key) }),
 }));
 
 const yes: AssistantButton = { choice: 'yes', label: 'Sim' };
@@ -103,8 +104,8 @@ describe('scheduled message card', () => {
         sendAt: Date.UTC(2026, 10, 27, 12, 0),
         content: 'oi',
         type: 'text',
-        clientTempId: expect.any(String),
-        messageId: expect.any(String),
+        clientTempId: expect.stringMatching(/.+/) as string,
+        messageId: expect.stringMatching(/.+/) as string,
       }),
     );
   });
@@ -132,7 +133,10 @@ describe('scheduled message card', () => {
     sendTextToRoom.mockResolvedValue(undefined);
     const { socket, onQuickReply, hook } = setup(cardMessage('f1', failedCard));
 
-    await act(async () => hook.result.current.handleCardReply('f1', sendNowButton));
+    await act(() => {
+      hook.result.current.handleCardReply('f1', sendNowButton);
+      return Promise.resolve();
+    });
 
     await vi.waitFor(() => {
       expect(sendTextToRoom).toHaveBeenCalledWith(socket, 'room-9', 'oi', expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
@@ -144,7 +148,10 @@ describe('scheduled message card', () => {
     sendTextToRoom.mockRejectedValue(new Error('offline'));
     const { onQuickReply, hook } = setup(cardMessage('f1', failedCard));
 
-    await act(async () => hook.result.current.handleCardReply('f1', sendNowButton));
+    await act(() => {
+      hook.result.current.handleCardReply('f1', sendNowButton);
+      return Promise.resolve();
+    });
 
     await vi.waitFor(() => expect(hook.result.current.failures.get('f1')?.error).toBe('chat.assistant.card.sendNowFailed'));
     expect(onQuickReply).not.toHaveBeenCalled();
