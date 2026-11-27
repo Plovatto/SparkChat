@@ -13,18 +13,6 @@ describe('AssistantCapabilities', () => {
     expect(screen.getAllByRole('button')).toHaveLength(9);
   });
 
-  it('keeps the emoji glued to the last word of the title', () => {
-    render(<AssistantCapabilities onSendPrompt={vi.fn()} />);
-    expect(document.querySelector('.sc-assistant-cap-title')?.textContent?.endsWith(' 🎨')).toBe(true);
-  });
-
-  it('wraps only the last word and emoji in a nowrap span', () => {
-    render(<AssistantCapabilities onSendPrompt={vi.fn()} />);
-    const glued = document.querySelector('.sc-assistant-cap-title .sc-assistant-cap-nowrap');
-    expect(glued?.textContent?.endsWith(' 🎨')).toBe(true);
-    expect(glued?.textContent?.includes(' ')).toBe(false);
-  });
-
   it('sends the example of the tapped tile', () => {
     const onSendPrompt = vi.fn();
     render(<AssistantCapabilities onSendPrompt={onSendPrompt} />);

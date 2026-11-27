@@ -22,6 +22,22 @@ afterEach(() => {
 });
 
 describe('AssistantQuickReplies', () => {
+  it('maps each choice to a visual variant', () => {
+    const all: AssistantButton[] = [
+      { choice: 'yes', label: 'a' },
+      { choice: 'send-now', label: 'b' },
+      { choice: 'done', label: 'c' },
+      { choice: 'another', label: 'd' },
+      { choice: 'undo', label: 'e' },
+      { choice: 'snooze10', label: 'f' },
+      { choice: 'no', label: 'g' },
+      { choice: 'keep', label: 'h' },
+    ];
+    render(<AssistantQuickReplies buttons={all} onSelect={vi.fn()} />);
+    const variants = all.map((button) => screen.getByRole('button', { name: button.label }).getAttribute('data-variant'));
+    expect(variants).toEqual(['primary', 'primary', 'primary', 'tonal', 'tonal', 'tonal', 'quiet', 'quiet']);
+  });
+
   it('re-enables the buttons when the send failed', () => {
     const { rerender } = render(<AssistantQuickReplies buttons={buttons} onSelect={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));

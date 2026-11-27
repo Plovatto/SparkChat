@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AssistantButton, QuickReplyChoice } from '@lib/assistant/assistant-card';
+import { quickReplyVariant } from '../quick-reply-variant';
 import '../styles/assistant.css';
 
 const SEND_TIMEOUT_MS = 15000;
@@ -56,6 +57,7 @@ export function AssistantQuickReplies({ buttons, resolvedChoice, failureToken, o
           key={button.choice}
           type="button"
           className="sc-assistant-reply"
+          data-variant={quickReplyVariant(button.choice)}
           style={{ animationDelay: `${index * 50}ms` }}
           disabled={sentChoice !== null}
           data-sent={sentChoice === button.choice ? 'true' : undefined}

@@ -372,47 +372,47 @@
       "capabilities": {
         "label": "O que o SparkAI sabe fazer",
         "themes": {
-          "title": "Sugiro temas 🎨",
+          "title": "Sugerir tema",
           "description": "Cores pro seu app",
           "example": "Sugere um tema pra mim"
         },
         "fullLook": {
-          "title": "Monto um visual completo 🪄",
-          "description": "Tema, fundo e bolhas",
+          "title": "Visual completo",
+          "description": "Tema, fundo e balões",
           "example": "Sugere um visual completo pra mim"
         },
         "photoTheme": {
-          "title": "Crio um tema da sua foto 📸",
+          "title": "Tema da sua foto",
           "description": "Sua foto vira tema",
           "example": "Quero um tema a partir de uma foto"
         },
         "notes": {
-          "title": "Anoto o que quiser 📝",
+          "title": "Anotações",
           "description": "Ideias e listas",
           "example": "Anota que preciso comprar café"
         },
         "reminders": {
-          "title": "Te lembro (até toda semana) ⏰",
-          "description": "Eu te cutuco na hora",
+          "title": "Lembretes",
+          "description": "Até toda semana",
           "example": "Me lembra de beber água amanhã às 9h"
         },
         "status": {
-          "title": "Status com hora pra acabar 💬",
+          "title": "Status com prazo",
           "description": "Some sozinho",
           "example": "Põe meu status em reunião até 15h"
         },
         "scheduled": {
-          "title": "Agendo mensagens 📨",
-          "description": "Chega na hora certa",
+          "title": "Agendar mensagem",
+          "description": "Sai na hora certa",
           "example": "Quero agendar uma mensagem"
         },
         "help": {
-          "title": "Te ensino a usar o SparkChat 🧭",
+          "title": "Como usar o app",
           "description": "Dúvidas? Pergunta!",
           "example": "Como eu mudo o papel de parede?"
         },
         "chat": {
-          "title": "E bato papo 😄",
+          "title": "Bater papo",
           "description": "Piada, ideia, desabafo",
           "example": "Me conta uma piada"
         }
@@ -428,8 +428,11 @@
           "none": "Abrir"
         }
       },
+      "photoCaption": "Cria um tema combinando com esta foto",
       "chips": {
         "label": "Sugestões para o SparkAI",
+        "scrollBack": "Ver sugestões anteriores",
+        "scrollForward": "Ver mais sugestões",
         "suggestTheme": "Sugere um tema 🎨",
         "pickTheme": "Escolhe um tema pra mim ✨",
         "suggestLook": "Sugere um visual completo 🪄",
@@ -463,11 +466,10 @@
         "confirmDeleteNote": "Apagar nota: {{preview}}",
         "confirmCancelScheduled": "🗑️ Cancelar envio: “{{preview}}”",
         "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
-        "lookSuggestion": "Sugestão de visual",
-        "lookApplied": "Visual aplicado",
-        "lookTheme": "Tema: {{name}}",
-        "lookWallpaper": "Papel de parede: {{name}}",
-        "lookAppearance": "Ajusta: {{items}}"
+        "lookSuggestion": "Sugestão",
+        "lookApplied": "Aplicado",
+        "lookAppearance": "Ajusta: {{items}}",
+        "lookAdjusted": "Balões ajustados"
       }
     },
     "empty": {

@@ -13,9 +13,11 @@ export function AssistantLookCard({ look, applied, replies }: AssistantLookCardP
   const { t } = useTranslation();
   return (
     <div className="sc-assistant-card sc-assistant-card-look">
-      <p className="sc-assistant-card-title">{t(applied ? 'chat.assistant.card.lookApplied' : 'chat.assistant.card.lookSuggestion')}</p>
-      <AssistantLookPreview look={look} />
-      {replies}
+      <AssistantLookPreview
+        look={look}
+        kicker={t(applied ? 'chat.assistant.card.lookApplied' : 'chat.assistant.card.lookSuggestion')}
+      />
+      <div className="sc-assistant-look-actions">{replies}</div>
     </div>
   );
 }

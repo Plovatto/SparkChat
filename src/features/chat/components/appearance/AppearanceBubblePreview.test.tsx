@@ -47,4 +47,18 @@ describe('AppearanceBubblePreview', () => {
     expect(outgoingBackground()).toBe(expectedOutgoing(otherTheme));
     expect(outgoingBackground()).not.toBe(fromContext);
   });
+
+  it('blurs an image wallpaper even with zero dimming', () => {
+    const value = { theme: contextTheme } as ThemeContextValue;
+    const { container } = render(
+      <ThemeContext value={value}>
+        <AppearanceBubblePreview
+          appearance={{ ...DEFAULT_CHAT_APPEARANCE, overlayOpacity: 0, overlayBlur: 9 }}
+          wallpaper={{ id: 'unsplash1', background: 'url(x.jpg)', isImage: true }}
+        />
+      </ThemeContext>,
+    );
+    const overlay = container.querySelector<HTMLElement>('.sc-appearance-preview-overlay');
+    expect(overlay?.style.backdropFilter).toBe('blur(9px)');
+  });
 });

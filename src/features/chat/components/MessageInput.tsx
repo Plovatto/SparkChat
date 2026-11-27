@@ -32,7 +32,7 @@ import '../styles/composer.css';
 export interface MessageInputHandle {
   focus: () => void;
   addFiles: (files: File[]) => void;
-  openAttachmentPicker: () => void;
+  openAttachmentPicker: (prefillText?: string) => void;
 }
 
 export interface MessageInputSubmitPayload {
@@ -440,7 +440,13 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
   useImperativeHandle(ref, () => ({
     focus: () => inputRef.current?.focus(),
     addFiles: addPendingAttachments,
-    openAttachmentPicker: () => attachmentInputRef.current?.click(),
+    openAttachmentPicker: (prefillText?: string) => {
+      if (prefillText && !messageRef.current.trim()) {
+        messageRef.current = prefillText;
+        setMessage(prefillText);
+      }
+      attachmentInputRef.current?.click();
+    },
   }));
 
   const isComposerEmpty = !message.trim() && pendingAttachments.length === 0;

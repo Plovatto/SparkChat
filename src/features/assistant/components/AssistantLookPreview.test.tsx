@@ -31,28 +31,28 @@ function surface(container: HTMLElement): HTMLElement {
 describe('AssistantLookPreview', () => {
   it('shows theme and wallpaper names for the chosen look', () => {
     render(wrap(<AssistantLookPreview look={{ baseTheme: 'light', colorTheme: 'standard', wallpaper: 'gradient2' }} />));
-    expect(screen.getByText('chat.assistant.card.lookTheme|bases.light · colors.standard')).toBeTruthy();
-    expect(screen.getByText('chat.assistant.card.lookWallpaper|wallpapers.gradient2')).toBeTruthy();
+    expect(screen.getByText('colors.standard').className).toBe('sc-assistant-look-title');
+    expect(screen.getByText('wallpapers.gradient2 · bases.light').className).toBe('sc-assistant-look-detail');
   });
 
   it('falls back to the current wallpaper when the look has none', () => {
     const { container } = render(wrap(<AssistantLookPreview look={{ colorTheme: 'standard' }} />));
     expect(surface(container).style.background).toContain('linear-gradient');
-    expect(screen.queryByText(/lookWallpaper/)).toBeNull();
+    expect(container.querySelector('.sc-assistant-look-detail')).toBeNull();
   });
 
   it('ignores unknown ids without breaking', () => {
     const { container } = render(wrap(<AssistantLookPreview look={{ baseTheme: 'nope', colorTheme: 'nope', wallpaper: 'nope' }} />));
     expect(surface(container)).toBeTruthy();
-    expect(screen.queryByText(/lookTheme/)).toBeNull();
-    expect(screen.queryByText(/lookWallpaper/)).toBeNull();
+    expect(container.querySelector('.sc-assistant-look-title')).toBeNull();
   });
 
   it('lists the appearance fields the look adjusts once each', () => {
-    render(wrap(<AssistantLookPreview look={{ appearance: { overlayOpacity: 50, bubbleBlur: 10, ownBubbleOpacity: 80, ownBubbleColor: '#ffffff' } }} />));
+    render(wrap(<AssistantLookPreview look={{ colorTheme: 'standard', appearance: { overlayOpacity: 50, bubbleBlur: 10, ownBubbleOpacity: 80, ownBubbleColor: '#ffffff' } }} />));
     expect(
       screen.getByText('chat.assistant.card.lookAppearance|chat.appearance.dim, chat.appearance.bubbleBlur, chat.appearanceModal.sent'),
     ).toBeTruthy();
+    expect(screen.getByText('colors.standard').className).toBe('sc-assistant-look-title');
   });
 });
 
