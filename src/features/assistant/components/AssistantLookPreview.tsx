@@ -1,6 +1,4 @@
-import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FaAdjust, FaImage, FaPalette, FaSlidersH } from 'react-icons/fa';
 import { AppearanceBubblePreview } from '@features/chat/components/appearance/AppearanceBubblePreview';
 import { useTheme, useThemeNames } from '@features/theme';
 import type { AssistantLook } from '@lib/assistant/assistant-card';
@@ -8,7 +6,7 @@ import { resolveLook } from '../look-resolve';
 
 interface AssistantLookPreviewProps {
   look: AssistantLook;
-  label?: ReactNode;
+  kicker?: string;
 }
 
 const APPEARANCE_LABEL_KEYS = {
@@ -29,7 +27,7 @@ function labelKeyFor(field: string): AppearanceLabelKey[] {
   return field in APPEARANCE_LABEL_KEYS ? [APPEARANCE_LABEL_KEYS[field as keyof typeof APPEARANCE_LABEL_KEYS]] : [];
 }
 
-export function AssistantLookPreview({ look, label }: AssistantLookPreviewProps) {
+export function AssistantLookPreview({ look, kicker }: AssistantLookPreviewProps) {
   const { t } = useTranslation();
   const { baseTheme, colorTheme, chatSettings } = useTheme();
   const names = useThemeNames();
@@ -38,36 +36,37 @@ export function AssistantLookPreview({ look, label }: AssistantLookPreviewProps)
   const labelKeys = new Set(Object.keys(look.appearance ?? {}).flatMap(labelKeyFor));
   const appearanceItems = [...labelKeys].map((key) => t(key));
 
+  const parts: { name: string; subtitle: string }[] = [];
+  if (resolved.changesColor) {
+    const name = names.color(resolved.colorTheme);
+    parts.push({ name, subtitle: name });
+  }
+  if (resolved.changesWallpaper && resolved.wallpaperId) {
+    const name = names.wallpaper(resolved.wallpaperId);
+    parts.push({ name, subtitle: name });
+  }
+  if (resolved.changesBase) {
+    const name = names.base(resolved.baseTheme);
+    parts.push({ name, subtitle: name });
+  }
+  if (appearanceItems.length > 0) {
+    parts.push({
+      name: t('chat.assistant.card.lookAdjusted'),
+      subtitle: t('chat.assistant.card.lookAppearance', { items: appearanceItems.join(', ') }),
+    });
+  }
+  const [main, ...rest] = parts;
+
   return (
     <>
       <div className="sc-assistant-look-preview">
         <AppearanceBubblePreview appearance={resolved.appearance} wallpaper={resolved.wallpaper} theme={resolved.theme} />
       </div>
       <div className="sc-assistant-look-body">
-        {label}
-        <ul className="sc-assistant-look-tags">
-          {resolved.changesColor && <LookTag icon={<FaPalette size={11} aria-hidden="true" />} text={names.color(resolved.colorTheme)} />}
-          {resolved.changesBase && <LookTag icon={<FaAdjust size={11} aria-hidden="true" />} text={names.base(resolved.baseTheme)} />}
-          {resolved.changesWallpaper && resolved.wallpaperId && (
-            <LookTag icon={<FaImage size={11} aria-hidden="true" />} text={names.wallpaper(resolved.wallpaperId)} />
-          )}
-          {appearanceItems.length > 0 && (
-            <LookTag
-              icon={<FaSlidersH size={11} aria-hidden="true" />}
-              text={t('chat.assistant.card.lookAppearance', { items: appearanceItems.join(', ') })}
-            />
-          )}
-        </ul>
+        {kicker && <p className="sc-assistant-look-kicker">{kicker}</p>}
+        {main && <p className="sc-assistant-look-title">{main.name}</p>}
+        {rest.length > 0 && <p className="sc-assistant-look-detail">{rest.map((part) => part.subtitle).join(' · ')}</p>}
       </div>
     </>
-  );
-}
-
-function LookTag({ icon, text }: { icon: ReactNode; text: string }) {
-  return (
-    <li className="sc-assistant-look-tag">
-      {icon}
-      {text}
-    </li>
   );
 }

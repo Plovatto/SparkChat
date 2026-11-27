@@ -465,9 +465,10 @@
         "confirmDeleteNote": "Delete note: {{preview}}",
         "confirmCancelScheduled": "🗑️ Cancel sending: “{{preview}}”",
         "confirmCancelReminder": "Cancel reminder: {{preview}}",
-        "lookSuggestion": "Look suggestion",
-        "lookApplied": "Look applied",
-        "lookAppearance": "Adjusts: {{items}}"
+        "lookSuggestion": "Suggestion",
+        "lookApplied": "Applied",
+        "lookAppearance": "Adjusts: {{items}}",
+        "lookAdjusted": "Bubbles adjusted"
       }
     },
     "empty": {

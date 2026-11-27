@@ -465,9 +465,10 @@
         "confirmDeleteNote": "Apagar nota: {{preview}}",
         "confirmCancelScheduled": "🗑️ Cancelar envio: “{{preview}}”",
         "confirmCancelReminder": "Cancelar lembrete: {{preview}}",
-        "lookSuggestion": "Sugestão de visual",
-        "lookApplied": "Visual aplicado",
-        "lookAppearance": "Ajusta: {{items}}"
+        "lookSuggestion": "Sugestão",
+        "lookApplied": "Aplicado",
+        "lookAppearance": "Ajusta: {{items}}",
+        "lookAdjusted": "Balões ajustados"
       }
     },
     "empty": {
