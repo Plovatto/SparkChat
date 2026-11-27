@@ -769,17 +769,19 @@ export const MessageInput = forwardRef<MessageInputHandle, MessageInputProps>(fu
               }}
             />
           )}
-          <button
-            type="button"
-            onClick={() => attachmentInputRef.current?.click()}
-            disabled={isBlocked}
-            title={blockedTitle ?? t('chat.input.attach')}
-            aria-label={t('chat.input.attach')}
-            data-testid="attach-button"
-            className="sc-composer-icon"
-          >
-            <LuPaperclip size={19} />
-          </button>
+          {!message.trim() && (
+            <button
+              type="button"
+              onClick={() => attachmentInputRef.current?.click()}
+              disabled={isBlocked}
+              title={blockedTitle ?? t('chat.input.attach')}
+              aria-label={t('chat.input.attach')}
+              data-testid="attach-button"
+              className="sc-composer-icon sc-anim-send-in"
+            >
+              <LuPaperclip size={19} />
+            </button>
+          )}
         </div>
         {message.trim() || pendingAttachments.length > 0 ? (
           <button key="send" type="submit" title={t('chat.input.send')} aria-label={t('chat.input.send')} data-testid="send-button" className="sc-composer-action sc-anim-send-in">
