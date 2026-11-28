@@ -8,7 +8,7 @@ import { isGifMimeType } from '@lib/media/media-type';
 import type { MessageReplySnapshot, MessageType } from '@lib/socket';
 import { useReplyVideoThumbnail } from '../hooks/useReplyVideoThumbnail';
 import { getFileTypeIcon } from '../utils/get-file-type-icon';
-import { jumpToMessage } from '../utils/jump-to-message';
+import { useJumpToMessageAction } from '../hooks/useJumpToMessage';
 import { toLocalMediaUrl } from '../utils/safe-media-url';
 
 const REPLY_QUOTE_HEIGHT = 52;
@@ -23,6 +23,7 @@ interface MessageReplyQuoteProps {
 
 export function MessageReplyQuote({ replyTo, parentType, isOwn, bubble, currentUserId }: MessageReplyQuoteProps) {
   const { t } = useTranslation();
+  const jumpToMessage = useJumpToMessageAction();
   const isDeleted = replyTo.deleted === true;
   const isReplyToImage = !isDeleted && replyTo.type === 'image' && !isGifMimeType(replyTo.fileMeta?.mimeType);
   const isReplyToVideo = !isDeleted && replyTo.type === 'file' && Boolean(replyTo.fileMeta?.mimeType.startsWith('video/'));
