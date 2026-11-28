@@ -34,7 +34,7 @@ import { useTypingIndicator } from '../hooks/useTypingIndicator';
 import { ASSISTANT_MAX_TEXT_CHARS, isAssistantRoom } from '../utils/assistant';
 import { shouldShowAutoTranslateBanner } from '../utils/auto-translate-suggestion';
 import { finalizeComposerLinkPreview } from '../utils/composer-link-preview';
-import { jumpToMessage } from '../utils/jump-to-message';
+import { JumpToMessageContext, useJumpToMessage } from '../hooks/useJumpToMessage';
 import { isSelectableMessage, resolveDeleteOptions } from '../utils/delete-options';
 import type { TranslationMode } from '../utils/message-translation';
 import { parseMentionedUserIds } from '../utils/parse-mentions';
@@ -331,6 +331,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
     reactToMessage,
     reactionFailure,
   } = useRoomMessages(room?.id ?? null, messageSender, captureScrollAnchor);
+  const revealMessage = useJumpToMessage({ roomId: room?.id ?? null, messageCount: messages.length, hasMoreOlder, isLoadingOlder, loadOlderMessages });
   const failedQuickReplyTokens = useMemo(() => {
     const tokens = new Map<string, string>();
     for (const message of messages) {
@@ -852,9 +853,9 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
       if (!isInfoInline) {
         setIsInfoOpen(false);
       }
-      window.setTimeout(() => jumpToMessage(messageId), SHOW_IN_CHAT_DELAY_MS);
+      window.setTimeout(() => revealMessage(messageId), SHOW_IN_CHAT_DELAY_MS);
     },
-    [isInfoInline],
+    [isInfoInline, revealMessage],
   );
 
   const handleAudioPlayed = useCallback(
@@ -1652,6 +1653,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
   return (
     <RoomTranslationContext.Provider value={roomTranslation}>
       <ActiveRoomContext.Provider value={room}>
+        <JumpToMessageContext.Provider value={revealMessage}>
         <MediaViewerProvider
           messages={messages}
           participants={room.participants}
@@ -1661,6 +1663,7 @@ export function ChatArea({ room, rooms, user, onBack, onInfoColumnChange }: Chat
         >
           {content}
         </MediaViewerProvider>
+        </JumpToMessageContext.Provider>
       </ActiveRoomContext.Provider>
     </RoomTranslationContext.Provider>
   );

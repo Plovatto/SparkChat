@@ -63,7 +63,7 @@ export interface RoomMessagesState {
   recordingUserIds: string[];
   sendMessage: (input: SendMessageInput) => void;
   retryMessage: (clientTempId: string) => void;
-  loadOlderMessages: () => void;
+  loadOlderMessages: (limit?: number) => void;
   hideMessages: (messageIds: string[]) => void;
   hideFailure: HideFailure | null;
   dismissHideFailure: () => void;
@@ -192,6 +192,7 @@ export function useRoomMessages(
   const isRefreshingLatestRef = useRef(false);
   const hasUnreadWhileHiddenRef = useRef(false);
   const isLoadingOlderRef = useRef(false);
+  const olderPageLimitRef = useRef(MESSAGES_PAGE_SIZE);
   const loadOlderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialPageRef = useRef(false);
   const pendingHidesRef = useRef<PendingHide[]>([]);
@@ -411,7 +412,7 @@ export function useRoomMessages(
           const olderPage = oldest
             ? sortedPage.filter((message) => new Date(message.timestamp).getTime() < new Date(oldest.timestamp).getTime())
             : sortedPage;
-          const olderMessages = olderPage.slice(-MESSAGES_PAGE_SIZE).filter((message) => !existingIds.has(message.id));
+          const olderMessages = olderPage.slice(-olderPageLimitRef.current).filter((message) => !existingIds.has(message.id));
           return olderMessages.length > 0 ? [...olderMessages, ...previous] : previous;
         });
         if (sortedPage.length > 0) {
@@ -776,15 +777,16 @@ export function useRoomMessages(
 
   useEffect(() => clearPendingReactions, [clearPendingReactions]);
 
-  const loadOlderMessages = useCallback(() => {
+  const loadOlderMessages = useCallback((limit: number = MESSAGES_PAGE_SIZE) => {
     const oldest = messagesRef.current[0];
     if (!socket || !roomId || !oldest || isLoadingOlderRef.current || !hasMoreOlder) {
       return;
     }
 
     isLoadingOlderRef.current = true;
+    olderPageLimitRef.current = limit;
     setIsLoadingOlder(true);
-    socket.emit('messages:get', { roomId, before: oldest.timestamp, limit: MESSAGES_PAGE_SIZE });
+    socket.emit('messages:get', { roomId, before: oldest.timestamp, limit });
 
     clearLoadOlderTimeout();
     loadOlderTimeoutRef.current = setTimeout(() => {

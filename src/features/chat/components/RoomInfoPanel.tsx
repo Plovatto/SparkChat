@@ -17,7 +17,7 @@ import { translate } from '@lib/i18n/app-i18n';
 import { useSocket, type MessageView, type RoomParticipant, type RoomSummary } from '@lib/socket';
 import { isAssistantRoom } from '../utils/assistant';
 import { getGalleryMedia } from '../utils/gallery-media';
-import { jumpToMessage } from '../utils/jump-to-message';
+import { useJumpToMessageAction } from '../hooks/useJumpToMessage';
 import { useConsumeViewRequest } from '../hooks/useConsumeViewRequest';
 import { ChatAppearanceActions, ChatAppearanceView } from './ChatAppearanceView';
 import { ContactSecurityLink } from './ContactSecurityLink';
@@ -133,6 +133,7 @@ function FooterRow({ icon, label, onClick, tone, withChevron = false }: FooterRo
 
 export function RoomInfoPanel({ isOpen, inline = false, onClose, room, currentUserId, messages, messagesLoaded, onLeftGroup, autoTranslate, requestedView }: RoomInfoPanelProps) {
   const { t } = useTranslation();
+  const jumpToMessage = useJumpToMessageAction();
   const { socket } = useSocket();
   const clipboard = useClipboardCopy();
   const [view, setView] = useState<InfoView>('main');
